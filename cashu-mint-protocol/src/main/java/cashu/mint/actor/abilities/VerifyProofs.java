@@ -44,12 +44,12 @@ public class VerifyProofs implements Ability<Void> {
         private final PostSwapRequest request;
 
         @Override
-        public Void execute() throws CashuException {
+        public Void execute() {
             try {
                 validateAmounts();
                 verifyProofs(request.getProofs(), mint);
             } catch (RuntimeException | InvalidObjectException e) {
-                throw new CashuException(e);
+                throw new RuntimeException(e);
             }
 
             return null;
