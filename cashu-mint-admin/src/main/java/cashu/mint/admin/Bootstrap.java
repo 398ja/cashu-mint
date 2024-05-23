@@ -17,6 +17,7 @@ import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Bootstrap {
 
@@ -62,11 +63,11 @@ public class Bootstrap {
 
     private static List<String> getUnits() {
         InputStream is = Bootstrap.class.getResourceAsStream("/app.properties");
-        return Configuration.load(is).getValues("units");
+        return Configuration.load(Objects.requireNonNull(is)).getValues("units");
     }
 
     private static List<Integer> getKeys(String unit) {
         InputStream is = Bootstrap.class.getResourceAsStream("/keyset.properties");
-        return Configuration.load(is).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
+        return Configuration.load(Objects.requireNonNull(is)).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
     }
 }

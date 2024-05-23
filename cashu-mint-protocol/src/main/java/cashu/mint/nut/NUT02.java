@@ -8,6 +8,7 @@ import lombok.extern.java.Log;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Level;
 
 import static cashu.mint.nut.NUT01.generateKeySet;
@@ -35,7 +36,7 @@ public class NUT02 {
     }
 
     private static List<String> getUnits() {
-        Configuration configuration = Configuration.load(NUT01.class.getResourceAsStream("/app.properties"));
+        Configuration configuration = Configuration.load(Objects.requireNonNull(NUT01.class.getResourceAsStream("/app.properties")));
         return configuration.getValues("units");
     }
 }

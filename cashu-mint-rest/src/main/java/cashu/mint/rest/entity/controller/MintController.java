@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Level;
 
 @Log
@@ -54,8 +55,8 @@ public class MintController {
     }
 
     @PostMapping("/swap")
-    public PostSwapResponse swap(@RequestBody PostSwapRequest request) throws CashuException {
-        return NUT03.swap(request, getMint());
+    public PostSwapResponse swap(@RequestBody PostSwapRequest request) {
+        return NUT03.swap(request, Objects.requireNonNull(getMint()));
     }
 
     @PostMapping("/mint/quote/{method}")
@@ -75,7 +76,7 @@ public class MintController {
 
     @PostMapping("/mint/{method}")
     public PostMintResponse mint(@RequestBody PostMintRequest request, @PathVariable String method) {
-        return NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()), getMint());
+        return NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()), Objects.requireNonNull(getMint()));
     }
 
     @PostMapping("/melt/quote/{method}")
@@ -95,7 +96,7 @@ public class MintController {
 
     @PostMapping("/melt/{method}")
     public PostMeltResponse melt(@RequestBody PostMeltRequest request, @PathVariable String method) {
-        return NUT05.melt(request, PaymentMethod.valueOf(method.toUpperCase()), getMint());
+        return NUT05.melt(request, PaymentMethod.valueOf(method.toUpperCase()), Objects.requireNonNull(getMint()));
     }
 
     @GetMapping("/info")

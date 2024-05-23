@@ -7,6 +7,8 @@ import lombok.NonNull;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.UUID;
 
@@ -23,12 +25,14 @@ public class MockGateway implements Gateway {
     public String getRequest(@NonNull String quoteId) {
         var url = BASE_URL + "/mint/quote/" + quoteId;
         try {
-            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+            HttpURLConnection con = (HttpURLConnection) new URI(url).toURL().openConnection();
             con.setRequestMethod("GET");
             if (con.getResponseCode() == HttpURLConnection.HTTP_OK) {
                 return new ObjectMapper().readTree(con.getInputStream()).get("request").asText();
             }
         } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
         throw new RuntimeException("Failed to get request");

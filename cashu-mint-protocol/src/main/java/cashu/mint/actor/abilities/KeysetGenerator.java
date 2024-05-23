@@ -15,6 +15,7 @@ import lombok.extern.java.Log;
 
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
@@ -57,7 +58,7 @@ public class KeysetGenerator implements Ability<KeySet> {
         // TODO - Retrieve the public key from the vault
         private Keys getKeys() {
             log.log(Level.FINEST, "getKeys()");
-            Configuration configuration = Configuration.load(KeysetGenerator.class.getResourceAsStream("/keyset.properties"));
+            Configuration configuration = Configuration.load(Objects.requireNonNull(KeysetGenerator.class.getResourceAsStream("/keyset.properties")));
             Keys keys = new Keys();
 
             String prefix = "key_" + unit + "_";

@@ -7,7 +7,6 @@
 		<artifactId>cashu-mint</artifactId>
 		<version>0.1-SNAPSHOT</version>
 	</parent>
-	<groupId>cashu-java</groupId>
 	<artifactId>cashu-mint-rest</artifactId>
 	<version>0.1-SNAPSHOT</version>
 	<name>cashu-mint-rest</name>

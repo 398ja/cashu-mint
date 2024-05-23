@@ -1,9 +1,7 @@
 package cashu.mint.rest.entity.controller;
 
 import cashu.mint.rest.entity.MeltQuote;
-import cashu.mint.rest.entity.MintQuote;
 import cashu.mint.rest.entity.repository.MeltQuoteRepository;
-import cashu.mint.rest.entity.repository.MintQuoteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

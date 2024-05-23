@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 
 public class NUT06 {
@@ -72,7 +73,7 @@ public class NUT06 {
                 ((MintInformation.NutMethodsConfig) nutConfig).addMethod(method);
             } else if (type.equals("supported")) {
                 boolean supported = Boolean.parseBoolean(properties.getProperty(key));
-                ((MintInformation.NutSupportConfig) nutConfig).setSupported(supported);
+                ((MintInformation.NutSupportConfig) Objects.requireNonNull(nutConfig)).setSupported(supported);
             }
             nuts.put(nutNumber, nutConfig);
         });
