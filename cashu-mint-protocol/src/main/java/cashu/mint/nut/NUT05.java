@@ -8,22 +8,31 @@ import cashu.common.model.rest.PostMeltResponse;
 import cashu.crypto.BDHKEUtils;
 import cashu.mint.actor.Mint;
 import cashu.mint.gateway.Gateway;
+import cashu.util.ThreadUtil;
+import lombok.Getter;
 import lombok.NonNull;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
 import static cashu.mint.nut.NUT04.createGateway;
 
 public class NUT05 {
 
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest request, @NonNull PaymentMethod method) {
-        Gateway gateway = createGateway(method);
+        var gateway = createGateway(method);
+        var quoteId = UUID.randomUUID();
+        var feeReserve = gateway.getFeeReserve(request.getRequestId());
+        var expiry = gateway.getPaymentExpiry(quoteId.toString());
+        var amount = gateway.getAmount(quoteId.toString());
+
         return PostMeltQuoteResponse
                 .builder()
-                .quoteId(UUID.randomUUID().toString())
-                .feeReserve(gateway.getFeeReserve(request.getRequestId()))
-                .expiry(gateway.getPaymentExpiry())
+                .quoteId(quoteId.toString())
+                .feeReserve(feeReserve)
+                .expiry(expiry) // TODO - check if this is correct
+                .amount(amount)
                 .build();
     }
 
@@ -32,24 +41,59 @@ public class NUT05 {
         return PostMeltQuoteResponse
                 .builder()
                 .quoteId(quoteId)
-                .expiry(gateway.getPaymentExpiry())
+                .expiry(gateway.getPaymentExpiry(quoteId))
                 .paid(gateway.checkPaymentStatus(quoteId))
                 .build();
     }
 
-    // TODO - handle thread-safety and concurrency
     public static PostMeltResponse melt(@NonNull PostMeltRequest request, @NonNull PaymentMethod method, @NonNull Mint mint) {
-        Gateway gateway = createGateway(method);
-        var proofs = request.getProofs();
-        proofs.forEach(proof -> {
-            try {
-                BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
+        var task = new MeltTask(request, method, mint);
+        try {
+            ThreadUtil.builder().blocking(true).task(task).lock(ThreadUtil.Locks.LOCK45).build().run();
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
+        }
+        return task.getResult();
+    }
+
+    static class MeltTask implements ThreadUtil.Task<PostMeltResponse> {
+        private final PostMeltRequest request;
+        private final PaymentMethod method;
+        private final Mint mint;
+
+        @Getter
+        private PostMeltResponse result;
+
+        public MeltTask(PostMeltRequest request, PaymentMethod method, Mint mint) {
+            this.request = request;
+            this.method = method;
+            this.mint = mint;
+        }
+
+        @Override
+        public PostMeltResponse execute() {
+            Gateway gateway = createGateway(method);
+            var proofs = request.getProofs();
+            var totalAmount = proofs.stream().mapToInt(proof -> proof.getAmount()).sum();
+            proofs.forEach(proof -> {
+                try {
+                    BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
+                } catch (NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            var amount = gateway.getAmount(request.getQuoteId());
+            var fee_reserve = gateway.getFeeReserve(request.getQuoteId());
+
+            if(totalAmount < amount + fee_reserve) {
+                throw new RuntimeException("Proofs and blinded messages amounts do not match");
             }
-        });
-        gateway.pay(request.getQuoteId());
-        return new PostMeltResponse(gateway.checkPaymentStatus(request.getQuoteId()), gateway.getPaymentPreimage(request.getQuoteId()));
+
+            gateway.pay(request.getQuoteId());
+            result = new PostMeltResponse(gateway.checkPaymentStatus(request.getQuoteId()), gateway.getPaymentPreimage(request.getQuoteId()));
+            return result;
+        }
     }
 
 }

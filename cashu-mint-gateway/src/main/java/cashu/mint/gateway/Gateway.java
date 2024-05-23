@@ -12,7 +12,11 @@ public interface Gateway {
 
     void pay(String quoteId);
 
-    int getPaymentExpiry();
+    int getAmount(String quoteId);
+
+    int getPaymentExpiry(String quoteId);
 
     int getFeeReserve(String requestId);
+
+    String getMethod();
 }

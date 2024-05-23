@@ -7,10 +7,10 @@
         <version>0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>cashu-mint-protocol</artifactId>
+    <artifactId>cashu-mint-gateway-mock</artifactId>
     <packaging>jar</packaging>
 
-    <name>cashu-mint-protocol</name>
+    <name>cashu-mint-gateway-ln</name>
     <url>http://maven.apache.org</url>
 
     <properties>
@@ -20,32 +20,12 @@
     <dependencies>
         <dependency>
             <groupId>cashu-java</groupId>
-            <artifactId>cashu-lib-common</artifactId>
-            <version>0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>cashu-java</groupId>
-            <artifactId>cashu-lib-crypto</artifactId>
-            <version>0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>cashu-java</groupId>
-            <artifactId>cashu-lib-util</artifactId>
-            <version>0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>cashu-java</groupId>
             <artifactId>cashu-mint-gateway</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>cashu-java</groupId>
-            <artifactId>cashu-mint-gateway-mock</artifactId>
-            <version>0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>cashu-java</groupId>
-            <artifactId>cashu-lib-vault</artifactId>
+            <artifactId>cashu-lib-common</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
     </dependencies>

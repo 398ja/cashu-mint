@@ -4,6 +4,9 @@ import cashu.common.model.MintInformation;
 import cashu.common.model.PublicKey;
 import lombok.NonNull;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -76,10 +79,19 @@ public class NUT06 {
         return nuts;
     }
 
-    // TODO: Implement this method
-    // The properties file location is under the base directory of the project
-    // The base directory is provided in the app configuration file
     private static Properties getProperties() {
-        return new Properties();
+        Properties properties = new Properties();
+        String propertiesFilePath = System.getProperty("mint.properties");
+
+        try (InputStream input = propertiesFilePath != null ? new FileInputStream(propertiesFilePath) : NUT06.class.getClassLoader().getResourceAsStream("mint.properties")) {
+            if (input == null) {
+                throw new IOException("Unable to find properties file.");
+            }
+            properties.load(input);
+        } catch (IOException ex) {
+            throw new RuntimeException("Unable to load properties file.", ex);
+        }
+
+        return properties;
     }
 }

@@ -3,7 +3,6 @@ package cashu.mint.actor;
 import cashu.common.model.KeySet;
 import cashu.common.model.PrivateKey;
 import cashu.common.protocol.Actor;
-import cashu.util.Utils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,7 +20,7 @@ public class Mint implements Actor {
     private final Set<KeySet> keySets;
 
     public Mint() {
-        this(PrivateKey.fromBytes(Utils.generatePrivateKey()));
+        this(PrivateKey.generate());
     }
 
     public Mint(@NonNull PrivateKey privateKey) {
