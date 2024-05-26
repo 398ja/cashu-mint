@@ -1,12 +1,13 @@
 package cashu.mint.nut;
 
 import cashu.common.model.BlindSignature;
+import cashu.common.model.Mint;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
-import cashu.mint.actor.Mint;
 import cashu.mint.actor.abilities.InvalidateProofs;
 import cashu.mint.actor.abilities.SignBlindedMessage;
 import cashu.mint.actor.abilities.VerifyProofs;
+import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 
 import java.util.ArrayList;
@@ -14,7 +15,10 @@ import java.util.Comparator;
 
 public class NUT03 {
 
-    public static PostSwapResponse swap(@NonNull PostSwapRequest request, @NonNull Mint mint) {
+    public static PostSwapResponse swap(@NonNull PostSwapRequest request) {
+
+        Mint mint = FSMintVault.load(false, true);
+
         // Verify proofs
         new VerifyProofs(mint, request).apply();
 
@@ -24,7 +28,7 @@ public class NUT03 {
         // Issue new signatures
         var blindSignatures = new ArrayList<BlindSignature>();
         var blindedMessages = request.getBlindedMessages();
-        blindedMessages.stream().forEach(bm -> {
+        blindedMessages.forEach(bm -> {
             var blindSignature = new SignBlindedMessage(mint, bm).apply();
             blindSignatures.add(blindSignature);
         });

@@ -1,12 +1,16 @@
 package cashu.mint.nut;
 
 import cashu.common.annotation.Nut;
+import cashu.common.model.ActiveKeySet;
 import cashu.common.model.KeySet;
+import cashu.common.model.Mint;
 import cashu.util.Configuration;
+import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -17,13 +21,13 @@ import static cashu.mint.nut.NUT01.generateKeySet;
 @Nut(2)
 public class NUT02 {
 
-    public static List<KeySet> keysets() {
+    public static List<KeySet> keys() {
         log.log(Level.FINEST, "keysets()");
         List<KeySet> keySets = new ArrayList<>();
         var units = getUnits();
-        log.log(Level.FINEST, "units: {0}", units);
+        log.log(Level.INFO, "units: {0}", units);
 
-        units.stream().forEach(unit -> {
+        units.forEach(unit -> {
             keySets.add(generateKeySet(unit));
         });
 
@@ -31,8 +35,53 @@ public class NUT02 {
     }
 
     public static KeySet keys(@NonNull String keysetId) {
-        var keySets = keysets();
-        return keySets.stream().filter(keySet -> keySet.getId().equals(keysetId)).findFirst().orElse(null);
+        var keySets = keySets();
+        return keySets.stream().filter(keySet -> keySet.getId().equals(keysetId)).findFirst().orElseThrow();
+    }
+
+    public static List<ActiveKeySet> activeKeySets() {
+        log.log(Level.INFO, "keySets()");
+        List<ActiveKeySet> activeKeySets = new ArrayList<>();
+        activeKeySets.addAll(activeKeySets(false));
+        activeKeySets.addAll(activeKeySets(true));
+
+        // Sort the activeKeySets list by id
+        activeKeySets.sort(Comparator.comparing(ActiveKeySet::getId));
+
+        return activeKeySets;
+    }
+
+    private static List<KeySet> keySets() {
+        log.log(Level.INFO, "keySets()");
+
+        List<KeySet> result = new ArrayList<>();
+        result.addAll(keySets(false));
+        result.addAll(keySets(true));
+
+        return result;
+    }
+
+    private static List<KeySet> keySets(boolean archive) {
+        log.log(Level.INFO, "keySets({0})", archive);
+
+        List<KeySet> result = new ArrayList<>();
+        Mint mint = FSMintVault.load(archive);
+
+        if (mint != null) {
+            result.addAll(mint.getKeySets());
+        }
+
+        return result;
+    }
+
+    private static List<ActiveKeySet> activeKeySets(boolean archive) {
+        log.log(Level.INFO, "keySets({0})", archive);
+
+        List<ActiveKeySet> result = new ArrayList<>();
+        List<KeySet> keySets = keySets(archive);
+        keySets.stream().map(keySet -> ActiveKeySet.fromKeySet(keySet, !archive)).forEach(result::add);
+
+        return result;
     }
 
     private static List<String> getUnits() {

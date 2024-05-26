@@ -2,12 +2,12 @@ package cashu.mint.actor.abilities;
 
 import cashu.common.annotation.Nut;
 import cashu.common.model.BlindedMessage;
+import cashu.common.model.Mint;
 import cashu.common.model.Proof;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.protocol.Ability;
 import cashu.common.protocol.CashuException;
 import cashu.crypto.BDHKEUtils;
-import cashu.mint.actor.Mint;
 import cashu.util.ThreadUtil;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
@@ -68,14 +68,14 @@ public class VerifyProofs implements Ability<Void> {
         }
 
         private void verifyProofs(@NonNull List<Proof> proofs, @NonNull Mint mint) {
-            proofs.stream()
+            proofs
                     .forEach(proof -> {
                         // Check if proof has been used already
                         MintConfiguration mintConfiguration = new MintConfiguration(mint.getPrivateKey().toString());
                         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), proof.getSecret().toString());
                         FSProofVault proofVault = new FSProofVault(proofConfiguration);
                         try {
-                            var usedProof = proofVault.retrieve(proof.getSecret().toString());
+                            var usedProof = proofVault.retrieve(proof.getSecret().toString(), false);
                             if (usedProof != null) {
                                 throw new RuntimeException("Proof has already been used");
                             }

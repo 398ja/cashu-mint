@@ -3,16 +3,17 @@ package cashu.mint.nut;
 import cashu.common.annotation.Nut;
 import cashu.common.model.BlindSignature;
 import cashu.common.model.BlindedMessage;
+import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
 import cashu.common.model.Signature;
 import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
 import cashu.crypto.BDHKEUtils;
-import cashu.mint.actor.Mint;
 import cashu.mint.gateway.Gateway;
 import cashu.mint.gateway.mock.MockGateway;
 import cashu.util.ThreadUtil;
+import cashu.vault.impl.fs.FSMintVault;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -48,7 +49,8 @@ public class NUT04 {
                 .build();
     }
 
-    public static PostMintResponse mint(@NonNull PostMintRequest request, @NonNull PaymentMethod method, @NonNull Mint mint) {
+    public static PostMintResponse mint(@NonNull PostMintRequest request, @NonNull PaymentMethod method) {
+        Mint mint = FSMintVault.load(false, true);
         var task = new MintTask(request, method, mint);
         try {
             ThreadUtil.builder().blocking(true).task(task).lock(ThreadUtil.Locks.LOCK45).build().run();

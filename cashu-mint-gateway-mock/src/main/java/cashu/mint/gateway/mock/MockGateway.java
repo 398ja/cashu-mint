@@ -9,12 +9,11 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.UUID;
 
 public class MockGateway implements Gateway {
 
-    private static final String BASE_URL = "http://localhost:8080/v1";
+    private static final String BASE_URL = "http://localhost:7777";
 
     @Override
     public String createRequest(int amount) {
@@ -30,9 +29,7 @@ public class MockGateway implements Gateway {
             if (con.getResponseCode() == HttpURLConnection.HTTP_OK) {
                 return new ObjectMapper().readTree(con.getInputStream()).get("request").asText();
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (URISyntaxException e) {
+        } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
         }
         throw new RuntimeException("Failed to get request");

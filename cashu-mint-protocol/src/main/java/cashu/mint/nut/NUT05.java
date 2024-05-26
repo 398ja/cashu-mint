@@ -1,14 +1,15 @@
 package cashu.mint.nut;
 
+import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.PostMeltQuoteRequest;
 import cashu.common.model.rest.PostMeltQuoteResponse;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
 import cashu.crypto.BDHKEUtils;
-import cashu.mint.actor.Mint;
 import cashu.mint.gateway.Gateway;
 import cashu.util.ThreadUtil;
+import cashu.vault.impl.fs.FSMintVault;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -46,7 +47,9 @@ public class NUT05 {
                 .build();
     }
 
-    public static PostMeltResponse melt(@NonNull PostMeltRequest request, @NonNull PaymentMethod method, @NonNull Mint mint) {
+    public static PostMeltResponse melt(@NonNull PostMeltRequest request, @NonNull PaymentMethod method) {
+        Mint mint = FSMintVault.load(false, true);
+
         var task = new MeltTask(request, method, mint);
         try {
             ThreadUtil.builder().blocking(true).task(task).lock(ThreadUtil.Locks.LOCK45).build().run();

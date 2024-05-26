@@ -2,8 +2,9 @@ package cashu.mint.admin;
 
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
+import cashu.common.model.Mint;
 import cashu.common.model.PrivateKey;
-import cashu.mint.actor.Mint;
+import cashu.mint.nut.NUT01;
 import cashu.util.Configuration;
 import cashu.vault.config.KeyConfiguration;
 import cashu.vault.config.KeysetConfiguration;
@@ -35,22 +36,18 @@ public class Bootstrap {
         new FSMintVault(new MintConfiguration(mint.getPrivateKey().toString())).store();
 
         for (String unit : getUnits()) {
-            KeySet keySet = new KeySet();
-            keySet.setUnit(unit);
-            mint.addKeySet(keySet);
-
             Map<BigInteger, PrivateKey> keysMap = new HashMap<>();
             Keys keys = new Keys();
             for (Integer key : getKeys(unit)) {
-                PrivateKey privateKey = PrivateKey.generate();
+                PrivateKey privateKey = PrivateKey.generateRandom();
                 keysMap.put(BigInteger.valueOf(key), privateKey);
                 keys.put(BigInteger.valueOf(key), PrivateKey.derivePublicKey(privateKey));
             }
 
-            keySet.setKeys(keys);
+            KeySet keySet = NUT01.generateKeySet(unit, keys);
             mint.addKeySet(keySet);
 
-            KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(mint.getPrivateKey().toString()), unit, keySet.toString());
+            KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(mint.getPrivateKey().toString()), keySet.getId(), keySet.getUnit());
             new FSKeysetVault(keysetConfiguration).store();
 
             for (BigInteger key : keysMap.keySet()) {

@@ -22,6 +22,11 @@
 		</dependency>
 		<dependency>
 			<groupId>cashu-java</groupId>
+			<artifactId>cashu-lib-vault</artifactId>
+			<version>0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>cashu-java</groupId>
 			<artifactId>cashu-mint-protocol</artifactId>
 			<version>0.1-SNAPSHOT</version>
 		</dependency>

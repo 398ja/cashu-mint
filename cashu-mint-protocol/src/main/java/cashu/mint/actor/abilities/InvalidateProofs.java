@@ -1,10 +1,10 @@
 package cashu.mint.actor.abilities;
 
 import cashu.common.annotation.Nut;
+import cashu.common.model.Mint;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.protocol.Ability;
 import cashu.common.protocol.CashuException;
-import cashu.mint.actor.Mint;
 import cashu.util.ThreadUtil;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
@@ -39,7 +39,7 @@ public class InvalidateProofs implements Ability<Void> {
         @Override
         public Void execute() {
             MintConfiguration mintConfiguration = new MintConfiguration(mint.getPrivateKey().toString());
-            request.getProofs().stream()
+            request.getProofs()
                     .forEach(proof -> {
                         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), proof.getSecret().toString());
                         FSProofVault proofVault = new FSProofVault(proofConfiguration);

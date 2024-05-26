@@ -3,19 +3,23 @@ package cashu.mint.actor.abilities;
 import cashu.common.annotation.Nut;
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
-import cashu.common.model.PrivateKey;
 import cashu.common.protocol.Ability;
 import cashu.crypto.KeySetDerivation;
-import cashu.util.Configuration;
 import cashu.util.ThreadUtil;
+import cashu.vault.FSVault;
+import cashu.vault.impl.fs.FSKeyVault;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.math.BigInteger;
-import java.util.Map;
-import java.util.Objects;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
@@ -34,7 +38,7 @@ public class KeysetGenerator implements Ability<KeySet> {
         } catch (TimeoutException e) {
             throw new RuntimeException(e);
         }
-        return task.getResult();
+        return task.getKeySet();
     }
 
     static class KeysetGeneratorTask implements ThreadUtil.Task<KeySet> {
@@ -42,7 +46,7 @@ public class KeysetGenerator implements Ability<KeySet> {
         private final String unit;
 
         @Getter
-        private KeySet result;
+        private KeySet keySet;
 
         public KeysetGeneratorTask(@NonNull String unit) {
             this.unit = unit;
@@ -50,26 +54,45 @@ public class KeysetGenerator implements Ability<KeySet> {
 
         @Override
         public KeySet execute() {
+            log.log(Level.INFO, "execute()");
             Keys keys = getKeys();
-            result = KeySet.builder().unit(unit).keys(keys).id(KeySetDerivation.deriveKeySetId(keys)).build();
-            return result;
+            log.log(Level.INFO, "Keys: {0}", keys);
+            keySet = KeySet.builder().unit(unit).keys(keys).build();
+            KeySetDerivation keySetDerivation = new KeySetDerivation(keySet);
+            keySetDerivation.deriveKeySetId();
+            return keySet;
         }
 
-        // TODO - Retrieve the public key from the vault
         private Keys getKeys() {
-            log.log(Level.FINEST, "getKeys()");
-            Configuration configuration = Configuration.load(Objects.requireNonNull(KeysetGenerator.class.getResourceAsStream("/keyset.properties")));
-            Keys keys = new Keys();
+            log.log(Level.INFO, "getKeys()");
 
-            String prefix = "key_" + unit + "_";
-            Map<String, String> matchingKeys = configuration.getMatching(prefix);
-            matchingKeys.keySet().stream().forEach(key -> {
-                BigInteger index = BigInteger.valueOf(Long.parseLong(matchingKeys.get(key).split(":")[0]));
-                String privateKey = matchingKeys.get(key).split(":")[1].trim();
-                keys.put(index, PrivateKey.derivePublicKey(PrivateKey.fromString(privateKey)));
-            });
-            return keys;
+            // <vault_basedir>/mint/<private_key>/<unit>/<key_index>/[private_key]
+            var baseDir = FSVault.getBaseDir(false);
+            log.log(Level.INFO, "Base directory: {0}", baseDir);
+            try {
+                Optional<Path> mintPath = Files.list(Paths.get(baseDir, "mint"))
+                        .filter(Files::isDirectory)
+                        .max(Comparator.comparingLong(p -> {
+                            try {
+                                return Files.getLastModifiedTime(p).toMillis();
+                            } catch (IOException e) {
+                                log.log(Level.SEVERE, "Failed to get last modified time: {0}", p);
+                                throw new UncheckedIOException(e);
+                            }
+                        }));
+
+                if (mintPath.isPresent()) {
+                    log.log( Level.FINE, "Most recent directory: {0}", mintPath.get());
+                    var privateKey = mintPath.get().getFileName().toString();
+                    return FSKeyVault.get(privateKey, unit);
+                } else {
+                    log.log(Level.SEVERE, "No directories found");
+                    throw new RuntimeException("No directories found");
+                }
+            } catch (IOException e) {
+                log.log(Level.SEVERE, "Failed to list directories", e);
+                throw new RuntimeException(e);
+            }
         }
-
     }
 }
