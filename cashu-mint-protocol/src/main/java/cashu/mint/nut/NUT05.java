@@ -79,11 +79,7 @@ public class NUT05 {
             var proofs = request.getProofs();
             var totalAmount = proofs.stream().mapToInt(proof -> proof.getAmount()).sum();
             proofs.forEach(proof -> {
-                try {
-                    BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
-                } catch (NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
+                BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
             });
 
             var amount = gateway.getAmount(request.getQuoteId());

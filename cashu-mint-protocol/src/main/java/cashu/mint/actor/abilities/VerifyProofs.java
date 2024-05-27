@@ -90,12 +90,8 @@ public class VerifyProofs implements Ability<Void> {
 
                         var C = proof.getUnblindedSignature().getBytes();
                         var secret = proof.getSecret();
-                        try {
-                            if (!BDHKEUtils.verify(secret.toString(), mint.getPrivateKey().getBytes(), C)) {
-                                throw new RuntimeException("Verification failed. The secret and the unblinded key do not match.");
-                            }
-                        } catch (NoSuchAlgorithmException e) {
-                            throw new RuntimeException(e);
+                        if (!BDHKEUtils.verify(secret.toString(), mint.getPrivateKey().getBytes(), C)) {
+                            throw new RuntimeException("Verification failed. The secret and the unblinded key do not match.");
                         }
                     });
         }
