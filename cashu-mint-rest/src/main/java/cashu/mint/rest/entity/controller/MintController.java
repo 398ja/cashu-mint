@@ -26,6 +26,7 @@ import cashu.mint.rest.client.MintQuoteClient;
 import cashu.mint.rest.entity.MeltQuote;
 import cashu.mint.rest.entity.MintQuote;
 import lombok.extern.java.Log;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -77,13 +78,15 @@ public class MintController {
     }
 
     @GetMapping("/mint/quote/{method}/{quote_id}")
-    public PostMintQuoteResponse quoteMint(@PathVariable("method") String method, @PathVariable("quote_id") String quoteId) {
-        return NUT04.quotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
+    public ResponseEntity<PostMintQuoteResponse> quoteMint(@PathVariable("method") String method, @PathVariable("quote_id") String quoteId) {
+        PostMintQuoteResponse response = NUT04.quotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
+        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/mint/{method}")
-    public PostMintResponse mint(@RequestBody PostMintRequest request, @PathVariable("method") String method) {
-        return NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()));
+    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest request, @PathVariable("method") String method) {
+        PostMintResponse response = NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()));
+        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/melt/quote/{method}")

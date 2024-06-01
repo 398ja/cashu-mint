@@ -5,6 +5,7 @@ import cashu.common.model.BlindSignature;
 import cashu.common.model.BlindedMessage;
 import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
+import cashu.common.model.Secret;
 import cashu.common.model.Signature;
 import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
@@ -16,12 +17,15 @@ import cashu.util.ThreadUtil;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.java.Log;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Level;
 
 @Nut(value = 4, description = "Mint tokens")
+@Log
 public class NUT04 {
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) {
@@ -49,13 +53,13 @@ public class NUT04 {
                 .build();
     }
 
-    public static PostMintResponse mint(@NonNull PostMintRequest request, @NonNull PaymentMethod method) {
+    public static PostMintResponse mint(@NonNull PostMintRequest postMintRequest, @NonNull PaymentMethod method) {
         Mint mint = FSMintVault.load(false, true);
-        var task = new MintTask(request, method, mint);
+        var task = new MintTask(postMintRequest, method, mint);
         try {
             ThreadUtil.builder().blocking(true).task(task).lock(ThreadUtil.Locks.LOCK45).build().run();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            return null;
         }
         return task.getResult();
     }
@@ -68,23 +72,25 @@ public class NUT04 {
         @Getter
         private PostMintResponse result;
 
-        public MintTask(PostMintRequest request, PaymentMethod method, Mint mint) {
-            this.request = request;
+        public MintTask(PostMintRequest postMintRequest, PaymentMethod method, Mint mint) {
+            this.request = postMintRequest;
             this.method = method;
             this.mint = mint;
+            this.result = new PostMintResponse();
         }
 
         @Override
         public PostMintResponse execute() {
-            Gateway gateway = createGateway(method);
 
             // If the invoice was not paid yet, Bob responds with an error.
+            // TODO - Encode the error message
+            Gateway gateway = createGateway(method);
             if (!gateway.checkPaymentStatus(request.getQuoteId())) {
-                throw new RuntimeException("Payment not received yet");
+                throw new IllegalStateException("Payment not received yet");
             }
 
             List<BlindedMessage> blindedMessages = request.getBlindedMessages();
-            List<BlindSignature> signatures = new ArrayList<>();
+
             blindedMessages.forEach(blindedMessage -> {
                 BlindSignature signature = new BlindSignature();
                 signature.setAmount(blindedMessage.getAmount());
@@ -92,17 +98,16 @@ public class NUT04 {
                 var B_ = blindedMessage.getBlindedMessage().getBytes();
                 var k = mint.getPrivateKey().getBytes();
                 signature.setBlindedSignature(Signature.fromBytes(BDHKEUtils.signBlindedMessage(B_, k)));
-                signatures.add(signature);
+                result.addBlindSignature(signature);
             });
 
-            result = new PostMintResponse(signatures);
             return result;
         }
     }
 
     static Gateway createGateway(@NonNull PaymentMethod method) {
         return switch (method) {
-            case BOLT11 -> new MockGateway();
+            case MOCK -> new MockGateway();
             default -> throw new IllegalArgumentException("Unknown payment method: " + method);
         };
     }
