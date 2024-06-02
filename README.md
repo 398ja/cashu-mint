@@ -55,7 +55,7 @@ $ mvn spring-boot:run
 ## TODO
 - Implement a native Lightning Network gateway
 - Implement additional gateways (Mobile Money, Strike, Stripe)
-- Migrate the vault implementation from cashu-lib to cashu-mint
+- Migrate the vault implementation from ```cashu-lib``` to ```cashu-mint```
 - Implement additional NUTs
 - Implement a web admin interface
 - Unit tests
