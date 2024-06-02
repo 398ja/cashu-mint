@@ -40,7 +40,7 @@ import java.util.logging.Level;
 @Log
 @RestController
 @RequestMapping(value = "/v1")
-public class MintController {
+public class CashuController {
 
     @GetMapping("/keys")
     public KeySetResponse keys() {

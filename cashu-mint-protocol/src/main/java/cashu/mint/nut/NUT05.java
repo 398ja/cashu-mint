@@ -12,13 +12,16 @@ import cashu.util.ThreadUtil;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.extern.java.Log;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
 
 import static cashu.mint.nut.NUT04.createGateway;
 
+@Log
 public class NUT05 {
 
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest request, @NonNull PaymentMethod method) {
@@ -79,6 +82,7 @@ public class NUT05 {
             var proofs = request.getProofs();
             var totalAmount = proofs.stream().mapToInt(proof -> proof.getAmount()).sum();
             proofs.forEach(proof -> {
+                log.log(Level.INFO, "Verifying proof with parameters:({0}, {1}, {2})", new Object[]{proof.getSecret(), mint.getPrivateKey(), proof.getUnblindedSignature()});
                 BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
             });
 
@@ -90,7 +94,8 @@ public class NUT05 {
             }
 
             gateway.pay(request.getQuoteId());
-            result = new PostMeltResponse(gateway.checkPaymentStatus(request.getQuoteId()), gateway.getPaymentPreimage(request.getQuoteId()));
+            // TODO - revert to the gateway.checkPaymentStatus(request.getQuoteId()) call once the payment is implemented
+            result = new PostMeltResponse(/*gateway.checkPaymentStatus(request.getQuoteId())*/ true, gateway.getPaymentPreimage(request.getQuoteId()));
             return result;
         }
     }

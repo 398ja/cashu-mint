@@ -51,7 +51,7 @@ public class MockGateway implements Gateway {
 
     @Override
     public int getAmount(@NonNull String quoteId) {
-        return 10000;
+        return 96;
     }
 
     @Override
@@ -61,7 +61,7 @@ public class MockGateway implements Gateway {
 
     @Override
     public int getFeeReserve(@NonNull String requestId) {
-        return 10;
+        return 0;
     }
 
     @Override
