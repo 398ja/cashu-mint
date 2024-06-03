@@ -51,10 +51,12 @@ $ mvn spring-boot:run
 
 
 ## TODO
+In no particular order:
 - Implement a native Lightning Network gateway
 - Implement additional gateways (Mobile Money, Strike, Stripe)
 - Implement additional NUTs
-- Implement a web admin interface
+- Implement a web admin interface 
+- Hashicorp Vault integration to store private keys. (The current vault is very basic and not fit for production use)
 - Unit tests
 
 ## License
