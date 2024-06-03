@@ -12,9 +12,8 @@
     <modules>
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
-        <module>cashu-mint-gateway</module>
-        <module>cashu-mint-gateway-mock</module>
         <module>cashu-mint-admin</module>
+        <module>cashu-mint-vault</module>
     </modules>
 
     <properties>
