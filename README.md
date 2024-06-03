@@ -22,12 +22,10 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 
 ## Modules
 - ```cashu-mint-admin```: admin interface
-- ```cashu-mint-gateway```: gateway interface
-- ```cashu-mint-gateway-mock```: mock gateway implementation
 - ```cashu-mint-protocol```: protocol implementation
 - ```cashu-mint-rest```: REST API with wallet endpoints
 - ```cashu-mint-test```: unit test module (TODO)
-- ```cashu-mint-vault```: vault implementation (currently under cashu-lib)
+- ```cashu-mint-vault```: vault implementation
 
 ## Configuration
 
@@ -55,7 +53,6 @@ $ mvn spring-boot:run
 ## TODO
 - Implement a native Lightning Network gateway
 - Implement additional gateways (Mobile Money, Strike, Stripe)
-- Migrate the vault implementation from ```cashu-lib``` to ```cashu-mint```
 - Implement additional NUTs
 - Implement a web admin interface
 - Unit tests
