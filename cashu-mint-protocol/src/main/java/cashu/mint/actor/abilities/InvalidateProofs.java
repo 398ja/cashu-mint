@@ -10,46 +10,55 @@ import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
 import cashu.vault.impl.fs.FSProofVault;
 import lombok.AllArgsConstructor;
+import lombok.extern.java.Log;
 
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 @Nut(3)
+@Log
 @AllArgsConstructor
-public class InvalidateProofs implements Ability<Void> {
+public class InvalidateProofs implements Ability<Boolean> {
 
     private final Mint mint;
     private final PostSwapRequest request;
 
     @Override
-    public Void apply() {
+    public Boolean apply() {
         try {
             ThreadUtil.builder().blocking(true).task(new InvalidateProofsTask(mint, request)).build().run();
         } catch (TimeoutException e) {
-            throw new RuntimeException(e);
+            log.log(Level.SEVERE, "Failed to invalidate proofs", e);
+            return false;
         }
-        return null;
+        return true;
     }
 
     @AllArgsConstructor
-    static class InvalidateProofsTask implements ThreadUtil.Task<Void> {
+    static class InvalidateProofsTask implements ThreadUtil.Task<Boolean> {
 
         private final Mint mint;
         private final PostSwapRequest request;
 
         @Override
-        public Void execute() {
+        public Boolean execute() {
             MintConfiguration mintConfiguration = new MintConfiguration(mint.getPrivateKey().toString());
+            AtomicBoolean errorFlag = new AtomicBoolean(false);
             request.getProofs()
                     .forEach(proof -> {
                         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), proof.getSecret().toString());
                         FSProofVault proofVault = new FSProofVault(proofConfiguration);
                         try {
+                            // We invalidate the proof by storing it in the vault
+                            log.log(Level.INFO, "Invalidating proof " + proof);
                             proofVault.store();
                         } catch (CashuException e) {
-                            throw new RuntimeException(e);
+                            log.log(Level.SEVERE, "Failed to invalidate proof " + proof, e);
+                            errorFlag.set(true);
                         }
                     });
-            return null;
+            return !errorFlag.get();
         }
     }
 }

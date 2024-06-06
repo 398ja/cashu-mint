@@ -22,7 +22,7 @@
 		</dependency>
 		<dependency>
 			<groupId>cashu-java</groupId>
-			<artifactId>cashu-lib-vault</artifactId>
+			<artifactId>cashu-mint-vault</artifactId>
 			<version>0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>

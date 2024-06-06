@@ -9,10 +9,13 @@ import cashu.mint.actor.abilities.SignBlindedMessage;
 import cashu.mint.actor.abilities.VerifyProofs;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
+import lombok.extern.java.Log;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.logging.Level;
 
+@Log
 public class NUT03 {
 
     public static PostSwapResponse swap(@NonNull PostSwapRequest request) {
@@ -20,10 +23,18 @@ public class NUT03 {
         Mint mint = FSMintVault.load(false, true);
 
         // Verify proofs
-        new VerifyProofs(mint, request).apply();
+        Boolean isProofsValid = new VerifyProofs(mint, request).apply();
+        if (!isProofsValid) {
+            log.log(Level.SEVERE, "Proofs are not valid");
+            return null;
+        }
 
         // Invalidate proofs
-        new InvalidateProofs(mint, request).apply();
+        Boolean isInvalidated = new InvalidateProofs(mint, request).apply();
+        if(!isInvalidated) {
+            log.log(Level.SEVERE, "Failed to invalidate proofs");
+            return null;
+        }
 
         // Issue new signatures
         var blindSignatures = new ArrayList<BlindSignature>();
