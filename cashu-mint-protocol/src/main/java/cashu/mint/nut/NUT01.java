@@ -5,6 +5,7 @@ import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
 import cashu.crypto.KeySetDerivation;
 import cashu.mint.actor.abilities.KeysetGenerator;
+import cashu.mint.actor.abilities.tasks.KeysetGeneratorTask;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
@@ -16,7 +17,7 @@ public class NUT01 {
 
     public static KeySet generateKeySet(@NonNull String unit) {
         log.log(Level.INFO, "generateKeySet({0})", unit);
-        return new KeysetGenerator(unit).apply();
+        return new KeysetGenerator(new KeysetGeneratorTask(unit)).apply();
     }
 
     public static KeySet generateKeySet(@NonNull String unit, @NonNull Keys keys) {
@@ -25,4 +26,5 @@ public class NUT01 {
         keySetDerivation.deriveKeySetId();
         return keySet;
     }
+
 }

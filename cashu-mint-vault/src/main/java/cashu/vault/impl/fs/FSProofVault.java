@@ -1,6 +1,5 @@
 package cashu.vault.impl.fs;
 
-import cashu.common.model.PrivateKey;
 import cashu.common.model.Signature;
 import cashu.common.protocol.CashuException;
 import cashu.common.protocol.Error;

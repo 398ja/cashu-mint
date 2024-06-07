@@ -13,12 +13,13 @@ import cashu.vault.impl.fs.FSKeyVault;
 import cashu.vault.impl.fs.FSKeysetVault;
 import cashu.vault.impl.fs.FSMintVault;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public class Bootstrap {
 
@@ -59,12 +60,24 @@ public class Bootstrap {
     }
 
     private static List<String> getUnits() {
-        InputStream is = Bootstrap.class.getResourceAsStream("/app.properties");
-        return Configuration.load(Objects.requireNonNull(is)).getValues("units");
+        try (InputStream is = Bootstrap.class.getResourceAsStream("/app.properties")) {
+            if (is == null) {
+                throw new FileNotFoundException("Could not find app.properties");
+            }
+            return Configuration.load(is).getValues("units");
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading app.properties", e);
+        }
     }
 
     private static List<Integer> getKeys(String unit) {
-        InputStream is = Bootstrap.class.getResourceAsStream("/keyset.properties");
-        return Configuration.load(Objects.requireNonNull(is)).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
+        try (InputStream is = Bootstrap.class.getResourceAsStream("/keyset.properties")) {
+            if (is == null) {
+                throw new FileNotFoundException("Could not find keyset.properties");
+            }
+            return Configuration.load(is).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading keyset.properties", e);
+        }
     }
 }

@@ -10,9 +10,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
-import java.util.Objects;
 
 @Log
 public class QuoteClient<T> {
@@ -64,9 +65,15 @@ public class QuoteClient<T> {
     }
 
     private void setConfigAttributes() {
-        InputStream inputStream = FSVault.class.getResourceAsStream("/application.properties");
-        Configuration configuration = Configuration.load(Objects.requireNonNull(inputStream));
-        serverAddress = configuration.getValue("server.address");
-        serverPort = configuration.getValue("server.port");
+        try (InputStream inputStream = FSVault.class.getResourceAsStream("/application.properties")) {
+            if (inputStream == null) {
+                throw new FileNotFoundException("Could not find application.properties");
+            }
+            Configuration configuration = Configuration.load(inputStream);
+            serverAddress = configuration.getValue("server.address");
+            serverPort = configuration.getValue("server.port");
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading application.properties", e);
+        }
     }
 }

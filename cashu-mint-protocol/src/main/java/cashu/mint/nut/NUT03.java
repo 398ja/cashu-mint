@@ -7,6 +7,9 @@ import cashu.common.model.rest.PostSwapResponse;
 import cashu.mint.actor.abilities.InvalidateProofs;
 import cashu.mint.actor.abilities.SignBlindedMessage;
 import cashu.mint.actor.abilities.VerifyProofs;
+import cashu.mint.actor.abilities.tasks.InvalidateProofsTask;
+import cashu.mint.actor.abilities.tasks.SignBlindedMessageTask;
+import cashu.mint.actor.abilities.tasks.VerifyProofsTask;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
@@ -20,18 +23,21 @@ public class NUT03 {
 
     public static PostSwapResponse swap(@NonNull PostSwapRequest request) {
 
-        Mint mint = FSMintVault.load(false, true);
+        Mint mint = FSMintVault.load(false, false);
+
+        log.log(Level.INFO, ">>> Mint: {0}", mint.getPrivateKey().toString());
 
         // Verify proofs
-        Boolean isProofsValid = new VerifyProofs(mint, request).apply();
+        Boolean isProofsValid = new VerifyProofs(new VerifyProofsTask(mint, request)).apply();
+        log.log(Level.INFO, "Are proofs valid? " + isProofsValid);
         if (!isProofsValid) {
             log.log(Level.SEVERE, "Proofs are not valid");
             return null;
         }
 
         // Invalidate proofs
-        Boolean isInvalidated = new InvalidateProofs(mint, request).apply();
-        if(!isInvalidated) {
+        Boolean isInvalidated = new InvalidateProofs(new InvalidateProofsTask(mint, request)).apply();
+        if (!isInvalidated) {
             log.log(Level.SEVERE, "Failed to invalidate proofs");
             return null;
         }
@@ -40,7 +46,7 @@ public class NUT03 {
         var blindSignatures = new ArrayList<BlindSignature>();
         var blindedMessages = request.getBlindedMessages();
         blindedMessages.forEach(bm -> {
-            var blindSignature = new SignBlindedMessage(mint, bm).apply();
+            var blindSignature = new SignBlindedMessage(new SignBlindedMessageTask(mint, bm)).apply();
             blindSignatures.add(blindSignature);
         });
 
@@ -49,4 +55,5 @@ public class NUT03 {
 
         return new PostSwapResponse(blindSignatures);
     }
+
 }

@@ -6,20 +6,15 @@ import cashu.common.model.rest.PostMeltQuoteRequest;
 import cashu.common.model.rest.PostMeltQuoteResponse;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
-import cashu.crypto.BDHKEUtils;
+import cashu.mint.actor.abilities.tasks.MeltTask;
 import cashu.mint.gateway.Gateway;
-import cashu.util.ThreadUtil;
 import cashu.vault.impl.fs.FSMintVault;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
-import java.util.concurrent.TimeoutException;
-import java.util.logging.Level;
 
-import static cashu.mint.nut.NUT04.createGateway;
+import static cashu.mint.util.MintUtil.createGateway;
 
 @Log
 public class NUT05 {
@@ -53,51 +48,10 @@ public class NUT05 {
     public static PostMeltResponse melt(@NonNull PostMeltRequest request, @NonNull PaymentMethod method) {
         Mint mint = FSMintVault.load(false, true);
 
-        var task = new MeltTask(request, method, mint);
-        try {
-            ThreadUtil.builder().blocking(true).task(task).lock(ThreadUtil.Locks.LOCK45).build().run();
-        } catch (TimeoutException e) {
-            throw new RuntimeException(e);
-        }
-        return task.getResult();
-    }
-
-    static class MeltTask implements ThreadUtil.Task<PostMeltResponse> {
-        private final PostMeltRequest request;
-        private final PaymentMethod method;
-        private final Mint mint;
-
-        @Getter
-        private PostMeltResponse result;
-
-        public MeltTask(PostMeltRequest request, PaymentMethod method, Mint mint) {
-            this.request = request;
-            this.method = method;
-            this.mint = mint;
-        }
-
-        @Override
-        public PostMeltResponse execute() {
-            Gateway gateway = createGateway(method);
-            var proofs = request.getProofs();
-            var totalAmount = proofs.stream().mapToInt(proof -> proof.getAmount()).sum();
-            proofs.forEach(proof -> {
-                log.log(Level.INFO, "Verifying proof with parameters:({0}, {1}, {2})", new Object[]{proof.getSecret(), mint.getPrivateKey(), proof.getUnblindedSignature()});
-                BDHKEUtils.verify(proof.getSecret().toString(), mint.getPrivateKey().toBytes(), proof.getUnblindedSignature().toBytes());
-            });
-
-            var amount = gateway.getAmount(request.getQuoteId());
-            var fee_reserve = gateway.getFeeReserve(request.getQuoteId());
-
-            if(totalAmount < amount + fee_reserve) {
-                throw new RuntimeException("Proofs and blinded messages amounts do not match");
-            }
-
-            gateway.pay(request.getQuoteId());
-            // TODO - revert to the gateway.checkPaymentStatus(request.getQuoteId()) call once the payment is implemented
-            result = new PostMeltResponse(/*gateway.checkPaymentStatus(request.getQuoteId())*/ true, gateway.getPaymentPreimage(request.getQuoteId()));
-            return result;
-        }
+        //ThreadUtil.MINT_MELT_LOCK.lock();
+        var result = new MeltTask(request, method, mint).execute();
+        //ThreadUtil.MINT_MELT_LOCK.unlock();
+        return result;
     }
 
 }
