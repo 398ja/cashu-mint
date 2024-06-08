@@ -2,7 +2,7 @@ package cashu.vault.impl.fs;
 
 import cashu.common.model.KeySet;
 import cashu.common.model.PrivateKey;
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.common.protocol.Error;
 import cashu.vault.FSVault;
 import cashu.vault.config.KeysetConfiguration;
@@ -24,7 +24,7 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
     private final KeysetConfiguration keysetConfiguration;
 
     @Override
-    public void store() throws CashuException {
+    public void store() throws CashuErrorException {
         var mint = keysetConfiguration.getMint();
         var id = keysetConfiguration.getId();
         var unit = keysetConfiguration.getUnit();
@@ -37,9 +37,7 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
             Files.createDirectories(filePath.getParent());
             Files.createFile(filePath);
         } catch (IOException e) {
-            Error error = new Error(e);
-            error.setDetail("Failed to create directory: " + filePath);
-            throw new CashuException(error);
+            throw new CashuErrorException(e);
         }
     }
 
@@ -84,7 +82,7 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
     }
 
     @Override
-    public void archive(@NonNull String key) throws CashuException {
+    public void archive(@NonNull String key) throws CashuErrorException {
         var keysetPath = retrieve(key, false);
         Path sourcePath = Paths.get(keysetPath);
 
@@ -97,7 +95,7 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
             Files.createDirectories(keysetArchivePath.getParent());
             Files.move(sourcePath, keysetArchivePath);
         } catch (IOException e) {
-            throw new CashuException(e);
+            throw new CashuErrorException(e);
         }
     }
 

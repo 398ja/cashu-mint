@@ -6,7 +6,7 @@ import cashu.common.model.Mint;
 import cashu.common.model.Proof;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
@@ -17,29 +17,23 @@ import lombok.extern.java.Log;
 
 import java.io.InvalidObjectException;
 import java.util.List;
-import java.util.logging.Level;
 
 @Log
 @AllArgsConstructor
-public class VerifyProofsTask implements BaseAbility.Task<Boolean> {
+public class VerifyProofsTask implements BaseAbility.Task<Void> {
 
     private final Mint mint;
     private final PostSwapRequest request;
 
     @Override
-    public Boolean execute() {
-        try {
-            validateAmounts();
-            verifyProofs(request.getProofs(), mint);
-        } catch (RuntimeException | InvalidObjectException e) {
-            log.log(Level.WARNING, "Failed to verify proofs", e);
-            return false;
-        }
+    public Void execute() throws CashuErrorException {
+        validateAmounts();
+        verifyProofs(request.getProofs(), mint);
 
-        return true;
+        return null;
     }
 
-    private void validateAmounts() throws InvalidObjectException {
+    private void validateAmounts() throws CashuErrorException {
         var proofs = request.getProofs();
         var blindedMessages = request.getBlindedMessages();
 
@@ -47,23 +41,19 @@ public class VerifyProofsTask implements BaseAbility.Task<Boolean> {
         int blindedMessagesAmount = blindedMessages.stream().mapToInt(BlindedMessage::getAmount).sum();
 
         if (proofsAmount != blindedMessagesAmount) {
-            throw new InvalidObjectException("Proofs amount does not match blinded messages amount");
+            throw new CashuErrorException("validate_amounts_error");
         }
     }
 
-    private void verifyProofs(@NonNull List<Proof> proofs, @NonNull Mint mint) {
+    private void verifyProofs(@NonNull List<Proof> proofs, @NonNull Mint mint) throws CashuErrorException {
         for (Proof proof : proofs) {
             // Check if proof has been used already
             MintConfiguration mintConfiguration = new MintConfiguration(mint.getPrivateKey().toString());
             ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), proof.getSecret().toString());
             FSProofVault proofVault = new FSProofVault(proofConfiguration);
-            try {
-                var usedProof = proofVault.retrieve(proof.getSecret().toString(), false);
-                if (usedProof != null) {
-                    throw new RuntimeException("Proof has already been used");
-                }
-            } catch (CashuException e) {
-                throw new RuntimeException(e);
+            var usedProof = proofVault.retrieve(proof.getSecret().toString(), false);
+            if (usedProof != null) {
+                throw new CashuErrorException("verify_proof_already_used_error");
             }
 
             // Check if proof id is valid
@@ -76,16 +66,16 @@ public class VerifyProofsTask implements BaseAbility.Task<Boolean> {
                     }
                 }
                 if (!found) {
-                    throw new RuntimeException("No key set found with ID: " + proof.getKeySetId());
+                    throw new CashuErrorException("verify_proof_key_set_not_found:" + proof.getKeySetId());
                 }
             } else {
-                throw new IllegalStateException("Proof does not have a key set");
+                throw new CashuErrorException("verify_proof_key_set_id_error");
             }
 
             var C = proof.getUnblindedSignature().getBytes();
             var secret = proof.getSecret();
             if (!BDHKEUtils.verify(secret.toString(), mint.getPrivateKey().getBytes(), C)) {
-                throw new IllegalStateException("Verification failed. The secret and the un-blinded key do not match.");
+                throw new CashuErrorException("verify_proof_failed_error");
             }
         }
     }

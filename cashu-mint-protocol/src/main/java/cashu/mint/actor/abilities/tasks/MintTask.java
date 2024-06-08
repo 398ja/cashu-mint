@@ -8,6 +8,7 @@ import cashu.common.model.Signature;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
 import cashu.common.protocol.BaseAbility;
+import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.mint.gateway.Gateway;
 import lombok.Getter;
@@ -32,13 +33,13 @@ public class MintTask implements BaseAbility.Task<PostMintResponse> {
     }
 
     @Override
-    public PostMintResponse execute() {
+    public PostMintResponse execute() throws CashuErrorException {
 
         // If the invoice was not paid yet, Bob responds with an error.
         // TODO - Encode the error message
         Gateway gateway = createGateway(method);
         if (!gateway.checkPaymentStatus(request.getQuoteId())) {
-            throw new IllegalStateException("Payment not received yet");
+            throw new CashuErrorException("mint_invoice_not_paid_error");
         }
 
         List<BlindedMessage> blindedMessages = request.getBlindedMessages();

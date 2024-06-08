@@ -3,6 +3,7 @@ package cashu.mint.actor.abilities.tasks;
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
 import cashu.common.protocol.BaseAbility;
+import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.KeySetDerivation;
 import cashu.vault.FSVault;
 import cashu.vault.impl.fs.FSKeyVault;
@@ -32,7 +33,7 @@ public class KeysetGeneratorTask implements BaseAbility.Task<KeySet> {
     }
 
     @Override
-    public KeySet execute() {
+    public KeySet execute() throws CashuErrorException {
         log.log(Level.INFO, "execute()");
         Keys keys = getKeys();
         log.log(Level.INFO, "Keys: {0}", keys);
@@ -42,7 +43,7 @@ public class KeysetGeneratorTask implements BaseAbility.Task<KeySet> {
         return keySet;
     }
 
-    private Keys getKeys() {
+    private Keys getKeys() throws CashuErrorException {
         log.log(Level.INFO, "getKeys()");
 
         // <vault_basedir>/mint/<private_key>/<unit>/<key_index>/[private_key]
@@ -66,11 +67,11 @@ public class KeysetGeneratorTask implements BaseAbility.Task<KeySet> {
                 return FSKeyVault.get(privateKey, unit);
             } else {
                 log.log(Level.SEVERE, "No directories found");
-                throw new RuntimeException("No directories found");
+                throw new CashuErrorException("key_set_generator_mint_folder_missing_error");
             }
         } catch (IOException e) {
             log.log(Level.SEVERE, "Failed to list directories", e);
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 }

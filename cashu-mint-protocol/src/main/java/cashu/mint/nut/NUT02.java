@@ -4,6 +4,7 @@ import cashu.common.annotation.Nut;
 import cashu.common.model.ActiveKeySet;
 import cashu.common.model.KeySet;
 import cashu.common.model.Mint;
+import cashu.common.protocol.CashuErrorException;
 import cashu.util.Configuration;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
@@ -28,7 +29,11 @@ public class NUT02 {
         log.log(Level.INFO, "units: {0}", units);
 
         units.forEach(unit -> {
-            keySets.add(generateKeySet(unit));
+            try {
+                keySets.add(generateKeySet(unit));
+            } catch (CashuErrorException e) {
+                throw new RuntimeException(e);
+            }
         });
 
         return keySets;

@@ -1,13 +1,13 @@
 package cashu.vault;
 
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.vault.config.EntityConfiguration;
 
 public interface Vault<T extends EntityConfiguration> {
 
-    void store() throws CashuException;
+    void store() throws CashuErrorException;
 
-    String retrieve(String key, boolean archive) throws CashuException;
+    String retrieve(String key, boolean archive) throws CashuErrorException;
 
-    void archive(String key) throws CashuException;
+    void archive(String key) throws CashuErrorException;
 }

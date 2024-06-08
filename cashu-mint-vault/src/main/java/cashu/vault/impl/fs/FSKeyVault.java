@@ -2,7 +2,7 @@ package cashu.vault.impl.fs;
 
 import cashu.common.model.Keys;
 import cashu.common.model.PrivateKey;
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.common.protocol.Error;
 import cashu.vault.FSVault;
 import cashu.vault.config.KeyConfiguration;
@@ -26,7 +26,7 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
     private final KeyConfiguration keyConfiguration;
 
     @Override
-    public void store() throws CashuException {
+    public void store() throws CashuErrorException {
         KeysetConfiguration keyset = keyConfiguration.getKeyset();
         BigInteger amount = keyConfiguration.getAmount();
 
@@ -39,14 +39,12 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
             Files.createDirectories(filePath.getParent());
             Files.createFile(filePath);
         } catch (IOException e) {
-            Error error = new Error(e);
-            error.setDetail("Failed to write to file: " + filePath);
-            throw new CashuException(error);
+            throw new CashuErrorException(e);
         }
     }
 
     @Override
-    public String retrieve(@NonNull String key, boolean archive) throws CashuException {
+    public String retrieve(@NonNull String key, boolean archive) throws CashuErrorException {
         KeysetConfiguration keyset = keyConfiguration.getKeyset();
         FSMintVault mintVault = new FSMintVault(keyset.getMint());
         String mintPath = mintVault.retrieve(keyset.getMint().getPrivateKey(), archive);
@@ -60,9 +58,7 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
                 return keyFilePath.get().toString();
             }
         } catch (IOException e) {
-            Error error = new Error(e);
-            error.setDetail("Failed to retrieve key: " + key);
-            throw new CashuException(error);
+            throw new CashuErrorException(e);
         }
 
         return null;
@@ -128,7 +124,7 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
     }
 
     @Override
-    public void archive(@NonNull String key) throws CashuException {
+    public void archive(@NonNull String key) throws CashuErrorException {
         var keyPath = retrieve(key, false);
         if (keyPath == null) {
             return;
@@ -139,7 +135,7 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
             Files.createDirectories(archivePath.getParent());
             Files.move(Paths.get(keyPath), archivePath);
         } catch (IOException e) {
-            throw new CashuException(e);
+            throw new CashuErrorException(e);
         }
     }
 }

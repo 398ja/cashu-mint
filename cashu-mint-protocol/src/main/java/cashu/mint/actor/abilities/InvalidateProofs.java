@@ -7,9 +7,9 @@ import lombok.extern.java.Log;
 
 @Nut(3)
 @Log
-public class InvalidateProofs extends BaseAbility<Boolean> {
+public class InvalidateProofs extends BaseAbility<Void> {
 
-    public InvalidateProofs(@NonNull Task<Boolean> task) {
+    public InvalidateProofs(@NonNull Task<Void> task) {
         super(task);
     }
 }

@@ -4,6 +4,7 @@ import cashu.common.model.BlindSignature;
 import cashu.common.model.Mint;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
+import cashu.common.protocol.CashuErrorException;
 import cashu.mint.actor.abilities.InvalidateProofs;
 import cashu.mint.actor.abilities.SignBlindedMessage;
 import cashu.mint.actor.abilities.VerifyProofs;
@@ -16,39 +17,41 @@ import lombok.extern.java.Log;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 
 @Log
 public class NUT03 {
 
-    public static PostSwapResponse swap(@NonNull PostSwapRequest request) {
+    public static PostSwapResponse swap(@NonNull PostSwapRequest request) throws CashuErrorException {
 
         Mint mint = FSMintVault.load(false, false);
 
         log.log(Level.INFO, ">>> Mint: {0}", mint.getPrivateKey().toString());
 
         // Verify proofs
-        Boolean isProofsValid = new VerifyProofs(new VerifyProofsTask(mint, request)).apply();
-        log.log(Level.INFO, "Are proofs valid? " + isProofsValid);
-        if (!isProofsValid) {
-            log.log(Level.SEVERE, "Proofs are not valid");
-            return null;
-        }
+        new VerifyProofs(new VerifyProofsTask(mint, request)).apply();
 
         // Invalidate proofs
-        Boolean isInvalidated = new InvalidateProofs(new InvalidateProofsTask(mint, request)).apply();
-        if (!isInvalidated) {
-            log.log(Level.SEVERE, "Failed to invalidate proofs");
-            return null;
-        }
+        new InvalidateProofs(new InvalidateProofsTask(mint, request)).apply();
 
+        AtomicReference<CashuErrorException> error = new AtomicReference<>();
         // Issue new signatures
         var blindSignatures = new ArrayList<BlindSignature>();
         var blindedMessages = request.getBlindedMessages();
         blindedMessages.forEach(bm -> {
-            var blindSignature = new SignBlindedMessage(new SignBlindedMessageTask(mint, bm)).apply();
+            BlindSignature blindSignature = null;
+            try {
+                blindSignature = new SignBlindedMessage(new SignBlindedMessageTask(mint, bm)).apply();
+            } catch (CashuErrorException e) {
+                error.set(e);
+            }
             blindSignatures.add(blindSignature);
         });
+
+        if(error.get() != null) {
+            throw error.get();
+        }
 
         // Sort blindSignatures by the amount in ascending order
         blindSignatures.sort(Comparator.comparing(blindSignature -> blindSignature.getAmount()));

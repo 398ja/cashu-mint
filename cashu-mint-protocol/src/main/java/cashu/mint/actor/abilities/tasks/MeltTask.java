@@ -5,6 +5,7 @@ import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
 import cashu.common.protocol.BaseAbility;
+import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.mint.gateway.Gateway;
 import lombok.Getter;
@@ -30,7 +31,7 @@ public class MeltTask implements BaseAbility.Task<PostMeltResponse> {
     }
 
     @Override
-    public PostMeltResponse execute() {
+    public PostMeltResponse execute() throws CashuErrorException {
         Gateway gateway = createGateway(method);
         var proofs = request.getProofs();
         var totalAmount = proofs.stream().mapToInt(proof -> proof.getAmount()).sum();
@@ -43,7 +44,7 @@ public class MeltTask implements BaseAbility.Task<PostMeltResponse> {
         var fee_reserve = gateway.getFeeReserve(request.getQuoteId());
 
         if (totalAmount < amount + fee_reserve) {
-            throw new RuntimeException("Proofs and blinded messages amounts do not match");
+            throw new CashuErrorException("melt_proof_amount_error");
         }
 
         gateway.pay(request.getQuoteId());

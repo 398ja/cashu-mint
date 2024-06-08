@@ -6,6 +6,7 @@ import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
+import cashu.common.protocol.CashuErrorException;
 import cashu.mint.actor.abilities.tasks.MintTask;
 import cashu.mint.gateway.Gateway;
 import cashu.vault.impl.fs.FSMintVault;
@@ -45,7 +46,7 @@ public class NUT04 {
                 .build();
     }
 
-    public static PostMintResponse mint(@NonNull PostMintRequest postMintRequest, @NonNull PaymentMethod method) {
+    public static PostMintResponse mint(@NonNull PostMintRequest postMintRequest, @NonNull PaymentMethod method) throws CashuErrorException {
         Mint mint = FSMintVault.load(false, true);
         var task = new MintTask(postMintRequest, method, mint);
         //ThreadUtil.MINT_MELT_LOCK.lock();

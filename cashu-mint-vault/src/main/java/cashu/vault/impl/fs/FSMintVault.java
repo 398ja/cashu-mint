@@ -4,7 +4,7 @@ import cashu.common.model.KeySet;
 import cashu.common.model.Mint;
 import cashu.common.model.PrivateKey;
 import cashu.common.model.PublicKey;
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.util.Utils;
 import cashu.vault.FSVault;
 import cashu.vault.config.KeyConfiguration;
@@ -29,7 +29,7 @@ public class FSMintVault extends FSVault<MintConfiguration> {
     private final MintConfiguration mintConfiguration;
 
     @Override
-    public void store() throws CashuException {
+    public void store() throws CashuErrorException {
         PrivateKey privateKey = PrivateKey.fromString(mintConfiguration.getPrivateKey());
         PublicKey publicKey = PrivateKey.derivePublicKey(privateKey);
         String privateKeyHex = Utils.bytesToHexString(privateKey.getBytes());
@@ -41,7 +41,7 @@ public class FSMintVault extends FSVault<MintConfiguration> {
         try {
             Files.createDirectories(dirPath);
         } catch (IOException e) {
-            throw new CashuException(e);
+            throw new CashuErrorException(e);
         }
     }
 
@@ -55,8 +55,8 @@ public class FSMintVault extends FSVault<MintConfiguration> {
     }
 
     @Override
-    public void archive(String key) throws CashuException {
-        throw new CashuException(new IllegalAccessException("Not implemented"));
+    public void archive(String key) throws CashuErrorException {
+        throw new CashuErrorException(new IllegalAccessException("Not implemented"));
     }
 
     public static Mint load(boolean archive) {

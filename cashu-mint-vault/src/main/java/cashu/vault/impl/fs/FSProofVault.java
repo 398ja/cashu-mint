@@ -1,7 +1,7 @@
 package cashu.vault.impl.fs;
 
 import cashu.common.model.Signature;
-import cashu.common.protocol.CashuException;
+import cashu.common.protocol.CashuErrorException;
 import cashu.common.protocol.Error;
 import cashu.util.Utils;
 import cashu.vault.FSVault;
@@ -24,7 +24,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
     private final ProofConfiguration proofConfiguration;
 
     @Override
-    public void store() throws CashuException {
+    public void store() throws CashuErrorException {
         try {
             var baseDir = getBaseDir();
             String secret = proofConfiguration.getSecret();
@@ -39,14 +39,12 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             Files.write(path, Utils.hexStringToBytes(unblindedSignature));
             log.log(Level.INFO, "Stored proof {0}", path.toString());
         } catch (Exception e) {
-            Error error = new Error(e);
-            error.setDetail("Failed to store proof");
-            throw new CashuException(error);
+            throw new CashuErrorException(e);
         }
     }
 
     @Override
-    public String retrieve(@NonNull String key, boolean archive) throws CashuException {
+    public String retrieve(@NonNull String key, boolean archive) throws CashuErrorException {
         log.log(Level.INFO, "Retrieving proof {0}", key);
         try {
             var baseDir = getBaseDir(archive);
@@ -64,12 +62,12 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             }
         } catch (IOException e) {
             log.log(Level.SEVERE, "Failed to retrieve proof", e);
-            throw new CashuException(e);
+            throw new CashuErrorException(e);
         }
     }
 
     @Override
-    public void archive(String key) throws CashuException {
-        throw new CashuException(new IllegalAccessException("Not implemented"));
+    public void archive(String key) throws CashuErrorException {
+        throw new CashuErrorException(new IllegalAccessException("Not implemented"));
     }
 }
