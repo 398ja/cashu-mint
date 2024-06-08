@@ -2,7 +2,6 @@ package cashu.vault.impl.fs;
 
 import cashu.common.model.Signature;
 import cashu.common.protocol.CashuErrorException;
-import cashu.common.protocol.Error;
 import cashu.util.Utils;
 import cashu.vault.FSVault;
 import cashu.vault.config.ProofConfiguration;
@@ -54,7 +53,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getPrivateKey(), ".proofs", key);
 
             if (Files.exists(path)) {
-                log.log(Level.INFO, "The proof\'s path exists {0}", path.toString());
+                log.log(Level.INFO, "The proof's path exists {0}", path.toString());
                 byte[] keyBytes = Files.readAllBytes(path);
                 return Signature.fromBytes(keyBytes).toString();
             } else {

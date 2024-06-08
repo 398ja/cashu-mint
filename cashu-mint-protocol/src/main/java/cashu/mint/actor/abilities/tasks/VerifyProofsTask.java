@@ -15,7 +15,6 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.io.InvalidObjectException;
 import java.util.List;
 
 @Log

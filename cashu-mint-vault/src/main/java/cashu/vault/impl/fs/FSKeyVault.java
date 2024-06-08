@@ -3,7 +3,6 @@ package cashu.vault.impl.fs;
 import cashu.common.model.Keys;
 import cashu.common.model.PrivateKey;
 import cashu.common.protocol.CashuErrorException;
-import cashu.common.protocol.Error;
 import cashu.vault.FSVault;
 import cashu.vault.config.KeyConfiguration;
 import cashu.vault.config.KeysetConfiguration;

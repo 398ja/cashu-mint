@@ -27,6 +27,7 @@ public class NUT03 {
 
         Mint mint = FSMintVault.load(false, false);
 
+        assert mint != null;
         log.log(Level.INFO, ">>> Mint: {0}", mint.getPrivateKey().toString());
 
         // Verify proofs

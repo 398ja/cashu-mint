@@ -1,6 +1,7 @@
 package cashu.mint.rest.entity.repository;
 
 import cashu.mint.rest.entity.MintQuote;
+import lombok.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -11,5 +12,6 @@ public interface MintQuoteRepository extends JpaRepository<MintQuote, Integer> {
     Optional<MintQuote> findByQuote(String quote);
 
     @Override
-    Optional<MintQuote> findById(Integer integer);
+    @NonNull
+    Optional<MintQuote> findById(@NonNull Integer integer);
 }

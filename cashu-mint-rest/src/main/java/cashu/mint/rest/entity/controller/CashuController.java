@@ -49,7 +49,7 @@ public class CashuController {
     public ResponseEntity<KeySetResponse> keys() {
         log.log(Level.INFO, "Getting keys");
         KeySetResponse response = new KeySetResponse(NUT02.keys());
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/keys/{keyset_id}")
@@ -57,7 +57,7 @@ public class CashuController {
         log.log(Level.INFO, "keys({0})", keysetId);
         KeySet keySet = NUT02.keys(keysetId);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     // TODO
@@ -65,13 +65,13 @@ public class CashuController {
     public ResponseEntity<ActiveKeySetResponse> keysets() {
         List<ActiveKeySet> activeKeySets = NUT02.activeKeySets();
         ActiveKeySetResponse response = new ActiveKeySetResponse(activeKeySets);
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/swap")
     public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest request) throws CashuErrorException {
         PostSwapResponse response = NUT03.swap(request);
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/mint/quote/{method}")
@@ -81,7 +81,7 @@ public class CashuController {
         MintQuoteClient client = new MintQuoteClient();
         client.createQuote(MintQuote.fromEntity(response));
 
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/mint/quote/{method}/{quote_id}")
@@ -103,7 +103,7 @@ public class CashuController {
         MeltQuoteClient client = new MeltQuoteClient();
         client.createQuote(MeltQuote.fromEntity(response));
 
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/melt/quote/{method}/{quote_id}")
@@ -121,7 +121,7 @@ public class CashuController {
     @GetMapping("/info")
     public ResponseEntity<MintInformation> info() {
         MintInformation response = NUT06.info();
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
 
     @ExceptionHandler(CashuErrorException.class)
