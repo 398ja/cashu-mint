@@ -10,4 +10,6 @@ public interface Vault<T extends EntityConfiguration> {
     String retrieve(String key, boolean archive) throws CashuErrorException;
 
     void archive(String key) throws CashuErrorException;
+
+    void delete() throws CashuErrorException;
 }

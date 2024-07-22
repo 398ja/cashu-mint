@@ -7,5 +7,5 @@ import lombok.Getter;
 @Getter
 public class MintConfiguration implements EntityConfiguration {
 
-    private final String privateKey;
+    private final String id;
 }

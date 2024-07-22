@@ -6,6 +6,8 @@ import cashu.common.model.MintInformation;
 import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.ActiveKeySetResponse;
 import cashu.common.model.rest.KeySetResponse;
+import cashu.common.model.rest.PostCheckStateRequest;
+import cashu.common.model.rest.PostCheckStateResponse;
 import cashu.common.model.rest.PostMeltQuoteRequest;
 import cashu.common.model.rest.PostMeltQuoteResponse;
 import cashu.common.model.rest.PostMeltRequest;
@@ -17,11 +19,12 @@ import cashu.common.model.rest.PostMintResponse;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
 import cashu.common.protocol.CashuErrorException;
-import cashu.mint.nut.NUT02;
-import cashu.mint.nut.NUT03;
-import cashu.mint.nut.NUT04;
-import cashu.mint.nut.NUT05;
-import cashu.mint.nut.NUT06;
+import cashu.mint.proto.nut.NUT02;
+import cashu.mint.proto.nut.NUT03;
+import cashu.mint.proto.nut.NUT04;
+import cashu.mint.proto.nut.NUT05;
+import cashu.mint.proto.nut.NUT06;
+import cashu.mint.proto.nut.NUT07;
 import cashu.mint.rest.client.MeltQuoteClient;
 import cashu.mint.rest.client.MintQuoteClient;
 import cashu.mint.rest.entity.MeltQuote;
@@ -121,6 +124,12 @@ public class CashuController {
     @GetMapping("/info")
     public ResponseEntity<MintInformation> info() {
         MintInformation response = NUT06.info();
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/checkstate")
+    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request) {
+        PostCheckStateResponse response = NUT07.checkState(request);
         return ResponseEntity.ok(response);
     }
 

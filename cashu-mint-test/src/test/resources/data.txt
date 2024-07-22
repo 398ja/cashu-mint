@@ -1,0 +1,255 @@
+
+mint(
+    PostMintRequest{
+        quoteId='61f9b403-3464-489c-97c3-48ca468c099a',
+        blindedMessages=[
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2
+            ),
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=031f5a5e834c6654753263cea178bef291eb27c39bf87fec4199d95d43132c665c
+            ),
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=02756b63d989205d94192f6a47a19513623efa7a718bfc6c61004bc42887ce097a
+            ),
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=039469d27f233ee1863f796cb2ed9117e4e7b20d3bb034c3dc1799c0ec2401e113
+            ),
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=020f626b58b53aa37e8ef67ee3819f4af28b8e3248e0f0d3d43aee32c4f0fcfd81
+            ),
+            BlindedMessage(
+                amount=16,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=03698c708d34d801a305e3cd2019346e57b3b449f07939852eae0c7eadb0331217
+            ),
+            BlindedMessage(
+                amount=4,
+                keySetId=004cf8cba2f93266,
+                blindedMessage=03d695e5394b8719d5565a14ba9d742df885367c6237a397049fc296deb505dba1
+            )
+        ],
+
+        secrets=[
+            3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518,
+            84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8,
+            3cc2df16817011fe4a30f5180b6af0f2dc0d64f0e460ab385e7521d8ff39d48a,
+            2befddce986a57a010f95713c6da4c20ad8daed594f183d2654fd8c4a9e5fd54,
+            7cedc61aa1f5ba00f01549afecb1fdae832b666a148b6923d1372a1de458c27a,
+            bf7ce9d8a83c75cbdcda2e70738e0ef5441fbe7ffa290cfbc60f5fb75fd938f2,
+            00b43b91af62b0f0b0da8cf11352f74d5dcda2b7e24f51484678592805cdcc20
+        ],
+
+        blindingFactors=[
+            ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def,
+            89a460627b601c54166c25150725e09caf6a12ce4e9d406d6dbb27058e19796c,
+            93517d9714392539de2a94d3f7350429b36ed03c90b843d291b63a36a18700da,
+            2acfbe0c0e38c1f5907d0db7e5273084bceb2130977ade9460982bb1b69b568d,
+            1315bff356334ccb7cc95db62352fd90b3992c1c4351e8aec9daf548ceedd30f,
+            741a84f08e74d5135e130e931a46458e04e58f3c871d73474ca9c27d4b927465,
+            f0c1d29e266a402ab782c979f1a069eeef76a4af877a1d130f9bd7748dbdc748
+        ]
+    }
+)
+
+
+
+PostMintResponse(
+    blindSignatures=[
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=02c73a71bd250d627aef4136e081a3de25347ec7076d5dc450d6cda0fe24e0effe
+        ),
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=035d0180b0d635c94cf8048c7d7f22556580312843fd26b772c84aa14502833a0d
+        ),
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=03d56e82e7eb51aca99627d844376e64ddb03de47c8109bc6a597ecd960a3e777e
+        ),
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=023d6b4704108e02d7b223cc74ffdeb354e5ba82a2676b9bf507da638e76406fd7
+        ),
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=03a0c6a2cbe60e62e7bb363e24c7d8559918b8bdce57bf3706957bbd7608aba660
+        ),
+        BlindSignature(
+            amount=16,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=02c4632f46d72341c84c83c1813b8c21c0e9bb89d31da755ed2ffbf2ee445b9978
+        ),
+        BlindSignature(
+            amount=4,
+            keySetId=004cf8cba2f93266,
+            blindedSignature=0303f38b8dc7e3aa8b299f23de9f74dc2a2dfeace3ec0cb035df61c59058383516
+        )
+    ]
+)
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=02c73a71bd250d627aef4136e081a3de25347ec7076d5dc450d6cda0fe24e0effe
+    ),
+    r=105874019866716279585609582252996845570624814242700700115584592296674251845103,
+    K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+    secret=3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518
+)
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518,
+    signature=03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=035d0180b0d635c94cf8048c7d7f22556580312843fd26b772c84aa14502833a0d
+    ),
+    r=62257288397248165018783188932533758388317036233967200961366387166911261145452,
+    K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+    secret=84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8
+)
+
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8,
+    signature=02d908e2a5ce0a6ce6228667d4f33470e8308dce587a7f1d7b3114873d5d02fc77,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=03d56e82e7eb51aca99627d844376e64ddb03de47c8109bc6a597ecd960a3e777e),
+        r=66633970145362257875057847049572410087050511334951507448633481851775083806938,
+        K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+        secret=3cc2df16817011fe4a30f5180b6af0f2dc0d64f0e460ab385e7521d8ff39d48a
+    )
+
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=3cc2df16817011fe4a30f5180b6af0f2dc0d64f0e460ab385e7521d8ff39d48a,
+    signature=022009dc5da81f440d00561e3b355f32b5fc84d58bdfac17e5322a57135fb091fe,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=023d6b4704108e02d7b223cc74ffdeb354e5ba82a2676b9bf507da638e76406fd7
+    ),
+    r=19364188639729284908468259583689150585907566089392869212857634503726175311501,
+    K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+    secret=2befddce986a57a010f95713c6da4c20ad8daed594f183d2654fd8c4a9e5fd54
+)
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=2befddce986a57a010f95713c6da4c20ad8daed594f183d2654fd8c4a9e5fd54,
+    signature=03fe722a78c7030bb9b16357a87167af99b0c3f98ec1b281bc2f7c651a04664014,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=03a0c6a2cbe60e62e7bb363e24c7d8559918b8bdce57bf3706957bbd7608aba660),
+        r=8632372705339645236507816023335076711966402466282093815209732486150340072207,
+        K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+        secret=7cedc61aa1f5ba00f01549afecb1fdae832b666a148b6923d1372a1de458c27a
+    )
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=7cedc61aa1f5ba00f01549afecb1fdae832b666a148b6923d1372a1de458c27a,
+    signature=034e1ba57b47c299b9110e151a1b66429eae32ce8a9a3ae2339b018b1a0d15604c,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=16,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=02c4632f46d72341c84c83c1813b8c21c0e9bb89d31da755ed2ffbf2ee445b9978
+    ),
+    r=52515145975250522962920754633470629406545287367244726426562321785031050294373,
+    K=0389ab7484f2af4e2d5fd32e5e9c43df14557c8f970d17550cc0088de605d2ea7c,
+    secret=bf7ce9d8a83c75cbdcda2e70738e0ef5441fbe7ffa290cfbc60f5fb75fd938f2
+)
+
+ProofEntity(
+    id=null,
+    amount=16,
+    secret=bf7ce9d8a83c75cbdcda2e70738e0ef5441fbe7ffa290cfbc60f5fb75fd938f2,
+    signature=037784e6f6ce07a69d6facdffddd25e39d8602350a46cfad3013f4d1b8ce6a89ae,
+    keysetId=004cf8cba2f93266
+)
+
+
+
+
+blindSignature=
+    BlindSignature(
+        amount=4,
+        keySetId=004cf8cba2f93266,
+        blindedSignature=0303f38b8dc7e3aa8b299f23de9f74dc2a2dfeace3ec0cb035df61c59058383516
+    ),
+    r=108897538773936136879750788086838227975759339775156942504924595123435454973768,
+    K=03faef8ddff6b0673c1fa555277a4e70d0340e4e5c55e80db1a05a13f2f4ecce6b,
+    secret=00b43b91af62b0f0b0da8cf11352f74d5dcda2b7e24f51484678592805cdcc20
+)
+
+ProofEntity(
+    id=null,
+    amount=4,
+    secret=00b43b91af62b0f0b0da8cf11352f74d5dcda2b7e24f51484678592805cdcc20,
+    signature=03a31aeaf9c1cf4cd1a27bdc141a7b753560f6597242be18f8f135f7d5865040e1,
+    keysetId=004cf8cba2f93266
+)

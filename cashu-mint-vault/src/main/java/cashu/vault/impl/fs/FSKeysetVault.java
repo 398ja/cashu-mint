@@ -1,18 +1,23 @@
 package cashu.vault.impl.fs;
 
 import cashu.common.model.KeySet;
+import cashu.common.model.Keys;
 import cashu.common.model.PrivateKey;
 import cashu.common.protocol.CashuErrorException;
 import cashu.vault.FSVault;
+import cashu.vault.config.KeyConfiguration;
 import cashu.vault.config.KeysetConfiguration;
 import cashu.vault.config.MintConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -34,7 +39,7 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
 
         try {
             Files.createDirectories(filePath.getParent());
-            Files.createFile(filePath);
+            Files.write(filePath, new byte[0], StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
             throw new CashuErrorException(e);
         }
@@ -45,22 +50,63 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
         var mintPath = mintPath(keysetConfiguration.getMint(), archive);
         var unit = keysetConfiguration.getUnit();
 
-        Path keysetPath = Paths.get(mintPath, unit, "." + keysetId);
-
-        return keysetPath.toString();
+        if (unit != null) {
+            return Paths.get(mintPath, unit, "." + keysetId).toString();
+        } else {
+            Path parentPath = Paths.get(mintPath);
+            try (Stream<Path> paths = Files.list(parentPath)) {
+                Optional<String> keysetIdPath = paths.filter(Files::isDirectory)
+                        .flatMap(directory -> {
+                            try {
+                                return Files.list(directory);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        })
+                        .filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().equals("." + keysetId))
+                        .map(Path::toString)
+                        .findFirst();
+                return keysetIdPath.orElse(null);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
-    public static KeySet load(@NonNull KeysetConfiguration keysetConfiguration, boolean archive) {
+    public PrivateKey getPrivateKey(@NonNull Integer amount) {
         FSMintVault mintVault = new FSMintVault(keysetConfiguration.getMint());
-        String mintPath = mintVault.retrieve(keysetConfiguration.getMint().getPrivateKey(), archive);
-        Path keysPath = Paths.get(mintPath, keysetConfiguration.getUnit());
-        loadKeysetId(keysetConfiguration);
+        String mintPath = mintVault.retrieve(keysetConfiguration.getMint().getId(), false);
+        Path dirPath = Paths.get(mintPath, keysetConfiguration.getUnit(), amount.toString());
 
-        return KeySet.builder().id(keysetConfiguration.getId()).build();
+        try (Stream<Path> paths = Files.list(dirPath)) {
+            Optional<Path> keyFilePath = paths
+                    .min(Comparator.comparingLong(p -> p.toFile().lastModified()));
+            if (keyFilePath.isPresent()) {
+                String privateKeyStr = keyFilePath.get().getFileName().toString();
+                return PrivateKey.fromString(privateKeyStr);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return null;
+    }
+
+
+    public static KeySet load(@NonNull KeysetConfiguration keysetConfiguration, boolean archive) {
+        loadKeysetId(keysetConfiguration, archive);
+        KeyConfiguration keyConfiguration = new KeyConfiguration(keysetConfiguration);
+        Keys keys = FSKeyVault.load(keyConfiguration, archive);
+        return KeySet.builder().id(keysetConfiguration.getId()).keys(keys).build();
     }
 
     static void loadKeysetId(@NonNull KeysetConfiguration keysetConfiguration) {
-        String mintPath = mintPath(keysetConfiguration.getMint());
+        loadKeysetId(keysetConfiguration, false);
+    }
+
+    static void loadKeysetId(@NonNull KeysetConfiguration keysetConfiguration, boolean archive) {
+        String mintPath = mintPath(keysetConfiguration.getMint(), archive);
         String unit = keysetConfiguration.getUnit();
         Path unitPath = Paths.get(mintPath, unit);
 
@@ -77,7 +123,6 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 
     @Override
@@ -103,11 +148,9 @@ public class FSKeysetVault extends FSVault<KeysetConfiguration> {
     }
 
     private static String mintPath(@NonNull MintConfiguration mint, boolean archive) {
-        PrivateKey privateKey = PrivateKey.fromString(mint.getPrivateKey());
-
         var baseDir = getBaseDir(archive);
 
-        Path dirPath = Paths.get(baseDir, "mint", privateKey.toString());
+        Path dirPath = Paths.get(baseDir, "mint", mint.getId());
         return dirPath.toString();
     }
 }

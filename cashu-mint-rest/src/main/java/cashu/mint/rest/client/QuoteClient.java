@@ -1,41 +1,32 @@
 package cashu.mint.rest.client;
 
 import cashu.util.Configuration;
-import cashu.vault.FSVault;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
 
+@Getter
 @Log
-public class QuoteClient<T> {
+public class QuoteClient<T> extends BaseClient {
 
-    protected enum Operation {
+    public enum Operation {
         MINT,
         MELT
     }
 
-    @Getter
-    private final Operation operation;
-
-    private String serverAddress;
-
-    private String serverPort;
-
-    @Getter
-    private final RestTemplate restTemplate;
+    private final QuoteClient.Operation operation;
 
     public QuoteClient(@NonNull Operation operation) {
+        super();
         this.operation = operation;
-        this.restTemplate = new RestTemplate();
         setConfigAttributes();
     }
 
@@ -53,19 +44,19 @@ public class QuoteClient<T> {
         return response.getBody();
     }
 
-    @SuppressWarnings("unchecked")
-    private Class<T> getGenericClass(int index) {
-        return (Class<T>) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[index];
-    }
-
-    public String getBaseUrl() {
+    protected String getBaseUrl() {
         String address = System.getProperty("server.address") != null ? System.getProperty("server.address") : serverAddress;
         String port = System.getProperty("server.port") != null ? System.getProperty("server.port") : (serverPort != null ? serverPort : "8080");
         return "http://" + address + ":" + port + "/" + operation.name().toLowerCase() + "/quote";
     }
 
+    @SuppressWarnings("unchecked")
+    private Class<T> getGenericClass(int index) {
+        return (Class<T>) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[index];
+    }
+
     private void setConfigAttributes() {
-        try (InputStream inputStream = FSVault.class.getResourceAsStream("/application.properties")) {
+        try (InputStream inputStream = QuoteClient.class.getResourceAsStream("/application.properties")) {
             if (inputStream == null) {
                 throw new FileNotFoundException("Could not find application.properties");
             }

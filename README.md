@@ -1,7 +1,7 @@
-# cashu-mint (katika)
+# cashu-mintDto (katika)
 
 ## Description
-```Katika``` is a cashu mint implemented in java, based on the cashu-lib library. 
+```Katika``` is a cashu mintDto implemented in java, based on the cashu-lib library. 
 
 ## Requirements
     $ java -version
@@ -21,22 +21,22 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ```
 
 ## Modules
-- ```cashu-mint-admin```: admin interface
-- ```cashu-mint-protocol```: protocol implementation
-- ```cashu-mint-rest```: REST API with wallet endpoints
-- ```cashu-mint-test```: unit test module (TODO)
-- ```cashu-mint-vault```: vault implementation
+- ```cashu-mintDto-admin```: admin interface
+- ```cashu-mintDto-protocol```: protocol implementation
+- ```cashu-mintDto-rest```: REST API with wallet endpoints
+- ```cashu-mintDto-test```: unit test module (TODO)
+- ```cashu-mintDto-vault```: vault implementation
 
 ## Configuration
 
 
-## Build and install cashu-mint
+## Build and install cashu-mintDto
 ```
 $ cd <your_git_home_dir>
-$ git clone https://github.com/tcheeric/cashu-mint.git
-$ cd cashu-mint
+$ git clone https://github.com/tcheeric/cashu-mintDto.git
+$ cd cashu-mintDto
 $ mvn clean install
-$ cd cashu-mint-rest
+$ cd cashu-mintDto-rest
 $ mvn spring-boot:run
 ```
 
@@ -56,7 +56,7 @@ In no particular order:
 - Implement additional gateways (Mobile Money, Strike, Stripe)
 - Implement additional NUTs
 - Implement a web admin interface 
-- Hashicorp Vault integration to store private keys. (The current vault is very basic and not fit for production use)
+- Hashicorp Vault integration to store private keysDto. (The current vault is very basic and not fit for production use)
 - Unit tests
 
 ## License

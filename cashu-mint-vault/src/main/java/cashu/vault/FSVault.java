@@ -1,6 +1,6 @@
 package cashu.vault;
 
-import cashu.common.model.PrivateKey;
+import cashu.common.protocol.CashuErrorException;
 import cashu.util.Configuration;
 import cashu.vault.config.EntityConfiguration;
 import cashu.vault.config.MintConfiguration;
@@ -13,6 +13,11 @@ import java.nio.file.Paths;
 import java.util.Objects;
 
 public abstract class FSVault<T extends EntityConfiguration> implements Vault<T> {
+
+    @Override
+    public void delete() throws CashuErrorException {
+        throw new ClassCastException("Not implemented");
+    }
 
     protected static String getBaseDir() {
         return getBaseDir(false);
@@ -37,11 +42,9 @@ public abstract class FSVault<T extends EntityConfiguration> implements Vault<T>
     }
 
     protected static String mintArchivePath(@NonNull MintConfiguration mint) {
-        PrivateKey privateKey = PrivateKey.fromString(mint.getPrivateKey());
-
         var archiveDir = getArchiveDir();
 
-        Path dirPath = Paths.get(archiveDir, "mint", privateKey.toString());
+        Path dirPath = Paths.get(archiveDir, "mint", mint.getId());
         return dirPath.toString();
     }
 

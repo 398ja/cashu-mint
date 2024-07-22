@@ -1,10 +1,12 @@
 package cashu.mint.admin;
 
 import cashu.common.model.KeySet;
-import cashu.common.model.Keys;
-import cashu.common.model.Mint;
 import cashu.common.model.PrivateKey;
-import cashu.mint.nut.NUT01;
+import cashu.common.protocol.CashuErrorException;
+import cashu.crypto.KeySetDerivation;
+import cashu.mint.admin.model.KeySetDto;
+import cashu.mint.admin.model.KeysDto;
+import cashu.mint.admin.model.MintDto;
 import cashu.util.Configuration;
 import cashu.vault.config.KeyConfiguration;
 import cashu.vault.config.KeysetConfiguration;
@@ -12,43 +14,64 @@ import cashu.vault.config.MintConfiguration;
 import cashu.vault.impl.fs.FSKeyVault;
 import cashu.vault.impl.fs.FSKeysetVault;
 import cashu.vault.impl.fs.FSMintVault;
+import lombok.AllArgsConstructor;
+import lombok.NonNull;
+import lombok.extern.java.Log;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.logging.Level;
 
+@AllArgsConstructor
+@Log
 public class Bootstrap {
+
+    @NonNull
+    private final InputStream appProperties;
+
+    @NonNull
+    private final InputStream keysetProperties;
+
+    public Bootstrap() {
+        this(
+                Objects.requireNonNull(Bootstrap.class.getResourceAsStream("/cashu.properties")),
+                Objects.requireNonNull(Bootstrap.class.getResourceAsStream("/keyset.properties"))
+        );
+    }
 
     public static void main(String[] args) {
         try {
-            Mint mint = create();
-            System.out.println("Mint created: " + mint.getPrivateKey());
+            Bootstrap bootstrap = new Bootstrap();
+            MintDto mintDto = bootstrap.create();
+            System.out.println("MintDto created: " + mintDto.getId());
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static Mint create() throws Exception {
-        Mint mint = new Mint();
-        new FSMintVault(new MintConfiguration(mint.getPrivateKey().toString())).store();
+    public MintDto create() throws Exception {
+        MintDto mintDto = new MintDto(UUID.randomUUID().toString());
+        String id = mintDto.getId();
+        new FSMintVault(new MintConfiguration(id)).store();
 
         for (String unit : getUnits()) {
             Map<BigInteger, PrivateKey> keysMap = new HashMap<>();
-            Keys keys = new Keys();
+            KeysDto keysDto = new KeysDto();
             for (Integer key : getKeys(unit)) {
                 PrivateKey privateKey = PrivateKey.generateRandom();
                 keysMap.put(BigInteger.valueOf(key), privateKey);
-                keys.put(BigInteger.valueOf(key), PrivateKey.derivePublicKey(privateKey));
+                keysDto.put(BigInteger.valueOf(key), privateKey);
             }
 
-            KeySet keySet = NUT01.generateKeySet(unit, keys);
-            mint.addKeySet(keySet);
+            KeySetDto keySetDto = generateKeySet(unit, keysDto);
+            mintDto.addKeySet(keySetDto);
 
-            KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(mint.getPrivateKey().toString()), keySet.getId(), keySet.getUnit());
+            KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(id), keySetDto.getId(), keySetDto.getUnit());
             new FSKeysetVault(keysetConfiguration).store();
 
             for (BigInteger key : keysMap.keySet()) {
@@ -56,28 +79,36 @@ public class Bootstrap {
             }
         }
 
-        return mint;
+        return mintDto;
     }
 
-    private static List<String> getUnits() {
-        try (InputStream is = Bootstrap.class.getResourceAsStream("/app.properties")) {
-            if (is == null) {
-                throw new FileNotFoundException("Could not find app.properties");
-            }
-            return Configuration.load(is).getValues("units");
-        } catch (IOException e) {
-            throw new RuntimeException("Error reading app.properties", e);
-        }
+    public void archive(@NonNull MintDto mintDto) throws CashuErrorException {
+        String id = mintDto.getId();
+        log.log(Level.INFO, "Archiving mintDto: {0}", id);
+        FSMintVault vault = new FSMintVault(new MintConfiguration(id));
+        vault.archive(id);
     }
 
-    private static List<Integer> getKeys(String unit) {
-        try (InputStream is = Bootstrap.class.getResourceAsStream("/keyset.properties")) {
-            if (is == null) {
-                throw new FileNotFoundException("Could not find keyset.properties");
-            }
-            return Configuration.load(is).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
-        } catch (IOException e) {
-            throw new RuntimeException("Error reading keyset.properties", e);
-        }
+    public void delete(@NonNull MintDto mintDto) throws CashuErrorException {
+        log.log(Level.INFO, "Deleting mint");
+        new FSMintVault(mintDto.getId()).delete();
     }
+
+    private List<String> getUnits() {
+        return Configuration.load(appProperties).getValues("units");
+    }
+
+    private List<Integer> getKeys(String unit) {
+        return Configuration.load(keysetProperties).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
+    }
+
+    private static KeySetDto generateKeySet(@NonNull String unit, @NonNull KeysDto keysDto) {
+        KeySetDto keySetDto = KeySetDto.builder().unit(unit).keys(keysDto).build();
+        KeySet keySet = KeySetDto.toKeySet(keySetDto);
+        KeySetDerivation keySetDerivation = new KeySetDerivation(keySet);
+        keySetDerivation.deriveKeySetId();
+        keySetDto.setId(keySet.getId());
+        return keySetDto;
+    }
+
 }

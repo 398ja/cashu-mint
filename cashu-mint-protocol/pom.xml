@@ -35,12 +35,17 @@
         </dependency>
         <dependency>
             <groupId>cashu-java</groupId>
-            <artifactId>cashu-mint-gateway</artifactId>
+            <artifactId>cashu-lib-gateway</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>cashu-java</groupId>
-            <artifactId>cashu-mint-gateway-mock</artifactId>
+            <artifactId>cashu-lib-gateway-mock</artifactId>
+            <version>0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>cashu-java</groupId>
+            <artifactId>cashu-lib-gateway-test</artifactId>
             <version>0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
