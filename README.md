@@ -1,7 +1,7 @@
-# cashu-mintDto (katika)
+# cashu-mint 
 
 ## Description
-```Katika``` is a cashu mintDto implemented in java, based on the cashu-lib library. 
+```cashu-mint``` is a cashu mint implemented in java, based on the cashu-lib library. 
 
 ## Requirements
     $ java -version
@@ -10,7 +10,7 @@ openjdk version "21.0.2" 2024-01-16
 OpenJDK Runtime Environment (build 21.0.2+13-Ubuntu-123.10.1)
 OpenJDK 64-Bit Server VM (build 21.0.2+13-Ubuntu-123.10.1, mixed mode, sharing)
 ```
-
+cashu-wallet
     $ mvn -version
 ```
 Apache Maven 3.8.7
@@ -21,11 +21,11 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ```
 
 ## Modules
-- ```cashu-mintDto-admin```: admin interface
-- ```cashu-mintDto-protocol```: protocol implementation
-- ```cashu-mintDto-rest```: REST API with wallet endpoints
-- ```cashu-mintDto-test```: unit test module (TODO)
-- ```cashu-mintDto-vault```: vault implementation
+- ```cashu-mint-admin```: admin interface
+- ```cashu-mint-protocol```: protocol implementation
+- ```cashu-mint-rest```: REST API with wallet endpoints
+- ```cashu-mint-test```: unit test module (TODO)
+- ```cashu-mint-vault```: vault implementation
 
 ## Configuration
 
@@ -33,10 +33,10 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ## Build and install cashu-mintDto
 ```
 $ cd <your_git_home_dir>
-$ git clone https://github.com/tcheeric/cashu-mintDto.git
-$ cd cashu-mintDto
+$ git clone https://github.com/tcheeric/cashu-mint.git
+$ cd cashu-mint
 $ mvn clean install
-$ cd cashu-mintDto-rest
+$ cd cashu-mint-rest
 $ mvn spring-boot:run
 ```
 
@@ -52,11 +52,10 @@ $ mvn spring-boot:run
 
 ## TODO
 In no particular order:
-- Implement a native Lightning Network gateway
-- Implement additional gateways (Mobile Money, Strike, Stripe)
+- Implement additional gateways 
 - Implement additional NUTs
 - Implement a web admin interface 
-- Hashicorp Vault integration to store private keysDto. (The current vault is very basic and not fit for production use)
+- Hashicorp Vault integration to store private keys. (The current vault is very basic and not fit for production use)
 - Unit tests
 
 ## License
