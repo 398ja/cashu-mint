@@ -50,14 +50,14 @@ public class CashuController {
 
     @GetMapping("/keys")
     public ResponseEntity<KeySetResponse> keys() {
-        log.log(Level.INFO, "Getting keys");
+        log.log(Level.FINE, "Getting keys");
         KeySetResponse response = new KeySetResponse(NUT02.keys());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/keys/{keyset_id}")
     public ResponseEntity<KeySetResponse> keys(@PathVariable("keyset_id") String keysetId) {
-        log.log(Level.INFO, "keys({0})", keysetId);
+        log.log(Level.FINE, "keys({0})", keysetId);
         KeySet keySet = NUT02.keys(keysetId);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
         return ResponseEntity.ok(response);

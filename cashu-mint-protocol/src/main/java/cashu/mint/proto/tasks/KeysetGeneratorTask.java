@@ -1,4 +1,4 @@
-package cashu.mint.proto.abilities.tasks;
+package cashu.mint.proto.tasks;
 
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;

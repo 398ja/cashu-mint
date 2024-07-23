@@ -23,10 +23,10 @@ import static cashu.mint.proto.nut.NUT01.generateKeySet;
 public class NUT02 {
 
     public static List<KeySet> keys() {
-        log.log(Level.FINEST, "keysets()");
+        log.log(Level.FINE, "keysets()");
         List<KeySet> keySets = new ArrayList<>();
         var units = getUnits();
-        log.log(Level.INFO, "units: {0}", units);
+        log.log(Level.FINE, "units: {0}", units);
 
         units.forEach(unit -> {
             try {
@@ -41,7 +41,7 @@ public class NUT02 {
 
     public static KeySet keys(@NonNull String keysetId) {
         List<KeySet> keySets = keySets();
-        log.log(Level.INFO, "keysets: {0}", keySets);
+        log.log(Level.FINE, "keysets: {0}", keySets);
         return keySets
                 .stream()
                 .filter(keySet -> null != keySet.getId())
@@ -51,7 +51,7 @@ public class NUT02 {
     }
 
     public static List<ActiveKeySet> activeKeySets() {
-        log.log(Level.INFO, "keySets()");
+        log.log(Level.FINE, "keySets()");
         List<ActiveKeySet> activeKeySets = new ArrayList<>();
         activeKeySets.addAll(activeKeySets(false));
         activeKeySets.addAll(activeKeySets(true));
@@ -63,7 +63,7 @@ public class NUT02 {
     }
 
     private static List<KeySet> keySets() {
-        log.log(Level.INFO, "keySets()");
+        log.log(Level.FINE, "keySets()");
 
         List<KeySet> result = new ArrayList<>();
         result.addAll(keySets(false));
@@ -73,7 +73,7 @@ public class NUT02 {
     }
 
     private static List<KeySet> keySets(boolean archive) {
-        log.log(Level.INFO, "keySets({0})", archive);
+        log.log(Level.FINE, "keySets({0})", archive);
 
         List<KeySet> result = new ArrayList<>();
         Mint mint = FSMintVault.load(archive);
@@ -86,7 +86,7 @@ public class NUT02 {
     }
 
     private static List<ActiveKeySet> activeKeySets(boolean archive) {
-        log.log(Level.INFO, "keySets({0})", archive);
+        log.log(Level.FINE, "keySets({0})", archive);
 
         List<ActiveKeySet> result = new ArrayList<>();
         List<KeySet> keySets = keySets(archive);

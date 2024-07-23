@@ -1,4 +1,4 @@
-package cashu.mint.proto.abilities.tasks;
+package cashu.mint.proto.tasks;
 
 import cashu.common.model.Mint;
 import cashu.common.model.Proof;

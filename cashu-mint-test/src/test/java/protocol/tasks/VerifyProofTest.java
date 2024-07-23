@@ -10,7 +10,7 @@ import cashu.common.model.Secret;
 import cashu.common.model.Signature;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.protocol.CashuErrorException;
-import cashu.mint.proto.abilities.tasks.VerifyProofsTask;
+import cashu.mint.proto.tasks.VerifyProofsTask;
 import cashu.mint.admin.model.KeySetDto;
 import cashu.mint.admin.model.MintDto;
 import cashu.mint.proto.util.MintUtil;

@@ -5,7 +5,7 @@ import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
 import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.KeySetDerivation;
-import cashu.mint.proto.abilities.tasks.KeysetGeneratorTask;
+import cashu.mint.proto.tasks.KeysetGeneratorTask;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
@@ -16,7 +16,7 @@ import java.util.logging.Level;
 public class NUT01 {
 
     public static KeySet generateKeySet(@NonNull String unit) throws CashuErrorException {
-        log.log(Level.INFO, "generateKeySet({0})", unit);
+        log.log(Level.FINE, "generateKeySet({0})", unit);
         return new KeysetGeneratorTask(unit).execute();
     }
 

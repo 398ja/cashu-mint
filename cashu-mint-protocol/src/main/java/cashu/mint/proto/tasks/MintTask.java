@@ -1,4 +1,4 @@
-package cashu.mint.proto.abilities.tasks;
+package cashu.mint.proto.tasks;
 
 import cashu.common.model.BlindSignature;
 import cashu.common.model.BlindedMessage;
@@ -8,7 +8,7 @@ import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
 import cashu.common.protocol.BaseAbility;
 import cashu.common.protocol.CashuErrorException;
-import cashu.mint.gateway.Gateway;
+import cashu.gateway.Gateway;
 import cashu.util.ThreadUtil;
 import lombok.NonNull;
 import lombok.extern.java.Log;

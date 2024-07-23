@@ -1,4 +1,4 @@
-package cashu.mint.proto.abilities.tasks;
+package cashu.mint.proto.tasks;
 
 import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
@@ -9,7 +9,7 @@ import cashu.common.model.rest.PostMeltResponse;
 import cashu.common.protocol.BaseAbility;
 import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
-import cashu.mint.gateway.Gateway;
+import cashu.gateway.Gateway;
 import cashu.mint.proto.util.MintUtil;
 import cashu.util.ThreadUtil;
 import lombok.NonNull;

@@ -1,4 +1,4 @@
-package cashu.mint.proto.abilities.tasks;
+package cashu.mint.proto.tasks;
 
 import cashu.common.model.Mint;
 import cashu.common.model.Proof;
@@ -18,12 +18,12 @@ public class UpdateProofStateTask implements BaseAbility.Task<Boolean> {
 
     public Boolean execute() {
         try {
-            MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
             String unblindedSignature = proof.getUnblindedSignature().toString();
             String secret = proof.getSecret().toString();
             byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
-            ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
 
+            MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
+            ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
             FSProofVault vault = new FSProofVault(proofConfiguration);
             vault.storePending();
         } catch (CashuErrorException e) {

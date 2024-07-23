@@ -16,7 +16,7 @@ public abstract class FSVault<T extends EntityConfiguration> implements Vault<T>
 
     @Override
     public void delete() throws CashuErrorException {
-        throw new ClassCastException("Not implemented");
+        throw new IllegalStateException("Not implemented");
     }
 
     protected static String getBaseDir() {

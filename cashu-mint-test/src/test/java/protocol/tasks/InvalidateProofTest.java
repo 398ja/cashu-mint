@@ -9,7 +9,7 @@ import cashu.common.model.Signature;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.protocol.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
-import cashu.mint.proto.abilities.tasks.InvalidateProofsTask;
+import cashu.mint.proto.tasks.InvalidateProofsTask;
 import cashu.util.Utils;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
