@@ -30,7 +30,12 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ## Configuration
 
 
-## Build and install cashu-mintDto
+## Build and install cashu-mint
+To build and install the cashu-mint, you need to create a vault on the file system. The vault is used to store the private keys. For now, the vault is a simple file system based vault and is not suitable for production use. 
+
+To create a vault, run the ```VaultUtil``` class from the ```cashu-mint-admin``` module. 
+
+Then follow the steps below to build and install the cashu-mint. 
 ```
 $ cd <your_git_home_dir>
 $ git clone https://github.com/tcheeric/cashu-mint.git
@@ -56,7 +61,7 @@ In no particular order:
 - Implement additional NUTs
 - Implement a web admin interface 
 - Hashicorp Vault integration to store private keys. (The current vault is very basic and not fit for production use)
-- Unit tests
+- More unit tests
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
