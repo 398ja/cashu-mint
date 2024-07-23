@@ -7,8 +7,8 @@ import cashu.common.model.PrivateKey;
 import cashu.common.model.Proof;
 import cashu.common.model.Secret;
 import cashu.common.model.rest.PostSwapRequest;
-import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
+import cashu.common.util.Task;
 import cashu.crypto.BDHKEUtils;
 import cashu.mint.proto.util.MintUtil;
 import cashu.util.Utils;
@@ -23,7 +23,7 @@ import java.util.List;
 
 @Log
 @AllArgsConstructor
-public class VerifyProofsTask implements BaseAbility.Task<Void> {
+public class VerifyProofsTask implements Task<Void> {
 
     private final Mint mint;
     private final PostSwapRequest request;

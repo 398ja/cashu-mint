@@ -2,8 +2,8 @@ package cashu.mint.proto.tasks;
 
 import cashu.common.model.Mint;
 import cashu.common.model.Proof;
-import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
+import cashu.common.util.Task;
 import cashu.crypto.BDHKEUtils;
 import cashu.util.Utils;
 import cashu.vault.config.MintConfiguration;
@@ -18,7 +18,7 @@ import java.util.logging.Level;
 
 @AllArgsConstructor
 @Log
-public class InvalidateProofsTask implements BaseAbility.Task<Boolean> {
+public class InvalidateProofsTask implements Task<Boolean> {
 
     private final Mint mint;
     private final List<Proof> proofs;
@@ -40,7 +40,7 @@ public class InvalidateProofsTask implements BaseAbility.Task<Boolean> {
                         proofVault.deletePending();
                         proofVault.store();
                     } catch (CashuErrorException e) {
-                        error.set(e);
+                        throw new RuntimeException(e);
                     }
                 });
 

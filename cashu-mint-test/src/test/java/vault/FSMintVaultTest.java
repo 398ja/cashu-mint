@@ -1,6 +1,6 @@
 package vault;
 
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.admin.VaultUtil;
 import cashu.vault.impl.fs.FSMintVault;
 import org.junit.After;

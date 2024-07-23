@@ -3,7 +3,7 @@ package cashu.mint.proto.nut;
 import cashu.common.annotation.Nut;
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.crypto.KeySetDerivation;
 import cashu.mint.proto.tasks.KeysetGeneratorTask;
 import lombok.NonNull;

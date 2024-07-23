@@ -1,6 +1,6 @@
 package cashu.vault;
 
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.util.Configuration;
 import cashu.vault.config.EntityConfiguration;
 import cashu.vault.config.MintConfiguration;

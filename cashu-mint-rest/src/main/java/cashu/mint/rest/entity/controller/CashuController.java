@@ -18,7 +18,7 @@ import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.proto.nut.NUT02;
 import cashu.mint.proto.nut.NUT03;
 import cashu.mint.proto.nut.NUT04;

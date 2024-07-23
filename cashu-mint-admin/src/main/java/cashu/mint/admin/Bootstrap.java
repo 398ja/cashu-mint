@@ -2,7 +2,7 @@ package cashu.mint.admin;
 
 import cashu.common.model.KeySet;
 import cashu.common.model.PrivateKey;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.crypto.KeySetDerivation;
 import cashu.mint.admin.model.KeySetDto;
 import cashu.mint.admin.model.KeysDto;

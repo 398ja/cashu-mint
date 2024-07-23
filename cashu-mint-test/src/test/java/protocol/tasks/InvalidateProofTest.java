@@ -7,7 +7,7 @@ import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
 import cashu.common.model.Signature;
 import cashu.common.model.rest.PostSwapRequest;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.mint.proto.tasks.InvalidateProofsTask;
 import cashu.util.Utils;

@@ -5,7 +5,7 @@ import cashu.common.model.BlindedMessage;
 import cashu.common.model.Mint;
 import cashu.common.model.PrivateKey;
 import cashu.common.model.PublicKey;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.proto.tasks.SignBlindedMessageTask;
 import cashu.mint.admin.model.MintDto;
 import cashu.mint.proto.util.MintUtil;

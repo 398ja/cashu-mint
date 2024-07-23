@@ -4,7 +4,7 @@ import cashu.common.annotation.Nut;
 import cashu.common.model.ActiveKeySet;
 import cashu.common.model.KeySet;
 import cashu.common.model.Mint;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.util.Configuration;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;

@@ -2,8 +2,8 @@ package cashu.mint.proto.tasks;
 
 import cashu.common.model.KeySet;
 import cashu.common.model.Keys;
-import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
+import cashu.common.util.Task;
 import cashu.crypto.KeySetDerivation;
 import cashu.vault.FSVault;
 import cashu.vault.impl.fs.FSKeyVault;
@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.logging.Level;
 
 @Log
-public class KeysetGeneratorTask implements BaseAbility.Task<KeySet> {
+public class KeysetGeneratorTask implements Task<KeySet> {
 
     private final String unit;
 

@@ -11,7 +11,7 @@ import cashu.common.model.Signature;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
 import cashu.common.model.rest.PostSwapRequest;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MeltTask;
@@ -44,7 +44,7 @@ public class MeltTest {
     private VaultUtil vaultUtil;
 
     @Before
-    public void setUp() throws IOException, CashuErrorException  {
+    public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }

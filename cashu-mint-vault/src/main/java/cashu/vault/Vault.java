@@ -1,6 +1,6 @@
 package cashu.vault;
 
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.vault.config.EntityConfiguration;
 
 public interface Vault<T extends EntityConfiguration> {

@@ -9,7 +9,7 @@ import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MintTask;
 import cashu.mint.admin.model.MintDto;
@@ -37,7 +37,7 @@ public class MintTest {
     private VaultUtil vaultUtil;
 
     @Before
-    public void setUp() throws IOException, CashuErrorException  {
+    public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }

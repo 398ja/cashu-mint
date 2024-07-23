@@ -6,8 +6,8 @@ import cashu.common.model.PrivateKey;
 import cashu.common.model.Proof;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
-import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
+import cashu.common.util.Task;
 import cashu.crypto.BDHKEUtils;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.util.MintUtil;
@@ -19,7 +19,7 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 
 // TEST -
 @Log
-public class MeltTask implements BaseAbility.Task<PostMeltResponse> {
+public class MeltTask implements Task<PostMeltResponse> {
     private final PostMeltRequest request;
     private final PaymentMethod method;
     private final Mint mint;

@@ -6,8 +6,8 @@ import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
-import cashu.common.protocol.BaseAbility;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
+import cashu.common.util.Task;
 import cashu.gateway.Gateway;
 import cashu.util.ThreadUtil;
 import lombok.NonNull;
@@ -19,7 +19,7 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
 @Log
-public class MintTask implements BaseAbility.Task<PostMintResponse> {
+public class MintTask implements Task<PostMintResponse> {
     private final PostMintRequest request;
     private final PaymentMethod method;
     private final Mint mint;

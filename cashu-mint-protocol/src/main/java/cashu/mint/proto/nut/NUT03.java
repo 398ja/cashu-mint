@@ -5,7 +5,7 @@ import cashu.common.model.BlindedMessage;
 import cashu.common.model.Mint;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.proto.tasks.InvalidateProofsTask;
 import cashu.mint.proto.tasks.SignBlindedMessageTask;
 import cashu.mint.proto.tasks.VerifyProofsTask;

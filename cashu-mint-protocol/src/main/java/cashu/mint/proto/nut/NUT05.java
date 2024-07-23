@@ -6,7 +6,7 @@ import cashu.common.model.rest.PostMeltQuoteRequest;
 import cashu.common.model.rest.PostMeltQuoteResponse;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MeltTask;
 import cashu.vault.impl.fs.FSMintVault;

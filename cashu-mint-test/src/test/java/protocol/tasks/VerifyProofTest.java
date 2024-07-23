@@ -9,7 +9,7 @@ import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
 import cashu.common.model.Signature;
 import cashu.common.model.rest.PostSwapRequest;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.proto.tasks.VerifyProofsTask;
 import cashu.mint.admin.model.KeySetDto;
 import cashu.mint.admin.model.MintDto;
@@ -40,7 +40,7 @@ public class VerifyProofTest {
     private VaultUtil vaultUtil;
 
     @Before
-    public void setUp() throws IOException, CashuErrorException  {
+    public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }

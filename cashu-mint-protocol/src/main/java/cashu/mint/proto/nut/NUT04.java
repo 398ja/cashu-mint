@@ -6,7 +6,7 @@ import cashu.common.model.PaymentMethod;
 import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MintTask;
 import cashu.vault.impl.fs.FSMintVault;

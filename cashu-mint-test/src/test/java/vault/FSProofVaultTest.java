@@ -2,7 +2,7 @@ package vault;
 
 import cashu.common.model.Mint;
 import cashu.common.model.Secret;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.util.Utils;
 import cashu.vault.FSVault;

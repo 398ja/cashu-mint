@@ -1,6 +1,6 @@
 package cashu.mint.admin;
 
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.mint.admin.model.MintDto;
 import cashu.vault.config.KeyConfiguration;
 import cashu.vault.config.KeysetConfiguration;

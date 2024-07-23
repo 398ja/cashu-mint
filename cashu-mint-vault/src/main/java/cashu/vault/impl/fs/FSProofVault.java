@@ -1,7 +1,7 @@
 package cashu.vault.impl.fs;
 
 import cashu.common.model.Signature;
-import cashu.common.protocol.CashuErrorException;
+import cashu.common.util.CashuErrorException;
 import cashu.util.ThreadUtil;
 import cashu.util.Utils;
 import cashu.vault.FSVault;
