@@ -1,7 +1,7 @@
 # cashu-mint 
 
 ## Description
-```cashu-mint``` is a cashu mint implemented in java, based on the cashu-lib library. 
+```cashu-mint``` is a cashu mint implemented in java, based on the ```cashu-lib``` library. 
 
 ## Requirements
     $ java -version
@@ -57,9 +57,9 @@ $ mvn spring-boot:run
 
 ## TODO
 In no particular order:
-- Implement additional gateways 
-- Implement additional NUTs
-- Implement a web admin interface 
+- Additional gateways 
+- Additional NUTs
+- A web admin interface 
 - Hashicorp Vault integration to store private keys. (The current vault is very basic and not fit for production use)
 - More unit tests
 
