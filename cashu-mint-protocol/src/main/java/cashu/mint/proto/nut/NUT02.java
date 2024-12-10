@@ -4,6 +4,7 @@ import cashu.common.annotation.Nut;
 import cashu.common.model.ActiveKeySet;
 import cashu.common.model.KeySet;
 import cashu.common.model.Mint;
+import cashu.common.model.Proof;
 import cashu.common.util.CashuErrorException;
 import cashu.util.Configuration;
 import cashu.vault.impl.fs.FSMintVault;
@@ -60,6 +61,23 @@ public class NUT02 {
         activeKeySets.sort(Comparator.comparing(ActiveKeySet::getId));
 
         return activeKeySets;
+    }
+
+    public static int fees(@NonNull List<Proof> inputs) {
+        int sum_fees = 0;
+        for (Proof proof : inputs) {
+            String keysetId = proof.getKeySetId();
+            KeySet keySet = keys(keysetId);
+            sum_fees += keySet.getPartPerThousand();
+        }
+
+        return Math.floorDiv (sum_fees + 999, 1000);
+    }
+
+    public static int fees(@NonNull Proof input) {
+        String keysetId = input.getKeySetId();
+        KeySet keySet = keys(keysetId);
+        return Math.floorDiv(keySet.getPartPerThousand() + 999, 1000);
     }
 
     private static List<KeySet> keySets() {
