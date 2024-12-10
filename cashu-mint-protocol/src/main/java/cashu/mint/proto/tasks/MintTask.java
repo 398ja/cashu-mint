@@ -20,13 +20,13 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
 @Log
 public class MintTask implements Task<PostMintResponse> {
-    private final PostMintRequest request;
+    private final PostMintRequest postMintRequest;
     private final PaymentMethod method;
     private final Mint mint;
 
 
     public MintTask(@NonNull PostMintRequest postMintRequest, @NonNull PaymentMethod method, @NonNull Mint mint) {
-        this.request = postMintRequest;
+        this.postMintRequest = postMintRequest;
         this.method = method;
         this.mint = mint;
     }
@@ -39,12 +39,12 @@ public class MintTask implements Task<PostMintResponse> {
 
             // If the invoice was not paid yet, Bob responds with an error.
             // TODO - Encode the error message
-            Gateway gateway = createGateway(method, "mint");
-            if (!gateway.checkPaymentStatus(request.getQuoteId())) {
+            Gateway gateway = createGateway(method);
+            if (!gateway.checkPaymentStatus(postMintRequest.getQuoteId())) {
                 throw new CashuErrorException("mint_invoice_not_paid_error");
             }
 
-            List<BlindedMessage> blindedMessages = request.getBlindedMessages();
+            List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
             blindedMessages.forEach(bm -> {
                 SignBlindedMessageTask signBlindedMessageTask = new SignBlindedMessageTask(mint, bm);
                 BlindSignature bSignature = signBlindedMessageTask.execute();

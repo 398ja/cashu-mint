@@ -9,7 +9,7 @@ import cashu.common.model.rest.PostMeltResponse;
 import cashu.common.util.CashuErrorException;
 import cashu.common.util.Task;
 import cashu.crypto.BDHKEUtils;
-import cashu.gateway.Gateway;
+import cashu.mint.proto.nut.NUT02;
 import cashu.mint.proto.util.MintUtil;
 import cashu.util.ThreadUtil;
 import lombok.NonNull;
@@ -20,12 +20,12 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 // TEST -
 @Log
 public class MeltTask implements Task<PostMeltResponse> {
-    private final PostMeltRequest request;
+    private final PostMeltRequest postMeltRequest;
     private final PaymentMethod method;
     private final Mint mint;
 
-    public MeltTask(@NonNull PostMeltRequest request, @NonNull PaymentMethod method, @NonNull Mint mint) {
-        this.request = request;
+    public MeltTask(@NonNull PostMeltRequest postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint) {
+        this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
     }
@@ -35,19 +35,21 @@ public class MeltTask implements Task<PostMeltResponse> {
         ThreadUtil.MINT_MELT_LOCK.lock();
         try {
             // TODO - Use java module instead?
-            Gateway gateway = createGateway(method, "melt");
-            var proofsToMelt = request.getProofs();
-            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum();
-
+            var proofsToMelt = postMeltRequest.getInputs();
             for (Proof proof : proofsToMelt) {
                 if (!verify(proof)) {
                     throw  new CashuErrorException("melt_proof_verification_error:"+proof);
                 }
             }
 
-            String quoteId = request.getQuoteId();
+            var keySetId = proofsToMelt.get(0).getKeySetId();
+            var keyset = NUT02.keys(keySetId);
+            var quoteId = postMeltRequest.getQuoteId();
+            var gateway = createGateway(method);
             var amount = gateway.getAmount(quoteId);
-            var fee_reserve = gateway.getFeeReserve(quoteId);
+            var request = gateway.getRequest(quoteId);
+            var fee_reserve = gateway.getFeeReserve(quoteId); // TODO - Add 5% (configurable)
+            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum() + postMeltRequest.getFees(keyset) + fee_reserve;
 
             if (totalAmount < amount + fee_reserve) {
                 throw new CashuErrorException("melt_proof_amount_error");
@@ -64,6 +66,7 @@ public class MeltTask implements Task<PostMeltResponse> {
             ThreadUtil.MINT_MELT_LOCK.unlock();
         }
     }
+
     public boolean verify(@NonNull Proof proof) {
         PrivateKey privateKey = MintUtil.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {

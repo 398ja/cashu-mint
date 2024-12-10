@@ -8,6 +8,7 @@ import cashu.common.model.rest.PostSwapResponse;
 import cashu.common.util.CashuErrorException;
 import cashu.mint.proto.tasks.InvalidateProofsTask;
 import cashu.mint.proto.tasks.SignBlindedMessageTask;
+import cashu.mint.proto.tasks.VerifyFeesTask;
 import cashu.mint.proto.tasks.VerifyProofsTask;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
@@ -47,7 +48,12 @@ public class NUT03 {
         // TODO: This is a temporary solution for now. Ultimately, we may need to ensure that the blind signatures are sorted in ascending order
         // blindSignatures.sort(Comparator.comparing(blindSignature -> blindSignature.getAmount()));
 
-        return new PostSwapResponse(blindSignatures);
+        PostSwapResponse postSwapResponse = new PostSwapResponse(blindSignatures);
+
+        // Verify fees
+        new VerifyFeesTask(postSwapRequest, postSwapResponse).execute();
+
+        return postSwapResponse;
     }
 
 }

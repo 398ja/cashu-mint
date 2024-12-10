@@ -9,11 +9,11 @@ import cashu.common.model.rest.PostMintResponse;
 import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MintTask;
+import cashu.mint.proto.util.MintUtil;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.util.UUID;
 
 import static cashu.mint.proto.util.MintUtil.createGateway;
 
@@ -22,21 +22,20 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 public class NUT04 {
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) {
-
-        var gateway = createGateway(method, "mint");
-        var quoteId = UUID.randomUUID();
-        var request = gateway.createRequest(amount);
-        var expiry = gateway.getPaymentExpiry(quoteId.toString());
+        var gateway = createGateway(method);
+        var quoteId = gateway.createMintQuote(amount, null);
+        var request = gateway.getRequest(quoteId);
+        var expiry = gateway.getPaymentExpiry(quoteId);
 
         return PostMintQuoteResponse.builder()
-                .quoteId(quoteId.toString())
+                .quoteId(quoteId)
                 .request(request)
                 .expiry(expiry) // TODO - check if this is correct
                 .build();
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
-        Gateway gateway = createGateway(method, "mint");
+        Gateway gateway = createGateway(method);
         return PostMintQuoteResponse
                 .builder()
                 .quoteId(quoteId)

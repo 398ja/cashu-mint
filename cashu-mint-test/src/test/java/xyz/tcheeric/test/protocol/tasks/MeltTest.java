@@ -1,4 +1,4 @@
-package protocol.tasks;
+package xyz.tcheeric.test.protocol.tasks;
 
 import cashu.common.model.BlindedMessage;
 import cashu.common.model.Mint;
@@ -8,28 +8,43 @@ import cashu.common.model.Proof;
 import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
 import cashu.common.model.Signature;
+import cashu.common.model.rest.PostMeltQuoteBolt11Request;
+import cashu.common.model.rest.PostMeltQuoteResponse;
 import cashu.common.model.rest.PostMeltRequest;
 import cashu.common.model.rest.PostMeltResponse;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.util.CashuErrorException;
 import cashu.crypto.BDHKEUtils;
 import cashu.gateway.Gateway;
-import cashu.mint.proto.tasks.MeltTask;
+import cashu.mint.admin.VaultUtil;
 import cashu.mint.admin.model.MintDto;
+import cashu.mint.proto.nut.NUT05;
+import cashu.mint.proto.tasks.MeltTask;
 import cashu.mint.proto.util.MintUtil;
 import cashu.util.Utils;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
 import cashu.vault.impl.fs.FSProofVault;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.NonNull;
+import lombok.extern.java.Log;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import cashu.mint.admin.VaultUtil;
+import xyz.tcheeric.util.Configuration;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+import java.util.logging.Level;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
@@ -39,9 +54,25 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+@Log
 public class MeltTest {
 
     private VaultUtil vaultUtil;
+
+    private static final Properties properties = new Properties();
+    private final static String GW_CONFIG_FILE_PATH = "gw-test.properties";
+
+    static {
+        String configFilePath = System.getProperty(GW_CONFIG_FILE_PATH);
+        try (InputStream input = (configFilePath != null) ? new FileInputStream(configFilePath) : Configuration.class.getClassLoader().getResourceAsStream(GW_CONFIG_FILE_PATH)) {
+            if (input == null) {
+                throw new IOException("Unable to find " + GW_CONFIG_FILE_PATH);
+            }
+            properties.load(input);
+        } catch (IOException ex) {
+            log.log(Level.SEVERE, "Unable to load configuration", ex);
+        }
+    }
 
     @Before
     public void setUp() throws IOException, CashuErrorException {
@@ -52,6 +83,61 @@ public class MeltTest {
     @After
     public void tearDown() throws CashuErrorException {
         vaultUtil.deleteVault();
+    }
+
+    @Test
+    public void mockMelt() throws CashuErrorException {
+        Proof proof = new Proof();
+        proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
+        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setAmount(16);
+        proof.setKeySetId("004cf8cba2f93266");
+
+        Proof proof1 = new Proof();
+        proof1.setUnblindedSignature(Signature.fromString("02d908e2a5ce0a6ce6228667d4f33470e8308dce587a7f1d7b3114873d5d02fc77"));
+        proof1.setSecret(Secret.fromString("84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8"));
+        proof1.setAmount(16);
+        proof1.setKeySetId("004cf8cba2f93266");
+
+        BlindedMessage blindedMessage = new BlindedMessage();
+        blindedMessage.setAmount(16);
+        blindedMessage.setKeySetId("004cf8cba2f93266");
+        blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+
+        BlindedMessage blindedMessage1 = new BlindedMessage();
+        blindedMessage1.setAmount(16);
+        blindedMessage1.setKeySetId("004cf8cba2f93266");
+        blindedMessage.setBlindedMessage(PublicKey.fromString("031f5a5e834c6654753263cea178bef291eb27c39bf87fec4199d95d43132c665c"));
+
+        PostSwapRequest request = new PostSwapRequest();
+        request.setProofs(List.of(proof, proof1));
+        request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
+
+        PostMeltRequest postMeltRequest = new PostMeltRequest();
+        postMeltRequest.setQuoteId("0x1234567890");
+        postMeltRequest.setInputs(List.of(proof, proof1));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.getAmount(anyString())).thenReturn(32);
+        when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
+        when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
+
+
+        Mint mint = MintDto.toMint(vaultUtil.getMint());
+        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
+
+        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
+            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
+                    .thenReturn(mockGateway);
+            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
+            PostMeltResponse postMeltResponse = task.execute();
+
+            archiveProof();
+
+            assertTrue(postMeltResponse.isPaid());
+        }
     }
 
     @Test
@@ -82,35 +168,30 @@ public class MeltTest {
         request.setProofs(List.of(proof, proof1));
         request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
 
+        String requestString = MintUtil.createLightningAddressRequest(properties.getProperty("phoenixd.payee"), 32, "Melt request_" + UUID.randomUUID().toString());
+
+        PostMeltQuoteBolt11Request postMeltQuoteBolt11Request = new PostMeltQuoteBolt11Request();
+        postMeltQuoteBolt11Request.setRequest(requestString);
+        postMeltQuoteBolt11Request.setUnit("sat");
+
+        PostMeltQuoteResponse postMeltQuoteResponse = NUT05.quote(postMeltQuoteBolt11Request, PaymentMethod.BOLT11);
+
         PostMeltRequest postMeltRequest = new PostMeltRequest();
-        postMeltRequest.setQuoteId("0x1234567890");
-        postMeltRequest.setProofs(List.of(proof, proof1));
-
-        Gateway mockGateway = Mockito.mock(Gateway.class);
-        when(mockGateway.getAmount(anyString())).thenReturn(32);
-        when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
-        when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
-
+        postMeltRequest.setQuoteId(postMeltQuoteResponse.getQuoteId());
+        postMeltRequest.setInputs(List.of(proof, proof1));
 
         Mint mint = MintDto.toMint(vaultUtil.getMint());
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
+        //MeltTask meltTask = new MeltTask(postMeltRequest, PaymentMethod.BOLT11, mint);
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK, "melt"))
-                    .thenReturn(mockGateway);
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        PostMeltResponse postMeltResponse = NUT05.melt(postMeltRequest, PaymentMethod.BOLT11); //meltTask.execute();
 
-            PostMeltResponse postMeltResponse = task.execute();
+        archiveProof();
 
-            archiveProof();
-
-            assertTrue(postMeltResponse.isPaid());
-        }
+        assertTrue(postMeltResponse.isPaid());
     }
 
     @Test
-    public void meltWithFees() throws CashuErrorException {
+    public void mockMeltWithFees() throws CashuErrorException {
         Proof proof = new Proof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
         proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
@@ -128,7 +209,7 @@ public class MeltTest {
 
         PostMeltRequest postMeltRequest = new PostMeltRequest();
         postMeltRequest.setQuoteId("0x1234567890");
-        postMeltRequest.setProofs(List.of(proof));
+        postMeltRequest.setInputs(List.of(proof));
 
         Gateway mockGateway = Mockito.mock(Gateway.class);
         when(mockGateway.getAmount(anyString())).thenReturn(256);
@@ -143,7 +224,7 @@ public class MeltTest {
         try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
             mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK, "melt"))
+            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
                     .thenReturn(mockGateway);
 
             // Assert that a CashuErrorException is thrown

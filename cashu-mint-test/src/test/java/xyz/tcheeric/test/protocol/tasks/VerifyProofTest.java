@@ -1,4 +1,4 @@
-package protocol.tasks;
+package xyz.tcheeric.test.protocol.tasks;
 
 import cashu.common.model.BlindedMessage;
 import cashu.common.model.KeySet;
@@ -145,7 +145,7 @@ public class VerifyProofTest {
         var vault = Mockito.mock(FSVault.class);
         when(vault.retrieve(proof.getSecret().toString(), false)).thenReturn(proof.getUnblindedSignature().toString());
 
-        when (mint.getKeySets()).thenReturn(Set.of(new KeySet("004cf8cba2f93266", "sat", null)));
+        when (mint.getKeySets()).thenReturn(Set.of(new KeySet("004cf8cba2f93266", "sat", null, 0)));
 
         try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
             mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))

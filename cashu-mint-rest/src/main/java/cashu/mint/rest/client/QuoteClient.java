@@ -44,6 +44,7 @@ public class QuoteClient<T> extends BaseClient {
         return response.getBody();
     }
 
+    @Override
     protected String getBaseUrl() {
         String address = System.getProperty("server.address") != null ? System.getProperty("server.address") : serverAddress;
         String port = System.getProperty("server.port") != null ? System.getProperty("server.port") : (serverPort != null ? serverPort : "8080");

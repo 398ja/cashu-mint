@@ -1,4 +1,4 @@
-package protocol.tasks;
+package xyz.tcheeric.test.protocol.tasks;
 
 import cashu.common.model.BlindSignature;
 import cashu.common.model.BlindedMessage;
@@ -7,12 +7,17 @@ import cashu.common.model.PaymentMethod;
 import cashu.common.model.PrivateKey;
 import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
+import cashu.common.model.rest.PostMintQuoteBolt11Request;
+import cashu.common.model.rest.PostMintQuoteRequest;
+import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
 import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
-import cashu.mint.proto.tasks.MintTask;
+import cashu.mint.admin.VaultUtil;
 import cashu.mint.admin.model.MintDto;
+import cashu.mint.proto.nut.NUT04;
+import cashu.mint.proto.tasks.MintTask;
 import cashu.mint.proto.util.MintUtil;
 import cashu.util.Utils;
 import org.junit.After;
@@ -20,12 +25,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import cashu.mint.admin.VaultUtil;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -48,7 +54,7 @@ public class MintTest {
     }
 
     @Test
-    public void mint() throws CashuErrorException {
+    public void mockMint() throws CashuErrorException {
         Secret secret = Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
         BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
@@ -66,7 +72,7 @@ public class MintTest {
         try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
             mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK, "mint"))
+            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
                     .thenReturn(mockGateway);
 
             PostMintResponse response = task.execute();
@@ -80,7 +86,35 @@ public class MintTest {
     }
 
     @Test
-    public void mintNotPaid() {
+    public void mintQuote() {
+/*
+        Secret secret = Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
+        byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
+        BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+*/
+
+        PostMintQuoteBolt11Request postMintQuoteBolt11Request = new PostMintQuoteBolt11Request();
+        postMintQuoteBolt11Request.setAmount(100);
+        postMintQuoteBolt11Request.setUnit("sat");
+        System.setProperty("wid", "A1b2C3d4");
+        PostMintQuoteResponse postMintQuoteResponse = NUT04.quote(100, PaymentMethod.BOLT11);
+
+        assertNotNull(postMintQuoteResponse.getQuoteId());
+        assertFalse(postMintQuoteResponse.isPaid());
+
+/*
+        PostMintRequest postMintRequest = new PostMintRequest(postMintQuoteResponse.getQuoteId(), List.of(blindedMessage), List.of(secret, secret), List.of(r));
+        PostMintResponse response = NUT04.mint(postMintRequest, PaymentMethod.BOLT11);
+
+        assertEquals(1, response.getBlindSignatures().size());
+        BlindSignature blindSignature = response.getBlindSignatures().get(0);
+        assertEquals(100, blindSignature.getAmount());
+        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
+*/
+    }
+
+    @Test
+    public void mockMintNotPaid() {
         Secret secret = Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
         BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
@@ -98,7 +132,7 @@ public class MintTest {
         try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
             mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK, "mint"))
+            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
                     .thenReturn(mockGateway);
 
             // Assert that a CashuErrorException is thrown

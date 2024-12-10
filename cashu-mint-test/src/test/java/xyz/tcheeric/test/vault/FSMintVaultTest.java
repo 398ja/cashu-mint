@@ -1,4 +1,4 @@
-package vault;
+package xyz.tcheeric.test.vault;
 
 import cashu.common.util.CashuErrorException;
 import cashu.mint.admin.VaultUtil;

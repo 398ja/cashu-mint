@@ -7,7 +7,7 @@
     <version>0.1-SNAPSHOT</version>
 
     <parent>
-        <groupId>cashu-java</groupId>
+        <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
         <version>0.1-SNAPSHOT</version>
     </parent>

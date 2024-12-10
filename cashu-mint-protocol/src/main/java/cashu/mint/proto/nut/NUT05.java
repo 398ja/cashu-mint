@@ -20,16 +20,16 @@ import static cashu.mint.proto.util.MintUtil.createGateway;
 @Log
 public class NUT05 {
 
-    public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest request, @NonNull PaymentMethod method) {
-        var gateway = createGateway(method, "melt");
-        var quoteId = UUID.randomUUID();
-        var feeReserve = gateway.getFeeReserve(request.getRequestId());
-        var expiry = gateway.getPaymentExpiry(quoteId.toString());
-        var amount = gateway.getAmount(quoteId.toString());
+    public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest postMeltQuoteRequest, @NonNull PaymentMethod method) {
+        var gateway = createGateway(method);
+        var quoteId = gateway.createMeltQuote(postMeltQuoteRequest.getRequest());
+        var feeReserve = gateway.getFeeReserve(quoteId);
+        var expiry = gateway.getPaymentExpiry(quoteId);
+        var amount = gateway.getAmount(quoteId);
 
         return PostMeltQuoteResponse
                 .builder()
-                .quoteId(quoteId.toString())
+                .quoteId(quoteId)
                 .feeReserve(feeReserve)
                 .expiry(expiry) // TODO - check if this is correct
                 .amount(amount)
@@ -37,7 +37,7 @@ public class NUT05 {
     }
 
     public static PostMeltQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
-        Gateway gateway = createGateway(method, "melt");
+        Gateway gateway = createGateway(method);
         return PostMeltQuoteResponse
                 .builder()
                 .quoteId(quoteId)

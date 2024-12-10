@@ -80,10 +80,6 @@ public class CashuController {
     @PostMapping("/mint/quote/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request, @PathVariable("method") String method) {
         var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
-
-        MintQuoteClient client = new MintQuoteClient();
-        client.createQuote(MintQuote.fromEntity(response));
-
         return ResponseEntity.ok(response);
     }
 
@@ -102,10 +98,6 @@ public class CashuController {
     @PostMapping("/melt/quote/{method}")
     public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@RequestBody PostMeltQuoteRequest request, @PathVariable("method") String method) {
         var response = NUT05.quote(request, PaymentMethod.valueOf(method.toUpperCase()));
-
-        MeltQuoteClient client = new MeltQuoteClient();
-        client.createQuote(MeltQuote.fromEntity(response));
-
         return ResponseEntity.ok(response);
     }
 

@@ -1,4 +1,4 @@
-package protocol.tasks;
+package xyz.tcheeric.test.protocol.tasks;
 
 import cashu.common.model.BlindedMessage;
 import cashu.common.model.Mint;

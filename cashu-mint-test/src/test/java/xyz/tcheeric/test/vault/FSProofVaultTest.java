@@ -1,4 +1,4 @@
-package vault;
+package xyz.tcheeric.test.vault;
 
 import cashu.common.model.Mint;
 import cashu.common.model.Secret;
