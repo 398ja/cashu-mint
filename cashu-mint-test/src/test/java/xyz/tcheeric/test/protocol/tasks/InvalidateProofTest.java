@@ -49,9 +49,6 @@ public class InvalidateProofTest {
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, "0392810a73efd77346d3658bf0dc7004fae1e201a03bd511d8077956d7785a8355" , Utils.bytesToHexString(hashToCurveSecret));
         FSProofVault proofVault = new FSProofVault(proofConfiguration);
 
-        //proofVault.deletePending();
-        //proofVault.archive(proofConfiguration.getHashToCurveSecret());
-
         FSMintVault mintVault = new FSMintVault(mintConfiguration);
         mintVault.delete();
     }

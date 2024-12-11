@@ -4,7 +4,6 @@ import cashu.common.model.MintInformation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.java.Log;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;

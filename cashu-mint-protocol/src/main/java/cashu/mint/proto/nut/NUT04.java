@@ -9,7 +9,6 @@ import cashu.common.model.rest.PostMintResponse;
 import cashu.common.util.CashuErrorException;
 import cashu.gateway.Gateway;
 import cashu.mint.proto.tasks.MintTask;
-import cashu.mint.proto.util.MintUtil;
 import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;

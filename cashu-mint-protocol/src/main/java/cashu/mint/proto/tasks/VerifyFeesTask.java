@@ -1,6 +1,5 @@
 package cashu.mint.proto.tasks;
 
-import cashu.common.model.KeySet;
 import cashu.common.model.rest.PostSwapRequest;
 import cashu.common.model.rest.PostSwapResponse;
 import cashu.common.util.CashuErrorException;

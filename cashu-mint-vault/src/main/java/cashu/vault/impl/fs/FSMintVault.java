@@ -61,20 +61,6 @@ public class FSMintVault extends FSVault<MintConfiguration> {
         return dirPath.toString();
     }
 
-/*
-    @Override
-    public void archive(@NonNull String key) throws CashuErrorException {
-        Path archivePath = Paths.get(FSVault.mintArchivePath(mintConfiguration));
-        Path dirPath = Paths.get(getBaseDir(), "mint", key);
-        try {
-            log.log(Level.INFO, "Archiving mint: {0} - Source: {1} - Destination: {2}", new Object[]{key, dirPath, archivePath});
-            Files.move(dirPath, archivePath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            throw new CashuErrorException(e);
-        }
-    }
-*/
-
     @Override
     public void archive(@NonNull String key) throws CashuErrorException {
         Path sourceDirPath = Paths.get(getBaseDir(), "mint", key);

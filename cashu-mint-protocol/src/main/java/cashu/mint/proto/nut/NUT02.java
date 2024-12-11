@@ -114,7 +114,7 @@ public class NUT02 {
     }
 
     private static List<String> getUnits() {
-        Configuration configuration = Configuration.load(Objects.requireNonNull(NUT01.class.getResourceAsStream("/cashu.properties")));
+        Configuration configuration = Configuration.load(Objects.requireNonNull(NUT01.class.getResourceAsStream("/app.properties")));
         return configuration.getValues("units");
     }
 }

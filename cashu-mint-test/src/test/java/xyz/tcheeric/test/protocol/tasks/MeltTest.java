@@ -146,7 +146,7 @@ public class MeltTest {
         request.setProofs(List.of(proof, proof1));
         request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
 
-        String requestString = MintUtil.createLightningAddressRequest(config.get("payee"), 32, "Melt request_" + UUID.randomUUID().toString());
+        String requestString = MintUtil.createLightningAddressRequest(config.get("payee"), 32, "Melt request_" + UUID.randomUUID());
 
         PostMeltQuoteBolt11Request postMeltQuoteBolt11Request = new PostMeltQuoteBolt11Request();
         postMeltQuoteBolt11Request.setRequest(requestString);

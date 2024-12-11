@@ -13,8 +13,6 @@ import cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.util.UUID;
-
 import static cashu.mint.proto.util.MintUtil.createGateway;
 
 @Log

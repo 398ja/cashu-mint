@@ -38,5 +38,9 @@
             <artifactId>cashu-mint-vault</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>tcheeric-common-config</artifactId>
+        </dependency>
     </dependencies>
 </project>

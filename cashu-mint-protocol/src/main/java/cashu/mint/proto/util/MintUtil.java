@@ -4,13 +4,12 @@ import cashu.common.model.Mint;
 import cashu.common.model.PaymentMethod;
 import cashu.common.model.PrivateKey;
 import cashu.gateway.Gateway;
-import cashu.util.Configuration;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.impl.fs.FSMintVault;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
+import xyz.tcheeric.common.config.Configuration;
 
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.Base64;
 import java.util.HashMap;
@@ -19,9 +18,8 @@ import java.util.Map;
 public class MintUtil {
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
-        InputStream is = MintUtil.class.getResourceAsStream("/cashu.properties");
-        Configuration configuration = Configuration.load(is);
-        String gwClass = configuration.getValue("gateway");
+        Configuration configuration = new Configuration("cashu");
+        String gwClass = configuration.get("gateway");
 
         try {
             Class<?> clazz = Class.forName(gwClass);
@@ -35,6 +33,7 @@ public class MintUtil {
             throw new RuntimeException("Failed to create gateway instance", e);
         }
     }
+
     public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         FSMintVault mintVault = new FSMintVault(mintConfiguration);

@@ -8,7 +8,6 @@ import cashu.common.model.PrivateKey;
 import cashu.common.model.PublicKey;
 import cashu.common.model.Secret;
 import cashu.common.model.rest.PostMintQuoteBolt11Request;
-import cashu.common.model.rest.PostMintQuoteRequest;
 import cashu.common.model.rest.PostMintQuoteResponse;
 import cashu.common.model.rest.PostMintRequest;
 import cashu.common.model.rest.PostMintResponse;
@@ -87,11 +86,6 @@ public class MintTest {
 
     @Test
     public void mintQuote() {
-/*
-        Secret secret = Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
-        byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
-        BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
-*/
 
         PostMintQuoteBolt11Request postMintQuoteBolt11Request = new PostMintQuoteBolt11Request();
         postMintQuoteBolt11Request.setAmount(100);
@@ -102,15 +96,6 @@ public class MintTest {
         assertNotNull(postMintQuoteResponse.getQuoteId());
         assertFalse(postMintQuoteResponse.isPaid());
 
-/*
-        PostMintRequest postMintRequest = new PostMintRequest(postMintQuoteResponse.getQuoteId(), List.of(blindedMessage), List.of(secret, secret), List.of(r));
-        PostMintResponse response = NUT04.mint(postMintRequest, PaymentMethod.BOLT11);
-
-        assertEquals(1, response.getBlindSignatures().size());
-        BlindSignature blindSignature = response.getBlindSignatures().get(0);
-        assertEquals(100, blindSignature.getAmount());
-        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
-*/
     }
 
     @Test
