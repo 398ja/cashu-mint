@@ -25,26 +25,17 @@ import cashu.util.Utils;
 import cashu.vault.config.MintConfiguration;
 import cashu.vault.config.ProofConfiguration;
 import cashu.vault.impl.fs.FSProofVault;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.NonNull;
 import lombok.extern.java.Log;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import xyz.tcheeric.util.Configuration;
+import xyz.tcheeric.common.config.Configuration;
 
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
-import java.util.logging.Level;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
@@ -59,20 +50,7 @@ public class MeltTest {
 
     private VaultUtil vaultUtil;
 
-    private static final Properties properties = new Properties();
-    private final static String GW_CONFIG_FILE_PATH = "gw-test.properties";
-
-    static {
-        String configFilePath = System.getProperty(GW_CONFIG_FILE_PATH);
-        try (InputStream input = (configFilePath != null) ? new FileInputStream(configFilePath) : Configuration.class.getClassLoader().getResourceAsStream(GW_CONFIG_FILE_PATH)) {
-            if (input == null) {
-                throw new IOException("Unable to find " + GW_CONFIG_FILE_PATH);
-            }
-            properties.load(input);
-        } catch (IOException ex) {
-            log.log(Level.SEVERE, "Unable to load configuration", ex);
-        }
-    }
+    private static final Configuration config = new Configuration("phoenixd");
 
     @Before
     public void setUp() throws IOException, CashuErrorException {
@@ -168,7 +146,7 @@ public class MeltTest {
         request.setProofs(List.of(proof, proof1));
         request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
 
-        String requestString = MintUtil.createLightningAddressRequest(properties.getProperty("phoenixd.payee"), 32, "Melt request_" + UUID.randomUUID().toString());
+        String requestString = MintUtil.createLightningAddressRequest(config.get("payee"), 32, "Melt request_" + UUID.randomUUID().toString());
 
         PostMeltQuoteBolt11Request postMeltQuoteBolt11Request = new PostMeltQuoteBolt11Request();
         postMeltQuoteBolt11Request.setRequest(requestString);
