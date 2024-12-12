@@ -1,20 +1,20 @@
 package xyz.tcheeric.test.protocol.tasks;
 
-import cashu.common.model.BlindSignature;
-import cashu.common.model.BlindedMessage;
-import cashu.common.model.Mint;
-import cashu.common.model.PrivateKey;
-import cashu.common.model.PublicKey;
-import cashu.common.util.CashuErrorException;
-import cashu.mint.proto.tasks.SignBlindedMessageTask;
-import cashu.mint.admin.model.MintDto;
-import cashu.mint.proto.util.MintUtil;
+import xyz.tcheeric.cashu.common.model.BlindSignature;
+import xyz.tcheeric.cashu.common.model.BlindedMessage;
+import xyz.tcheeric.cashu.common.model.Mint;
+import xyz.tcheeric.cashu.common.model.PrivateKey;
+import xyz.tcheeric.cashu.common.model.PublicKey;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
+import xyz.tcheeric.cashu.mint.admin.model.MintDto;
+import xyz.tcheeric.cashu.mint.proto.util.MintUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import cashu.mint.admin.VaultUtil;
+import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 
 import java.io.IOException;
 

@@ -1,15 +1,15 @@
 package xyz.tcheeric.test.vault;
 
-import cashu.common.model.Mint;
-import cashu.common.model.Secret;
-import cashu.common.util.CashuErrorException;
-import cashu.crypto.BDHKEUtils;
 import cashu.util.Utils;
-import cashu.vault.FSVault;
-import cashu.vault.config.MintConfiguration;
-import cashu.vault.config.ProofConfiguration;
-import cashu.vault.impl.fs.FSMintVault;
-import cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.common.model.Mint;
+import xyz.tcheeric.cashu.common.model.Secret;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.vault.FSVault;
+import xyz.tcheeric.cashu.vault.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

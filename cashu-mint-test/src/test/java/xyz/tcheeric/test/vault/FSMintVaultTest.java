@@ -1,8 +1,8 @@
 package xyz.tcheeric.test.vault;
 
-import cashu.common.util.CashuErrorException;
-import cashu.mint.admin.VaultUtil;
-import cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.admin.VaultUtil;
+import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

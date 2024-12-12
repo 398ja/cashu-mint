@@ -1,0 +1,23 @@
+package xyz.tcheeric.cashu.mint.admin.model.json;
+
+import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
+import xyz.tcheeric.cashu.mint.admin.model.codec.KeySetDecoder;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.io.IOException;
+
+public class KeySetDeserializer extends JsonDeserializer<KeySetDto> {
+
+    @Override
+    public KeySetDto deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+        JsonNode node = p.readValueAsTree();
+        if (node.isObject()) {
+            KeySetDecoder decoder = new KeySetDecoder(node.toString());
+            return decoder.decode();
+        }
+        throw new RuntimeException("Invalid KeysDto format");
+    }
+}

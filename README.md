@@ -1,7 +1,7 @@
 # cashu-mint 
 
 ## Description
-```cashu-mint``` is a cashu mint implemented in java, based on the ```cashu-lib``` library. 
+```cashu-mint``` is a cashu mint implemented in java. 
 
 ## Requirements
     $ java -version
@@ -10,7 +10,7 @@ openjdk version "21.0.2" 2024-01-16
 OpenJDK Runtime Environment (build 21.0.2+13-Ubuntu-123.10.1)
 OpenJDK 64-Bit Server VM (build 21.0.2+13-Ubuntu-123.10.1, mixed mode, sharing)
 ```
-cashu-wallet
+
     $ mvn -version
 ```
 Apache Maven 3.8.7
@@ -31,11 +31,11 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 
 
 ## Build and install cashu-mint
-To build and install the cashu-mint, you need to create a vault on the file system. The vault is used to store the private keys. For now, the vault is a simple file system based vault and is not suitable for production use. 
+To build and install the `cashu-mint`, you need to create a vault on the file system. The vault is used to store the private keys. For now, this is just a simple file system based vault, *not suitable* for production use. 
 
-To create a vault, run the ```VaultUtil``` class from the ```cashu-mint-admin``` module. 
+To bootstrap a new vault, you need to run the ```VaultUtil``` class from the ```cashu-mint-admin``` module. 
 
-Then follow the steps below to build and install the cashu-mint. 
+Then follow the steps below to build and install the `cashu-mint`.
 ```
 $ cd <your_git_home_dir>
 $ git clone https://github.com/tcheeric/cashu-mint.git
