@@ -4,6 +4,7 @@ import xyz.tcheeric.cashu.common.model.ActiveKeySet;
 import xyz.tcheeric.cashu.common.model.KeySet;
 import xyz.tcheeric.cashu.common.model.MintInformation;
 import xyz.tcheeric.cashu.common.model.PaymentMethod;
+import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.rest.ActiveKeySetResponse;
 import xyz.tcheeric.cashu.common.model.rest.KeySetResponse;
 import xyz.tcheeric.cashu.common.model.rest.PostCheckStateRequest;
@@ -42,7 +43,7 @@ import java.util.logging.Level;
 @Log
 @RestController
 @RequestMapping(value = "/v1")
-public class CashuController {
+public class CashuController<T extends Secret> {
 
     @GetMapping("/keys")
     public ResponseEntity<KeySetResponse> keys() {
@@ -68,7 +69,7 @@ public class CashuController {
     }
 
     @PostMapping("/swap")
-    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest request) throws CashuErrorException {
+    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request) throws CashuErrorException {
         PostSwapResponse response = NUT03.swap(request);
         return ResponseEntity.ok(response);
     }
@@ -86,7 +87,7 @@ public class CashuController {
     }
 
     @PostMapping("/mint/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest request, @PathVariable("method") String method) throws CashuErrorException {
+    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request, @PathVariable("method") String method) throws CashuErrorException {
         PostMintResponse response = NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
@@ -104,7 +105,7 @@ public class CashuController {
     }
 
     @PostMapping("/melt/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest request, @PathVariable("method") String method) throws CashuErrorException {
+    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request, @PathVariable("method") String method) throws CashuErrorException {
         PostMeltResponse response = NUT05.melt(request, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }

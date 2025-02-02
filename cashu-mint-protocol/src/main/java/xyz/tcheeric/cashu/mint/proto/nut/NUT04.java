@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.nut;
 import xyz.tcheeric.cashu.common.annotation.Nut;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.PaymentMethod;
+import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
 import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
@@ -14,7 +15,7 @@ import lombok.NonNull;
 import lombok.extern.java.Log;
 
 
-import static xyz.tcheeric.cashu.mint.proto.util.MintUtil.createGateway;
+import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 @Nut(value = 4, description = "Mint tokens")
 @Log
@@ -44,7 +45,7 @@ public class NUT04 {
                 .build();
     }
 
-    public static PostMintResponse mint(@NonNull PostMintRequest postMintRequest, @NonNull PaymentMethod method) throws CashuErrorException {
+    public static <T extends Secret> PostMintResponse mint(@NonNull PostMintRequest<T> postMintRequest, @NonNull PaymentMethod method) throws CashuErrorException {
         Mint mint = FSMintVault.load(false, false);
         return new MintTask(postMintRequest, method, mint).execute();
     }

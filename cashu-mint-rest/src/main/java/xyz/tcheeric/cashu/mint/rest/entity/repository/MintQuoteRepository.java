@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 
+@Deprecated
 public interface MintQuoteRepository extends JpaRepository<MintQuote, Integer> {
     @Query("select m from MintQuote m where m.quote = ?1")
     Optional<MintQuote> findByQuote(String quote);

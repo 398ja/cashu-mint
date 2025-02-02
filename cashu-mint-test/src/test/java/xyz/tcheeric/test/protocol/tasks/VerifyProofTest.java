@@ -4,16 +4,16 @@ import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.KeySet;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.model.PublicKey;
-import xyz.tcheeric.cashu.common.model.Secret;
+import xyz.tcheeric.cashu.common.model.RSSProof;
+import xyz.tcheeric.cashu.common.model.RandomStringSecret;
 import xyz.tcheeric.cashu.common.model.Signature;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
-import xyz.tcheeric.cashu.mint.proto.util.MintUtil;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.FSVault;
 import org.junit.After;
 import org.junit.Before;
@@ -54,9 +54,9 @@ public class VerifyProofTest {
     public void validate() throws CashuErrorException {
         PostSwapRequest postSwapRequest = new PostSwapRequest();
 
-        Proof proof = new Proof();
+        RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
@@ -65,7 +65,7 @@ public class VerifyProofTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        postSwapRequest.setProofs(List.of(proof));
+        postSwapRequest.setInputs(List.of(proof));
         postSwapRequest.setBlindedMessages(List.of(blindedMessage));
 
         var mintDto = spy(vaultUtil.getMint());
@@ -77,8 +77,8 @@ public class VerifyProofTest {
 
         when (mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             assertNull(task.execute());
@@ -89,9 +89,9 @@ public class VerifyProofTest {
     public void validateInvalidAmount() throws CashuErrorException {
         PostSwapRequest postSwapRequest = new PostSwapRequest();
 
-        Proof proof = new Proof();
+        RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
@@ -100,7 +100,7 @@ public class VerifyProofTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        postSwapRequest.setProofs(List.of(proof));
+        postSwapRequest.setInputs(List.of(proof));
         postSwapRequest.setBlindedMessages(List.of(blindedMessage));
 
         var mintDto = spy(vaultUtil.getMint());
@@ -112,8 +112,8 @@ public class VerifyProofTest {
 
         when (mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
@@ -126,9 +126,9 @@ public class VerifyProofTest {
         var mint = spy(new Mint());
         PostSwapRequest postSwapRequest = new PostSwapRequest();
 
-        Proof proof = new Proof();
+        RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b5a8"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b5a8"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
@@ -137,7 +137,7 @@ public class VerifyProofTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        postSwapRequest.setProofs(List.of(proof));
+        postSwapRequest.setInputs(List.of(proof));
         postSwapRequest.setBlindedMessages(List.of(blindedMessage));
 
         VerifyProofsTask task = new VerifyProofsTask(mint, postSwapRequest);
@@ -147,8 +147,8 @@ public class VerifyProofTest {
 
         when (mint.getKeySets()).thenReturn(Set.of(new KeySet("004cf8cba2f93266", "sat", null, 0)));
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
@@ -160,9 +160,9 @@ public class VerifyProofTest {
     public void validateProofNotFound() throws CashuErrorException {
         PostSwapRequest postSwapRequest = new PostSwapRequest();
 
-        Proof proof = new Proof();
+        RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("fake_ks_id");
 
@@ -171,7 +171,7 @@ public class VerifyProofTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        postSwapRequest.setProofs(List.of(proof));
+        postSwapRequest.setInputs(List.of(proof));
         postSwapRequest.setBlindedMessages(List.of(blindedMessage));
 
         var mintDto = spy(vaultUtil.getMint());
@@ -183,8 +183,8 @@ public class VerifyProofTest {
 
         when (mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);

@@ -6,7 +6,8 @@ import xyz.tcheeric.cashu.common.model.PaymentMethod;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
 import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.model.PublicKey;
-import xyz.tcheeric.cashu.common.model.Secret;
+import xyz.tcheeric.cashu.common.model.RSSProof;
+import xyz.tcheeric.cashu.common.model.RandomStringSecret;
 import xyz.tcheeric.cashu.common.model.Signature;
 import xyz.tcheeric.cashu.common.model.rest.PostMeltQuoteBolt11Request;
 import xyz.tcheeric.cashu.common.model.rest.PostMeltQuoteResponse;
@@ -20,7 +21,7 @@ import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
-import xyz.tcheeric.cashu.mint.proto.util.MintUtil;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import cashu.util.Utils;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
@@ -65,15 +66,15 @@ public class MeltTest {
 
     @Test
     public void mockMelt() throws CashuErrorException {
-        Proof proof = new Proof();
+        Proof<RandomStringSecret> proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
-        Proof proof1 = new Proof();
+        RSSProof proof1 = new RSSProof();
         proof1.setUnblindedSignature(Signature.fromString("02d908e2a5ce0a6ce6228667d4f33470e8308dce587a7f1d7b3114873d5d02fc77"));
-        proof1.setSecret(Secret.fromString("84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8"));
+        proof1.setSecret(RandomStringSecret.fromString("84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8"));
         proof1.setAmount(16);
         proof1.setKeySetId("004cf8cba2f93266");
 
@@ -87,11 +88,11 @@ public class MeltTest {
         blindedMessage1.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("031f5a5e834c6654753263cea178bef291eb27c39bf87fec4199d95d43132c665c"));
 
-        PostSwapRequest request = new PostSwapRequest();
-        request.setProofs(List.of(proof, proof1));
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest();
+        request.setInputs(List.of(proof, proof1));
         request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
 
-        PostMeltRequest postMeltRequest = new PostMeltRequest();
+        PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
         postMeltRequest.setQuoteId("0x1234567890");
         postMeltRequest.setInputs(List.of(proof, proof1));
 
@@ -102,12 +103,12 @@ public class MeltTest {
 
 
         Mint mint = MintDto.toMint(vaultUtil.getMint());
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
                     .thenReturn(mockGateway);
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             PostMeltResponse postMeltResponse = task.execute();
@@ -120,15 +121,15 @@ public class MeltTest {
 
     @Test
     public void melt() throws CashuErrorException {
-        Proof proof = new Proof();
+        Proof<RandomStringSecret> proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
-        Proof proof1 = new Proof();
+        Proof<RandomStringSecret> proof1 = new RSSProof();
         proof1.setUnblindedSignature(Signature.fromString("02d908e2a5ce0a6ce6228667d4f33470e8308dce587a7f1d7b3114873d5d02fc77"));
-        proof1.setSecret(Secret.fromString("84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8"));
+        proof1.setSecret(RandomStringSecret.fromString("84ace011105717841eac2af8a96acb3167a77d3cec5fbb4b3a8ccaf64d78d7c8"));
         proof1.setAmount(16);
         proof1.setKeySetId("004cf8cba2f93266");
 
@@ -142,11 +143,11 @@ public class MeltTest {
         blindedMessage1.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("031f5a5e834c6654753263cea178bef291eb27c39bf87fec4199d95d43132c665c"));
 
-        PostSwapRequest request = new PostSwapRequest();
-        request.setProofs(List.of(proof, proof1));
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest();
+        request.setInputs(List.of(proof, proof1));
         request.setBlindedMessages(List.of(blindedMessage, blindedMessage1));
 
-        String requestString = MintUtil.createLightningAddressRequest(config.get("payee"), 32, "Melt request_" + UUID.randomUUID());
+        String requestString = MintProtocolUtil.createLightningAddressRequest(config.get("payee"), 32, "Melt request_" + UUID.randomUUID());
 
         PostMeltQuoteBolt11Request postMeltQuoteBolt11Request = new PostMeltQuoteBolt11Request();
         postMeltQuoteBolt11Request.setRequest(requestString);
@@ -154,7 +155,7 @@ public class MeltTest {
 
         PostMeltQuoteResponse postMeltQuoteResponse = NUT05.quote(postMeltQuoteBolt11Request, PaymentMethod.BOLT11);
 
-        PostMeltRequest postMeltRequest = new PostMeltRequest();
+        PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
         postMeltRequest.setQuoteId(postMeltQuoteResponse.getQuoteId());
         postMeltRequest.setInputs(List.of(proof, proof1));
 
@@ -170,9 +171,9 @@ public class MeltTest {
 
     @Test
     public void mockMeltWithFees() throws CashuErrorException {
-        Proof proof = new Proof();
+        Proof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
@@ -181,11 +182,11 @@ public class MeltTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        PostSwapRequest request = new PostSwapRequest();
-        request.setProofs(List.of(proof));
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest();
+        request.setInputs(List.of(proof));
         request.setBlindedMessages(List.of(blindedMessage));
 
-        PostMeltRequest postMeltRequest = new PostMeltRequest();
+        PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
         postMeltRequest.setQuoteId("0x1234567890");
         postMeltRequest.setInputs(List.of(proof));
 
@@ -199,10 +200,10 @@ public class MeltTest {
 
         archiveProof();
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintUtil.createGateway(PaymentMethod.MOCK))
+            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
                     .thenReturn(mockGateway);
 
             // Assert that a CashuErrorException is thrown
@@ -213,17 +214,17 @@ public class MeltTest {
 
     @Test
     public void verify() {
-        Proof proof = new Proof();
+        Proof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
-        proof.setSecret(Secret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
         Mint mint = MintDto.toMint(vaultUtil.getMint());
-        MeltTask task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint);
+        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint);
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             boolean result = task.verify(proof);

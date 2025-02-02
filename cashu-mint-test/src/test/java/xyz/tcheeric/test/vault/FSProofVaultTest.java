@@ -2,6 +2,7 @@ package xyz.tcheeric.test.vault;
 
 import cashu.util.Utils;
 import xyz.tcheeric.cashu.common.model.Mint;
+import xyz.tcheeric.cashu.common.model.RandomStringSecret;
 import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
@@ -45,7 +46,7 @@ public class FSProofVaultTest {
     @Test
     public void storePending() throws CashuErrorException {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(Secret.create().toString());
+        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(RandomStringSecret.create().toString());
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, "02bc9097997d81afb2cc7346b5e4345a9346bd2a506eb7958598a72f0cf85163ea", Utils.bytesToHexString(hashToCurveSecret));
         FSProofVault proofVault = new FSProofVault(proofConfiguration);
 
@@ -57,7 +58,7 @@ public class FSProofVaultTest {
     @Test
     public void storeWitness() throws CashuErrorException, IOException {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(Secret.create().toString());
+        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(RandomStringSecret.create().toString());
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, "02bc9097997d81afb2cc7346b5e4345a9346bd2a506eb7958598a72f0cf85163ea", Utils.bytesToHexString(hashToCurveSecret));
         FSProofVault proofVault = new FSProofVault(proofConfiguration);
 

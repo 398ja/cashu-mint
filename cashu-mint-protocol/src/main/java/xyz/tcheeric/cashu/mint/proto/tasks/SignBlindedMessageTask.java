@@ -8,7 +8,7 @@ import xyz.tcheeric.cashu.common.model.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.mint.proto.util.MintUtil;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import lombok.NonNull;
 
 public class SignBlindedMessageTask implements Task<BlindSignature> {
@@ -37,7 +37,7 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     }
 
     private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) {
-        return MintUtil.getPrivateKey(blindedMessage.getKeySetId(), blindedMessage.getAmount(), mint);
+        return MintProtocolUtil.getPrivateKey(blindedMessage.getKeySetId(), blindedMessage.getAmount(), mint);
     }
 
 }

@@ -4,6 +4,8 @@ import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.model.PublicKey;
+import xyz.tcheeric.cashu.common.model.RSSProof;
+import xyz.tcheeric.cashu.common.model.RandomStringSecret;
 import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.Signature;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
@@ -57,21 +59,21 @@ public class InvalidateProofTest {
     public void invalidateProof() throws CashuErrorException {
         PostSwapRequest request = new PostSwapRequest();
 
-        Proof proof = new Proof();
+        RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("0392810a73efd77346d3658bf0dc7004fae1e201a03bd511d8077956d7785a8355"));
-        proof.setSecret(Secret.fromString("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1"));
+        proof.setSecret(RandomStringSecret.fromString("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1"));
         proof.setAmount(256);
         proof.setKeySetId("00c4a3dade22f81b");
 
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(256);
         blindedMessage.setKeySetId("00c4a3dade22f81b");
-        blindedMessage.setBlindedMessage(PublicKey.fromBytes(BDHKEUtils.blindMessage(proof.getSecret().getBytes())[0]));
+        blindedMessage.setBlindedMessage(PublicKey.fromBytes(BDHKEUtils.blindMessage(((RSSProof)proof).getSecret().getBytes())[0]));
 
-        request.setProofs(List.of(proof));
+        request.setInputs(List.of(proof));
         request.setBlindedMessages(List.of(blindedMessage));
 
-        InvalidateProofsTask task = new InvalidateProofsTask(mint, request.getProofs());
+        InvalidateProofsTask task = new InvalidateProofsTask(mint, request.getInputs());
 
         task.execute();
 

@@ -14,7 +14,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MintUtil {
+public class MintProtocolUtil {
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
         Configuration configuration = new Configuration("cashu");

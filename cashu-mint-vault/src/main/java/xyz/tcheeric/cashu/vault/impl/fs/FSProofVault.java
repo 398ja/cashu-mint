@@ -10,7 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,7 +50,8 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             String secret = proofConfiguration.getHashToCurveSecret();
 
             // <baseDir>/mint/<privateKey>/.proofs/[secret].witness
-            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", secret + ".witness");
+            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs",
+                    secret + ".witness");
             Files.createDirectories(path.getParent());
             if (!Files.exists(path)) {
                 Files.createFile(path);
@@ -71,7 +71,8 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             String unblindedSignature = proofConfiguration.getUnblindedSignature();
 
             // <baseDir>/mint/<privateKey>/.proofs/[hashToCurveSecret]
-            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending", hashToCurveSecret);
+            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending",
+                    hashToCurveSecret);
             Files.createDirectories(path.getParent());
             if (!Files.exists(path)) {
                 Files.createFile(path);
@@ -80,7 +81,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             log.log(Level.INFO, "Stored proof {0}", path.toString());
         } catch (Exception e) {
             throw new CashuErrorException(e);
-        }  finally {
+        } finally {
             ThreadUtil.PROOF_STATE_LOCK.unlock();
         }
     }
@@ -100,7 +101,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             } else {
                 return null;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to retrieve proof", e);
             throw new CashuErrorException(e);
         }
@@ -112,7 +113,8 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
         try {
             var baseDir = getBaseDir(false);
 
-            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending", hashToCurveSecret);
+            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending",
+                    hashToCurveSecret);
 
             if (Files.exists(path)) {
                 log.log(Level.INFO, "The pending proof's path exists {0}", path.toString());
@@ -121,10 +123,10 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             } else {
                 return null;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to retrieve proof", e);
             throw new CashuErrorException(e);
-        }  finally {
+        } finally {
             ThreadUtil.PROOF_STATE_LOCK.unlock();
         }
     }
@@ -134,7 +136,8 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
         try {
             var baseDir = getBaseDir(false);
 
-            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", hashToCurveSecret + ".witness");
+            Path path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs",
+                    hashToCurveSecret + ".witness");
 
             if (Files.exists(path)) {
                 log.log(Level.INFO, "The witness's path exists {0}", path.toString());
@@ -143,7 +146,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             } else {
                 return null;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to retrieve witness", e);
             return null;
         }
@@ -153,9 +156,10 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
         ThreadUtil.PROOF_STATE_LOCK.lock();
         try {
             var baseDir = getBaseDir(false);
-            var path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending", proofConfiguration.getHashToCurveSecret());
+            var path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending",
+                    proofConfiguration.getHashToCurveSecret());
             Files.deleteIfExists(path);
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to delete proof", e);
             throw new CashuErrorException(e);
         } finally {
@@ -174,11 +178,12 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
 
             if (Files.exists(path)) {
                 log.log(Level.INFO, "The proofs path exists: {0}", path.toString());
-                Path archivePath = Paths.get(archBaseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", hashToCurveSecret);
+                Path archivePath = Paths.get(archBaseDir, "mint", proofConfiguration.getMint().getId(), ".proofs",
+                        hashToCurveSecret);
                 Files.createDirectories(archivePath.getParent()); // Ensure the target directory exists
                 Files.move(path, archivePath, StandardCopyOption.REPLACE_EXISTING);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.log(Level.SEVERE, "Failed to archive proof", e);
             throw new CashuErrorException(e);
         }

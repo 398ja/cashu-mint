@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 @ToString(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "t_melt_quote")
+@Deprecated
 public class MeltQuote {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

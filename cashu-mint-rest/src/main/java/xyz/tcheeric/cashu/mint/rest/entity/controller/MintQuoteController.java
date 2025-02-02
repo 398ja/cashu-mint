@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/mint/quote")
+@Deprecated
 public class MintQuoteController {
 
     @Autowired

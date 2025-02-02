@@ -13,7 +13,7 @@ import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
 
-import static xyz.tcheeric.cashu.mint.proto.util.MintUtil.createGateway;
+import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 @Log
 public class NUT05 {

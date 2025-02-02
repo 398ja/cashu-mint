@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.nut;
 import xyz.tcheeric.cashu.common.model.BlindSignature;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
+import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -21,7 +22,7 @@ import java.util.List;
 @Log
 public class NUT03 {
 
-    public static PostSwapResponse swap(@NonNull PostSwapRequest postSwapRequest) throws CashuErrorException {
+    public static <T extends Secret> PostSwapResponse swap(@NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {
 
         // Load mint
         Mint mint = FSMintVault.load(false, false);
@@ -34,7 +35,7 @@ public class NUT03 {
         new VerifyProofsTask(mint, postSwapRequest).execute();
 
         // Invalidate proofs
-        new InvalidateProofsTask(mint, postSwapRequest.getProofs()).execute();
+        new InvalidateProofsTask(mint, postSwapRequest.getInputs()).execute();
 
         // Issue new signatures
         List<BlindSignature> blindSignatures = new ArrayList<>();

@@ -15,6 +15,7 @@ import java.lang.reflect.ParameterizedType;
 
 @Getter
 @Log
+@Deprecated
 public class QuoteClient<T> extends BaseClient {
 
     public enum Operation {

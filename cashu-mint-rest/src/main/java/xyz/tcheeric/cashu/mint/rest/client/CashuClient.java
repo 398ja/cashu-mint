@@ -33,6 +33,7 @@ public class CashuClient extends BaseClient {
     }
 
 
+    // TODO: Use the Configuration class to get the server address and port. Get rid of the super class
     protected String getBaseUrl() {
         String address = System.getProperty("server.address") != null ? System.getProperty("server.address") : serverAddress;
         String port = System.getProperty("server.port") != null ? System.getProperty("server.port") : (serverPort != null ? serverPort : "8080");

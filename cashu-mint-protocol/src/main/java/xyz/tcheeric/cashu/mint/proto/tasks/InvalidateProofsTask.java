@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import cashu.util.Utils;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.Proof;
+import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
@@ -18,10 +19,10 @@ import java.util.logging.Level;
 
 @AllArgsConstructor
 @Log
-public class InvalidateProofsTask implements Task<Boolean> {
+public class InvalidateProofsTask<T extends Secret> implements Task<Boolean> {
 
     private final Mint mint;
-    private final List<Proof> proofs;
+    private final List<Proof<T>> proofs;
 
     @Override
     public Boolean execute() throws CashuErrorException {

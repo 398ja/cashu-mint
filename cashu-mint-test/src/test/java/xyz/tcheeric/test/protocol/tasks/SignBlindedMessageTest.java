@@ -8,7 +8,7 @@ import xyz.tcheeric.cashu.common.model.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
-import xyz.tcheeric.cashu.mint.proto.util.MintUtil;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,8 +52,8 @@ public class SignBlindedMessageTest {
         Mint mint = MintDto.toMint(mintDto);
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage);
 
-        try (MockedStatic<MintUtil> mintUtil = Mockito.mockStatic(MintUtil.class)) {
-            mintUtil.when(() -> MintUtil.getPrivateKey(anyString(), anyInt(), any()))
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
             BlindSignature signature = task.execute();

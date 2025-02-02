@@ -1,5 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.common.model.Proof;
+import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -10,9 +12,9 @@ import lombok.extern.java.Log;
 
 @Log
 @AllArgsConstructor
-public class VerifyFeesTask implements Task<Void> {
+public class VerifyFeesTask<T extends Secret> implements Task<Void> {
 
-    private final PostSwapRequest request;
+    private final PostSwapRequest<T> request;
     private final PostSwapResponse response;
 
     @Override
@@ -22,10 +24,10 @@ public class VerifyFeesTask implements Task<Void> {
     }
 
     private void validateFees() throws CashuErrorException {
-        var keySetId = request.getProofs().get(0).getKeySetId();
+        var keySetId = request.getInputs().get(0).getKeySetId();
         var keySet = NUT02.keys(keySetId);
         var fees = request.getFees(keySet);
-        var sum_inputs = request.getProofs().stream().mapToInt(proof -> proof.getAmount()).sum();
+        var sum_inputs = request.getInputs().stream().mapToInt(proof -> proof.getAmount()).sum();
         var sum_outputs = response.getBlindSignatures().stream().mapToInt(blindSignature -> blindSignature.getAmount()).sum();
 
         if (sum_inputs - fees != sum_outputs) {

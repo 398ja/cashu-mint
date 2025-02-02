@@ -19,6 +19,7 @@ import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
 @ToString(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "t_mint_quote")
+@Deprecated
 public class MintQuote {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
