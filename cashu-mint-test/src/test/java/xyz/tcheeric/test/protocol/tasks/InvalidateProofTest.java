@@ -2,11 +2,9 @@ package xyz.tcheeric.test.protocol.tasks;
 
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.model.PublicKey;
 import xyz.tcheeric.cashu.common.model.RSSProof;
 import xyz.tcheeric.cashu.common.model.RandomStringSecret;
-import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.Signature;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;

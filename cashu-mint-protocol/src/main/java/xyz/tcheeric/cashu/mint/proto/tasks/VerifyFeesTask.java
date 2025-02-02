@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;

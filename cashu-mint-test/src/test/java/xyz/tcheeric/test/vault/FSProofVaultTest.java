@@ -3,7 +3,6 @@ package xyz.tcheeric.test.vault;
 import cashu.util.Utils;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.RandomStringSecret;
-import xyz.tcheeric.cashu.common.model.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.vault.FSVault;
