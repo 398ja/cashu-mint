@@ -27,8 +27,9 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
 
     @Override
     public Void execute() throws CashuErrorException {
+
         validateAmounts();
-        verifyProofs(request.getInputs());
+        verifyProofs(request);
 
         return null;
     }
@@ -45,17 +46,22 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         }
     }
 
-    private void verifyProofs(@NonNull List<Proof<T>> proofs) throws CashuErrorException {
+    private void verifyProofs(@NonNull PostSwapRequest<T> request) throws CashuErrorException {
+        List<Proof<T>> proofs = request.getInputs();
+        List<BlindedMessage> blindedMessages = request.getBlindedMessages();
+
         for (Proof<T> proof : proofs) {
-            SpendingCondition<T> spendingCondition = getSpendingCondition(proof);
+            Secret secret = proof.getSecret();
+            SpendingCondition<T> spendingCondition = getSpendingCondition(secret, blindedMessages);
             spendingCondition.verify(proof);
         }
+
     }
 
-    private SpendingCondition<T> getSpendingCondition(@NonNull Proof<T> proof) {
-        return switch (proof.getSecret()) {
-            case P2PKSecret p2PKSecret -> (SpendingCondition<T>) new P2PKSpendingCondition();
-            case RandomStringSecret randomStringSecret -> (SpendingCondition<T>) new RSSSpendingCondition(mint);
+    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
+        return switch (secret.getClass().getSimpleName()) {
+            case "P2PKSecret" -> (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
+            case "RandomStringSecret" -> (SpendingCondition<T>) new RSSSpendingCondition(mint);
             case null, default -> throw new IllegalArgumentException("Unsupported proof type");
         };
     }

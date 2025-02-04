@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.admin.model;
 
 import xyz.tcheeric.cashu.common.model.Keys;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
+import xyz.tcheeric.cashu.common.model.PublicKey;
 import xyz.tcheeric.cashu.mint.admin.model.json.KeysDeserializer;
 import xyz.tcheeric.cashu.mint.admin.model.json.KeysSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -34,6 +35,14 @@ public class KeysDto {
         Keys keys = new Keys();
         for (Map.Entry<BigInteger, PrivateKey> entry : keysDto.getValues().entrySet()) {
             keys.put(entry.getKey(), PrivateKey.derivePublicKey(entry.getValue()));
+        }
+        return keys;
+    }
+
+    public Map<BigInteger, byte[]> values() {
+        Map<BigInteger, byte[]> keys = new HashMap<>();
+        for (Map.Entry<BigInteger, PrivateKey> entry : values.entrySet()) {
+            keys.put(entry.getKey(), entry.getValue().toBytes());
         }
         return keys;
     }

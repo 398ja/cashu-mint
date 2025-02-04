@@ -4,10 +4,9 @@ import cashu.util.Configuration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.KeySet;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 import xyz.tcheeric.cashu.mint.admin.model.KeysDto;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
@@ -104,10 +103,12 @@ public class Bootstrap {
 
     private static KeySetDto generateKeySet(@NonNull String unit, @NonNull KeysDto keysDto) {
         KeySetDto keySetDto = KeySetDto.builder().unit(unit).keys(keysDto).build();
+/*
         KeySet keySet = KeySetDto.toKeySet(keySetDto);
         KeySetDerivation keySetDerivation = new KeySetDerivation(keySet);
-        keySetDerivation.deriveKeySetId();
-        keySetDto.setId(keySet.getId());
+        //keySetDerivation.deriveKeySetId();
+*/
+        keySetDto.setId(KeySetDerivation.getId(keysDto.values()));
         return keySetDto;
     }
 

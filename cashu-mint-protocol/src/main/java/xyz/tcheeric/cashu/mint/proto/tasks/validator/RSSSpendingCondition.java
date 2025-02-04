@@ -1,8 +1,10 @@
 package xyz.tcheeric.cashu.mint.proto.tasks.validator;
 
 import cashu.util.Utils;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
+import lombok.Setter;
 import xyz.tcheeric.cashu.common.model.KeySet;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
@@ -19,6 +21,7 @@ import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
 @AllArgsConstructor
 public class RSSSpendingCondition implements SpendingCondition<RandomStringSecret> {
 
+    @Setter(AccessLevel.NONE)
     private final Mint mint;
 
     @Override
@@ -54,7 +57,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // Verify the proof
         PrivateKey privateKey = getPrivateKey(proof, mint);
         if (privateKey == null) {
-            throw new RuntimeException("Private key not found");
+            throw new IllegalStateException("Private key not found");
         }
 
         byte[] C = proof.getUnblindedSignature().toBytes();

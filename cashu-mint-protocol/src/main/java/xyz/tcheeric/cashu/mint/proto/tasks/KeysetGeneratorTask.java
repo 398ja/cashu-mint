@@ -1,14 +1,14 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import lombok.NonNull;
+import lombok.extern.java.Log;
 import xyz.tcheeric.cashu.common.model.KeySet;
 import xyz.tcheeric.cashu.common.model.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.crypto.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.vault.FSVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
-import lombok.NonNull;
-import lombok.extern.java.Log;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,8 +36,7 @@ public class KeysetGeneratorTask implements Task<KeySet> {
         log.log(Level.INFO, "Keys: {0}", keys);
 
         KeySet keySet = KeySet.builder().unit(unit).keys(keys).build();
-        KeySetDerivation keySetDerivation = new KeySetDerivation(keySet);
-        keySetDerivation.deriveKeySetId();
+        keySet.setId(KeySetDerivation.getId(keys.values()));
         return keySet;
     }
 
