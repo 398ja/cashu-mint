@@ -1,5 +1,8 @@
 package xyz.tcheeric.test.protocol.tasks;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.PublicKey;
@@ -15,20 +18,18 @@ import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 public class InvalidateProofTest {
 
     private Mint mint;
 
-    @Before
+    @BeforeEach
     public void setUp() throws CashuErrorException {
         this.mint = new Mint("d40a6717990b684fc35ff8a25e5b51830525894acd5501fd3f9ace5c30471baa");
 
@@ -41,7 +42,7 @@ public class InvalidateProofTest {
         proofVault.storePending();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws CashuErrorException {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");

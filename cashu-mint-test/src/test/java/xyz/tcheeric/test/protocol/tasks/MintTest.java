@@ -1,5 +1,11 @@
 package xyz.tcheeric.test.protocol.tasks;
 
+import cashu.util.Utils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.model.BlindSignature;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
@@ -19,20 +25,14 @@ import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import cashu.util.Utils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,13 +42,13 @@ public class MintTest {
 
     private VaultUtil vaultUtil;
 
-    @Before
+    @BeforeEach
     public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws CashuErrorException {
         vaultUtil.deleteVault();
     }

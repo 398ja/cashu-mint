@@ -1,12 +1,10 @@
 package xyz.tcheeric.test.protocol.tasks;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.java.Log;
 import org.bouncycastle.util.encoders.Hex;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
@@ -32,18 +30,16 @@ import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.FSVault;
 
 import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -52,13 +48,13 @@ public class VerifyProofTest {
 
     private VaultUtil vaultUtil;
 
-    @Before
+    @BeforeEach
     public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws CashuErrorException {
         vaultUtil.deleteVault();
     }

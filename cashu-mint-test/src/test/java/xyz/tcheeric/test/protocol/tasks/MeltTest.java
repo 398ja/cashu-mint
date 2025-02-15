@@ -1,5 +1,12 @@
 package xyz.tcheeric.test.protocol.tasks;
 
+import cashu.util.Utils;
+import lombok.extern.java.Log;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.PaymentMethod;
@@ -22,25 +29,18 @@ import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import cashu.util.Utils;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import lombok.extern.java.Log;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import xyz.tcheeric.common.config.Configuration;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,13 +53,13 @@ public class MeltTest {
 
     private static final Configuration config = new Configuration("phoenixd");
 
-    @Before
+    @BeforeEach
     public void setUp() throws IOException, CashuErrorException {
         vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
         vaultUtil.createVault();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws CashuErrorException {
         vaultUtil.deleteVault();
     }
