@@ -105,7 +105,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             int validSignatureCount = 0;
 
             //... and a tag refund is present
-            if (refundPublicKeys != null && refundPublicKeys.size() > 0) {
+            if (refundPublicKeys != null && !refundPublicKeys.isEmpty()) {
 
                 byte[] data = proof.getSecret().getData();
                 List<String> signatures = proof.getWitness().getSignatures();

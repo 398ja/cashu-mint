@@ -67,7 +67,7 @@ public class InvalidateProofTest {
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(256);
         blindedMessage.setKeySetId("00c4a3dade22f81b");
-        blindedMessage.setBlindedMessage(PublicKey.fromBytes(BDHKEUtils.blindMessage(((RSSProof)proof).getSecret().getBytes())[0]));
+        blindedMessage.setBlindedMessage(PublicKey.fromBytes(BDHKEUtils.blindMessage(proof.getSecret().getBytes())[0]));
 
         request.setInputs(List.of(proof));
         request.setBlindedMessages(List.of(blindedMessage));

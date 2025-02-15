@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.admin.model;
 
 import xyz.tcheeric.cashu.common.model.Keys;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.PublicKey;
 import xyz.tcheeric.cashu.mint.admin.model.json.KeysDeserializer;
 import xyz.tcheeric.cashu.mint.admin.model.json.KeysSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
