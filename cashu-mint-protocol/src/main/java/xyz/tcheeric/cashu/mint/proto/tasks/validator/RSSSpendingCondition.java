@@ -1,18 +1,18 @@
 package xyz.tcheeric.cashu.mint.proto.tasks.validator;
 
-import cashu.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.RandomStringSecret;
-import xyz.tcheeric.cashu.common.model.Secret;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
