@@ -1,15 +1,15 @@
 package xyz.tcheeric.cashu.vault.impl.fs;
 
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Mint;
+import lombok.AllArgsConstructor;
+import lombok.NonNull;
+import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.FSVault;
 import xyz.tcheeric.cashu.vault.config.KeyConfiguration;
 import xyz.tcheeric.cashu.vault.config.KeysetConfiguration;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import lombok.AllArgsConstructor;
-import lombok.NonNull;
-import lombok.extern.java.Log;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
