@@ -1,13 +1,13 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import lombok.AllArgsConstructor;
 import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 
 @Log
 @AllArgsConstructor
