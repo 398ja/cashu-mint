@@ -1,20 +1,20 @@
 package xyz.tcheeric.cashu.vault.impl.fs;
 
-import cashu.util.ThreadUtil;
-import cashu.util.Utils;
-import xyz.tcheeric.cashu.common.model.Signature;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.vault.FSVault;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.Signature;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.crypto.util.Utils;
+import xyz.tcheeric.cashu.vault.FSVault;
+import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 
 @AllArgsConstructor
@@ -23,6 +23,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
 
     @NonNull
     private final ProofConfiguration proofConfiguration;
+    private static final ReentrantLock PROOF_STATE_LOCK = new ReentrantLock();
 
     @Override
     public void store() throws CashuErrorException {
@@ -64,7 +65,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
     }
 
     public void storePending() throws CashuErrorException {
-        ThreadUtil.PROOF_STATE_LOCK.lock();
+        PROOF_STATE_LOCK.lock();
         try {
             var baseDir = getBaseDir();
             String hashToCurveSecret = proofConfiguration.getHashToCurveSecret();
@@ -82,7 +83,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
         } catch (Exception e) {
             throw new CashuErrorException(e);
         } finally {
-            ThreadUtil.PROOF_STATE_LOCK.unlock();
+            PROOF_STATE_LOCK.unlock();
         }
     }
 
@@ -108,7 +109,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
     }
 
     public String retrievePending(@NonNull String hashToCurveSecret) throws CashuErrorException {
-        ThreadUtil.PROOF_STATE_LOCK.lock();
+        PROOF_STATE_LOCK.lock();
         log.log(Level.INFO, "Retrieving pending proof {0}", hashToCurveSecret);
         try {
             var baseDir = getBaseDir(false);
@@ -127,7 +128,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             log.log(Level.SEVERE, "Failed to retrieve proof", e);
             throw new CashuErrorException(e);
         } finally {
-            ThreadUtil.PROOF_STATE_LOCK.unlock();
+            PROOF_STATE_LOCK.unlock();
         }
     }
 
@@ -153,7 +154,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
     }
 
     public void deletePending() throws CashuErrorException {
-        ThreadUtil.PROOF_STATE_LOCK.lock();
+        PROOF_STATE_LOCK.lock();
         try {
             var baseDir = getBaseDir(false);
             var path = Paths.get(baseDir, "mint", proofConfiguration.getMint().getId(), ".proofs", "pending",
@@ -163,7 +164,7 @@ public class FSProofVault extends FSVault<ProofConfiguration> {
             log.log(Level.SEVERE, "Failed to delete proof", e);
             throw new CashuErrorException(e);
         } finally {
-            ThreadUtil.PROOF_STATE_LOCK.unlock();
+            PROOF_STATE_LOCK.unlock();
         }
     }
 
