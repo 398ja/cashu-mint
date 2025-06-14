@@ -1,10 +1,10 @@
 package xyz.tcheeric.cashu.mint.admin.model.codec;
 
-import xyz.tcheeric.cashu.common.json.codec.Decoder;
-import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
+import xyz.tcheeric.cashu.common.codec.Decoder;
+import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 
 @AllArgsConstructor
 public class KeySetDecoder implements Decoder<KeySetDto> {
