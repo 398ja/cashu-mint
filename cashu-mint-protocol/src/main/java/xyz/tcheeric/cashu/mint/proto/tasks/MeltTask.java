@@ -1,20 +1,20 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltResponse;
+import lombok.NonNull;
+import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import cashu.util.ThreadUtil;
-import lombok.NonNull;
-import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
 
