@@ -6,13 +6,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import xyz.tcheeric.cashu.common.model.KeySet;
+import xyz.tcheeric.cashu.common.KeySet;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@JsonPropertyOrder({"id", "unit", "keysDto"})
+@JsonPropertyOrder({"id", "unit", "keys"})
 public class KeySetDto {
 
     @JsonProperty
