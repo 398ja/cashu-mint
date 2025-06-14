@@ -1,15 +1,16 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import xyz.tcheeric.cashu.common.model.BlindSignature;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.Signature;
+import lombok.NonNull;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import lombok.NonNull;
+
 
 public class SignBlindedMessageTask implements Task<BlindSignature> {
 
