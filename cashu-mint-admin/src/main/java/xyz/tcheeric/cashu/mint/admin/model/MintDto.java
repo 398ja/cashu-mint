@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
-import xyz.tcheeric.cashu.common.model.Mint;
+import xyz.tcheeric.cashu.common.Mint;
 
 import java.util.HashSet;
 import java.util.Set;
