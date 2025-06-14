@@ -1,9 +1,9 @@
 package xyz.tcheeric.cashu.mint.rest.client;
 
 
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.rest.ActiveKeySetResponse;
-import xyz.tcheeric.cashu.common.model.rest.KeySetResponse;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
+import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
 
 import java.util.List;
 import java.util.Objects;
