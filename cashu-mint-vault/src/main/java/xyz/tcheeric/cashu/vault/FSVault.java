@@ -1,10 +1,10 @@
 package xyz.tcheeric.cashu.vault;
 
+import lombok.NonNull;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.config.EntityConfiguration;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.common.config.Configuration;
-import lombok.NonNull;
+import xyz.tcheeric.common.util.Configuration;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
