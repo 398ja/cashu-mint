@@ -15,7 +15,7 @@
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-lib-common</artifactId>
+            <artifactId>cashu-lib-entities</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -25,7 +25,13 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>tcheeric-common-config</artifactId>
+            <artifactId>tcheeric-common-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-lib-common</artifactId>
+            <version>0.1-SNAPSHOT</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 
