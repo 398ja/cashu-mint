@@ -1,13 +1,13 @@
 package xyz.tcheeric.test.vault;
 
-import cashu.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.vault.FSVault;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
