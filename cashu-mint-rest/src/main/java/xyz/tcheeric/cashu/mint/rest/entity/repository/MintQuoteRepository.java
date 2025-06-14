@@ -1,9 +1,9 @@
 package xyz.tcheeric.cashu.mint.rest.entity.repository;
 
-import xyz.tcheeric.cashu.mint.rest.entity.MintQuote;
 import lombok.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import xyz.tcheeric.cashu.mint.rest.entity.MintQuote;
 
 import java.util.Optional;
 
