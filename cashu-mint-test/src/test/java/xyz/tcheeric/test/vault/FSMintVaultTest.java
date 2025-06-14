@@ -6,20 +6,22 @@ import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.test.MintUtilTest;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class FSMintVaultTest {
 
-    private final InputStream mintInputStream = FSMintVaultTest.class.getResourceAsStream("/mint.json");
-    private final VaultUtil vaultUtil = new VaultUtil(mintInputStream);
+    private final VaultUtil vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
+
+    public FSMintVaultTest() throws Exception {
+    }
 
     @BeforeEach
-    public void setUp() throws IOException, CashuErrorException {
+    public void setUp() throws Exception {
         vaultUtil.createVault();
     }
 
