@@ -1,31 +1,5 @@
 package xyz.tcheeric.cashu.mint.rest.entity.controller;
 
-import xyz.tcheeric.cashu.common.model.ActiveKeySet;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.MintInformation;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.ActiveKeySetResponse;
-import xyz.tcheeric.cashu.common.model.rest.KeySetResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltQuoteRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltQuoteResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import lombok.extern.java.Log;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +10,32 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import xyz.tcheeric.cashu.common.ActiveKeySet;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.MintInformation;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
+import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 
 import java.util.List;
 import java.util.logging.Level;
@@ -94,7 +94,7 @@ public class CashuController<T extends Secret> {
 
     @PostMapping("/melt/quote/{method}")
     public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@RequestBody PostMeltQuoteRequest request, @PathVariable("method") String method) {
-        var response = NUT05.quote(request, PaymentMethod.valueOf(method.toUpperCase()));
+        PostMeltQuoteResponse response = NUT05.quote(request, PaymentMethod.valueOf(method.toUpperCase()));
         return ResponseEntity.ok(response);
     }
 
