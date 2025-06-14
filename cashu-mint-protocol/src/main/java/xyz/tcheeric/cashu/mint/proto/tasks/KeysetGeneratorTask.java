@@ -2,8 +2,8 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Keys;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
