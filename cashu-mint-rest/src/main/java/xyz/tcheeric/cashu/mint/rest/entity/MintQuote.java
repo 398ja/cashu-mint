@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 
 @NoArgsConstructor
 @Getter
