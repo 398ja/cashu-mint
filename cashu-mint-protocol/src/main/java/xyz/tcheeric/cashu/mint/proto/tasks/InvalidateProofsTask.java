@@ -1,17 +1,17 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import cashu.util.Utils;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.Secret;
+import lombok.AllArgsConstructor;
+import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
