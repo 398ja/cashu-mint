@@ -1,33 +1,34 @@
 package xyz.tcheeric.test.protocol.tasks;
 
-import cashu.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import xyz.tcheeric.cashu.common.model.BlindSignature;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.PublicKey;
-import xyz.tcheeric.cashu.common.model.RandomStringSecret;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteBolt11Request;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.PublicKey;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.crypto.util.Utils;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteBolt11Request;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.test.MintUtilTest;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,8 +44,8 @@ public class MintTest {
     private VaultUtil vaultUtil;
 
     @BeforeEach
-    public void setUp() throws IOException, CashuErrorException {
-        vaultUtil = new VaultUtil(getClass().getResourceAsStream("/mint.json"));
+    public void setUp() throws Exception {
+        vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
         vaultUtil.createVault();
     }
 
