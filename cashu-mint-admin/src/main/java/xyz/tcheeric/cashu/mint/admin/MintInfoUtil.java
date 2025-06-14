@@ -3,22 +3,22 @@ package xyz.tcheeric.cashu.mint.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.NonNull;
-import xyz.tcheeric.cashu.common.model.MintInformation;
+import xyz.tcheeric.cashu.common.MintInformation;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 @Data
-public class MintInfoIO {
+public class MintInfoUtil {
 
     private MintInformation mintInformation;
 
-    public MintInfoIO() {
+    public MintInfoUtil() {
         this.mintInformation = new MintInformation();
     }
 
-    public MintInfoIO(@NonNull MintInformation mintInformation) {
+    public MintInfoUtil(@NonNull MintInformation mintInformation) {
         this.mintInformation = mintInformation;
     }
 
@@ -64,10 +64,10 @@ public class MintInfoIO {
 
     public static void main(String[] args) {
         try {
-            MintInfoIO mintInfoIO = new MintInfoIO();
+            MintInfoUtil mintInfoUtil = new MintInfoUtil();
             MintInformation mintInformation = new MintInformation();
-            mintInfoIO.setMintInformation(mintInformation);
-            mintInfoIO.write(System.out);
+            mintInfoUtil.setMintInformation(mintInformation);
+            mintInfoUtil.write(System.out);
         } catch (Exception e) {
             e.printStackTrace();
         }
