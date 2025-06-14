@@ -1,5 +1,8 @@
 package xyz.tcheeric.cashu.mint.admin;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.java.Log;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.vault.config.KeyConfiguration;
@@ -8,29 +11,28 @@ import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSKeysetVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.logging.Level;
 
 @Log
 @RequiredArgsConstructor
 public class VaultUtil {
 
-    private final InputStream mintInputStream;
+/*
+    private final String mintId;
+    private final String unit;
+*/
+    private final MintUtil mintUtil;
 
     @Getter
     private MintDto mint;
 
-    public void createVault() throws IOException, CashuErrorException {
+    public void createVault() throws Exception {
         log.log(Level.INFO, "Creating vault");
 
-        MintIO mintIO = new MintIO();
-        mintIO.read(mintInputStream);
-        this.mint = mintIO.getMint();
+        //MintUtil mintUtil = new MintUtil(mintId, unit);
+        mintUtil.write();
+        this.mint = mintUtil.getMint();
         log.log(Level.INFO, "MintDto read: {0}", mint.getId());
 
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
@@ -76,15 +78,5 @@ public class VaultUtil {
         MintConfiguration mintConfiguration = new MintConfiguration(mintId);
         FSMintVault mintVault = new FSMintVault(mintConfiguration);
         mintVault.delete();
-    }
-
-    public static void main(String[] args) {
-        try {
-            InputStream mintInputStream = VaultUtil.class.getResourceAsStream("/mint.json");
-            VaultUtil vaultUtil = new VaultUtil(mintInputStream);
-            vaultUtil.createVault();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }
