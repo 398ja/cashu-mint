@@ -3,16 +3,16 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 
 import java.util.List;
 
