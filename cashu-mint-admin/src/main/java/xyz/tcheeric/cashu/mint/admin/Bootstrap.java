@@ -1,10 +1,11 @@
 package xyz.tcheeric.cashu.mint.admin;
 
-import cashu.util.Configuration;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
+import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
@@ -16,98 +17,88 @@ import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSKeysetVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.common.util.Configuration;
 
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.logging.Level;
 
 @AllArgsConstructor
+@Data
 @Log
+@Deprecated(forRemoval = true)
 public class Bootstrap {
 
     @NonNull
-    private final InputStream appProperties;
+    private final String mintId;
 
     @NonNull
-    private final InputStream keysetProperties;
+    private final String unit;
 
-    public Bootstrap() {
+    @NonNull
+    private final URL keysetProperties;
+
+    public Bootstrap(String mintId, String unit) {
         this(
-                Objects.requireNonNull(Bootstrap.class.getResourceAsStream("/cashu.properties")),
-                Objects.requireNonNull(Bootstrap.class.getResourceAsStream("/keyset.properties"))
+                mintId,
+                unit,
+                Objects.requireNonNull(Bootstrap.class.getResource("/keyset.properties"))
         );
     }
 
-    public static void main(String[] args) {
-        try {
-            Bootstrap bootstrap = new Bootstrap();
-            MintDto mintDto = bootstrap.create();
-            System.out.println("MintDto created: " + mintDto.getId());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     public MintDto create() throws Exception {
-        MintDto mintDto = new MintDto(UUID.randomUUID().toString());
-        String id = mintDto.getId();
-        new FSMintVault(new MintConfiguration(id)).store();
+        MintDto mintDto = new MintDto(mintId);
+        new FSMintVault(new MintConfiguration(mintId)).store();
 
-        for (String unit : getUnits()) {
-            Map<BigInteger, PrivateKey> keysMap = new HashMap<>();
-            KeysDto keysDto = new KeysDto();
-            for (Integer key : getKeys(unit)) {
-                PrivateKey privateKey = PrivateKey.generateRandom();
-                keysMap.put(BigInteger.valueOf(key), privateKey);
-                keysDto.put(BigInteger.valueOf(key), privateKey);
-            }
+        Map<BigInteger, PrivateKey> keysMap = new HashMap<>();
+        KeysDto keysDto = new KeysDto();
+        for (Integer key : getKeys()) {
+            PrivateKey privateKey = PrivateKey.generateRandom();
+            keysMap.put(BigInteger.valueOf(key), privateKey);
+            keysDto.put(BigInteger.valueOf(key), privateKey);
+        }
 
-            KeySetDto keySetDto = generateKeySet(unit, keysDto);
-            mintDto.addKeySet(keySetDto);
+        KeySetDto keySetDto = generateKeySet(unit, keysDto);
+        mintDto.addKeySet(keySetDto);
 
-            KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(id), keySetDto.getId(), keySetDto.getUnit());
-            new FSKeysetVault(keysetConfiguration).store();
+        KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(mintId), keySetDto.getId(), keySetDto.getUnit());
+        new FSKeysetVault(keysetConfiguration).store();
 
-            for (BigInteger key : keysMap.keySet()) {
-                new FSKeyVault(new KeyConfiguration(keysetConfiguration, key, keysMap.get(key).toString())).store();
-            }
+        for (BigInteger key : keysMap.keySet()) {
+            new FSKeyVault(new KeyConfiguration(keysetConfiguration, key, keysMap.get(key).toString())).store();
         }
 
         return mintDto;
     }
 
-    public void archive(@NonNull MintDto mintDto) throws CashuErrorException {
-        String id = mintDto.getId();
-        log.log(Level.INFO, "Archiving mintDto: {0}", id);
-        FSMintVault vault = new FSMintVault(new MintConfiguration(id));
-        vault.archive(id);
+    public void archive() throws CashuErrorException {
+        log.log(Level.INFO, "Archiving mintDto: {0}", mintId);
+        FSMintVault vault = new FSMintVault(new MintConfiguration(mintId));
+        vault.archive(mintId);
     }
 
-    public void delete(@NonNull MintDto mintDto) throws CashuErrorException {
+    public void delete() throws CashuErrorException {
         log.log(Level.INFO, "Deleting mint");
-        new FSMintVault(mintDto.getId()).delete();
+        new FSMintVault(mintId).delete();
     }
 
-    private List<String> getUnits() {
-        return Configuration.load(appProperties).getValues("units");
-    }
-
-    private List<Integer> getKeys(String unit) {
-        return Configuration.load(keysetProperties).getMatching("key_" + unit + "_").values().stream().map(Integer::parseInt).toList();
+    @SneakyThrows
+    private List<Integer> getKeys() {
+        Configuration configuration = new Configuration("keyset", keysetProperties);
+        return configuration.keys().stream()
+                //.map(key -> key.replace("key.", ""))
+                .map(Integer::parseInt)
+                .toList();
+        //return Configuration.load(keysetProperties, "key").getAll().stream().map(Integer::parseInt).toList();
     }
 
     private static KeySetDto generateKeySet(@NonNull String unit, @NonNull KeysDto keysDto) {
         KeySetDto keySetDto = KeySetDto.builder().unit(unit).keys(keysDto).build();
-/*
-        KeySet keySet = KeySetDto.toKeySet(keySetDto);
-        KeySetDerivation keySetDerivation = new KeySetDerivation(keySet);
-        //keySetDerivation.deriveKeySetId();
-*/
         keySetDto.setId(KeySetDerivation.getId(keysDto.values()));
         return keySetDto;
     }
