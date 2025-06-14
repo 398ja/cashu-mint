@@ -1,18 +1,18 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import cashu.util.ThreadUtil;
 import lombok.NonNull;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.BlindSignature;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
+import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
 
