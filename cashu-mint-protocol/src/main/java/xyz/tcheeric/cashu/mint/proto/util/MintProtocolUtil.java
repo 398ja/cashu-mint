@@ -1,14 +1,14 @@
 package xyz.tcheeric.cashu.mint.proto.util;
 
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.NonNull;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.NonNull;
-import xyz.tcheeric.common.config.Configuration;
+import xyz.tcheeric.common.util.Configuration;
 
 import java.util.Base64;
 import java.util.HashMap;
