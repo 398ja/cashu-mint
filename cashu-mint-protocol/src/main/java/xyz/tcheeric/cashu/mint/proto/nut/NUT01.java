@@ -1,13 +1,13 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.annotation.Nut;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Keys;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
-import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
 import lombok.NonNull;
 import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Keys;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
 
 import java.util.logging.Level;
 

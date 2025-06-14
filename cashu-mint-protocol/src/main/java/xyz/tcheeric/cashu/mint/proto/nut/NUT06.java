@@ -2,7 +2,8 @@ package xyz.tcheeric.cashu.mint.proto.nut;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.MintInformation;
+import xyz.tcheeric.cashu.common.MintInformation;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -10,6 +11,7 @@ import java.io.InputStream;
 import java.util.logging.Level;
 
 @Log
+@Nut(6)
 public class NUT06 {
 
     public static MintInformation info() {

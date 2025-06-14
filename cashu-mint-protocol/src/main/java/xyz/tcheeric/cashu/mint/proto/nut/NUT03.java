@@ -1,25 +1,27 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.model.BlindSignature;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapResponse;
+import lombok.NonNull;
+import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.InvalidateProofsTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import lombok.NonNull;
-import lombok.extern.java.Log;
 
 import java.util.ArrayList;
 import java.util.List;
 
 // TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
 @Log
+@Nut(3)
 public class NUT03 {
 
     public static <T extends Secret> PostSwapResponse swap(@NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {

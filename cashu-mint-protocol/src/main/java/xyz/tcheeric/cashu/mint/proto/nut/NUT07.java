@@ -1,14 +1,16 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateResponse;
+import lombok.NonNull;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import lombok.NonNull;
 
+@Nut(7)
 public class NUT07 {
 
     public static final String UNSPENT = "UNSPENT";

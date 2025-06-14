@@ -1,20 +1,20 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import cashu.util.Configuration;
-import xyz.tcheeric.cashu.common.annotation.Nut;
-import xyz.tcheeric.cashu.common.model.ActiveKeySet;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
 import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.ActiveKeySet;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.common.util.Configuration;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.logging.Level;
 
 import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
@@ -63,9 +63,9 @@ public class NUT02 {
         return activeKeySets;
     }
 
-    public static int fees(@NonNull List<Proof> inputs) {
+    public static <T extends Secret> int fees(@NonNull List<Proof<T>> inputs) {
         int sum_fees = 0;
-        for (Proof proof : inputs) {
+        for (Proof<T> proof : inputs) {
             String keysetId = proof.getKeySetId();
             KeySet keySet = keys(keysetId);
             sum_fees += keySet.getPartPerThousand();
@@ -74,7 +74,7 @@ public class NUT02 {
         return Math.floorDiv (sum_fees + 999, 1000);
     }
 
-    public static int fees(@NonNull Proof input) {
+    public static <T extends Secret> int fees(@NonNull Proof<T> input) {
         String keysetId = input.getKeySetId();
         KeySet keySet = keys(keysetId);
         return Math.floorDiv(keySet.getPartPerThousand() + 999, 1000);
@@ -114,7 +114,7 @@ public class NUT02 {
     }
 
     private static List<String> getUnits() {
-        Configuration configuration = Configuration.load(Objects.requireNonNull(NUT01.class.getResourceAsStream("/app.properties")));
-        return configuration.getValues("units");
+        Configuration configuration = new Configuration("cashu");
+        return List.of(configuration.get("units").split(","));
     }
 }

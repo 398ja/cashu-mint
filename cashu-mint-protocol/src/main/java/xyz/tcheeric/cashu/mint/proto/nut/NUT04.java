@@ -1,19 +1,18 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.annotation.Nut;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
+import lombok.NonNull;
+import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import lombok.NonNull;
-import lombok.extern.java.Log;
-
 
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
