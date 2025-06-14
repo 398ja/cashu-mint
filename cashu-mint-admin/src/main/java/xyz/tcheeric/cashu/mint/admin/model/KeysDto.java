@@ -1,13 +1,13 @@
 package xyz.tcheeric.cashu.mint.admin.model;
 
-import xyz.tcheeric.cashu.common.model.Keys;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.mint.admin.model.json.KeysDeserializer;
-import xyz.tcheeric.cashu.mint.admin.model.json.KeysSerializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import xyz.tcheeric.cashu.common.Keys;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.mint.admin.model.json.KeysDeserializer;
+import xyz.tcheeric.cashu.mint.admin.model.json.KeysSerializer;
 
 import java.math.BigInteger;
 import java.util.HashMap;
