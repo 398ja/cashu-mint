@@ -11,11 +11,11 @@ import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
-@Log
+@Slf4j
 public class NUT05 {
 
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest postMeltQuoteRequest, @NonNull PaymentMethod method) {

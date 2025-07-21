@@ -5,29 +5,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.logging.Level;
 
 @Setter
 @Getter
-@Log
+@Slf4j
 public class MintIO {
 
     private MintDto mint;
 
     public void write(@NonNull OutputStream outputStream) throws IOException {
-        log.log(Level.INFO, "Writing mint");
+        log.info("Writing mint");
         ObjectMapper mapper = new ObjectMapper();
         mapper.writeValue(outputStream, mint);
     }
 
     public void read(@NonNull InputStream inputStream) throws IOException {
-        log.log(Level.INFO, "Reading mint");
+        log.info("Reading mint");
         ObjectMapper mapper = new ObjectMapper();
         this.mint = mapper.readValue(inputStream, MintDto.class);
     }

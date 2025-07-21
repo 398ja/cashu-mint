@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.vault.config.KeysetConfiguration;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,11 +23,10 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import java.util.Optional;
-import java.util.logging.Level;
 import java.util.stream.Stream;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 public class FSMintVault extends FSVault<MintConfiguration> {
 
     @NonNull
@@ -42,7 +41,7 @@ public class FSMintVault extends FSVault<MintConfiguration> {
 
         // <baseDir>/mint/<privateKey>
         var baseDir = getBaseDir();
-        log.log(Level.INFO, "Storing mint: {0} - Source: {1}", new Object[]{mintConfiguration.getId(), baseDir});
+        log.info("Storing mint: {} - Source: {}", mintConfiguration.getId(), baseDir);
         Path dirPath = Paths.get(baseDir, "mint", mintConfiguration.getId());
 
         try {
@@ -94,7 +93,7 @@ public class FSMintVault extends FSVault<MintConfiguration> {
                     }
                 }
             });
-            log.log(Level.INFO, "Successfully archived mint: {0}", key);
+            log.info("Successfully archived mint: {}", key);
         } catch (IOException e) {
             throw new CashuErrorException(e);
         }
@@ -104,7 +103,7 @@ public class FSMintVault extends FSVault<MintConfiguration> {
     public void delete() throws CashuErrorException {
         Path dirPath = Paths.get(getBaseDir(), "mint", mintConfiguration.getId());
         try {
-            log.log(Level.INFO, "Deleting mint: {0} - Source: {1}", new Object[]{mintConfiguration.getId(), dirPath});
+            log.info("Deleting mint: {} - Source: {}", mintConfiguration.getId(), dirPath);
             Files.walkFileTree(dirPath, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {

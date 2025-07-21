@@ -26,7 +26,7 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -38,23 +38,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 @RestController
 @RequestMapping(value = "/v1")
 public class CashuController<T extends Secret> {
 
     @GetMapping("/keys")
     public ResponseEntity<KeySetResponse> keys() {
-        log.log(Level.FINE, "Getting keys");
+        log.debug("Getting keys");
         KeySetResponse response = new KeySetResponse(NUT02.keys());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/keys/{keyset_id}")
     public ResponseEntity<KeySetResponse> keys(@PathVariable("keyset_id") String keysetId) {
-        log.log(Level.FINE, "keys({0})", keysetId);
+        log.debug("keys({})", keysetId);
         KeySet keySet = NUT02.keys(keysetId);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
         return ResponseEntity.ok(response);

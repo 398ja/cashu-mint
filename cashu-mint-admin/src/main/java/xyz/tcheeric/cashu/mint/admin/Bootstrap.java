@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.admin;
 import cashu.util.Configuration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.model.PrivateKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
@@ -24,10 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.logging.Level;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 public class Bootstrap {
 
     @NonNull
@@ -83,13 +82,13 @@ public class Bootstrap {
 
     public void archive(@NonNull MintDto mintDto) throws CashuErrorException {
         String id = mintDto.getId();
-        log.log(Level.INFO, "Archiving mintDto: {0}", id);
+        log.info("Archiving mintDto: {}", id);
         FSMintVault vault = new FSMintVault(new MintConfiguration(id));
         vault.archive(id);
     }
 
     public void delete(@NonNull MintDto mintDto) throws CashuErrorException {
-        log.log(Level.INFO, "Deleting mint");
+        log.info("Deleting mint");
         new FSMintVault(mintDto.getId()).delete();
     }
 

@@ -11,14 +11,13 @@ import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
 import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 public class InvalidateProofsTask<T extends Secret> implements Task<Boolean> {
 
     private final Mint mint;
@@ -36,7 +35,7 @@ public class InvalidateProofsTask<T extends Secret> implements Task<Boolean> {
                     ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
                     FSProofVault proofVault = new FSProofVault(proofConfiguration);
                     // We invalidate the proof by storing it in the vault
-                    log.log(Level.INFO, "Invalidating proof " + proof);
+                    log.info("Invalidating proof {}", proof);
                     try {
                         proofVault.deletePending();
                         proofVault.store();

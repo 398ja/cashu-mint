@@ -7,16 +7,15 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.logging.Level;
 
 @Nut(1)
-@Log
+@Slf4j
 public class NUT01 {
 
     public static KeySet generateKeySet(@NonNull String unit) throws CashuErrorException {
-        log.log(Level.FINE, "generateKeySet({0})", unit);
+        log.debug("generateKeySet({})", unit);
         return new KeysetGeneratorTask(unit).execute();
     }
 

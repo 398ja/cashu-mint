@@ -33,6 +33,9 @@
 
         <jackson-datatype-jsr310.version>2.18.0</jackson-datatype-jsr310.version>
 
+        <slf4j.version>2.0.9</slf4j.version>
+        <logback.version>1.5.18</logback.version>
+
         <!-- Test Dependency Versions -->
         <junit.version>5.9.1</junit.version>
         <assertj.version>3.23.1</assertj.version>
@@ -51,6 +54,17 @@
                 <groupId>${project.groupId}</groupId>
                 <artifactId>tcheeric-common-config</artifactId>
                 <version>${commong-config.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
             </dependency>
 
             <dependency>

@@ -10,13 +10,12 @@ import xyz.tcheeric.cashu.vault.impl.fs.FSKeysetVault;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 @RequiredArgsConstructor
 public class VaultUtil {
 
@@ -26,12 +25,12 @@ public class VaultUtil {
     private MintDto mint;
 
     public void createVault() throws IOException, CashuErrorException {
-        log.log(Level.INFO, "Creating vault");
+        log.info("Creating vault");
 
         MintIO mintIO = new MintIO();
         mintIO.read(mintInputStream);
         this.mint = mintIO.getMint();
-        log.log(Level.INFO, "MintDto read: {0}", mint.getId());
+        log.info("MintDto read: {}", mint.getId());
 
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         FSMintVault mintVault = new FSMintVault(mintConfiguration);
@@ -59,7 +58,7 @@ public class VaultUtil {
     }
 
     public void archiveVault() throws CashuErrorException {
-        log.log(Level.INFO, "Archiving vault");
+        log.info("Archiving vault");
 
         String mintId = this.mint.getId();
 
@@ -69,7 +68,7 @@ public class VaultUtil {
     }
 
     public void deleteVault() throws CashuErrorException {
-        log.log(Level.INFO, "Deleting vault");
+        log.info("Deleting vault");
 
         String mintId = this.mint.getId();
 

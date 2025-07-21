@@ -13,13 +13,13 @@ import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 
 // TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
-@Log
+@Slf4j
 public class NUT03 {
 
     public static <T extends Secret> PostSwapResponse swap(@NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {

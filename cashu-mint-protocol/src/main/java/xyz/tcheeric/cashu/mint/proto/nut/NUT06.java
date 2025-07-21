@@ -1,15 +1,14 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.model.MintInformation;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 public class NUT06 {
 
     public static MintInformation info() {
@@ -37,7 +36,7 @@ public class NUT06 {
                     inputStream.close();
                 } catch (IOException e) {
                     // Log and ignore
-                    log.log(Level.WARNING, "Failed to close input stream", e);
+                    log.warn("Failed to close input stream", e);
                 }
             }
         }

@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.client;
 import cashu.util.Configuration;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.lang.reflect.ParameterizedType;
 
 @Getter
-@Log
+@Slf4j
 @Deprecated
 public class QuoteClient<T> extends BaseClient {
 

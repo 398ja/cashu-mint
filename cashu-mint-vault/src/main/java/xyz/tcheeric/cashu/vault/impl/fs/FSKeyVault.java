@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.vault.config.KeysetConfiguration;
 import xyz.tcheeric.cashu.vault.config.MintConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -18,11 +18,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Optional;
-import java.util.logging.Level;
 import java.util.stream.Stream;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 public class FSKeyVault extends FSVault<KeyConfiguration> {
 
     @NonNull
@@ -105,20 +104,20 @@ public class FSKeyVault extends FSVault<KeyConfiguration> {
     public static Keys get(@NonNull String mintId, @NonNull String unit, boolean archive) {
         FSMintVault mintVault = new FSMintVault(new MintConfiguration(mintId));
         String mintPath = mintVault.retrieve(mintId, archive);
-        log.log(Level.INFO, "Mint path: {0}", mintPath);
+        log.info("Mint path: {}", mintPath);
         Path unitDir = Paths.get(mintPath, unit);
         Keys keys = new Keys();
-        log.log(Level.INFO, "Unit directory: {0}", unitDir.getFileName().toString());
+        log.info("Unit directory: {}", unitDir.getFileName().toString());
         if (Files.exists(unitDir)) {
             try (Stream<Path> paths = Files.list(unitDir)) {
                 paths.filter(Files::isDirectory).forEach(dir -> { // List all denomination/key directories
-                    log.log(Level.INFO, "Key directory: {0}", dir.getFileName().toString());
+                    log.info("Key directory: {}", dir.getFileName().toString());
                     try (Stream<Path> fileStream = Files.list(dir)) {
                         Optional<Path> keyFilePath = fileStream
                                 .min((p1, p2) -> -Long.compare(p1.toFile().lastModified(), p2.toFile().lastModified()));
                         if (keyFilePath.isPresent()) {
                             String privateKeyStr = keyFilePath.get().getFileName().toString();
-                            log.log(Level.INFO, "Key private key: {0}", privateKeyStr);
+                            log.info("Key private key: {}", privateKeyStr);
                             PrivateKey privateKey = PrivateKey.fromString(privateKeyStr);
                             BigInteger dirNameAsBigInt = new BigInteger(dir.getFileName().toString());
                             keys.put(dirNameAsBigInt, PrivateKey.derivePublicKey(privateKey));

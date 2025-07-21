@@ -9,25 +9,24 @@ import xyz.tcheeric.cashu.common.model.Proof;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.logging.Level;
 
 import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
 
-@Log
+@Slf4j
 @Nut(2)
 public class NUT02 {
 
     public static List<KeySet> keys() {
-        log.log(Level.FINE, "keysets()");
+        log.debug("keysets()");
         List<KeySet> keySets = new ArrayList<>();
         var units = getUnits();
-        log.log(Level.FINE, "units: {0}", units);
+        log.debug("units: {}", units);
 
         units.forEach(unit -> {
             try {
@@ -42,7 +41,7 @@ public class NUT02 {
 
     public static KeySet keys(@NonNull String keysetId) {
         List<KeySet> keySets = keySets();
-        log.log(Level.FINE, "keysets: {0}", keySets);
+        log.debug("keysets: {}", keySets);
         return keySets
                 .stream()
                 .filter(keySet -> null != keySet.getId())
@@ -52,7 +51,7 @@ public class NUT02 {
     }
 
     public static List<ActiveKeySet> activeKeySets() {
-        log.log(Level.FINE, "keySets()");
+        log.debug("keySets()");
         List<ActiveKeySet> activeKeySets = new ArrayList<>();
         activeKeySets.addAll(activeKeySets(false));
         activeKeySets.addAll(activeKeySets(true));
@@ -81,7 +80,7 @@ public class NUT02 {
     }
 
     private static List<KeySet> keySets() {
-        log.log(Level.FINE, "keySets()");
+        log.debug("keySets()");
 
         List<KeySet> result = new ArrayList<>();
         result.addAll(keySets(false));
@@ -91,7 +90,7 @@ public class NUT02 {
     }
 
     private static List<KeySet> keySets(boolean archive) {
-        log.log(Level.FINE, "keySets({0})", archive);
+        log.debug("keySets({})", archive);
 
         List<KeySet> result = new ArrayList<>();
         Mint mint = FSMintVault.load(archive);
@@ -104,7 +103,7 @@ public class NUT02 {
     }
 
     private static List<ActiveKeySet> activeKeySets(boolean archive) {
-        log.log(Level.FINE, "keySets({0})", archive);
+        log.debug("keySets({})", archive);
 
         List<ActiveKeySet> result = new ArrayList<>();
         List<KeySet> keySets = keySets(archive);

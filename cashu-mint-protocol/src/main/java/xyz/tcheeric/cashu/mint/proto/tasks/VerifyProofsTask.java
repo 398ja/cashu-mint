@@ -2,7 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.model.BlindedMessage;
 import xyz.tcheeric.cashu.common.model.Mint;
 import xyz.tcheeric.cashu.common.model.Proof;
@@ -16,7 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 
 import java.util.List;
 
-@Log
+@Slf4j
 @AllArgsConstructor
 public class VerifyProofsTask<T extends Secret> implements Task<Void> {
 

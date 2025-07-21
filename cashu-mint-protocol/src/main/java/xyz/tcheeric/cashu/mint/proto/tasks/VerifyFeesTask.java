@@ -7,9 +7,9 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 
-@Log
+@Slf4j
 @AllArgsConstructor
 public class VerifyFeesTask<T extends Secret> implements Task<Void> {
 
