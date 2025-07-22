@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
 
 @Slf4j
 @Nut(2)
@@ -26,15 +26,13 @@ public class NUT02 {
     public static List<KeySet> keys(UUID mintId) throws CashuErrorException {
         log.debug("keys()");
         Mint mint = DBMintVault.load(mintId.toString(), false);
+        if (mint == null) {
+            throw new CashuErrorException("keys_mint_not_found_error");
+        }
         Set<KeySet> keySets = mint.getKeySets();
         keySets.forEach(keySet -> {
-            if (keySet.getId() == null) {
-                try {
-                    String unit = keySet.getUnit();
-                    keySet.setId(generateKeySet(mintId, unit).getId());
-                } catch (CashuErrorException e) {
-                    throw new RuntimeException(e);
-                }
+            if (keySet.getId() == null && keySet.getKeys() != null) {
+                keySet.setId(KeySetDerivation.getId(keySet.getKeys().values()));
             }
         });
         return new ArrayList<>(keySets);
@@ -48,7 +46,7 @@ public class NUT02 {
                 .filter(keySet -> null != keySet.getId())
                 .filter(keySet -> keySet.getId().equals(keysetId))
                 .findFirst()
-                .orElseThrow();
+                .orElseThrow(() -> new CashuErrorException("keys_unknown_keyset_error"));
     }
 
     public static List<ActiveKeySet> activeKeySets() throws CashuErrorException {
@@ -65,9 +63,14 @@ public class NUT02 {
 
     public static <T extends Secret> int fees(@NonNull List<Proof<T>> inputs) throws CashuErrorException {
         int sum_fees = 0;
+        java.util.Map<String, KeySet> cache = new java.util.HashMap<>();
         for (Proof<T> proof : inputs) {
             String keysetId = proof.getKeySetId();
-            KeySet keySet = keys(keysetId);
+            KeySet keySet = cache.get(keysetId);
+            if (keySet == null) {
+                keySet = keys(keysetId);
+                cache.put(keysetId, keySet);
+            }
             sum_fees += keySet.getPartPerThousand();
         }
 
