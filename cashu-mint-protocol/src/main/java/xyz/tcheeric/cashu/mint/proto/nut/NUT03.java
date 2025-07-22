@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 // TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
-@Log
+@Slf4j
 @Nut(3)
 public class NUT03 {
 

@@ -1,6 +1,6 @@
 package xyz.tcheeric.cashu.mint.rest.entity.controller;
 
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -39,23 +39,22 @@ import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 @RestController
 @RequestMapping(value = "/v1")
 public class CashuController<T extends Secret> {
 
     @GetMapping("/keys/{mint_id}/generate")
     public ResponseEntity<KeySetResponse> generateKeySetIds(@PathVariable("mint_id") String mintId) throws CashuErrorException {
-        log.log(Level.FINE, "Getting keys");
+        log.debug("Getting keys");
         KeySetResponse response = new KeySetResponse(NUT02.keys(UUID.fromString(mintId)));
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/keys/keyset/{keyset_id}")
     public ResponseEntity<KeySetResponse> keyset(@PathVariable("keyset_id") String keysetId) throws CashuErrorException {
-        log.log(Level.FINE, "keys({0})", keysetId);
+        log.debug("keys({})", keysetId);
         KeySet keySet = NUT02.keys(keysetId);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
         return ResponseEntity.ok(response);
