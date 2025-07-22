@@ -45,6 +45,16 @@ $ cd cashu-mint-rest
 $ mvn spring-boot:run
 ```
 
+## Running with Docker
+
+The REST service and a PostgreSQL database can be started with `docker-compose`.
+
+```
+$ docker-compose up --build
+```
+
+The API will be available on [http://localhost:7777](http://localhost:7777).
+
 ## Supported NUTs
 - NUT-00: Notation, Utilization, and Terminology
 - NUT-01: Mint public key exchange
