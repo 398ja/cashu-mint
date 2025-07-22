@@ -1,15 +1,14 @@
 package xyz.tcheeric.cashu.mint.admin;
 
 import lombok.Getter;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 public class VaultUtil {
 
     private final MintUtil mintUtil;
@@ -23,12 +22,12 @@ public class VaultUtil {
     }
 
     public void createVault() throws Exception {
-        log.log(Level.INFO, "Creating vault");
+        log.info("Creating vault");
 
         //MintUtil mintUtil = new MintUtil(mintId, unit);
         mintUtil.write();
         this.mint = mintUtil.getMint();
-        log.log(Level.INFO, "MintDto read: {0}", mint.getId());
+        log.info("MintDto read: {}", mint.getId());
 
 /*
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
@@ -50,7 +49,7 @@ public class VaultUtil {
     }
 
     public void archiveVault() throws CashuErrorException {
-        log.log(Level.INFO, "Archiving vault");
+        log.info("Archiving vault");
 
         String mintId = this.mint.getId();
 
@@ -60,7 +59,7 @@ public class VaultUtil {
     }
 
     public void deleteVault() throws CashuErrorException {
-        log.log(Level.INFO, "Deleting vault");
+        log.info("Deleting vault");
 
         String mintId = this.mint.getId();
 

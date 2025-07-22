@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -19,7 +19,7 @@ import java.util.List;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
-@Log
+@Slf4j
 public class MintTask<T extends Secret> implements Task<PostMintResponse> {
     private final PostMintRequest<T> postMintRequest;
     private final PaymentMethod method;

@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.admin;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.SneakyThrows;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -23,10 +23,9 @@ import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 
 @Data
-@Log
+@Slf4j
 @Component
 @Deprecated(forRemoval = true)
 public class Bootstrap {
@@ -70,13 +69,13 @@ public class Bootstrap {
     }
 
     public void archive() throws CashuErrorException {
-        log.log(Level.INFO, "Archiving mintDto: {0}", mintId);
+        log.info("Archiving mintDto: {}", mintId);
         DBMintVault vault = new DBMintVault(new MintConfiguration(mintId));
         vault.archive();
     }
 
     public void delete() throws CashuErrorException {
-        log.log(Level.INFO, "Deleting mint");
+        log.info("Deleting mint");
         new DBMintVault(new MintConfiguration(mintId)).delete();
     }
 

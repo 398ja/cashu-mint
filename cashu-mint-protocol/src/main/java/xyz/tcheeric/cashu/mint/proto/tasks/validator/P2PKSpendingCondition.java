@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.Setter;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.P2PKSecret;
@@ -16,10 +16,9 @@ import xyz.tcheeric.cashu.crypto.util.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 @Data
 public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
@@ -29,7 +28,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
     @Override
     public void verify(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
 
-        log.log(Level.INFO, "Verifying P2PK spending condition for {0}", proof);
+        log.info("Verifying P2PK spending condition for {}", proof);
 
         verifyMultisig(proof);
         verifyLockTime(proof);
@@ -48,14 +47,14 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         // Is this a refund transaction?
         List<String> refundList = secret.getRefund();
         if (refundList != null && !refundList.isEmpty()) {
-            log.log(Level.INFO, "Refund public keys: {0}. Skipping verification.", refundList);
+            log.info("Refund public keys: {}. Skipping verification.", refundList);
             return;
         }
 
         // Is this a refund transaction?
         String sigFlag = proof.getSecret().getSigFlag();
         if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() > 0) {
-            log.log(Level.INFO, "Signature flag ordinal is greater than 0. This is a refund transaction. Skipping verification.");
+            log.info("Signature flag ordinal is greater than 0. This is a refund transaction. Skipping verification.");
             return;
         }
 
@@ -79,7 +78,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             throw new CashuErrorException("verify_invalid_number_of_signatures");
         }
 
-        log.log(Level.INFO, "Multisig Verification passed");
+        log.info("Multisig Verification passed");
     }
 
     private void verifyLockTime(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
@@ -87,7 +86,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
         // If the tag locktime is the unix time and the mint's local clock is greater than locktime, the Proof becomes spendable
         if (lockTime >= 0 && lockTime < System.currentTimeMillis() / 1000) {
-            log.log(Level.INFO, "Locktime verification passed");
+            log.info("Locktime verification passed");
             return;
         }
 
@@ -143,13 +142,13 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                 }
 
             } else {
-                log.log(Level.INFO, "No refund public keys found. Skipping refund verification.");
+                log.info("No refund public keys found. Skipping refund verification.");
             }
         } else {
-            log.log(Level.INFO, "Locktime is in the future. Skipping refund verification.", proof);
+            log.info("Locktime is in the future. Skipping refund verification. {}", proof);
         }
 
-        log.log(Level.INFO, "Refund Verification passed");
+        log.info("Refund Verification passed");
     }
 
     private int getValidSignatureCount(List<String> publicKeyList, List<String> signatures, byte[] data) {
@@ -160,13 +159,13 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             for (int j = 0; j < signatures.size(); j++) {
                 String signature = signatures.get(j);
                 try {
-                    log.log(Level.INFO, "Verifying data: {0} - publicKey: {1} - signature: {2}", new Object[]{Hex.toHexString(data), publicKey, signature});
+                    log.info("Verifying data: {} - publicKey: {} - signature: {}", Hex.toHexString(data), publicKey, signature);
                     if (Schnorr.verify(Utils.sha256(data), Hex.decode(publicKey), Hex.decode(signature))) {
                         validSignatureCount++;
-                        log.log(Level.INFO, "Signature {0} verified (Count: {1})", new Object[]{signature, validSignatureCount});
+                        log.info("Signature {} verified (Count: {})", signature, validSignatureCount);
                     }
                 } catch (Exception e) {
-                    log.log(Level.WARNING, "Error verifying signature. Continuing...", e);
+                    log.warn("Error verifying signature. Continuing...", e);
                 }
             }
         }

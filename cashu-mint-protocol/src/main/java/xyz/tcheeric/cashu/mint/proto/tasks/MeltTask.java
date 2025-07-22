@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -21,7 +21,7 @@ import java.util.List;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 // TEST -
-@Log
+@Slf4j
 public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;

@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -28,11 +28,10 @@ import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 
 @Setter
 @Getter
-@Log
+@Slf4j
 @Component
 public class MintUtil {
 
@@ -58,13 +57,13 @@ public class MintUtil {
     }
 
     public void write(@NonNull OutputStream outputStream) throws IOException {
-        log.log(Level.INFO, "Writing mint");
+        log.info("Writing mint");
         ObjectMapper mapper = new ObjectMapper();
         mapper.writeValue(outputStream, mint);
     }
 
     public void read(@NonNull InputStream inputStream) throws IOException {
-        log.log(Level.INFO, "Reading mint");
+        log.info("Reading mint");
         ObjectMapper mapper = new ObjectMapper();
         this.mint = mapper.readValue(inputStream, MintDto.class);
     }

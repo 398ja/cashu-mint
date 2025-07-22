@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
@@ -16,7 +16,7 @@ import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import java.util.List;
 
 @AllArgsConstructor
-@Log
+@Slf4j
 public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T>>> {
 
     private final Mint mint;
