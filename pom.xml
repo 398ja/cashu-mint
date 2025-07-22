@@ -13,7 +13,7 @@
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-admin</module>
-        <module>cashu-mint-vault</module>
+        <!--<module>cashu-mint-vault</module>-->
         <module>cashu-mint-test</module>
     </modules>
 
@@ -23,12 +23,13 @@
         <maven.compiler.target>21</maven.compiler.target>
         <lombok.version>1.18.36</lombok.version>
 
+        <tcheeric.common.version>1.0-SNAPSHOT</tcheeric.common.version>
         <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
 
         <commong-config.version>1.0-SNAPSHOT</commong-config.version>
 
         <spring.boot.version>3.2.6</spring.boot.version>
-
+        <spring.boot.starter.version>3.4.5</spring.boot.starter.version>
         <postgresql.version>42.2.23</postgresql.version>
 
         <jackson-datatype-jsr310.version>2.18.0</jackson-datatype-jsr310.version>
@@ -52,7 +53,6 @@
                 <artifactId>tcheeric-common-util</artifactId>
                 <version>${commong-config.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter-engine</artifactId>

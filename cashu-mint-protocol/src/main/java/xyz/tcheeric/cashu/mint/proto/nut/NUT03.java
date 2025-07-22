@@ -14,20 +14,21 @@ import xyz.tcheeric.cashu.mint.proto.tasks.InvalidateProofsTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 // TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
 @Log
 @Nut(3)
 public class NUT03 {
 
-    public static <T extends Secret> PostSwapResponse swap(@NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId, @NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {
 
         // Load mint
-        Mint mint = FSMintVault.load(false, false);
+        Mint mint = DBMintVault.load(mintId.toString(), false);
 
         if (mint == null) {
             throw new CashuErrorException("swap_mint_not_found");

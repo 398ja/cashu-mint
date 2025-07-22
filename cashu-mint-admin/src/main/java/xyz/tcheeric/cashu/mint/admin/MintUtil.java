@@ -5,36 +5,35 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
-import lombok.SneakyThrows;
 import lombok.extern.java.Log;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 import xyz.tcheeric.cashu.mint.admin.model.KeysDto;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
-import xyz.tcheeric.cashu.vault.config.KeyConfiguration;
-import xyz.tcheeric.cashu.vault.config.KeysetConfiguration;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSKeysetVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import xyz.tcheeric.common.util.Configuration;
+import xyz.tcheeric.cashu.vault.api.config.KeyConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.KeysetConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBKeySetVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
-import java.net.URL;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 
 @Setter
 @Getter
 @Log
+@Component
 public class MintUtil {
 
     @Setter(AccessLevel.NONE)
@@ -42,17 +41,12 @@ public class MintUtil {
 
     private final String mintId;
     private final String unit;
-    private final URL keysetProperties;
 
 
-    public MintUtil(@NonNull String mintId, @NonNull String unit) throws Exception {
-        this(mintId, unit, Objects.requireNonNull(MintUtil.class.getResource("/keyset.properties")));
-    }
-
-    public MintUtil(@NonNull String mintId, @NonNull String unit, @NonNull URL keysetProperties) throws Exception {
+    @Autowired
+    public MintUtil(@NonNull String mintId, @NonNull String unit) {
         this.mintId = mintId;
         this.unit = unit;
-        this.keysetProperties = keysetProperties;
         this.mint = createMint();
     }
 
@@ -79,37 +73,42 @@ public class MintUtil {
         return PrivateKey.generateRandom();
     }
 
-    private MintDto createMint() throws Exception {
-        MintDto mintDto = new MintDto(mintId);
-        new FSMintVault(new MintConfiguration(mintId)).store();
+    // TODO: Segregate the creation of the MintDto and the storage of the vaults
+    private MintDto createMint() {
+
+        new DBMintVault(new MintConfiguration(mintId)).store();
 
         Map<BigInteger, PrivateKey> keysMap = new HashMap<>();
         KeysDto keysDto = new KeysDto();
-        for (Integer key : getKeys()) {
+        getKeys().forEach(key -> {
             PrivateKey privateKey = getPrivateKey(key);
             keysMap.put(BigInteger.valueOf(key), privateKey);
             keysDto.put(BigInteger.valueOf(key), privateKey);
-        }
+        });
 
         KeySetDto keySetDto = generateKeySet(unit, keysDto);
-        mintDto.addKeySet(keySetDto);
 
         KeysetConfiguration keysetConfiguration = new KeysetConfiguration(new MintConfiguration(mintId), keySetDto.getId(), keySetDto.getUnit());
-        new FSKeysetVault(keysetConfiguration).store();
+        new DBKeySetVault(keysetConfiguration).store();
 
         for (BigInteger key : keysMap.keySet()) {
-            new FSKeyVault(new KeyConfiguration(keysetConfiguration, key, keysMap.get(key).toString())).store();
+            new DBKeyVault(new KeyConfiguration(keysetConfiguration, key, keysMap.get(key).toString())).store();
         }
+
+        MintDto mintDto = new MintDto(mintId);
+        mintDto.addKeySet(keySetDto);
 
         return mintDto;
     }
 
-    @SneakyThrows
-    private List<Integer> getKeys() {
+    private Set<Integer> getKeys() {
+        return Set.of(1, 2, 4, 8, 16);
+/*
         Configuration configuration = new Configuration("key", keysetProperties);
         return configuration.keys().stream()
                 .map(Integer::parseInt)
                 .toList();
+*/
     }
 
     private static KeySetDto generateKeySet(@NonNull String unit, @NonNull KeysDto keysDto) {

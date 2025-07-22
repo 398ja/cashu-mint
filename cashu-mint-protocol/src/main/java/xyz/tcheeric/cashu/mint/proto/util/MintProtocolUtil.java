@@ -5,9 +5,10 @@ import lombok.NonNull;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 import xyz.tcheeric.common.util.Configuration;
 
 import java.util.Base64;
@@ -33,9 +34,9 @@ public class MintProtocolUtil {
         }
     }
 
-    public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) {
+    public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) throws CashuErrorException {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        FSMintVault mintVault = new FSMintVault(mintConfiguration);
+        DBMintVault mintVault = new DBMintVault(mintConfiguration);
         String unit = mintVault.getUnit(keySetId);
         if (unit != null) {
             return PrivateKey.fromString(mintVault.getPrivateKey(unit, amount));

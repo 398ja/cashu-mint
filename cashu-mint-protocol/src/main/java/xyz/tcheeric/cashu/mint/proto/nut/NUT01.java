@@ -9,15 +9,16 @@ import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
 
+import java.util.UUID;
 import java.util.logging.Level;
 
 @Nut(1)
 @Log
 public class NUT01 {
 
-    public static KeySet generateKeySet(@NonNull String unit) throws CashuErrorException {
-        log.log(Level.FINE, "generateKeySet({0})", unit);
-        return new KeysetGeneratorTask(unit).execute();
+    public static KeySet generateKeySet(@NonNull UUID mintId, @NonNull String unit) throws CashuErrorException {
+        log.log(Level.FINE, "generateKeySet({0}, {1})", new Object[]{mintId, unit});
+        return new KeysetGeneratorTask(mintId.toString(), unit).execute();
     }
 
     public static KeySet generateKeySet(@NonNull String unit, @NonNull Keys keys) {

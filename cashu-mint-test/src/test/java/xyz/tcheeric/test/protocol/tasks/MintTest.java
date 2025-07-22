@@ -20,12 +20,12 @@ import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
+import xyz.tcheeric.cashu.mint.admin.MintUtil;
 import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.test.MintUtilTest;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,17 +41,15 @@ import static org.mockito.Mockito.when;
 
 public class MintTest {
 
-    private VaultUtil vaultUtil;
-
+    private final VaultUtil vaultUtil = new VaultUtil(new MintUtil(UUID.randomUUID().toString(), "sat"));
     @BeforeEach
     public void setUp() throws Exception {
-        vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
         vaultUtil.createVault();
     }
 
     @AfterEach
     public void tearDown() throws CashuErrorException {
-        vaultUtil.deleteVault();
+        //vaultUtil.deleteVault();
     }
 
     @Test

@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.KeySet;
-import xyz.tcheeric.cashu.common.MintInformation;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -36,8 +35,10 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 
 @Log
@@ -45,15 +46,15 @@ import java.util.logging.Level;
 @RequestMapping(value = "/v1")
 public class CashuController<T extends Secret> {
 
-    @GetMapping("/keys")
-    public ResponseEntity<KeySetResponse> keys() {
+    @GetMapping("/keys/{mint_id}/generate")
+    public ResponseEntity<KeySetResponse> generateKeySetIds(@PathVariable("mint_id") String mintId) throws CashuErrorException {
         log.log(Level.FINE, "Getting keys");
-        KeySetResponse response = new KeySetResponse(NUT02.keys());
+        KeySetResponse response = new KeySetResponse(NUT02.keys(UUID.fromString(mintId)));
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/keys/{keyset_id}")
-    public ResponseEntity<KeySetResponse> keys(@PathVariable("keyset_id") String keysetId) {
+    @GetMapping("/keys/keyset/{keyset_id}")
+    public ResponseEntity<KeySetResponse> keyset(@PathVariable("keyset_id") String keysetId) throws CashuErrorException {
         log.log(Level.FINE, "keys({0})", keysetId);
         KeySet keySet = NUT02.keys(keysetId);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
@@ -62,15 +63,15 @@ public class CashuController<T extends Secret> {
 
     // TODO
     @GetMapping("/keysets")
-    public ResponseEntity<ActiveKeySetResponse> keysets() {
+    public ResponseEntity<ActiveKeySetResponse> keysets() throws CashuErrorException {
         List<ActiveKeySet> activeKeySets = NUT02.activeKeySets();
         ActiveKeySetResponse response = new ActiveKeySetResponse(activeKeySets);
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/swap")
-    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request) throws CashuErrorException {
-        PostSwapResponse response = NUT03.swap(request);
+    @PostMapping("/swap/{mint_id}")
+    public ResponseEntity<PostSwapResponse> swap(@PathVariable("mint_id") String mintId, @RequestBody PostSwapRequest<T> request) throws CashuErrorException {
+        PostSwapResponse response = NUT03.swap(UUID.fromString(mintId), request);
         return ResponseEntity.ok(response);
     }
 
@@ -86,9 +87,9 @@ public class CashuController<T extends Secret> {
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
-    @PostMapping("/mint/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request, @PathVariable("method") String method) throws CashuErrorException {
-        PostMintResponse response = NUT04.mint(request, PaymentMethod.valueOf(method.toUpperCase()));
+    @PostMapping("/mint/{mintId}/{method}")
+    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request, @PathVariable("method") String method, @PathVariable("mintId") String mintId) throws CashuErrorException {
+        PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -104,21 +105,22 @@ public class CashuController<T extends Secret> {
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
-    @PostMapping("/melt/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request, @PathVariable("method") String method) throws CashuErrorException {
-        PostMeltResponse response = NUT05.melt(request, PaymentMethod.valueOf(method.toUpperCase()));
+    @PostMapping("/melt/{mint_id}/{method}")
+    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request, @PathVariable("method") String method, @PathVariable("mint_id") String mintId) throws CashuErrorException {
+        PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @GetMapping("/info")
-    public ResponseEntity<MintInformation> info() {
-        MintInformation response = NUT06.info();
+    public ResponseEntity<MintInfo> info() {
+        NUT06 nut06 = new NUT06(new MintInfo());
+        MintInfo response = nut06.getMintInfo();
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/checkstate")
-    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request) {
-        PostCheckStateResponse response = NUT07.checkState(request);
+    @PostMapping("/checkstate/{mint_id}")
+    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request, @PathVariable("mint_id") String mintId) throws CashuErrorException {
+        PostCheckStateResponse response = NUT07.checkState(UUID.fromString(mintId), request);
         return ResponseEntity.ok(response);
     }
 

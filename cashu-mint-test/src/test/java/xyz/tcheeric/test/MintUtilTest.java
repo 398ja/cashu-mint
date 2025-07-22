@@ -9,20 +9,15 @@ import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.URL;
-import java.util.Objects;
+import java.util.UUID;
 
 public class MintUtilTest extends MintUtil {
 
-    public MintUtilTest(@NonNull String mintId, @NonNull String unit) throws Exception {
-        this(mintId, unit, Objects.requireNonNull(MintUtil.class.getResource("/keyset.properties")));
+    public MintUtilTest() {
+        super(UUID.randomUUID().toString(), "sat");
     }
 
-    public MintUtilTest(@NonNull String mintId, @NonNull String unit, @NonNull URL keysetProperties) throws Exception {
-        super(mintId, unit, keysetProperties);
-    }
 
-    @Override
     protected PrivateKey getPrivateKey(@NonNull Integer key) {
         try {
             ObjectMapper mapper = new ObjectMapper();

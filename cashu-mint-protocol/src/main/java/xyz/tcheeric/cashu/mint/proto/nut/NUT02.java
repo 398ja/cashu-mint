@@ -9,12 +9,13 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import xyz.tcheeric.common.util.Configuration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 
 import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
@@ -23,24 +24,24 @@ import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
 @Nut(2)
 public class NUT02 {
 
-    public static List<KeySet> keys() {
-        log.log(Level.FINE, "keysets()");
-        List<KeySet> keySets = new ArrayList<>();
-        var units = getUnits();
-        log.log(Level.FINE, "units: {0}", units);
-
-        units.forEach(unit -> {
-            try {
-                keySets.add(generateKeySet(unit));
-            } catch (CashuErrorException e) {
-                throw new RuntimeException(e);
+    public static List<KeySet> keys(UUID mintId) throws CashuErrorException {
+        log.log(Level.FINE, "keys()");
+        Mint mint = DBMintVault.load(mintId.toString(), false);
+        Set<KeySet> keySets = mint.getKeySets();
+        keySets.forEach(keySet -> {
+            if (keySet.getId() == null) {
+                try {
+                    String unit = keySet.getUnit();
+                    keySet.setId(generateKeySet(mintId, unit).getId());
+                } catch (CashuErrorException e) {
+                    throw new RuntimeException(e);
+                }
             }
         });
-
-        return keySets;
+        return new ArrayList<>(keySets);
     }
 
-    public static KeySet keys(@NonNull String keysetId) {
+    public static KeySet keys(@NonNull String keysetId) throws CashuErrorException {
         List<KeySet> keySets = keySets();
         log.log(Level.FINE, "keysets: {0}", keySets);
         return keySets
@@ -51,7 +52,7 @@ public class NUT02 {
                 .orElseThrow();
     }
 
-    public static List<ActiveKeySet> activeKeySets() {
+    public static List<ActiveKeySet> activeKeySets() throws CashuErrorException {
         log.log(Level.FINE, "keySets()");
         List<ActiveKeySet> activeKeySets = new ArrayList<>();
         activeKeySets.addAll(activeKeySets(false));
@@ -63,7 +64,7 @@ public class NUT02 {
         return activeKeySets;
     }
 
-    public static <T extends Secret> int fees(@NonNull List<Proof<T>> inputs) {
+    public static <T extends Secret> int fees(@NonNull List<Proof<T>> inputs) throws CashuErrorException {
         int sum_fees = 0;
         for (Proof<T> proof : inputs) {
             String keysetId = proof.getKeySetId();
@@ -74,10 +75,33 @@ public class NUT02 {
         return Math.floorDiv (sum_fees + 999, 1000);
     }
 
-    public static <T extends Secret> int fees(@NonNull Proof<T> input) {
+    public static <T extends Secret> int fees(@NonNull Proof<T> input) throws CashuErrorException {
         String keysetId = input.getKeySetId();
         KeySet keySet = keys(keysetId);
         return Math.floorDiv(keySet.getPartPerThousand() + 999, 1000);
+    }
+
+    private static List<KeySet> keySets(String keySetId) throws CashuErrorException {
+        log.log(Level.FINE, "keySets()");
+
+        List<KeySet> result = new ArrayList<>();
+        result.addAll(keySets(keySetId, false));
+        result.addAll(keySets(keySetId, true));
+
+        return result;
+    }
+
+    private static List<KeySet> keySets(@NonNull String keySetId, boolean archive) throws CashuErrorException {
+        log.log(Level.FINE, "keySets({0})", archive);
+
+        List<KeySet> result = new ArrayList<>();
+        Mint mint = DBMintVault.load(keySetId, archive);
+
+        if (mint != null) {
+            result.addAll(mint.getKeySets());
+        }
+
+        return result;
     }
 
     private static List<KeySet> keySets() {
@@ -94,27 +118,24 @@ public class NUT02 {
         log.log(Level.FINE, "keySets({0})", archive);
 
         List<KeySet> result = new ArrayList<>();
-        Mint mint = FSMintVault.load(archive);
+        List<Mint> mints = DBMintVault.load(archive);
 
-        if (mint != null) {
-            result.addAll(mint.getKeySets());
+        if (mints != null) {
+            mints.stream().forEach(mint -> {
+                result.addAll(mint.getKeySets());
+            });
         }
 
         return result;
     }
 
-    private static List<ActiveKeySet> activeKeySets(boolean archive) {
-        log.log(Level.FINE, "keySets({0})", archive);
+    private static List<ActiveKeySet> activeKeySets(boolean archive) throws CashuErrorException {
+        log.log(Level.FINE, "activeKeySets({0})", archive);
 
         List<ActiveKeySet> result = new ArrayList<>();
         List<KeySet> keySets = keySets(archive);
         keySets.stream().map(keySet -> ActiveKeySet.fromKeySet(keySet, !archive)).forEach(result::add);
 
         return result;
-    }
-
-    private static List<String> getUnits() {
-        Configuration configuration = new Configuration("cashu");
-        return List.of(configuration.get("units").split(","));
     }
 }

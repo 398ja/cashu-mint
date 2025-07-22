@@ -14,9 +14,9 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 
 @AllArgsConstructor
 public class RSSSpendingCondition implements SpendingCondition<RandomStringSecret> {
@@ -32,8 +32,8 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         Secret secret = proof.getSecret();
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret.toString());
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault proofVault = new FSProofVault(proofConfiguration);
-        var usedProof = proofVault.retrieve(proof.getSecret().toString(), false);
+        DBProofVault proofVault = new DBProofVault(proofConfiguration);
+        String usedProof = proofVault.retrieve();
         if (usedProof != null) {
             throw new CashuErrorException("verify_proof_already_used_error");
         }
@@ -66,7 +66,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         }
     }
 
-    private PrivateKey getPrivateKey(@NonNull Proof<RandomStringSecret> proof, @NonNull Mint mint) {
+    private PrivateKey getPrivateKey(@NonNull Proof<RandomStringSecret> proof, @NonNull Mint mint) throws CashuErrorException {
         return MintProtocolUtil.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
     }
 

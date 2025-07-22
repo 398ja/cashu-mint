@@ -1,32 +1,25 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
-import xyz.tcheeric.cashu.vault.FSVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
+import xyz.tcheeric.cashu.vault.api.config.KeyConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.KeysetConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.Optional;
 import java.util.logging.Level;
 
 @Log
+@RequiredArgsConstructor
 public class KeysetGeneratorTask implements Task<KeySet> {
 
+    private final String mintId;
     private final String unit;
-
-    public KeysetGeneratorTask(@NonNull String unit) {
-        this.unit = unit;
-    }
 
     @Override
     public KeySet execute() throws CashuErrorException {
@@ -43,6 +36,12 @@ public class KeysetGeneratorTask implements Task<KeySet> {
     private Keys getKeys() throws CashuErrorException {
         log.log(Level.INFO, "getKeys()");
 
+        MintConfiguration mintConfiguration = new MintConfiguration(mintId);
+        KeysetConfiguration keysetConfiguration = new KeysetConfiguration(mintConfiguration, unit);
+        KeyConfiguration keyConfiguration = new KeyConfiguration(keysetConfiguration);
+        return DBKeyVault.load(keyConfiguration, false);
+
+/*
         // <vault_basedir>/mint/<private_key>/<unit>/<key_index>/[private_key]
         var baseDir = FSVault.getBaseDir(false);
         log.log(Level.INFO, "Base directory: {0}", baseDir);
@@ -70,5 +69,6 @@ public class KeysetGeneratorTask implements Task<KeySet> {
             log.log(Level.SEVERE, "Failed to list directories", e);
             throw new UncheckedIOException(e);
         }
+*/
     }
 }

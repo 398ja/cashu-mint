@@ -9,46 +9,37 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
 
 @AllArgsConstructor
 @Log
-public class InvalidateProofsTask<T extends Secret> implements Task<Boolean> {
+public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T>>> {
 
     private final Mint mint;
     private final List<Proof<T>> proofs;
 
     @Override
-    public Boolean execute() throws CashuErrorException {
+    public List<Proof<T>> execute() throws CashuErrorException {
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        AtomicReference<CashuErrorException> error = new AtomicReference<>();
         proofs
                 .forEach(proof -> {
                     String unblindedSignature = proof.getUnblindedSignature().toString();
                     String secret = proof.getSecret().toString();
                     byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
                     ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
-                    FSProofVault proofVault = new FSProofVault(proofConfiguration);
-                    // We invalidate the proof by storing it in the vault
-                    log.log(Level.INFO, "Invalidating proof " + proof);
+                    DBProofVault proofVault = new DBProofVault(proofConfiguration);
+                    proofVault.store();
                     try {
-                        proofVault.deletePending();
-                        proofVault.store();
+                        proofVault.invalidate();
                     } catch (CashuErrorException e) {
                         throw new RuntimeException(e);
                     }
                 });
 
-        if (error.get() != null) {
-            throw error.get();
-        }
-
-        return Boolean.TRUE;
+        return proofs;
     }
 }

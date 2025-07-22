@@ -14,12 +14,13 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.tasks.InvalidateProofsTask;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -31,13 +32,13 @@ public class InvalidateProofTest {
 
     @BeforeEach
     public void setUp() throws CashuErrorException {
-        this.mint = new Mint("d40a6717990b684fc35ff8a25e5b51830525894acd5501fd3f9ace5c30471baa");
+        this.mint = new Mint(UUID.randomUUID().toString());
 
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");
 
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, "0392810a73efd77346d3658bf0dc7004fae1e201a03bd511d8077956d7785a8355" , Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault proofVault = new FSProofVault(proofConfiguration);
+        DBProofVault proofVault = new DBProofVault(proofConfiguration);
 
         proofVault.storePending();
     }
@@ -48,9 +49,9 @@ public class InvalidateProofTest {
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");
 
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, "0392810a73efd77346d3658bf0dc7004fae1e201a03bd511d8077956d7785a8355" , Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault proofVault = new FSProofVault(proofConfiguration);
+        DBProofVault proofVault = new DBProofVault(proofConfiguration);
 
-        FSMintVault mintVault = new FSMintVault(mintConfiguration);
+        DBMintVault mintVault = new DBMintVault(mintConfiguration);
         mintVault.delete();
     }
 
@@ -79,8 +80,8 @@ public class InvalidateProofTest {
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         ProofConfiguration config = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault vault = new FSProofVault(config);
-        String strProof = vault.retrieve(Utils.bytesToHexString(hashToCurveSecret), false);
+        DBProofVault vault = new DBProofVault(config);
+        String strProof = vault.retrieve(false);
 
         assertNotNull(strProof);
         assertEquals(proof.getUnblindedSignature().toString(), strProof);

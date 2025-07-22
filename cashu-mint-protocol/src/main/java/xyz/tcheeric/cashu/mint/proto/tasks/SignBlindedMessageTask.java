@@ -37,7 +37,7 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
         }
     }
 
-    private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) {
+    private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
         return MintProtocolUtil.getPrivateKey(blindedMessage.getKeySetId(), blindedMessage.getAmount(), mint);
     }
 

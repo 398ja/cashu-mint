@@ -13,7 +13,9 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+
+import java.util.UUID;
 
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
@@ -47,8 +49,8 @@ public class NUT05 {
                 .build();
     }
 
-    public static <T extends Secret> PostMeltResponse melt(@NonNull PostMeltRequest<T> request, @NonNull PaymentMethod method) throws CashuErrorException {
-        Mint mint = FSMintVault.load(false, true);
+    public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId, @NonNull PostMeltRequest<T> request, @NonNull PaymentMethod method) throws CashuErrorException {
+        Mint mint = DBMintVault.load(mintId, true);
 
         return new MeltTask(request, method, mint).execute();
     }

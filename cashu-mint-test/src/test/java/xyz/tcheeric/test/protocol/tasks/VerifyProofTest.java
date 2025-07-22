@@ -27,12 +27,11 @@ import xyz.tcheeric.cashu.mint.admin.model.KeySetDto;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.FSVault;
+import xyz.tcheeric.cashu.vault.api.DBVault;
 import xyz.tcheeric.test.MintUtilTest;
 
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.logging.Level;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,17 +46,15 @@ import static org.mockito.Mockito.when;
 @Log
 public class VerifyProofTest {
 
-    private VaultUtil vaultUtil;
+    private final VaultUtil vaultUtil = new VaultUtil(new MintUtilTest());
 
     @BeforeEach
     public void setUp() throws Exception {
-        vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
         vaultUtil.createVault();
     }
 
     @AfterEach
-    public void tearDown() throws CashuErrorException {
-        vaultUtil.deleteVault();
+    public void tearDown() {
     }
 
     @Test
@@ -80,10 +77,10 @@ public class VerifyProofTest {
 
         var mintDto = spy(vaultUtil.getMint());
 
-        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
+        VerifyProofsTask<RandomStringSecret> randomStringSecretVerifyProofsTask = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(proof.getSecret().toString(), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
 
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
@@ -91,7 +88,7 @@ public class VerifyProofTest {
             mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-            assertNull(task.execute());
+            assertNull(randomStringSecretVerifyProofsTask.execute());
         }
     }
 
@@ -117,8 +114,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(proof.getSecret().toString(), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
 
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
@@ -152,8 +149,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(proof.getSecret().toString(), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
 
         when(mint.getKeySets()).thenReturn(Set.of(new KeySet("004cf8cba2f93266", "sat", null, 0)));
 
@@ -186,10 +183,10 @@ public class VerifyProofTest {
 
         var mintDto = spy(vaultUtil.getMint());
 
-        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
+        VerifyProofsTask<RandomStringSecret> randomStringSecretVerifyProofsTask = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(proof.getSecret().toString(), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
 
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
@@ -197,7 +194,7 @@ public class VerifyProofTest {
             mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+            CashuErrorException exception = assertThrows(CashuErrorException.class, randomStringSecretVerifyProofsTask::execute);
             assertEquals("verify_proof_key_set_not_found:" + proof.getKeySetId(), exception.getMessage());
         }
     }
@@ -236,8 +233,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(Hex.toHexString(proof.getSecret().getData()), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
@@ -283,8 +280,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(Hex.toHexString(proof.getSecret().getData()), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
@@ -328,8 +325,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(Hex.toHexString(proof.getSecret().getData()), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
@@ -373,8 +370,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(Hex.toHexString(proof.getSecret().getData()), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve( false)).thenReturn(proof.getUnblindedSignature().toString());
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
@@ -424,8 +421,8 @@ public class VerifyProofTest {
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(MintDto.toMint(mintDto), postSwapRequest);
 
-        var vault = Mockito.mock(FSVault.class);
-        when(vault.retrieve(Hex.toHexString(proof.getSecret().getData()), false)).thenReturn(proof.getUnblindedSignature().toString());
+        var vault = Mockito.mock(DBVault.class);
+        when(vault.retrieve(false)).thenReturn(proof.getUnblindedSignature().toString());
         when(mintDto.getKeySets()).thenReturn(Set.of(new KeySetDto("004cf8cba2f93266", "sat", null)));
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {

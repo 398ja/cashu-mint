@@ -1,14 +1,16 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
 import lombok.NonNull;
-import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+
+import java.util.UUID;
 
 @Nut(7)
 public class NUT07 {
@@ -18,21 +20,19 @@ public class NUT07 {
     public static final String SPENT = "SPENT";
 
 
-    public static PostCheckStateResponse checkState(@NonNull PostCheckStateRequest postCheckStateRequest) {
+    public static PostCheckStateResponse checkState(@NonNull UUID mintId, @NonNull PostCheckStateRequest postCheckStateRequest) throws CashuErrorException {
 
-        Mint mint = FSMintVault.load(false, true);
-        MintConfiguration mintConfiguration = null;
-        if (mint != null) {
-            mintConfiguration = new MintConfiguration(mint.getId());
-        }
+        MintConfiguration mintConfiguration = new MintConfiguration(mintId.toString());
+        DBMintVault.load(mintConfiguration, false, true);
         ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration);
-        FSProofVault vault = new FSProofVault(proofConfiguration);
+        DBProofVault vault = new DBProofVault(proofConfiguration);
+
         PostCheckStateResponse response = new PostCheckStateResponse();
 
         postCheckStateRequest.getHashToCurveSecrets().forEach(hashToCurveSecret -> {
             try {
-                String unblindedSignature = vault.retrieve(hashToCurveSecret.toString(), false);
-                PostCheckStateResponse.ResponseSatate responseState = new PostCheckStateResponse.ResponseSatate();
+                String unblindedSignature = vault.retrieveSignature(hashToCurveSecret.toString(), false);
+                PostCheckStateResponse.ResponseState responseState = new PostCheckStateResponse.ResponseState();
                 if (unblindedSignature == null) {
                     unblindedSignature = vault.retrievePending(hashToCurveSecret.toString());
                     if (unblindedSignature == null) {

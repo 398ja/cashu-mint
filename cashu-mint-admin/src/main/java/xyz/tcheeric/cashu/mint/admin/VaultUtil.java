@@ -1,31 +1,26 @@
 package xyz.tcheeric.cashu.mint.admin;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
-import xyz.tcheeric.cashu.vault.config.KeyConfiguration;
-import xyz.tcheeric.cashu.vault.config.KeysetConfiguration;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSKeyVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSKeysetVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.logging.Level;
 
 @Log
-@RequiredArgsConstructor
 public class VaultUtil {
 
-/*
-    private final String mintId;
-    private final String unit;
-*/
     private final MintUtil mintUtil;
 
     @Getter
     private MintDto mint;
+
+    public VaultUtil(MintUtil mintUtil) {
+        this.mintUtil = mintUtil;
+        this.mint = mintUtil.getMint();
+    }
 
     public void createVault() throws Exception {
         log.log(Level.INFO, "Creating vault");
@@ -35,29 +30,23 @@ public class VaultUtil {
         this.mint = mintUtil.getMint();
         log.log(Level.INFO, "MintDto read: {0}", mint.getId());
 
+/*
         MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        FSMintVault mintVault = new FSMintVault(mintConfiguration);
+        DBMintVault mintVault = new DBMintVault(mintConfiguration);
         mintVault.store();
 
         mint.getKeySets().forEach(keySet -> {
             KeysetConfiguration keysetConfiguration = new KeysetConfiguration(mintConfiguration, keySet.getId(), keySet.getUnit());
-            FSKeysetVault keysetVault = new FSKeysetVault(keysetConfiguration);
-            try {
-                keysetVault.store();
-            } catch (CashuErrorException e) {
-                throw new RuntimeException(e);
-            }
+            DBKeySetVault keysetVault = new DBKeySetVault(keysetConfiguration);
+            keysetVault.store();
 
             keySet.getKeys().getValues().keySet().forEach(key -> {
                 KeyConfiguration keyConfiguration = new KeyConfiguration(keysetConfiguration, key, keySet.getKeys().getValues().get(key).toString());
-                FSKeyVault keyVault = new FSKeyVault(keyConfiguration);
-                try {
-                    keyVault.store();
-                } catch (CashuErrorException e) {
-                    throw new RuntimeException(e);
-                }
+                DBKeyVault keyVault = new DBKeyVault(keyConfiguration);
+                keyVault.store();
             });
         });
+*/
     }
 
     public void archiveVault() throws CashuErrorException {
@@ -66,8 +55,8 @@ public class VaultUtil {
         String mintId = this.mint.getId();
 
         MintConfiguration mintConfiguration = new MintConfiguration(mintId);
-        FSMintVault mintVault = new FSMintVault(mintConfiguration);
-        mintVault.archive(mintId);
+        DBMintVault mintVault = new DBMintVault(mintConfiguration);
+        mintVault.archive();
     }
 
     public void deleteVault() throws CashuErrorException {
@@ -76,7 +65,7 @@ public class VaultUtil {
         String mintId = this.mint.getId();
 
         MintConfiguration mintConfiguration = new MintConfiguration(mintId);
-        FSMintVault mintVault = new FSMintVault(mintConfiguration);
+        DBMintVault mintVault = new DBMintVault(mintConfiguration);
         mintVault.delete();
     }
 }

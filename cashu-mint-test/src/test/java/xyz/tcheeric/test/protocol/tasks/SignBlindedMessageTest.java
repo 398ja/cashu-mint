@@ -11,11 +11,11 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.admin.MintUtil;
 import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.test.MintUtilTest;
 
 import java.util.UUID;
 
@@ -28,17 +28,18 @@ import static org.mockito.Mockito.spy;
 
 public class SignBlindedMessageTest {
 
-    private VaultUtil vaultUtil;
+    private final VaultUtil vaultUtil = new VaultUtil(new MintUtil(UUID.randomUUID().toString(), "sat"));
 
     @BeforeEach
     public void setUp() throws Exception {
-        vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
         vaultUtil.createVault();
     }
 
     @AfterEach
     public void tearDown() throws CashuErrorException {
+/*
         vaultUtil.deleteVault();
+*/
     }
 
     @Test

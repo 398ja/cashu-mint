@@ -24,16 +24,16 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
+import xyz.tcheeric.cashu.mint.admin.MintUtil;
 import xyz.tcheeric.cashu.mint.admin.VaultUtil;
 import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
+import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
+import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.common.util.Configuration;
-import xyz.tcheeric.test.MintUtilTest;
 
 import java.util.List;
 import java.util.UUID;
@@ -49,19 +49,17 @@ import static org.mockito.Mockito.when;
 @Log
 public class MeltTest {
 
-    private VaultUtil vaultUtil;
-
+    private final VaultUtil vaultUtil = new VaultUtil(new MintUtil(UUID.randomUUID().toString(), "sat"));
     private static final Configuration config = new Configuration("phoenixd");
 
     @BeforeEach
     public void setUp() throws Exception {
-        vaultUtil = new VaultUtil(new MintUtilTest(UUID.randomUUID().toString(), "sat"));
         vaultUtil.createVault();
     }
 
     @AfterEach
     public void tearDown() throws CashuErrorException {
-        vaultUtil.deleteVault();
+        //vaultUtil.deleteVault();
     }
 
     @Test
@@ -162,7 +160,7 @@ public class MeltTest {
         Mint mint = MintDto.toMint(vaultUtil.getMint());
         //MeltTask meltTask = new MeltTask(postMeltRequest, PaymentMethod.BOLT11, mint);
 
-        PostMeltResponse postMeltResponse = NUT05.melt(postMeltRequest, PaymentMethod.BOLT11); //meltTask.execute();
+        PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()), postMeltRequest, PaymentMethod.BOLT11); //meltTask.execute();
 
         archiveProof();
 
@@ -213,7 +211,7 @@ public class MeltTest {
     }
 
     @Test
-    public void verify() {
+    public void verify() throws CashuErrorException {
         Proof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
         proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
@@ -236,7 +234,7 @@ public class MeltTest {
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");
         Mint mint = MintDto.toMint(vaultUtil.getMint());
         ProofConfiguration configuration = new ProofConfiguration(new MintConfiguration(mint.getId()), "0392810a73efd77346d3658bf0dc7004fae1e201a03bd511d8077956d7785a8355", Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault vault = new FSProofVault(configuration);
-        vault.archive("eb3472ab308e71fbd503f88b6027e44717dd079e347bc6ac0ce1f3fc936bdbb1");
+        DBProofVault vault = new DBProofVault(configuration);
+        vault.archive();
     }
 }
