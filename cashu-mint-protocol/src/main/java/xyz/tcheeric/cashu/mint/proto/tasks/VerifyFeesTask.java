@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 
-@Log
+@Slf4j
 @AllArgsConstructor
 public class VerifyFeesTask<T extends Secret> implements Task<Void> {
 

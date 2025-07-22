@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
@@ -19,7 +19,7 @@ import java.util.UUID;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 @Nut(value = 4, description = "Mint tokens")
-@Log
+@Slf4j
 public class NUT04 {
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) {

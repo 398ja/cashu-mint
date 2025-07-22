@@ -1,6 +1,6 @@
 package xyz.tcheeric.test.protocol.tasks;
 
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +32,6 @@ import xyz.tcheeric.test.MintUtilTest;
 
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Level;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,7 +42,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-@Log
+@Slf4j
 public class VerifyProofTest {
 
     private final VaultUtil vaultUtil = new VaultUtil(new MintUtilTest());
@@ -203,7 +202,7 @@ public class VerifyProofTest {
     public void verifySuccess() throws Exception {
         PrivateKey recipient = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
 
-        log.log(Level.INFO, "Private key: {0}", recipient);
+        log.info("Private key: {}", recipient);
         P2PKSecret secret = new P2PKSecret(Schnorr.genPubKey(recipient.toBytes()));
         secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_INPUTS);
         //secret.setLockTime(Integer.MAX_VALUE);
@@ -241,7 +240,7 @@ public class VerifyProofTest {
             mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-            log.log(Level.INFO, "Data: {0} - Public key: {1} - Signature: {2}", new Object[]{Hex.toHexString(secret.getData()), secret.getPubKeys(), proofWitness.getSignatures()});
+            log.info("Data: {} - Public key: {} - Signature: {}", Hex.toHexString(secret.getData()), secret.getPubKeys(), proofWitness.getSignatures());
             assertNull(task.execute());
         }
     }

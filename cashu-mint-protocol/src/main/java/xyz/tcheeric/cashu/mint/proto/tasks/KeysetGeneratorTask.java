@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -12,9 +12,8 @@ import xyz.tcheeric.cashu.vault.api.config.KeysetConfiguration;
 import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
 
-import java.util.logging.Level;
 
-@Log
+@Slf4j
 @RequiredArgsConstructor
 public class KeysetGeneratorTask implements Task<KeySet> {
 
@@ -23,10 +22,10 @@ public class KeysetGeneratorTask implements Task<KeySet> {
 
     @Override
     public KeySet execute() throws CashuErrorException {
-        log.log(Level.INFO, "execute()");
+        log.info("execute()");
 
         Keys keys = getKeys();
-        log.log(Level.INFO, "Keys: {0}", keys);
+        log.info("Keys: {}", keys);
 
         KeySet keySet = KeySet.builder().unit(unit).keys(keys).build();
         keySet.setId(KeySetDerivation.getId(keys.values()));
@@ -34,7 +33,7 @@ public class KeysetGeneratorTask implements Task<KeySet> {
     }
 
     private Keys getKeys() throws CashuErrorException {
-        log.log(Level.INFO, "getKeys()");
+        log.info("getKeys()");
 
         MintConfiguration mintConfiguration = new MintConfiguration(mintId);
         KeysetConfiguration keysetConfiguration = new KeysetConfiguration(mintConfiguration, unit);
@@ -44,7 +43,7 @@ public class KeysetGeneratorTask implements Task<KeySet> {
 /*
         // <vault_basedir>/mint/<private_key>/<unit>/<key_index>/[private_key]
         var baseDir = FSVault.getBaseDir(false);
-        log.log(Level.INFO, "Base directory: {0}", baseDir);
+        log.info("Base directory: {}", baseDir);
         try {
             Optional<Path> mintPath = Files.list(Paths.get(baseDir, "mint"))
                     .filter(Files::isDirectory)
@@ -52,21 +51,21 @@ public class KeysetGeneratorTask implements Task<KeySet> {
                         try {
                             return Files.getLastModifiedTime(p).toMillis();
                         } catch (IOException e) {
-                            log.log(Level.SEVERE, "Failed to get last modified time: {0}", p);
+                            log.error("Failed to get last modified time: {}", p);
                             throw new UncheckedIOException(e);
                         }
                     }));
 
             if (mintPath.isPresent()) {
-                log.log(Level.FINE, "Most recent directory: {0}", mintPath.get());
+                log.debug("Most recent directory: {}", mintPath.get());
                 var mintId = mintPath.get().getFileName().toString();
                 return FSKeyVault.get(mintId, unit);
             } else {
-                log.log(Level.SEVERE, "No directories found");
+                log.error("No directories found");
                 throw new CashuErrorException("key_set_generator_mint_folder_missing_error");
             }
         } catch (IOException e) {
-            log.log(Level.SEVERE, "Failed to list directories", e);
+            log.error("Failed to list directories", e);
             throw new UncheckedIOException(e);
         }
 */
