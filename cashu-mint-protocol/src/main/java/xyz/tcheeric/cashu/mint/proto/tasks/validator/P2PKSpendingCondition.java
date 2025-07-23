@@ -38,24 +38,10 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
     private void verifyMultisig(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
 
         P2PKSecret secret = proof.getSecret();
-        int n_sigs = secret.getNSigs();
+        int n_sigs = secret.getNSigs() > 0 ? secret.getNSigs() : 1;
 
         if (n_sigs < 0) {
             throw new IllegalArgumentException("Invalid number of signatures");
-        }
-
-        // Is this a refund transaction?
-        List<String> refundList = secret.getRefund();
-        if (refundList != null && !refundList.isEmpty()) {
-            log.info("Refund public keys: {}. Skipping verification.", refundList);
-            return;
-        }
-
-        // Is this a refund transaction?
-        String sigFlag = proof.getSecret().getSigFlag();
-        if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() > 0) {
-            log.info("Signature flag ordinal is greater than 0. This is a refund transaction. Skipping verification.");
-            return;
         }
 
         // Retrieve all signing public keys
@@ -63,14 +49,14 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         publicKeyList.add(Hex.toHexString(secret.getData()));
         List<String> secretPubkeys = secret.getPubKeys();
         if (secretPubkeys != null) {
-            secretPubkeys.stream().forEach(pubkey -> publicKeyList.add(pubkey));
+            publicKeyList.addAll(secretPubkeys);
         }
 
-        // Retrieve all signatures
+        // Retrieve all signatures for this proof
         List<String> signatures = proof.getWitness().getSignatures();
 
         // Count how many valid signatures
-        byte[] data = proof.getSecret().getData();
+        byte[] data = proof.getSecret().toString().getBytes();
         int validSignatureCount = getValidSignatureCount(publicKeyList, signatures, data);
 
         // If the number of valid signatures is greater or equal to the number specified in n_sigs, the transaction is valid.
@@ -84,8 +70,13 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
     private void verifyLockTime(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
         int lockTime = proof.getSecret().getLockTime();
 
+        if (lockTime <= 0) {
+            // no lock time present
+            return;
+        }
+
         // If the tag locktime is the unix time and the mint's local clock is greater than locktime, the Proof becomes spendable
-        if (lockTime >= 0 && lockTime < System.currentTimeMillis() / 1000) {
+        if (lockTime < System.currentTimeMillis() / 1000) {
             log.info("Locktime verification passed");
             return;
         }
@@ -101,45 +92,38 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         if (lockTime > 0 && lockTime < System.currentTimeMillis() / 1000) {
 
             List<String> refundPublicKeys = proof.getSecret().getRefund();
-            int validSignatureCount = 0;
 
-            //... and a tag refund is present
             if (refundPublicKeys != null && !refundPublicKeys.isEmpty()) {
 
-                byte[] data = proof.getSecret().getData();
+                byte[] secretBytes = proof.getSecret().toString().getBytes();
                 List<String> signatures = proof.getWitness().getSignatures();
                 String sigFlag = proof.getSecret().getSigFlag();
 
-                // ...the Proof is spendable only if a valid signature by one of the refund pubkeys is provided in Proof.witness.signatures
-                if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 0) {
-
-                    validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, data);
-                }
+                int validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, secretBytes);
 
                 if (validSignatureCount == 0) {
                     throw new CashuErrorException("verify_invalid_refund_signature");
                 }
 
-                // ...and, depending on the signature flag, in BlindedMessage.witness.signatures.
                 if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1) {
-
-                    if (blindedMessages == null && !blindedMessages.isEmpty()) {
+                    if (blindedMessages == null || blindedMessages.isEmpty()) {
                         throw new IllegalStateException("BlindedMessage list is null or empty");
                     }
 
-                    signatures = blindedMessages.stream().flatMap(blindedMessage -> {
-                        if (blindedMessage.getWitness() == null) {
+                    for (BlindedMessage bm : blindedMessages) {
+                        if (bm.getWitness() == null) {
                             throw new IllegalStateException("BlindedMessage witness is null");
                         }
-                        return blindedMessage.getWitness().getSignatures().stream();
-                    }).toList();
-
-                    validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, data);
+                        List<String> outSigs = bm.getWitness().getSignatures();
+                        byte[] outData = bm.getBlindedMessage().toBytes();
+                        validSignatureCount = getValidSignatureCount(refundPublicKeys, outSigs, outData);
+                        if (validSignatureCount == 0) {
+                            throw new CashuErrorException("verify_invalid_refund_signature");
+                        }
+                    }
                 }
 
-                if (validSignatureCount == 0) {
-                    throw new CashuErrorException("verify_invalid_refund_signature");
-                }
+                log.info("Refund Verification passed");
 
             } else {
                 log.info("No refund public keys found. Skipping refund verification.");
@@ -147,8 +131,6 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         } else {
             log.info("Locktime is in the future. Skipping refund verification. {}", proof);
         }
-
-        log.info("Refund Verification passed");
     }
 
     private int getValidSignatureCount(List<String> publicKeyList, List<String> signatures, byte[] data) {
