@@ -13,6 +13,8 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import org.mockito.MockedConstruction;
+import org.mockito.Mockito;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 
@@ -21,6 +23,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createRandomBytes;
 
 public class InvalidateProofTest {
@@ -67,5 +70,24 @@ public class InvalidateProofTest {
 
         assertNotNull(vault.getEntity());
         assertEquals(proof.getUnblindedSignature().toString(), vault.getEntity().getUnblindedSignature());
+    }
+
+    @Test
+    public void invalidateProofFailure() {
+        RSSProof proof = new RSSProof();
+        proof.setUnblindedSignature(Signature.fromString(createRandomBytes(33)));
+        proof.setSecret(RandomStringSecret.create());
+        proof.setAmount(1);
+        proof.setKeySetId("00c4a3dade22f81b");
+
+        InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof));
+
+        try (MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
+                (mock, ctx) -> {
+                    Mockito.doNothing().when(mock).store();
+                    Mockito.doThrow(new CashuErrorException("fail")).when(mock).invalidate();
+                })) {
+            assertThrows(RuntimeException.class, task::execute);
+        }
     }
 }
