@@ -13,12 +13,10 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
-
-import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
 
 // TEST -
 @Slf4j
@@ -26,11 +24,14 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
     private final Mint mint;
+    private final MintProtocolService mintProtocolService;
 
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint) {
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
+        this.mintProtocolService = mintProtocolService;
     }
 
     @Override
@@ -48,7 +49,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var keySetId = proofsToMelt.get(0).getKeySetId();
             var keyset = NUT02.keys(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
-            var gateway = createGateway(method);
+            var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
             var fee_reserve = gateway.getFeeReserve(quoteId); // TODO - Add 5% (configurable)
@@ -70,7 +71,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     }
 
     public boolean verify(@NonNull Proof proof) throws CashuErrorException {
-        PrivateKey privateKey = MintProtocolUtil.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
+        PrivateKey privateKey = mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {
             return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().toBytes());
         }

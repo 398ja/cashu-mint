@@ -9,17 +9,18 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 
 public class SignBlindedMessageTask implements Task<BlindSignature> {
 
     private final Mint mint;
     private final BlindedMessage blindedMessage;
-
-    public SignBlindedMessageTask(@NonNull Mint mint, @NonNull BlindedMessage blindedMessage) {
+    private final MintProtocolService mintProtocolService;
+    public SignBlindedMessageTask(@NonNull Mint mint, @NonNull BlindedMessage blindedMessage, @NonNull MintProtocolService mintProtocolService) {
         this.mint = mint;
         this.blindedMessage = blindedMessage;
+        this.mintProtocolService = mintProtocolService;
     }
 
     @Override
@@ -37,8 +38,8 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
         }
     }
 
-    private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
-        return MintProtocolUtil.getPrivateKey(blindedMessage.getKeySetId(), blindedMessage.getAmount(), mint);
+    private PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
+        return mintProtocolService.getPrivateKey(blindedMessage.getKeySetId(), blindedMessage.getAmount(), mint);
     }
 
 }
