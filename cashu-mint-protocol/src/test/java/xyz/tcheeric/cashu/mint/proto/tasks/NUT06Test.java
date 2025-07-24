@@ -1,4 +1,4 @@
-package xyz.tcheeric.test.protocol.tasks;
+package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

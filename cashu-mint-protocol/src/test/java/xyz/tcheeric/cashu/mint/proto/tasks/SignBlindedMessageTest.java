@@ -1,7 +1,5 @@
-package xyz.tcheeric.test.protocol.tasks;
+package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -10,37 +8,15 @@ import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.admin.MintUtil;
-import xyz.tcheeric.cashu.mint.admin.VaultUtil;
-import xyz.tcheeric.cashu.mint.admin.model.MintDto;
-import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.spy;
 
 public class SignBlindedMessageTest {
-
-    private final VaultUtil vaultUtil = new VaultUtil(new MintUtil(UUID.randomUUID().toString(), "sat"));
-
-    @BeforeEach
-    public void setUp() throws Exception {
-        vaultUtil.createVault();
-    }
-
-    @AfterEach
-    public void tearDown() throws CashuErrorException {
-/*
-        vaultUtil.deleteVault();
-*/
-    }
 
     @Test
     public void sign() {
@@ -49,9 +25,7 @@ public class SignBlindedMessageTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
-        var mintDto = spy(vaultUtil.getMint());
-
-        Mint mint = MintDto.toMint(mintDto);
+        Mint mint = new Mint();
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage);
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {

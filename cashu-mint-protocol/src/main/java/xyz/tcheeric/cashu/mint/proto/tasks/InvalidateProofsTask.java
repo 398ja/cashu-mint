@@ -8,10 +8,8 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 
@@ -24,14 +22,21 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
 
     @Override
     public List<Proof<T>> execute() throws CashuErrorException {
-        MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         proofs
                 .forEach(proof -> {
                     String unblindedSignature = proof.getUnblindedSignature().toString();
                     String secret = proof.getSecret().toString();
                     byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
-                    ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
-                    DBProofVault proofVault = new DBProofVault(proofConfiguration);
+
+                    ProofEntity proofEntity = new ProofEntity();
+                    proofEntity.setAmount(proof.getAmount());
+                    proofEntity.setSecret(secret);
+                    if (proof.getWitness() != null) {
+                        proofEntity.setWitness(proof.getWitness().toString());
+                    }
+                    proofEntity.setUnblindedSignature(unblindedSignature);
+
+                    DBProofVault proofVault = new DBProofVault(proofEntity);
                     proofVault.store();
                     try {
                         proofVault.invalidate();
