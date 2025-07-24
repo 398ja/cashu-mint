@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -38,6 +39,24 @@ public class SignBlindedMessageTest {
             assertEquals(16, signature.getAmount());
             assertEquals("004cf8cba2f93266", signature.getKeySetId());
             assertNotNull(signature.getBlindedSignature());
+        }
+    }
+
+    @Test
+    public void signNoPrivateKey() {
+        BlindedMessage blindedMessage = new BlindedMessage();
+        blindedMessage.setAmount(16);
+        blindedMessage.setKeySetId("004cf8cba2f93266");
+        blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+
+        Mint mint = new Mint();
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage);
+
+        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
+            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
+                    .thenReturn(null);
+
+            assertThrows(RuntimeException.class, task::execute);
         }
     }
 }
