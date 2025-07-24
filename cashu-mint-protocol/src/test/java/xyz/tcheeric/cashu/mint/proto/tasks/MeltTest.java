@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -21,7 +20,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.common.util.Configuration;
 
@@ -76,23 +75,21 @@ public class MeltTest {
         when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
-                    .thenReturn(mockGateway);
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        PostMeltResponse postMeltResponse = task.execute();
 
-            PostMeltResponse postMeltResponse = task.execute();
+        archiveProof(proof);
+        archiveProof(proof1);
 
-            archiveProof(proof);
-            archiveProof(proof1);
+        assertTrue(postMeltResponse.isPaid());
 
-            assertTrue(postMeltResponse.isPaid());
-        }
     }
 
     @Test
@@ -173,21 +170,19 @@ public class MeltTest {
         when(mockGateway.getFeeReserve(anyString())).thenReturn(100);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
         Mint mint = new Mint();
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint);
+        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
 
         archiveProof(proof);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
-                    .thenReturn(mockGateway);
-
-            // Assert that a CashuErrorException is thrown
-            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-            assertEquals("melt_proof_amount_error", exception.getMessage());
-        }
+        // Assert that a CashuErrorException is thrown
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        assertEquals("melt_proof_amount_error", exception.getMessage());
     }
 
     @Test
@@ -198,16 +193,15 @@ public class MeltTest {
         proof.setAmount(16);
         proof.setKeySetId("004cf8cba2f93266");
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint);
+        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-
-            boolean result = task.verify(proof);
-            assertTrue(result);
-        }
+        boolean result = task.verify(proof);
+        assertTrue(result);
     }
 
     private void archiveProof(Proof proof) throws CashuErrorException {

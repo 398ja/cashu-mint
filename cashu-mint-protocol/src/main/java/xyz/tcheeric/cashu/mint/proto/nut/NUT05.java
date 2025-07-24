@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.UUID;
@@ -52,7 +53,7 @@ public class NUT05 {
     public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId, @NonNull PostMeltRequest<T> request, @NonNull PaymentMethod method) throws CashuErrorException {
         Mint mint = DBMintVault.load(mintId, true);
 
-        return new MeltTask(request, method, mint).execute();
+        return new MeltTask(request, method, mint, MintProtocolServiceFactory.getInstance()).execute();
     }
 
 }

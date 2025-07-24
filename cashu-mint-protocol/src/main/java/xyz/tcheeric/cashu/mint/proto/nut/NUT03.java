@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.InvalidateProofsTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class NUT03 {
         }
 
         // Verify proofs
-        new VerifyProofsTask(mint, postSwapRequest).execute();
+        new VerifyProofsTask(mint, postSwapRequest, MintProtocolServiceFactory.getInstance()).execute();
 
         // Invalidate proofs
         new InvalidateProofsTask(mint, postSwapRequest.getInputs()).execute();
@@ -44,7 +45,7 @@ public class NUT03 {
         List<BlindSignature> blindSignatures = new ArrayList<>();
         List<BlindedMessage> blindedMessages = postSwapRequest.getBlindedMessages();
         blindedMessages.forEach(bm -> {
-            BlindSignature blindSignature  = new SignBlindedMessageTask(mint, bm).execute();
+            BlindSignature blindSignature  = new SignBlindedMessageTask(mint, bm, MintProtocolServiceFactory.getInstance()).execute();
             blindSignatures.add(blindSignature);
         });
 
