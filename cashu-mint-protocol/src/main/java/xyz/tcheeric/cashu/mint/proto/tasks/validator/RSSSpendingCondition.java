@@ -12,10 +12,7 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 
 @AllArgsConstructor
@@ -28,12 +25,10 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
     public void verify(Proof<RandomStringSecret> proof) throws CashuErrorException {
 
         // Check if proof has been used already
-        MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
         Secret secret = proof.getSecret();
         byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret.toString());
-        ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, proof.getUnblindedSignature().toString(), Utils.bytesToHexString(hashToCurveSecret));
-        DBProofVault proofVault = new DBProofVault(proofConfiguration);
-        String usedProof = proofVault.retrieve();
+        DBProofVault proofVault = new DBProofVault(MintProtocolUtil.toProofEntity(proof, MintProtocolUtil.toMintEntity(mint)));
+        String usedProof = proofVault.retrieveProof(proof.getSecret().toString()).getEntity().getId().toString();
         if (usedProof != null) {
             throw new CashuErrorException("verify_proof_already_used_error");
         }

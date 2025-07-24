@@ -13,8 +13,6 @@
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-admin</module>
-        <!--<module>cashu-mint-vault</module>-->
-        <module>cashu-mint-test</module>
     </modules>
 
     <properties>

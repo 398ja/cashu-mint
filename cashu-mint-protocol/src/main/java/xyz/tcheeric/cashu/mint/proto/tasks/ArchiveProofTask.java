@@ -6,11 +6,9 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.vault.api.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.api.config.ProofConfiguration;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 @RequiredArgsConstructor
 public class ArchiveProofTask<T extends Secret> implements Task<Proof<T>> {
@@ -20,12 +18,8 @@ public class ArchiveProofTask<T extends Secret> implements Task<Proof<T>> {
 
     @Override
     public Proof<T> execute() throws CashuErrorException {
-        MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        String unblindedSignature = proof.getUnblindedSignature().toString();
-        String secret = proof.getSecret().toString();
-        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
-        ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
-        DBProofVault proofVault = new DBProofVault(proofConfiguration);
+        ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, MintProtocolUtil.toMintEntity(mint));
+        DBProofVault proofVault = new DBProofVault(proofEntity);
         proofVault.archive();
         return proof;
     }

@@ -1,4 +1,4 @@
-package xyz.tcheeric.test.protocol.spending;
+package xyz.tcheeric.cashu.mint.proto.spending;
 
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;

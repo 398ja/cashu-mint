@@ -1,7 +1,5 @@
-package xyz.tcheeric.test.protocol.tasks;
+package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -20,15 +18,10 @@ import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.mint.admin.MintUtil;
-import xyz.tcheeric.cashu.mint.admin.VaultUtil;
-import xyz.tcheeric.cashu.mint.admin.model.MintDto;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
-import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,17 +33,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 public class MintTest {
-
-    private final VaultUtil vaultUtil = new VaultUtil(new MintUtil(UUID.randomUUID().toString(), "sat"));
-    @BeforeEach
-    public void setUp() throws Exception {
-        vaultUtil.createVault();
-    }
-
-    @AfterEach
-    public void tearDown() throws CashuErrorException {
-        //vaultUtil.deleteVault();
-    }
 
     @Test
     public void mockMint() throws CashuErrorException {
@@ -65,7 +47,7 @@ public class MintTest {
         when(mockGateway.getAmount(anyString())).thenReturn(100);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
 
-        Mint mint = MintDto.toMint(vaultUtil.getMint());
+        Mint mint = new Mint();
         MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint);
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
@@ -111,7 +93,7 @@ public class MintTest {
         when(mockGateway.getAmount(anyString())).thenReturn(100);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(false);
 
-        Mint mint = MintDto.toMint(vaultUtil.getMint());
+        Mint mint = new Mint();
         MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint);
 
         try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
