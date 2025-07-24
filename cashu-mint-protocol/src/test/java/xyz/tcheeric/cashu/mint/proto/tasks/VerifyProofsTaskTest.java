@@ -35,7 +35,7 @@ public class VerifyProofsTaskTest {
         BlindedMessage bm = new BlindedMessage();
         bm.setAmount(amount);
         bm.setKeySetId("ks1");
-        bm.setBlindedMessage(null);
+        bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
         bm.setWitness(new Witness());
         return bm;
     }
