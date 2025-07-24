@@ -56,13 +56,13 @@ public class MintTest {
 
         PostMintResponse response = task.execute();
 
-            assertEquals(1, response.getBlindSignatures().size());
+        assertEquals(1, response.getBlindSignatures().size());
 
-            BlindSignature blindSignature = response.getBlindSignatures().get(0);
-            assertEquals(100, blindSignature.getAmount());
-            assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
-        }
+        BlindSignature blindSignature = response.getBlindSignatures().get(0);
+        assertEquals(100, blindSignature.getAmount());
+        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
     }
+
 
     @Test
     public void mintQuote() {
@@ -79,7 +79,7 @@ public class MintTest {
     }
 
     @Test
-    public void mockMintNotPaid() {
+    public void mockMintNotPaid() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
         BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);

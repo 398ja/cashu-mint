@@ -1,13 +1,16 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,7 +22,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 public class SignBlindedMessageTest {
 
     @Test
-    public void sign() {
+    public void sign() throws CashuErrorException {
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(16);
         blindedMessage.setKeySetId("004cf8cba2f93266");
