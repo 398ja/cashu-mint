@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
@@ -19,7 +18,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 import java.util.List;
 
@@ -47,16 +46,15 @@ public class MintTest {
         when(mockGateway.getAmount(anyString())).thenReturn(100);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
         Mint mint = new Mint();
-        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint);
+        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint, service);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
-                    .thenReturn(mockGateway);
-
-            PostMintResponse response = task.execute();
+        PostMintResponse response = task.execute();
 
             assertEquals(1, response.getBlindSignatures().size());
 
@@ -93,19 +91,17 @@ public class MintTest {
         when(mockGateway.getAmount(anyString())).thenReturn(100);
         when(mockGateway.checkPaymentStatus(anyString())).thenReturn(false);
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
         Mint mint = new Mint();
-        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint);
+        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint, service);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            mintUtil.when(() -> MintProtocolUtil.createGateway(PaymentMethod.MOCK))
-                    .thenReturn(mockGateway);
-
-            // Assert that a CashuErrorException is thrown
-            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-            assertEquals("mint_invoice_not_paid_error", exception.getMessage());
-        }
+        // Assert that a CashuErrorException is thrown
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        assertEquals("mint_invoice_not_paid_error", exception.getMessage());
 
     }
 }
