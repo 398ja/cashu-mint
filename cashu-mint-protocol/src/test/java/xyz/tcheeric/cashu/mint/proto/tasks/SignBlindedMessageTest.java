@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
@@ -10,7 +9,6 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -50,14 +48,12 @@ public class SignBlindedMessageTest {
         blindedMessage.setKeySetId("004cf8cba2f93266");
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+
         Mint mint = new Mint();
-        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage);
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service);
 
-        try (MockedStatic<MintProtocolUtil> mintUtil = Mockito.mockStatic(MintProtocolUtil.class)) {
-            mintUtil.when(() -> MintProtocolUtil.getPrivateKey(anyString(), anyInt(), any()))
-                    .thenReturn(null);
-
-            assertThrows(RuntimeException.class, task::execute);
-        }
+        assertThrows(RuntimeException.class, task::execute);
     }
 }
