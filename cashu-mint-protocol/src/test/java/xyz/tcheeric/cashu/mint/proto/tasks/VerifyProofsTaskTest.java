@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 import java.util.List;
 
@@ -45,6 +46,7 @@ public class VerifyProofsTaskTest {
     public void executeSuccess() throws CashuErrorException {
         Mint mint = new Mint();
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
 
         RSSProof proof = createProof(10);
         BlindedMessage bm = createBlindedMessage(10);
@@ -54,7 +56,7 @@ public class VerifyProofsTaskTest {
 
         try (MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
                 (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
-            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request);
+            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
             assertDoesNotThrow(task::execute);
             Mockito.verify(cons.constructed().get(0)).verify(proof);
         }
@@ -64,6 +66,7 @@ public class VerifyProofsTaskTest {
     public void executeFailAmounts() {
         Mint mint = new Mint();
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
 
         RSSProof proof = createProof(10);
         BlindedMessage bm = createBlindedMessage(5);
@@ -71,7 +74,7 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
 
-        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request);
+        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
         assertThrows(CashuErrorException.class, task::execute);
     }
 
@@ -79,6 +82,7 @@ public class VerifyProofsTaskTest {
     public void executeFailVerification() throws CashuErrorException {
         Mint mint = new Mint();
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
 
         RSSProof proof = createProof(10);
         BlindedMessage bm = createBlindedMessage(10);
@@ -88,7 +92,7 @@ public class VerifyProofsTaskTest {
 
         try (MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
                 (mock, ctx) -> Mockito.doThrow(new CashuErrorException("fail")).when(mock).verify(any()))) {
-            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request);
+            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
             assertThrows(CashuErrorException.class, task::execute);
         }
     }
