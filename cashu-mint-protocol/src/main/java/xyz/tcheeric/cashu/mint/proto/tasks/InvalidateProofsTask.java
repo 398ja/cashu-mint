@@ -8,7 +8,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.mint.proto.vault.ProofRepository;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
@@ -19,6 +19,7 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
 
     private final Mint mint;
     private final List<Proof<T>> proofs;
+    private final ProofRepository proofRepository;
 
     @Override
     public List<Proof<T>> execute() throws CashuErrorException {
@@ -36,10 +37,9 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
                     }
                     proofEntity.setUnblindedSignature(unblindedSignature);
 
-                    DBProofVault proofVault = new DBProofVault(proofEntity);
-                    proofVault.store();
                     try {
-                        proofVault.invalidate();
+                        proofRepository.store(proofEntity);
+                        proofRepository.invalidate(proofEntity);
                     } catch (CashuErrorException e) {
                         throw new RuntimeException(e);
                     }

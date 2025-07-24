@@ -1,7 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -13,14 +11,14 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.mint.proto.util.TestVaultUtil;
+import xyz.tcheeric.cashu.mint.proto.vault.ProofRepository;
+import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.verify;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createRandomBytes;
 
 public class InvalidateProofTest {
@@ -30,15 +28,6 @@ public class InvalidateProofTest {
     @BeforeEach
     public void setUp() {
         this.mint = new Mint(UUID.randomUUID().toString());
-
-        DBMintVault mintVault = new DBMintVault(MintProtocolUtil.toMintEntity(mint));
-        mintVault.store();
-    }
-
-    @AfterEach
-    public void tearDown() {
-        DBMintVault mintVault = new DBMintVault(MintProtocolUtil.toMintEntity(mint));
-        mintVault.delete();
     }
 
     @Test
@@ -59,13 +48,15 @@ public class InvalidateProofTest {
         request.setInputs(List.of(proof));
         request.setBlindedMessages(List.of(blindedMessage));
 
-        InvalidateProofsTask task = new InvalidateProofsTask(mint, request.getInputs());
+        ProofRepository repo = Mockito.mock(ProofRepository.class);
+        TestVaultUtil.mockStore(repo);
+        TestVaultUtil.mockInvalidate(repo);
+
+        InvalidateProofsTask task = new InvalidateProofsTask(mint, request.getInputs(), repo);
 
         task.execute();
 
-        DBProofVault vault = DBProofVault.retrieveProof(mint.getId(), proof.getSecret().toString());
-
-        assertNotNull(vault.getEntity());
-        assertEquals(proof.getUnblindedSignature().toString(), vault.getEntity().getUnblindedSignature());
+        verify(repo).store(Mockito.any());
+        verify(repo).invalidate(Mockito.any());
     }
 }

@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.vault.ProofRepository;
 
 import java.util.List;
 
@@ -26,11 +27,13 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
     private final Mint mint;
+    private final ProofRepository proofRepository;
 
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint) {
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint, @NonNull ProofRepository proofRepository) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
+        this.proofRepository = proofRepository;
     }
 
     @Override
@@ -61,7 +64,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             gateway.pay(quoteId);
 
             // Invalidate the proofsToMelt.
-            new InvalidateProofsTask(mint, proofsToMelt).execute();
+            new InvalidateProofsTask(mint, proofsToMelt, proofRepository).execute();
 
             return new PostMeltResponse(gateway.checkPaymentStatus(quoteId), gateway.getPaymentPreimage(quoteId));
         } finally {
