@@ -8,16 +8,14 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.vault.db.model.MintEntity;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.vault.db.model.MintEntity;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createRandomBytes;
 
@@ -69,7 +67,7 @@ public class InvalidateProofTest {
      * 5. This ensures that the task handles the failure of the `invalidate` method as expected.
      */
     @Test
-    public void invalidateProofFailure() {
+    public void invalidateProofFailure() throws CashuErrorException {
         RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString(createRandomBytes(33)));
         proof.setSecret(RandomStringSecret.create());

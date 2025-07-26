@@ -37,7 +37,7 @@ public class VerifyFeesTaskTest {
     }
 
     @Test
-    public void executeSuccess() {
+    public void executeSuccess() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
 
@@ -57,7 +57,7 @@ public class VerifyFeesTaskTest {
     }
 
     @Test
-    public void executeFailure() {
+    public void executeFailure() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
 
