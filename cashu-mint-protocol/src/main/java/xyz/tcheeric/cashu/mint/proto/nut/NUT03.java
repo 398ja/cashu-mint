@@ -63,7 +63,7 @@ public class NUT03 {
         PostSwapResponse postSwapResponse = new PostSwapResponse(blindSignatures);
 
         // Verify fees
-        new VerifyFeesTask(postSwapRequest, postSwapResponse).execute();
+        new VerifyFeesTask(postSwapRequest, postSwapResponse, mintLoadService).execute();
 
         return postSwapResponse;
     }

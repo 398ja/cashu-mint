@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -87,8 +88,13 @@ public class MeltTest {
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
+        mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
+
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
         PostMeltResponse postMeltResponse = task.execute();
 
@@ -151,7 +157,7 @@ public class MeltTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
 
         PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()),
                 postMeltRequest,
@@ -199,8 +205,13 @@ public class MeltTest {
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
+        mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
+
+        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
         // Assert that a CashuErrorException is thrown
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
@@ -223,8 +234,13 @@ public class MeltTest {
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
+        mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
+
+        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
         boolean result = task.verify(proof);
         assertTrue(result);
