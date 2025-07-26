@@ -10,8 +10,9 @@ import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -26,18 +27,19 @@ public class NUT07 {
 
 
     public static PostCheckStateResponse checkState(@NonNull UUID mintId, @NonNull PostCheckStateRequest postCheckStateRequest) throws CashuErrorException {
-        return checkState(mintId, postCheckStateRequest, MintProtocolServiceFactory.getInstance(), new DefaultProofVaultService());
+        return checkState(mintId, postCheckStateRequest, MintProtocolServiceFactory.getInstance(), new DefaultProofVaultService(), new DefaultMintVaultService());
     }
 
     public static PostCheckStateResponse checkState(@NonNull UUID mintId,
                                                     @NonNull PostCheckStateRequest postCheckStateRequest,
                                                     @NonNull MintProtocolService mintProtocolService,
-                                                    @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
+                                                    @NonNull ProofVaultService proofVaultService,
+                                                    @NonNull MintVaultService mintVaultService) throws CashuErrorException {
 
         PostCheckStateResponse response = new PostCheckStateResponse();
 
         MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));
-        DBMintVault.load(mintEntity, false, true);
+        mintVaultService.load(mintEntity, false, true);
 
         postCheckStateRequest.getHashToCurveSecrets().forEach(hashToCurveSecret -> {
             try {
