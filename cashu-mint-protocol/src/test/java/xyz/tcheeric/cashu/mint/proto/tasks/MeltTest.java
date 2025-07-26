@@ -88,6 +88,7 @@ public class MeltTest {
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -207,6 +208,7 @@ public class MeltTest {
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
 
         MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
