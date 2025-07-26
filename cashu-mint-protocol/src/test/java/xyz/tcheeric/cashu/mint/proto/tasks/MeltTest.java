@@ -136,7 +136,7 @@ public class MeltTest {
         Mockito.when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
         Mockito.when(mockGateway.createMeltQuote(anyString())).thenReturn("quote-1");
         Mockito.when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
-        Mockito.when(mockGateway.getPaymentExpiry(anyString())).thenReturn(100L);
+        Mockito.when(mockGateway.getPaymentExpiry(anyString())).thenReturn(100);
         Mockito.when(mockGateway.getAmount(anyString())).thenReturn(32);
 
         PostMeltQuoteResponse postMeltQuoteResponse = NUT05.quote(postMeltQuoteBolt11Request, PaymentMethod.BOLT11, service);
