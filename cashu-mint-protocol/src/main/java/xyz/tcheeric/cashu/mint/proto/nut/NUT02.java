@@ -9,7 +9,8 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,8 +25,12 @@ import static xyz.tcheeric.cashu.mint.proto.nut.NUT01.generateKeySet;
 public class NUT02 {
 
     public static List<KeySet> keys(UUID mintId) throws CashuErrorException {
+        return keys(mintId, new DefaultMintLoadService());
+    }
+
+    public static List<KeySet> keys(UUID mintId, @NonNull MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keys()");
-        Mint mint = DBMintVault.load(mintId.toString(), false);
+        Mint mint = mintLoadService.load(mintId, false);
         Set<KeySet> keySets = mint.getKeySets();
         keySets.forEach(keySet -> {
             if (keySet.getId() == null) {
@@ -91,10 +96,14 @@ public class NUT02 {
     }
 
     private static List<KeySet> keySets(@NonNull String keySetId, boolean archive) throws CashuErrorException {
+        return keySets(keySetId, archive, new DefaultMintLoadService());
+    }
+
+    private static List<KeySet> keySets(@NonNull String keySetId, boolean archive, @NonNull MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keySets({})", archive);
 
         List<KeySet> result = new ArrayList<>();
-        Mint mint = DBMintVault.load(keySetId, archive);
+        Mint mint = mintLoadService.load(keySetId, archive);
 
         if (mint != null) {
             result.addAll(mint.getKeySets());
@@ -117,7 +126,7 @@ public class NUT02 {
         log.debug("keySets({})", archive);
 
         List<KeySet> result = new ArrayList<>();
-        List<Mint> mints = DBMintVault.load(archive);
+        List<Mint> mints = new DefaultMintLoadService().load(archive);
 
         if (mints != null) {
             mints.stream().forEach(mint -> {

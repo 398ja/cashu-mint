@@ -7,8 +7,11 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -23,15 +26,22 @@ public class NUT07 {
 
 
     public static PostCheckStateResponse checkState(@NonNull UUID mintId, @NonNull PostCheckStateRequest postCheckStateRequest) throws CashuErrorException {
+        return checkState(mintId, postCheckStateRequest, MintProtocolServiceFactory.getInstance(), new DefaultProofVaultService());
+    }
+
+    public static PostCheckStateResponse checkState(@NonNull UUID mintId,
+                                                    @NonNull PostCheckStateRequest postCheckStateRequest,
+                                                    @NonNull MintProtocolService mintProtocolService,
+                                                    @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
 
         PostCheckStateResponse response = new PostCheckStateResponse();
 
-        MintEntity mintEntity = MintProtocolUtil.toMintEntity(new Mint(mintId.toString()));
+        MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));
         DBMintVault.load(mintEntity, false, true);
 
         postCheckStateRequest.getHashToCurveSecrets().forEach(hashToCurveSecret -> {
             try {
-                ProofEntity proofEntity1 = DBProofVault.retrieveProof(hashToCurveSecret.toString()).getEntity();
+                ProofEntity proofEntity1 = proofVaultService.retrieveProof(hashToCurveSecret.toString());
                 PostCheckStateResponse.ResponseState responseState = new PostCheckStateResponse.ResponseState();
 
                 if (proofEntity1.getState().equals(ProofEntity.STATE_PENDING)) {
