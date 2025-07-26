@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -10,7 +9,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
+import xyz.tcheeric.cashu.mint.proto.service.KeySetService;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
@@ -50,12 +49,11 @@ public class VerifyFeesTaskTest {
         Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+        KeySetService keySetService = Mockito.mock(KeySetService.class);
+        Mockito.when(keySetService.getKeySet(Mockito.anyString())).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
-            assertDoesNotThrow(task::execute);
-        }
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, keySetService);
+        assertDoesNotThrow(task::execute);
     }
 
     @Test
@@ -71,12 +69,11 @@ public class VerifyFeesTaskTest {
         Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+        KeySetService keySetService = Mockito.mock(KeySetService.class);
+        Mockito.when(keySetService.getKeySet(Mockito.anyString())).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
-            assertThrows(CashuErrorException.class, task::execute);
-        }
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, keySetService);
+        assertThrows(CashuErrorException.class, task::execute);
     }
 }
 

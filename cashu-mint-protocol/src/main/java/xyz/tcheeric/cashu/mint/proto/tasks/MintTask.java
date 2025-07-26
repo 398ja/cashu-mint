@@ -16,8 +16,6 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
-
-// TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
 @Slf4j
 public class MintTask<T extends Secret> implements Task<PostMintResponse> {
     private final PostMintRequest<T> postMintRequest;

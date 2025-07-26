@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -21,6 +22,8 @@ import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.KeySetService;
+import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.common.util.Configuration;
@@ -81,13 +84,23 @@ public class MeltTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        KeySetService keySetService = Mockito.mock(KeySetService.class);
+        KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
+        Mockito.when(keySetService.getKeySet(anyString())).thenReturn(keySet);
+
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, keySetService);
 
         PostMeltResponse postMeltResponse = task.execute();
 
-        archiveProof(proof);
-        archiveProof(proof1);
+        try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
+            DBProofVault mockVault = Mockito.mock(DBProofVault.class);
+            vault.when(() -> DBProofVault.retrieveProof(anyString())).thenReturn(mockVault);
+            Mockito.doNothing().when(mockVault).archive();
+
+            archiveProof(proof);
+            archiveProof(proof1);
+        }
 
         assertTrue(postMeltResponse.isPaid());
 
@@ -139,8 +152,14 @@ public class MeltTest {
 
         PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()), postMeltRequest, PaymentMethod.BOLT11); //meltTask.execute();
 
-        archiveProof(proof);
-        archiveProof(proof1);
+        try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
+            DBProofVault mockVault = Mockito.mock(DBProofVault.class);
+            vault.when(() -> DBProofVault.retrieveProof(anyString())).thenReturn(mockVault);
+            Mockito.doNothing().when(mockVault).archive();
+
+            archiveProof(proof);
+            archiveProof(proof1);
+        }
 
         assertTrue(postMeltResponse.isPaid());
     }
@@ -176,14 +195,24 @@ public class MeltTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        KeySetService keySetService = Mockito.mock(KeySetService.class);
+        KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
+        Mockito.when(keySetService.getKeySet(anyString())).thenReturn(keySet);
+
         Mint mint = new Mint();
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
+        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, keySetService);
 
-        archiveProof(proof);
+        try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
+            DBProofVault mockVault = Mockito.mock(DBProofVault.class);
+            vault.when(() -> DBProofVault.retrieveProof(anyString())).thenReturn(mockVault);
+            Mockito.doNothing().when(mockVault).archive();
 
-        // Assert that a CashuErrorException is thrown
-        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        assertEquals("melt_proof_amount_error", exception.getMessage());
+            archiveProof(proof);
+
+            // Assert that a CashuErrorException is thrown
+            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+            assertEquals("melt_proof_amount_error", exception.getMessage());
+        }
     }
 
     @Test

@@ -15,13 +15,12 @@ import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultKeySetService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
-// TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
 @Slf4j
 @Nut(3)
 public class NUT03 {
@@ -56,7 +55,7 @@ public class NUT03 {
         PostSwapResponse postSwapResponse = new PostSwapResponse(blindSignatures);
 
         // Verify fees
-        new VerifyFeesTask(postSwapRequest, postSwapResponse).execute();
+        new VerifyFeesTask(postSwapRequest, postSwapResponse, new DefaultKeySetService()).execute();
 
         return postSwapResponse;
     }
