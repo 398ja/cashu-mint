@@ -13,7 +13,11 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
@@ -25,13 +29,24 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PaymentMethod method;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
+        this(postMeltRequest, method, mint, mintProtocolService, new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     @Override
@@ -47,7 +62,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             }
 
             var keySetId = proofsToMelt.get(0).getKeySetId();
-            var keyset = NUT02.keys(keySetId);
+            var keyset = NUT02.keys(keySetId, mintVaultService);
             var quoteId = postMeltRequest.getQuoteId();
             var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
@@ -62,7 +77,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             gateway.pay(quoteId);
 
             // Invalidate the proofsToMelt.
-            new InvalidateProofsTask(mint, proofsToMelt).execute();
+            new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
 
             return new PostMeltResponse(gateway.checkPaymentStatus(quoteId), gateway.getPaymentPreimage(quoteId));
         } finally {

@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
@@ -20,9 +21,12 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.common.util.Configuration;
 
 import java.util.List;
@@ -81,15 +85,21 @@ public class MeltTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-        Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
-        PostMeltResponse postMeltResponse = task.execute();
+        KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
+        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
+            nut.when(() -> NUT02.keys("004cf8cba2f93266", mintVaultService)).thenReturn(keySet);
 
-        archiveProof(proof);
-        archiveProof(proof1);
+            Mint mint = new Mint();
+            MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
 
-        assertTrue(postMeltResponse.isPaid());
+            PostMeltResponse postMeltResponse = task.execute();
+
+            assertTrue(postMeltResponse.isPaid());
+        }
 
     }
 
@@ -135,14 +145,20 @@ public class MeltTest {
         postMeltRequest.setInputs(List.of(proof, proof1));
 
         Mint mint = new Mint();
-        //MeltTask meltTask = new MeltTask(postMeltRequest, PaymentMethod.BOLT11, mint);
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        Mockito.when(mintVaultService.load(any(java.util.UUID.class), Mockito.eq(true))).thenReturn(mint);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
 
-        PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()), postMeltRequest, PaymentMethod.BOLT11); //meltTask.execute();
+        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
+            nut.when(() -> NUT02.keys("004cf8cba2f93266", mintVaultService)).thenReturn(keySet);
 
-        archiveProof(proof);
-        archiveProof(proof1);
+            PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()), postMeltRequest, PaymentMethod.BOLT11,
+                    mintVaultService, proofVaultService); //meltTask.execute();
 
-        assertTrue(postMeltResponse.isPaid());
+            assertTrue(postMeltResponse.isPaid());
+        }
     }
 
     @Test
@@ -176,14 +192,21 @@ public class MeltTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
+
         Mint mint = new Mint();
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service);
+        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
+            nut.when(() -> NUT02.keys("004cf8cba2f93266", mintVaultService)).thenReturn(keySet);
 
-        archiveProof(proof);
+            MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
 
-        // Assert that a CashuErrorException is thrown
-        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        assertEquals("melt_proof_amount_error", exception.getMessage());
+            // Assert that a CashuErrorException is thrown
+            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+            assertEquals("melt_proof_amount_error", exception.getMessage());
+        }
     }
 
     @Test
@@ -198,21 +221,15 @@ public class MeltTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service);
+        MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service, mintVaultService, proofVaultService);
 
         boolean result = task.verify(proof);
         assertTrue(result);
     }
 
-    private void archiveProof(Proof proof) throws CashuErrorException {
-        DBProofVault vault = DBProofVault.retrieveProof(proof.getSecret().toString());
-        vault.archive();
-    }
-
-    private void archiveProof(Proof... proofs) throws CashuErrorException {
-        for (Proof proof : proofs) {
-            archiveProof(proof);
-        }
-    }
 }

@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 
 import java.util.List;
 
@@ -51,9 +52,9 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+            nut.when(() -> NUT02.keys("ks1", Mockito.any())).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
+            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, Mockito.mock(MintVaultService.class));
             assertDoesNotThrow(task::execute);
         }
     }
@@ -72,9 +73,9 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+            nut.when(() -> NUT02.keys("ks1", Mockito.any())).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
+            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, Mockito.mock(MintVaultService.class));
             assertThrows(CashuErrorException.class, task::execute);
         }
     }
