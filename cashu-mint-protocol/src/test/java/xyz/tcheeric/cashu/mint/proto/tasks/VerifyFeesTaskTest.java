@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -51,7 +52,7 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+            nut.when(() -> NUT02.keys(any(UUID.class))).thenReturn(keySet);
 
             VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
             assertDoesNotThrow(task::execute);
@@ -72,7 +73,7 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys("ks1")).thenReturn(keySet);
+            nut.when(() -> NUT02.keys(any(UUID.class))).thenReturn(keySet);
 
             VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
             assertThrows(CashuErrorException.class, task::execute);
