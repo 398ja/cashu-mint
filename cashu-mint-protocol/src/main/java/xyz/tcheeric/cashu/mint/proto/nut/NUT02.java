@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
-import xyz.tcheeric.cashu.common.Proof;
-import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
@@ -45,8 +43,8 @@ public class NUT02 {
         return new ArrayList<>(keySets);
     }
 
-    public static KeySet keys(@NonNull String keysetId) throws CashuErrorException {
-        List<KeySet> keySets = keySets();
+    public static KeySet keys(@NonNull String keysetId, MintLoadService mintLoadService) throws CashuErrorException {
+        List<KeySet> keySets = keySets(mintLoadService);
         log.debug("keysets: {}", keySets);
         return keySets
                 .stream()
@@ -56,11 +54,11 @@ public class NUT02 {
                 .orElseThrow();
     }
 
-    public static List<ActiveKeySet> activeKeySets() throws CashuErrorException {
+    public static List<ActiveKeySet> activeKeySets(MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keySets()");
         List<ActiveKeySet> activeKeySets = new ArrayList<>();
-        activeKeySets.addAll(activeKeySets(false));
-        activeKeySets.addAll(activeKeySets(true));
+        activeKeySets.addAll(activeKeySets(false, mintLoadService));
+        activeKeySets.addAll(activeKeySets(true, mintLoadService));
 
         // Sort the activeKeySets list by id
         activeKeySets.sort(Comparator.comparing(ActiveKeySet::getId));
@@ -68,65 +66,21 @@ public class NUT02 {
         return activeKeySets;
     }
 
-    public static <T extends Secret> int fees(@NonNull List<Proof<T>> inputs) throws CashuErrorException {
-        int sum_fees = 0;
-        for (Proof<T> proof : inputs) {
-            String keysetId = proof.getKeySetId();
-            KeySet keySet = keys(keysetId);
-            sum_fees += keySet.getPartPerThousand();
-        }
-
-        return Math.floorDiv (sum_fees + 999, 1000);
-    }
-
-    public static <T extends Secret> int fees(@NonNull Proof<T> input) throws CashuErrorException {
-        String keysetId = input.getKeySetId();
-        KeySet keySet = keys(keysetId);
-        return Math.floorDiv(keySet.getPartPerThousand() + 999, 1000);
-    }
-
-    private static List<KeySet> keySets(String keySetId) throws CashuErrorException {
+    private static List<KeySet> keySets(MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keySets()");
 
         List<KeySet> result = new ArrayList<>();
-        result.addAll(keySets(keySetId, false));
-        result.addAll(keySets(keySetId, true));
+        result.addAll(keySets(false, mintLoadService));
+        result.addAll(keySets(true, mintLoadService));
 
         return result;
     }
 
-    private static List<KeySet> keySets(@NonNull String keySetId, boolean archive) throws CashuErrorException {
-        return keySets(keySetId, archive, new DefaultMintLoadService());
-    }
-
-    private static List<KeySet> keySets(@NonNull String keySetId, boolean archive, @NonNull MintLoadService mintLoadService) throws CashuErrorException {
+    private static List<KeySet> keySets(boolean archive, MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keySets({})", archive);
 
         List<KeySet> result = new ArrayList<>();
-        Mint mint = mintLoadService.load(keySetId, archive);
-
-        if (mint != null) {
-            result.addAll(mint.getKeySets());
-        }
-
-        return result;
-    }
-
-    private static List<KeySet> keySets() {
-        log.debug("keySets()");
-
-        List<KeySet> result = new ArrayList<>();
-        result.addAll(keySets(false));
-        result.addAll(keySets(true));
-
-        return result;
-    }
-
-    private static List<KeySet> keySets(boolean archive) {
-        log.debug("keySets({})", archive);
-
-        List<KeySet> result = new ArrayList<>();
-        List<Mint> mints = new DefaultMintLoadService().load(archive);
+        List<Mint> mints = mintLoadService.load(archive);
 
         if (mints != null) {
             mints.stream().forEach(mint -> {
@@ -137,11 +91,11 @@ public class NUT02 {
         return result;
     }
 
-    private static List<ActiveKeySet> activeKeySets(boolean archive) throws CashuErrorException {
+    private static List<ActiveKeySet> activeKeySets(boolean archive, MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("activeKeySets({})", archive);
 
         List<ActiveKeySet> result = new ArrayList<>();
-        List<KeySet> keySets = keySets(archive);
+        List<KeySet> keySets = keySets(archive, mintLoadService);
         keySets.stream().map(keySet -> ActiveKeySet.fromKeySet(keySet, !archive)).forEach(result::add);
 
         return result;
