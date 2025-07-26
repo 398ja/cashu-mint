@@ -42,7 +42,7 @@ public class SignBlindedMessageTest {
     }
 
     @Test
-    public void signNoPrivateKey() {
+    public void signNoPrivateKey() throws CashuErrorException {
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(16);
         blindedMessage.setKeySetId("004cf8cba2f93266");
