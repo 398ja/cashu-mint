@@ -1,0 +1,88 @@
+package xyz.tcheeric.cashu.mint.proto.tasks;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PublicKey;
+import xyz.tcheeric.cashu.common.RSSProof;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.Signature;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+
+public class SwapTaskTest {
+
+    private RSSProof createProof() {
+        RSSProof proof = new RSSProof();
+        proof.setAmount(1);
+        proof.setKeySetId("ks1");
+        proof.setSecret(RandomStringSecret.create());
+        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        return proof;
+    }
+
+    private BlindedMessage createBlindedMessage() {
+        BlindedMessage bm = new BlindedMessage();
+        bm.setAmount(1);
+        bm.setKeySetId("ks1");
+        bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+        return bm;
+    }
+
+    @Test
+    public void execute() throws CashuErrorException {
+        RSSProof proof = createProof();
+        BlindedMessage bm = createBlindedMessage();
+
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
+        request.setInputs(List.of(proof));
+        request.setBlindedMessages(List.of(bm));
+
+        Mint mint = new Mint();
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+
+        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
+             MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
+             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
+             MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
+                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(new BlindSignature(1, "ks1", Signature.fromString(MintProtocolUtil.createRandomBytes(33)))));
+             MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute())) {
+
+            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
+
+            SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
+            PostSwapResponse response = task.execute();
+
+            assertEquals(1, response.getBlindSignatures().size());
+            Mockito.verify(verifyCons.constructed().get(0)).execute();
+            Mockito.verify(invalidateCons.constructed().get(0)).execute();
+            Mockito.verify(signCons.constructed().get(0)).execute();
+            Mockito.verify(feesCons.constructed().get(0)).execute();
+        }
+    }
+}
