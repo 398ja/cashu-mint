@@ -2,10 +2,8 @@ package xyz.tcheeric.cashu.mint.proto.spending;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
-import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.web.client.RestTemplate;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -15,8 +13,8 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
@@ -73,16 +71,13 @@ public class RSSSpendingConditionTest {
         Mint mint = createMint(kid);
         RSSProof proof = createProof(kid);
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        RestTemplate restTemplate = Mockito.mock(RestTemplate.class); // Mock RestTemplate
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        // Mock the RestTemplate behavior
-        Mockito.when(restTemplate.getForObject(anyString(), any()))
-                .thenReturn(new ProofEntity()); // Return a mock ProofEntity
+        Mockito.doThrow(new CashuErrorException("notfound"))
+                .when(proofVaultService).retrieveProof(anyString());
 
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class);
-             MockedConstruction<DBProofVault> vault = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, context) -> Mockito.when(mock.retrieveProof(anyString())).thenReturn(mock))) {
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
             bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
@@ -98,11 +93,12 @@ public class RSSSpendingConditionTest {
         Mint mint = createMint(kid);
         RSSProof proof = createProof(kid);
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class);
-             MockedConstruction<DBProofVault> vault = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, context) -> Mockito.when(mock.retrieveProof(anyString())).thenReturn(mock))) {
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(new ProofEntity());
+
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
             bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
