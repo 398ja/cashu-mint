@@ -34,7 +34,7 @@ public class MintQuoteTask implements Task<PostMintQuoteResponse> {
         Gateway gateway = mintProtocolService.createGateway(method);
         String quoteId = gateway.createMintQuote(amount, null);
         String request = gateway.getRequest(quoteId);
-        long expiry = gateway.getPaymentExpiry(quoteId);
+        Integer expiry = gateway.getPaymentExpiry(quoteId);
 
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)

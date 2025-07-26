@@ -36,7 +36,7 @@ public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
         Gateway gateway = mintProtocolService.createGateway(method);
         String quoteId = gateway.createMeltQuote(request.getRequest());
         int feeReserve = gateway.getFeeReserve(quoteId);
-        long expiry = gateway.getPaymentExpiry(quoteId);
+        Integer expiry = gateway.getPaymentExpiry(quoteId);
         int amount = gateway.getAmount(quoteId);
 
         return PostMeltQuoteResponse.builder()
