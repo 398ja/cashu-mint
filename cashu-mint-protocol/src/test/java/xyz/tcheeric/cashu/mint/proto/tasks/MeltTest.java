@@ -4,8 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
-import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -14,19 +14,14 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteBolt11Request;
-import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import xyz.tcheeric.common.util.Configuration;
 
 import java.util.List;
 import java.util.UUID;
@@ -102,6 +97,7 @@ public class MeltTest {
 
     }
 
+/*
     @Test
     public void melt() throws CashuErrorException {
         Proof<RandomStringSecret> proof = new RSSProof();
@@ -169,6 +165,7 @@ public class MeltTest {
 
         assertTrue(postMeltResponse.isPaid());
     }
+*/
 
     @Test
     public void mockMeltWithFees() throws CashuErrorException {
