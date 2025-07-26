@@ -21,28 +21,22 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ```
 
 ## Modules
-- ```cashu-mint-admin```: admin interface
-- ```cashu-mint-protocol```: protocol implementation
-- ```cashu-mint-rest```: REST API with wallet endpoints
-- ```cashu-mint-test```: unit test module (TODO)
-- ```cashu-mint-vault```: vault implementation
+The project currently contains two Maven modules:
+- `cashu-mint-protocol`: protocol implementation
+- `cashu-mint-rest`: REST API with wallet endpoints
 
 ## Configuration
 
 
 ## Build and install cashu-mint
-To build and install the `cashu-mint`, you need to create a vault on the file system. The vault is used to store the private keys. For now, this is just a simple file system based vault, *not suitable* for production use. 
+Clone the repository and build the project using Maven:
 
-To bootstrap a new vault, you need to run the ```VaultUtil``` class from the ```cashu-mint-admin``` module. 
-
-Then follow the steps below to build and install the `cashu-mint`.
-```
-$ cd <your_git_home_dir>
-$ git clone https://github.com/tcheeric/cashu-mint.git
-$ cd cashu-mint
-$ mvn clean install
-$ cd cashu-mint-rest
-$ mvn spring-boot:run
+```bash
+git clone https://github.com/tcheeric/cashu-mint.git
+cd cashu-mint
+mvn clean install
+cd cashu-mint-rest
+mvn spring-boot:run
 ```
 
 ## Running with Docker
@@ -55,6 +49,12 @@ $ docker-compose up --build
 
 The API will be available on [http://localhost:7777](http://localhost:7777).
 
+## Running the tests
+Execute the unit tests using Maven:
+```bash
+mvn test
+```
+
 ## Supported NUTs
 - NUT-00: Notation, Utilization, and Terminology
 - NUT-01: Mint public key exchange
@@ -63,6 +63,9 @@ The API will be available on [http://localhost:7777](http://localhost:7777).
 - NUT-04: Mint tokens
 - NUT-05: Melt tokens
 - NUT-06: Mint information
+- [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md): Token state check
+- [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md): Spending conditions
+- [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md): Pay to Public Key (P2PK)
 
 
 ## TODO
