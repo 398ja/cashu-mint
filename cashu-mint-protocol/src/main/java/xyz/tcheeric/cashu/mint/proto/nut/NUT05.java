@@ -91,6 +91,7 @@ public class NUT05 {
                 method,
                 mint,
                 mintProtocolService,
+                mintLoadService,
                 mintVaultService,
                 proofVaultService
         ).execute();
