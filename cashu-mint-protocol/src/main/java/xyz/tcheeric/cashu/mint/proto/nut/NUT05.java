@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.proto.nut;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -11,8 +10,9 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.mint.proto.tasks.MeltTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MeltTokensTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteStatusTask;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
@@ -36,19 +36,11 @@ public class NUT05 {
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest postMeltQuoteRequest,
                                               @NonNull PaymentMethod method,
                                               @NonNull MintProtocolService mintProtocolService) {
-        Gateway gateway = mintProtocolService.createGateway(method);
-        var quoteId = gateway.createMeltQuote(postMeltQuoteRequest.getRequest());
-        var feeReserve = gateway.getFeeReserve(quoteId);
-        var expiry = gateway.getPaymentExpiry(quoteId);
-        var amount = gateway.getAmount(quoteId);
-
-        return PostMeltQuoteResponse
-                .builder()
-                .quoteId(quoteId)
-                .feeReserve(feeReserve)
-                .expiry(expiry) // TODO - check if this is correct
-                .amount(amount)
-                .build();
+        try {
+            return new MeltQuoteTask(postMeltQuoteRequest, method, mintProtocolService).execute();
+        } catch (CashuErrorException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static PostMeltQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
@@ -58,13 +50,11 @@ public class NUT05 {
     public static PostMeltQuoteResponse quotePaymentStatus(@NonNull String quoteId,
                                                            @NonNull PaymentMethod method,
                                                            @NonNull MintProtocolService mintProtocolService) {
-        Gateway gateway = mintProtocolService.createGateway(method);
-        return PostMeltQuoteResponse
-                .builder()
-                .quoteId(quoteId)
-                .expiry(gateway.getPaymentExpiry(quoteId))
-                .paid(gateway.checkPaymentStatus(quoteId))
-                .build();
+        try {
+            return new MeltQuoteStatusTask(quoteId, method, mintProtocolService).execute();
+        } catch (CashuErrorException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId,
@@ -84,12 +74,10 @@ public class NUT05 {
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
-        Mint mint = mintLoadService.load(mintId, true);
-
-        return new MeltTask(
+        return new MeltTokensTask<>(
+                mintId,
                 request,
                 method,
-                mint,
                 mintProtocolService,
                 mintLoadService,
                 mintVaultService,
