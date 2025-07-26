@@ -1,7 +1,9 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.ArgumentMatchers;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -17,6 +19,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -60,7 +63,12 @@ public class MeltTokensTaskTest {
         MeltTokensTask<RandomStringSecret> task = new MeltTokensTask<>(UUID.randomUUID(), request, PaymentMethod.MOCK,
                 protocolService, loadService, mintVaultService, proofVaultService);
 
-        PostMeltResponse resp = task.execute();
-        assertTrue(resp.isPaid());
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
+                    .thenReturn(true);
+
+            PostMeltResponse resp = task.execute();
+            assertTrue(resp.isPaid());
+        }
     }
 }
