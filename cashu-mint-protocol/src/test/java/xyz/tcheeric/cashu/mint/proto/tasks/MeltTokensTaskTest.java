@@ -1,9 +1,10 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.mockito.ArgumentMatchers;
+import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -12,6 +13,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
@@ -19,7 +21,6 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -56,6 +57,7 @@ public class MeltTokensTaskTest {
         MintLoadService loadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         when(loadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        when(loadService.keySet(anyString())).thenReturn(KeySet.builder().id("ks1").unit("sat").build());
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
