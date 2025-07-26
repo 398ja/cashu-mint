@@ -16,6 +16,10 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.KeySetService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultKeySetService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 
 import java.util.List;
 
@@ -27,19 +31,31 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
     private final KeySetService keySetService;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
-        this(postMeltRequest, method, mint, mintProtocolService, new DefaultKeySetService());
+        this(postMeltRequest, method, mint, mintProtocolService, new DefaultKeySetService(),
+                new DefaultMintVaultService(), new DefaultProofVaultService());
     }
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService, @NonNull KeySetService keySetService) {
+        this(postMeltRequest, method, mint, mintProtocolService, keySetService,
+                new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService, @NonNull KeySetService keySetService,
+                    @NonNull MintVaultService mintVaultService, @NonNull ProofVaultService proofVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
         this.keySetService = keySetService;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     @Override
@@ -70,7 +86,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             gateway.pay(quoteId);
 
             // Invalidate the proofsToMelt.
-            new InvalidateProofsTask(mint, proofsToMelt).execute();
+            new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
 
             return new PostMeltResponse(gateway.checkPaymentStatus(quoteId), gateway.getPaymentPreimage(quoteId));
         } finally {

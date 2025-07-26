@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
@@ -8,18 +7,34 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 
 import java.util.List;
 
-@AllArgsConstructor
 @Slf4j
 public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T>>> {
 
     private final Mint mint;
     private final List<Proof<T>> proofs;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
+
+    public InvalidateProofsTask(Mint mint, List<Proof<T>> proofs) {
+        this(mint, proofs, new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public InvalidateProofsTask(Mint mint, List<Proof<T>> proofs,
+                                MintVaultService mintVaultService,
+                                ProofVaultService proofVaultService) {
+        this.mint = mint;
+        this.proofs = proofs;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
+    }
 
     @Override
     public List<Proof<T>> execute() throws CashuErrorException {
@@ -38,15 +53,9 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
                     proofEntity.setUnblindedSignature(unblindedSignature);
 
                     try {
-                        proofEntity.setMint(DBMintVault.retrieveMint(mint.getId()).getEntity());
-                    } catch (CashuErrorException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    DBProofVault proofVault = new DBProofVault(proofEntity);
-                    proofVault.store();
-                    try {
-                        proofVault.invalidate();
+                        proofEntity.setMint(mintVaultService.getMint(mint.getId()));
+                        proofVaultService.store(proofEntity);
+                        proofVaultService.invalidate(proofEntity);
                     } catch (CashuErrorException e) {
                         throw new RuntimeException(e);
                     }

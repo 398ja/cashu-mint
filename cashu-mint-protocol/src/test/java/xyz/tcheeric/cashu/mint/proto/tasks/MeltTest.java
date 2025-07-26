@@ -22,6 +22,8 @@ import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.KeySetService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
@@ -87,8 +89,12 @@ public class MeltTest {
         KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
         Mockito.when(keySetService.getKeySet(anyString())).thenReturn(keySet);
 
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+
         Mint mint = new Mint();
-        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, keySetService);
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service,
+                keySetService, mintVaultService, proofVaultService);
 
         PostMeltResponse postMeltResponse = task.execute();
 
@@ -186,8 +192,12 @@ public class MeltTest {
         KeySet keySet = KeySet.builder().id("004cf8cba2f93266").unit("sat").partPerThousand(0).build();
         Mockito.when(keySetService.getKeySet(anyString())).thenReturn(keySet);
 
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+
         Mint mint = new Mint();
-        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, keySetService);
+        MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service,
+                keySetService, mintVaultService, proofVaultService);
 
         archiveProof(proof);
 
