@@ -16,7 +16,7 @@ public class MeltQuoteStatusTaskTest {
     @Test
     public void execute() throws CashuErrorException {
         Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.getPaymentExpiry("qid")).thenReturn(5L);
+        when(gateway.getPaymentExpiry("qid")).thenReturn(5);
         when(gateway.checkPaymentStatus("qid")).thenReturn(true);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);

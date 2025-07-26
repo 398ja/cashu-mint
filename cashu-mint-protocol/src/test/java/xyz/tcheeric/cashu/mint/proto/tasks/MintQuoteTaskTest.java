@@ -19,7 +19,7 @@ public class MintQuoteTaskTest {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
         when(gateway.getRequest("qid")).thenReturn("req");
-        when(gateway.getPaymentExpiry("qid")).thenReturn(123L);
+        when(gateway.getPaymentExpiry("qid")).thenReturn(123);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
@@ -37,7 +37,7 @@ public class MintQuoteTaskTest {
     public void quoteStatus() {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.getRequest("qid")).thenReturn("req");
-        when(gateway.getPaymentExpiry("qid")).thenReturn(123L);
+        when(gateway.getPaymentExpiry("qid")).thenReturn(123);
         when(gateway.checkPaymentStatus("qid")).thenReturn(true);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);

@@ -18,12 +18,9 @@ import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteTask;
-import xyz.tcheeric.cashu.mint.proto.tasks.MintTokensTask;
-
-import java.util.UUID;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,7 +53,7 @@ public class MintTest {
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
 
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService, service);
 
@@ -74,7 +71,7 @@ public class MintTest {
         Gateway mockGatewayQuote = Mockito.mock(Gateway.class);
         Mockito.when(mockGatewayQuote.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
         Mockito.when(mockGatewayQuote.getRequest("qid")).thenReturn("req");
-        Mockito.when(mockGatewayQuote.getPaymentExpiry("qid")).thenReturn(1L);
+        Mockito.when(mockGatewayQuote.getPaymentExpiry("qid")).thenReturn(1);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         Mockito.when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGatewayQuote);
@@ -105,7 +102,7 @@ public class MintTest {
 
         MintLoadService mintLoadService2 = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        Mockito.when(mintLoadService2.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        when(mintLoadService2.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service);
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);

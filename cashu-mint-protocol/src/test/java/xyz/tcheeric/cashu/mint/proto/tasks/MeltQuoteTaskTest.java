@@ -22,7 +22,7 @@ public class MeltQuoteTaskTest {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMeltQuote("req")).thenReturn("qid");
         when(gateway.getFeeReserve("qid")).thenReturn(1);
-        when(gateway.getPaymentExpiry("qid")).thenReturn(2L);
+        when(gateway.getPaymentExpiry("qid")).thenReturn(2);
         when(gateway.getAmount("qid")).thenReturn(3);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
