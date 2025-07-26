@@ -11,16 +11,17 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 
 public class VerifyFeesTaskTest {
 
@@ -42,6 +43,7 @@ public class VerifyFeesTaskTest {
     public void executeSuccess() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
 
         RSSProof proof = createProof(10);
         BlindSignature sig = createSignature(10);
@@ -52,9 +54,9 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys(any(UUID.class))).thenReturn(keySet);
+            nut.when(() -> NUT02.keys(anyString(), Mockito.eq(mintLoadService))).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
+            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
             assertDoesNotThrow(task::execute);
         }
     }
@@ -63,6 +65,7 @@ public class VerifyFeesTaskTest {
     public void executeFailure() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
 
         RSSProof proof = createProof(10);
         BlindSignature sig = createSignature(5);
@@ -73,9 +76,9 @@ public class VerifyFeesTaskTest {
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys(any(UUID.class))).thenReturn(keySet);
+            nut.when(() -> NUT02.keys(anyString(), Mockito.eq(mintLoadService))).thenReturn(keySet);
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response);
+            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
             assertThrows(CashuErrorException.class, task::execute);
         }
     }
