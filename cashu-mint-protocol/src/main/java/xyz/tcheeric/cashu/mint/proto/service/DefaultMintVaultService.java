@@ -11,4 +11,9 @@ public class DefaultMintVaultService implements MintVaultService {
     public MintEntity retrieveMint(String mintId) throws CashuErrorException {
         return DBMintVault.retrieveMint(mintId).getEntity();
     }
+
+    @Override
+    public void load(MintEntity mintEntity, boolean archive, boolean create) throws CashuErrorException {
+        DBMintVault.load(mintEntity, archive, create);
+    }
 }

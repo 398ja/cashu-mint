@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -10,7 +9,6 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
@@ -53,12 +51,10 @@ public class VerifyFeesTaskTest {
         Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys(anyString(), Mockito.eq(mintLoadService))).thenReturn(keySet);
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
-            assertDoesNotThrow(task::execute);
-        }
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
+        assertDoesNotThrow(task::execute);
     }
 
     @Test
@@ -75,12 +71,10 @@ public class VerifyFeesTaskTest {
         Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        try (MockedStatic<NUT02> nut = Mockito.mockStatic(NUT02.class)) {
-            nut.when(() -> NUT02.keys(anyString(), Mockito.eq(mintLoadService))).thenReturn(keySet);
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
-            VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
-            assertThrows(CashuErrorException.class, task::execute);
-        }
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
+        assertThrows(CashuErrorException.class, task::execute);
     }
 }
 
