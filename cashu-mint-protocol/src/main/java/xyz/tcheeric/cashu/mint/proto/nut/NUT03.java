@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultKeySetService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
@@ -56,7 +57,7 @@ public class NUT03 {
         PostSwapResponse postSwapResponse = new PostSwapResponse(blindSignatures);
 
         // Verify fees
-        new VerifyFeesTask(postSwapRequest, postSwapResponse).execute();
+        new VerifyFeesTask(postSwapRequest, postSwapResponse, new DefaultKeySetService()).execute();
 
         return postSwapResponse;
     }

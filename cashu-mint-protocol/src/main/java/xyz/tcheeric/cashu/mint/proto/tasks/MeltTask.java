@@ -12,8 +12,9 @@ import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.KeySetService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultKeySetService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 
 import java.util.List;
@@ -25,13 +26,20 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PaymentMethod method;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
+    private final KeySetService keySetService;
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
+        this(postMeltRequest, method, mint, mintProtocolService, new DefaultKeySetService());
+    }
+
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService, @NonNull KeySetService keySetService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
+        this.keySetService = keySetService;
     }
 
     @Override
@@ -47,7 +55,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             }
 
             var keySetId = proofsToMelt.get(0).getKeySetId();
-            var keyset = NUT02.keys(keySetId);
+            var keyset = keySetService.getKeySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
             var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
