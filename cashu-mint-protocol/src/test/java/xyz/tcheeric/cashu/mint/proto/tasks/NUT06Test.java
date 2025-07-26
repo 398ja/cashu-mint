@@ -34,7 +34,5 @@ class NUT06Test {
         assertEquals("bolt11", method.getMethod());
         assertEquals("sat", method.getUnit());
         assertEquals(0, method.getMinAmount());
-
-
     }
 }

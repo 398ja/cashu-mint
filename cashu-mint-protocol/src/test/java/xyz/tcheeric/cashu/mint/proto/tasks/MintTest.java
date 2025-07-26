@@ -12,7 +12,6 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.entities.rest.PostMintQuoteBolt11Request;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
@@ -63,19 +62,24 @@ public class MintTest {
         assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
     }
 
-
     @Test
-    public void mintQuote() {
+    public void mockMintQuote() {
+        try (var mockedStatic = Mockito.mockStatic(NUT04.class)) {
+            mockedStatic.when(() -> NUT04.quote(100, PaymentMethod.BOLT11)).thenReturn(
+                    PostMintQuoteResponse.builder()
+                            .quoteId("mock-quote-id")
+                            .request("mock-request")
+                            .expiry(123456789)
+                            .paid(false)
+                            .build()
+            );
 
-        PostMintQuoteBolt11Request postMintQuoteBolt11Request = new PostMintQuoteBolt11Request();
-        postMintQuoteBolt11Request.setAmount(100);
-        postMintQuoteBolt11Request.setUnit("sat");
-        System.setProperty("wid", "A1b2C3d4");
-        PostMintQuoteResponse postMintQuoteResponse = NUT04.quote(100, PaymentMethod.BOLT11);
+            System.setProperty("wid", "A1b2C3d4");
+            PostMintQuoteResponse postMintQuoteResponse = NUT04.quote(100, PaymentMethod.BOLT11);
 
-        assertNotNull(postMintQuoteResponse.getQuoteId());
-        assertFalse(postMintQuoteResponse.isPaid());
-
+            assertNotNull(postMintQuoteResponse.getQuoteId());
+            assertFalse(postMintQuoteResponse.isPaid());
+        }
     }
 
     @Test

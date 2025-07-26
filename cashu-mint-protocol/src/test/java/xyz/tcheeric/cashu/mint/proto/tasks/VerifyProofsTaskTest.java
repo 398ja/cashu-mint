@@ -12,8 +12,9 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
 
@@ -28,7 +29,7 @@ public class VerifyProofsTaskTest {
         proof.setAmount(amount);
         proof.setKeySetId("ks1");
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString("00"));
+        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
         proof.setWitness(new Witness());
         return proof;
     }

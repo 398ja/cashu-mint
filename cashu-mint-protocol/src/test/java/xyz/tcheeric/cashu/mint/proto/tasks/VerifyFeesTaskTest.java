@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
 
@@ -27,13 +28,13 @@ public class VerifyFeesTaskTest {
         proof.setAmount(amount);
         proof.setKeySetId("ks1");
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString("00"));
+        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
         proof.setWitness(new Witness());
         return proof;
     }
 
     private BlindSignature createSignature(int amount) {
-        return new BlindSignature(amount, "ks1", Signature.fromString("01"));
+        return new BlindSignature(amount, "ks1", Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
     }
 
     @Test
