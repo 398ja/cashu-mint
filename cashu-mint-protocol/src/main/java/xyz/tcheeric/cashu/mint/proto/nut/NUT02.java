@@ -44,7 +44,7 @@ public class NUT02 {
     }
 
     public static KeySet keys(@NonNull String keysetId, MintLoadService mintLoadService) throws CashuErrorException {
-        List<KeySet> keySets = keySets(mintLoadService);
+        List<KeySet> keySets = mintLoadService.keySets();
         log.debug("keysets: {}", keySets);
         return keySets
                 .stream()
