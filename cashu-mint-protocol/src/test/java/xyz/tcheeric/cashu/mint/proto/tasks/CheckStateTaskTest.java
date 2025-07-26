@@ -28,7 +28,8 @@ public class CheckStateTaskTest {
     public void executeSuccess() throws CashuErrorException {
         UUID mintId = UUID.randomUUID();
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
-        when(request.getHashToCurveSecrets()).thenReturn(List.of(RandomStringSecret.create()));
+        RandomStringSecret secret = RandomStringSecret.create();
+        when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
 
         MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
         MintEntity mintEntity = Mockito.mock(MintEntity.class);
@@ -37,7 +38,7 @@ public class CheckStateTaskTest {
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
-        when(proofVaultService.retrieveProof("secret")).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProof(secret.toString())).thenReturn(proofEntity);
         when(proofEntity.getState()).thenReturn(ProofEntity.STATE_PENDING);
         when(proofEntity.getWitness()).thenReturn("wit");
 
@@ -45,12 +46,12 @@ public class CheckStateTaskTest {
         PostCheckStateResponse response = task.execute();
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProof("secret");
+        verify(proofVaultService).retrieveProof(secret.toString());
 
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
         assertEquals(NUT07.UNSPENT, state.getState());
-        assertEquals("secret", state.getHashToCurveSecret());
+        assertEquals(secret, state.getHashToCurveSecret());
         assertEquals("wit", state.getWitness());
     }
 }
