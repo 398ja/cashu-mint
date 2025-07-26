@@ -91,7 +91,7 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
@@ -157,7 +157,7 @@ public class MeltTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
 
         PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()),
                 postMeltRequest,
@@ -208,7 +208,7 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
 
         MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
@@ -237,7 +237,7 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
-        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
 
         MeltTask<RandomStringSecret> task = new MeltTask(new PostMeltRequest(), PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
