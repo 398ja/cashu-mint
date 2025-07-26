@@ -56,6 +56,7 @@ public class MeltTokensTaskTest {
         MintLoadService loadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         when(loadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        when(loadService.keySet(anyString())).thenReturn(KeySet.builder().id("ks1").unit("sat").build());
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
