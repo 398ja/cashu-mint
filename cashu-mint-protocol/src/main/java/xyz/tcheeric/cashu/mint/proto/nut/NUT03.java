@@ -14,8 +14,9 @@ import xyz.tcheeric.cashu.mint.proto.tasks.InvalidateProofsTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.SignBlindedMessageTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyFeesTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.VerifyProofsTask;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,15 @@ import java.util.UUID;
 public class NUT03 {
 
     public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId, @NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {
+        return swap(mintId, postSwapRequest, new DefaultMintLoadService());
+    }
+
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
+                                                           @NonNull PostSwapRequest<T> postSwapRequest,
+                                                           @NonNull MintLoadService mintLoadService) throws CashuErrorException {
 
         // Load mint
-        Mint mint = DBMintVault.load(mintId.toString(), false);
+        Mint mint = mintLoadService.load(mintId, false);
 
         if (mint == null) {
             throw new CashuErrorException("swap_mint_not_found");
