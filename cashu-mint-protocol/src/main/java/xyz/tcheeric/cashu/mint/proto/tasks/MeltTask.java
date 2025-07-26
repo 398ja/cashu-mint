@@ -12,7 +12,6 @@ import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
@@ -67,7 +66,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             }
 
             var keySetId = proofsToMelt.get(0).getKeySetId();
-            var keyset = NUT02.keys(keySetId, mintLoadService);
+            var keyset = mintLoadService.keySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
             var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);

@@ -24,6 +24,20 @@ public interface MintLoadService {
         return result;
     }
 
+    /**
+     * Retrieve a {@link KeySet} by its id.
+     *
+     * @param keySetId the identifier of the keyset
+     * @return the matching keyset or {@code null} if none found
+     */
+    default KeySet keySet(@NonNull String keySetId) throws CashuErrorException {
+        return keySets()
+                .stream()
+                .filter(keySet -> keySetId.equals(keySet.getId()))
+                .findFirst()
+                .orElse(null);
+    }
+
     default List<KeySet> keySets(boolean archive) throws CashuErrorException {
         List<KeySet> result = new java.util.ArrayList<>();
         List<Mint> mints = load(archive);
