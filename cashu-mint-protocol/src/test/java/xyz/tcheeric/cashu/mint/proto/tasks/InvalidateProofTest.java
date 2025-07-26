@@ -2,24 +2,19 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createRandomBytes;
 
@@ -45,28 +40,17 @@ public class InvalidateProofTest {
         proof.setAmount(256);
         proof.setKeySetId("00c4a3dade22f81b");
 
-        try (MockedStatic<DBMintVault> mintVaultMock = Mockito.mockStatic(DBMintVault.class);
-             MockedConstruction<DBProofVault> proofVaultMock = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, ctx) -> {
-                         Mockito.doNothing().when(mock).store();
-                         Mockito.doNothing().when(mock).invalidate();
-                         Mockito.when(mock.getEntity()).thenReturn(new ProofEntity() {{
-                             setUnblindedSignature(proof.getUnblindedSignature().toString());
-                         }});
-                     })) {
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        Mockito.doNothing().when(proofVaultService).store(Mockito.any());
+        Mockito.doNothing().when(proofVaultService).invalidate(Mockito.any());
 
-            DBMintVault mockMintVault = Mockito.mock(DBMintVault.class);
-            Mockito.when(mockMintVault.getEntity()).thenReturn(Mockito.mock(MintEntity.class));
-            mintVaultMock.when(() -> DBMintVault.retrieveMint(mint.getId())).thenReturn(mockMintVault);
+        InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, proofVaultService);
+        task.execute();
 
-            InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof));
-            task.execute();
-
-            DBProofVault vault = proofVaultMock.constructed().get(0);
-
-            assertNotNull(vault.getEntity());
-            assertEquals(proof.getUnblindedSignature().toString(), vault.getEntity().getUnblindedSignature());
-        }
+        Mockito.verify(proofVaultService).store(Mockito.any());
+        Mockito.verify(proofVaultService).invalidate(Mockito.any());
     }
 
     /**
@@ -81,21 +65,21 @@ public class InvalidateProofTest {
      * 5. This ensures that the task handles the failure of the `invalidate` method as expected.
      */
     @Test
-    public void invalidateProofFailure() {
+    public void invalidateProofFailure() throws CashuErrorException {
         RSSProof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString(createRandomBytes(33)));
         proof.setSecret(RandomStringSecret.create());
         proof.setAmount(1);
         proof.setKeySetId("00c4a3dade22f81b");
 
-        InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof));
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        Mockito.doNothing().when(proofVaultService).store(Mockito.any());
+        Mockito.doThrow(new CashuErrorException("fail")).when(proofVaultService).invalidate(Mockito.any());
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
 
-        try (MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
-                (mock, ctx) -> {
-                    Mockito.doNothing().when(mock).store();
-                    Mockito.doThrow(new CashuErrorException("fail")).when(mock).invalidate();
-                })) {
-            assertThrows(RuntimeException.class, task::execute);
-        }
+        InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, proofVaultService);
+
+        assertThrows(RuntimeException.class, task::execute);
     }
 }
