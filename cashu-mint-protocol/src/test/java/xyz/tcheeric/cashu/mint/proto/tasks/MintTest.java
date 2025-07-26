@@ -16,8 +16,12 @@ import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MintTokensTask;
+
+import java.util.UUID;
 
 import java.util.List;
 
@@ -50,8 +54,11 @@ public class MintTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint, service);
+        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+
+        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService, service);
 
         PostMintResponse response = task.execute();
 
@@ -64,22 +71,18 @@ public class MintTest {
 
     @Test
     public void mockMintQuote() {
-        try (var mockedStatic = Mockito.mockStatic(NUT04.class)) {
-            mockedStatic.when(() -> NUT04.quote(100, PaymentMethod.BOLT11)).thenReturn(
-                    PostMintQuoteResponse.builder()
-                            .quoteId("mock-quote-id")
-                            .request("mock-request")
-                            .expiry(123456789)
-                            .paid(false)
-                            .build()
-            );
+        Gateway mockGatewayQuote = Mockito.mock(Gateway.class);
+        Mockito.when(mockGatewayQuote.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
+        Mockito.when(mockGatewayQuote.getRequest("qid")).thenReturn("req");
+        Mockito.when(mockGatewayQuote.getPaymentExpiry("qid")).thenReturn(1L);
 
-            System.setProperty("wid", "A1b2C3d4");
-            PostMintQuoteResponse postMintQuoteResponse = NUT04.quote(100, PaymentMethod.BOLT11);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGatewayQuote);
 
-            assertNotNull(postMintQuoteResponse.getQuoteId());
-            assertFalse(postMintQuoteResponse.isPaid());
-        }
+        PostMintQuoteResponse postMintQuoteResponse = new MintQuoteTask(100, PaymentMethod.BOLT11, service).execute();
+
+        assertNotNull(postMintQuoteResponse.getQuoteId());
+        assertFalse(postMintQuoteResponse.isPaid());
     }
 
     @Test
@@ -100,10 +103,11 @@ public class MintTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
+        MintLoadService mintLoadService2 = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
-        MintTask task = new MintTask(postMintRequest, PaymentMethod.MOCK, mint, service);
+        Mockito.when(mintLoadService2.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service);
 
-        // Assert that a CashuErrorException is thrown
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         assertEquals("mint_invoice_not_paid_error", exception.getMessage());
 
