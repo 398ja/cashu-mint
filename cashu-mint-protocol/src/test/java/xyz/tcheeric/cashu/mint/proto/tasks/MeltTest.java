@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -130,7 +131,15 @@ public class MeltTest {
         postMeltQuoteBolt11Request.setRequest(requestString);
         postMeltQuoteBolt11Request.setUnit("sat");
 
-        PostMeltQuoteResponse postMeltQuoteResponse = NUT05.quote(postMeltQuoteBolt11Request, PaymentMethod.BOLT11);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        Mockito.when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+        Mockito.when(mockGateway.createMeltQuote(anyString())).thenReturn("quote-1");
+        Mockito.when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
+        Mockito.when(mockGateway.getPaymentExpiry(anyString())).thenReturn(100L);
+        Mockito.when(mockGateway.getAmount(anyString())).thenReturn(32);
+
+        PostMeltQuoteResponse postMeltQuoteResponse = NUT05.quote(postMeltQuoteBolt11Request, PaymentMethod.BOLT11, service);
 
         PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
         postMeltRequest.setQuoteId(postMeltQuoteResponse.getQuoteId());
@@ -141,8 +150,16 @@ public class MeltTest {
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
-        PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()), postMeltRequest, PaymentMethod.BOLT11,
-                mintVaultService, proofVaultService); //meltTask.execute();
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(Mockito.any(), Mockito.anyBoolean())).thenReturn(mint);
+
+        PostMeltResponse postMeltResponse = NUT05.melt(UUID.fromString(mint.getId()),
+                postMeltRequest,
+                PaymentMethod.BOLT11,
+                service,
+                mintLoadService,
+                mintVaultService,
+                proofVaultService);
 
         assertTrue(postMeltResponse.isPaid());
     }
