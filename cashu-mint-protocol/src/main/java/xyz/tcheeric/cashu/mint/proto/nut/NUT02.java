@@ -56,47 +56,20 @@ public class NUT02 {
 
     public static List<ActiveKeySet> activeKeySets(MintLoadService mintLoadService) throws CashuErrorException {
         log.debug("keySets()");
-        List<ActiveKeySet> activeKeySets = new ArrayList<>();
-        activeKeySets.addAll(activeKeySets(false, mintLoadService));
-        activeKeySets.addAll(activeKeySets(true, mintLoadService));
+        List<ActiveKeySet> result = new ArrayList<>();
+
+        mintLoadService.keySets(false)
+                .stream()
+                .map(keySet -> ActiveKeySet.fromKeySet(keySet, true))
+                .forEach(result::add);
+
+        mintLoadService.keySets(true)
+                .stream()
+                .map(keySet -> ActiveKeySet.fromKeySet(keySet, false))
+                .forEach(result::add);
 
         // Sort the activeKeySets list by id
-        activeKeySets.sort(Comparator.comparing(ActiveKeySet::getId));
-
-        return activeKeySets;
-    }
-
-    private static List<KeySet> keySets(MintLoadService mintLoadService) throws CashuErrorException {
-        log.debug("keySets()");
-
-        List<KeySet> result = new ArrayList<>();
-        result.addAll(keySets(false, mintLoadService));
-        result.addAll(keySets(true, mintLoadService));
-
-        return result;
-    }
-
-    private static List<KeySet> keySets(boolean archive, MintLoadService mintLoadService) throws CashuErrorException {
-        log.debug("keySets({})", archive);
-
-        List<KeySet> result = new ArrayList<>();
-        List<Mint> mints = mintLoadService.load(archive);
-
-        if (mints != null) {
-            mints.stream().forEach(mint -> {
-                result.addAll(mint.getKeySets());
-            });
-        }
-
-        return result;
-    }
-
-    private static List<ActiveKeySet> activeKeySets(boolean archive, MintLoadService mintLoadService) throws CashuErrorException {
-        log.debug("activeKeySets({})", archive);
-
-        List<ActiveKeySet> result = new ArrayList<>();
-        List<KeySet> keySets = keySets(archive, mintLoadService);
-        keySets.stream().map(keySet -> ActiveKeySet.fromKeySet(keySet, !archive)).forEach(result::add);
+        result.sort(Comparator.comparing(ActiveKeySet::getId));
 
         return result;
     }
