@@ -67,7 +67,7 @@ public class SwapTaskTest {
              MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute());
              MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
+                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(proof)));
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
                      (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(new BlindSignature(1, "ks1", Signature.fromString(MintProtocolUtil.createRandomBytes(33)))));
              MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
