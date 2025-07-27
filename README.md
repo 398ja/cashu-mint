@@ -55,6 +55,13 @@ Execute the unit tests using Maven:
 mvn test
 ```
 
+### Code coverage
+Generate Jacoco reports with:
+```bash
+mvn verify
+```
+Reports are written to `target/site/jacoco` in each module.
+
 ## Supported NUTs
 - NUT-00: Notation, Utilization, and Terminology
 - NUT-01: Mint public key exchange
