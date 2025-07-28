@@ -4,6 +4,7 @@ package xyz.tcheeric.cashu.mint.rest.client;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
+import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,11 @@ public class CashuClient extends BaseClient {
     public ActiveKeySetResponse keysets() {
         String url = getBaseUrl() + "/keysets";
         return restTemplate.getForObject(url, ActiveKeySetResponse.class);
+    }
+
+    public MintInfo info() {
+        String url = getBaseUrl() + "/info";
+        return restTemplate.getForObject(url, MintInfo.class);
     }
 
 

@@ -47,6 +47,12 @@ import java.util.UUID;
 @RequestMapping(value = "/v1")
 public class CashuController<T extends Secret> {
 
+    private final NUT06 nut06;
+
+    public CashuController(NUT06 nut06) {
+        this.nut06 = nut06;
+    }
+
     @GetMapping("/keys/{mint_id}/generate")
     public ResponseEntity<KeySetResponse> generateKeySetIds(@PathVariable("mint_id") String mintId) throws CashuErrorException {
         log.debug("Getting keys");
@@ -114,8 +120,7 @@ public class CashuController<T extends Secret> {
 
     @GetMapping("/info")
     public ResponseEntity<MintInfo> info() {
-        NUT06 nut06 = new NUT06(new MintInfo());
-        MintInfo response = nut06.getMintInfo();
+        MintInfo response = nut06.mintInfo();
         return ResponseEntity.ok(response);
     }
 

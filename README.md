@@ -74,6 +74,23 @@ Reports are written to `target/site/jacoco` in each module.
 - [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md): Spending conditions
 - [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md): Pay to Public Key (P2PK)
 
+## Sample client usage
+The `CashuClient` class provides helper methods for interacting with the REST API.
+Retrieving mint information from the `/info` endpoint can be done as follows:
+
+```java
+CashuClient client = new CashuClient();
+MintInfo info = client.info();
+System.out.println("Mint name: " + info.getName());
+```
+
+Alternatively, the `CashuController` can be wired directly and its `info()`
+method invoked to obtain the same `MintInfo` instance:
+
+```java
+CashuController<?> controller = new CashuController<>(new NUT06(new DefaultMintInfoService(new MintInfo())));
+MintInfo info = controller.info().getBody();
+```
 
 ## TODO
 In no particular order:
