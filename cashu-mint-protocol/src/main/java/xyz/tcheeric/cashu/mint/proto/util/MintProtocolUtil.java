@@ -16,24 +16,22 @@ import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
-import xyz.tcheeric.common.util.Configuration;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 
 public class MintProtocolUtil {
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
-        Configuration configuration = new Configuration("cashu");
-        String gwClass = configuration.get("gateway");
-
         try {
-            Class<?> clazz = Class.forName(gwClass);
-            Gateway gateway = (Gateway) clazz.getDeclaredConstructor().newInstance();
+            Gateway gateway = GatewayLoader.loadGateway();
             if(gateway.supports(method)) {
                 return gateway;
             } else {
@@ -126,6 +124,32 @@ public class MintProtocolUtil {
         }
 
         return hexString.toString();
+    }
+
+
+    static class GatewayLoader {
+        public static Gateway loadGateway() throws Exception {
+
+            Properties properties = new Properties();
+
+            try (FileInputStream input = new FileInputStream(GatewayLoader.class.getClassLoader().getResource("app.properties").getFile())) {
+                properties.load(input);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to load properties file", e);
+            }
+
+            String gatewayClassName = properties.getProperty("cashu.gateway");
+            if (gatewayClassName == null || gatewayClassName.isEmpty()) {
+                throw new IllegalArgumentException("Gateway class not specified in properties file");
+            }
+
+            Class<?> gatewayClass = Class.forName(gatewayClassName);
+            Gateway gatewayInstance = (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
+            if (!(gatewayInstance instanceof Gateway)) {
+                throw new IllegalArgumentException("Loaded class is not an instance of Gateway");
+            }
+            return gatewayInstance;
+        }
     }
 
 }

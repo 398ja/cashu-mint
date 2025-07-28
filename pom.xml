@@ -25,8 +25,7 @@
 
         <commong-config.version>1.0-SNAPSHOT</commong-config.version>
 
-        <spring.boot.version>3.2.6</spring.boot.version>
-        <spring.boot.starter.version>3.4.5</spring.boot.starter.version>
+        <spring.boot.version>3.5.0</spring.boot.version>
         <postgresql.version>42.2.23</postgresql.version>
 
         <jackson-datatype-jsr310.version>2.18.0</jackson-datatype-jsr310.version>
