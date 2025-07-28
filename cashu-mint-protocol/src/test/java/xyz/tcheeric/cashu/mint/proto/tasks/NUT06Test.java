@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.Map;
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest(classes = {NUT06.class})
+@SpringBootTest(classes = {NUT06.class, DefaultMintInfoService.class})
 @EnableConfigurationProperties(value = MintInfo.class)
 class NUT06Test {
 
@@ -22,7 +23,7 @@ class NUT06Test {
 
     @Test
     void testInfo() {
-        MintInfo mintInfo = nut06.getMintInfo();
+        MintInfo mintInfo = nut06.mintInfo();
         assertNotNull(mintInfo);
 
         Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
