@@ -27,6 +27,19 @@ public class CashuClient extends BaseClient {
         return Objects.requireNonNull(response).getKeysets();
     }
 
+    /**
+     * Retrieve a specific key set by id using the {@code /keys/keyset/{keyset_id}} endpoint.
+     *
+     * @param keysetId the id of the key set
+     * @return the {@link KeySet} instance
+     */
+    public KeySet keyset(String keysetId) {
+        String url = getBaseUrl() + "/keys/keyset/" + keysetId;
+        KeySetResponse response = restTemplate.getForObject(url, KeySetResponse.class);
+        List<KeySet> keysets = Objects.requireNonNull(response).getKeysets();
+        return keysets.isEmpty() ? null : keysets.getFirst();
+    }
+
 
     public ActiveKeySetResponse keysets() {
         String url = getBaseUrl() + "/keysets";
