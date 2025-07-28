@@ -24,18 +24,14 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     }
 
     @Override
-    public BlindSignature execute() {
-        try {
-            PrivateKey privateKey = getPrivateKey(blindedMessage, mint);
-            if (privateKey == null) {
-                throw new CashuErrorException("Private key not found");
-            }
-
-            byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
-            return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
-        } catch (CashuErrorException e) {
-            throw new RuntimeException(e);
+    public BlindSignature execute() throws CashuErrorException {
+        PrivateKey privateKey = getPrivateKey(blindedMessage, mint);
+        if (privateKey == null) {
+            throw new CashuErrorException("Private key not found");
         }
+
+        byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
+        return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
     }
 
     private PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
