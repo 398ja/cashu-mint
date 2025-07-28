@@ -84,6 +84,14 @@ MintInfo info = client.info();
 System.out.println("Mint name: " + info.getName());
 ```
 
+Alternatively, the `CashuController` can be wired directly and its `info()`
+method invoked to obtain the same `MintInfo` instance:
+
+```java
+CashuController<?> controller = new CashuController<>(new NUT06(new DefaultMintInfoService(new MintInfo())));
+MintInfo info = controller.info().getBody();
+```
+
 ## TODO
 In no particular order:
 - Additional gateways 
