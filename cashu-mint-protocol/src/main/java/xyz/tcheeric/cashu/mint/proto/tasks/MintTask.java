@@ -48,11 +48,11 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
             }
 
             List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
-            blindedMessages.forEach(bm -> {
+            for (BlindedMessage bm : blindedMessages) {
                 SignBlindedMessageTask signBlindedMessageTask = new SignBlindedMessageTask(mint, bm, mintProtocolService);
                 BlindSignature bSignature = signBlindedMessageTask.execute();
                 result.addBlindSignature(bSignature);
-            });
+            }
 
             return result;
         } finally {
