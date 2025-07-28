@@ -54,6 +54,6 @@ public class SignBlindedMessageTest {
         Mint mint = new Mint();
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service);
 
-        assertThrows(RuntimeException.class, task::execute);
+        assertThrows(CashuErrorException.class, task::execute);
     }
 }
