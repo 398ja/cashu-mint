@@ -38,7 +38,12 @@ public class LoadKeySetsTask implements Task<List<KeySet>> {
         for (KeySet keySet : keySets) {
             if (keySet.getId() == null) {
                 String unit = keySet.getUnit();
-                keySet.setId(NUT01.generateKeySet(mintId, unit).getId());
+                try {
+                    keySet.setId(NUT01.generateKeySet(mintId, unit).getId());
+                } catch (CashuErrorException e) {
+                    log.error("Failed to generate KeySet for mintId {} and unit {}: {}", mintId, unit, e.getMessage(), e);
+                    throw e;
+                }
             }
         }
         return new ArrayList<>(keySets);
