@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -86,6 +87,40 @@ public class SwapTaskTest {
             Mockito.verify(invalidateCons.constructed().get(0)).execute();
             Mockito.verify(signCons.constructed().get(0)).execute();
             Mockito.verify(feesCons.constructed().get(0)).execute();
+        }
+    }
+
+    @Test
+    public void feeValidationFailureDoesNotInvalidateProofs() throws CashuErrorException {
+        RSSProof proof = createProof();
+        BlindedMessage bm = createBlindedMessage();
+
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
+        request.setInputs(List.of(proof));
+        request.setBlindedMessages(List.of(bm));
+
+        Mint mint = new Mint();
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+
+        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
+             MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
+             MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
+                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, KeysetId.fromString(VALID_KEYSET_ID), Signature.fromString(MintProtocolUtil.createRandomBytes(33)))).when(mock).execute());
+             MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
+                     (mock, ctx) -> Mockito.doThrow(new CashuErrorException("validate_fees_error")).when(mock).execute());
+             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class)) {
+
+            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
+
+            SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
+            assertThrows(CashuErrorException.class, task::execute);
+
+            assertEquals(0, invalidateCons.constructed().size());
         }
     }
 }
