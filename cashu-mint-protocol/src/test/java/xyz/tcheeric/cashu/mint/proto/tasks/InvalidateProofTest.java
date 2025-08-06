@@ -61,7 +61,7 @@ public class InvalidateProofTest {
      * 3. The `DBProofVault` constructor is mocked to simulate specific behaviors:
      *    - The `store` method does nothing when called.
      *    - The `invalidate` method throws a `CashuErrorException` with the message "fail".
-     * 4. The test asserts that calling the `execute` method of the task results in a `RuntimeException` being thrown.
+     * 4. The test asserts that calling the `execute` method of the task results in a `CashuErrorException` being thrown.
      * 5. This ensures that the task handles the failure of the `invalidate` method as expected.
      */
     @Test
@@ -80,6 +80,6 @@ public class InvalidateProofTest {
 
         InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, proofVaultService);
 
-        assertThrows(RuntimeException.class, task::execute);
+        assertThrows(CashuErrorException.class, task::execute);
     }
 }

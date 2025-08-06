@@ -7,7 +7,6 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -41,28 +40,23 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
 
     @Override
     public List<Proof<T>> execute() throws CashuErrorException {
-        proofs
-                .forEach(proof -> {
-                    String unblindedSignature = proof.getUnblindedSignature().toString();
-                    String secret = proof.getSecret().toString();
-                    byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
+        var mintEntity = mintVaultService.retrieveMint(mint.getId());
+        for (Proof<T> proof : proofs) {
+            String unblindedSignature = proof.getUnblindedSignature().toString();
+            String secret = proof.getSecret().toString();
 
-                    ProofEntity proofEntity = new ProofEntity();
-                    proofEntity.setAmount(proof.getAmount());
-                    proofEntity.setSecret(secret);
-                    if (proof.getWitness() != null) {
-                        proofEntity.setWitness(proof.getWitness().toString());
-                    }
-                    proofEntity.setUnblindedSignature(unblindedSignature);
+            ProofEntity proofEntity = new ProofEntity();
+            proofEntity.setAmount(proof.getAmount());
+            proofEntity.setSecret(secret);
+            if (proof.getWitness() != null) {
+                proofEntity.setWitness(proof.getWitness().toString());
+            }
+            proofEntity.setUnblindedSignature(unblindedSignature);
+            proofEntity.setMint(mintEntity);
 
-                    try {
-                        proofEntity.setMint(mintVaultService.retrieveMint(mint.getId()));
-                        proofVaultService.store(proofEntity);
-                        proofVaultService.invalidate(proofEntity);
-                    } catch (CashuErrorException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+            proofVaultService.store(proofEntity);
+            proofVaultService.invalidate(proofEntity);
+        }
 
         return proofs;
     }
