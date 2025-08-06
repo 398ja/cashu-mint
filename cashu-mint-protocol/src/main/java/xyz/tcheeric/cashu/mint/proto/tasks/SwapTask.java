@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
@@ -45,7 +46,8 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
     public PostSwapResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {
-            throw new CashuErrorException("swap_mint_not_found");
+            ErrorResponse error = new ErrorResponse("swap_mint_not_found");
+            throw new CashuErrorException(error.toJson());
         }
 
         MintProtocolService service = MintProtocolServiceFactory.getInstance();

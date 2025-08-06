@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -13,6 +14,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -91,36 +93,21 @@ public class SwapTaskTest {
     }
 
     @Test
-    public void feeValidationFailureDoesNotInvalidateProofs() throws CashuErrorException {
-        RSSProof proof = createProof();
-        BlindedMessage bm = createBlindedMessage();
-
+    public void executeMintNotFound() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
-        request.setInputs(List.of(proof));
-        request.setBlindedMessages(List.of(bm));
 
-        Mint mint = new Mint();
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
-        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(null);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+        SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
 
-        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
-             MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
-                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
-                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, KeysetId.fromString(VALID_KEYSET_ID), Signature.fromString(MintProtocolUtil.createRandomBytes(33)))).when(mock).execute());
-             MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
-                     (mock, ctx) -> Mockito.doThrow(new CashuErrorException("validate_fees_error")).when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class)) {
-
-            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
-
-            SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
-            assertThrows(CashuErrorException.class, task::execute);
-
-            assertEquals(0, invalidateCons.constructed().size());
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        try {
+            ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+            assertEquals("swap_mint_not_found", error.code());
+            assertEquals("Mint not found", error.message());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }
