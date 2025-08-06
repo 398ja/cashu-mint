@@ -78,6 +78,9 @@ public class MintInfo {
         @JsonProperty
         private Boolean disabled;
 
+        @JsonProperty("fee_reserve_percent")
+        private Double feeReservePercent;
+
         @Setter
         @Getter
         public static class Method {
