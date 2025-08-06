@@ -53,7 +53,6 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
         new VerifyProofsTask<>(mint, request, service).execute();
-        new InvalidateProofsTask<>(mint, request.getInputs()).execute();
 
         List<BlindSignature> blindSignatures = new ArrayList<>();
         for (BlindedMessage bm : request.getBlindedMessages()) {
@@ -62,7 +61,13 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
         }
 
         PostSwapResponse response = new PostSwapResponse(blindSignatures);
-        new VerifyFeesTask<>(request, response, mintLoadService).execute();
+
+        try {
+            new VerifyFeesTask<>(request, response, mintLoadService).execute();
+            new InvalidateProofsTask<>(mint, request.getInputs()).execute();
+        } catch (CashuErrorException e) {
+            throw e;
+        }
 
         return response;
     }

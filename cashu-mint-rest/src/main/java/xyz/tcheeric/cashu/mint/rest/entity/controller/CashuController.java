@@ -38,7 +38,6 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
@@ -51,9 +50,11 @@ import java.util.UUID;
 public class CashuController<T extends Secret> {
 
     private final NUT06 nut06;
+    private final MintLoadService mintLoadService;
 
-    public CashuController(NUT06 nut06) {
+    public CashuController(NUT06 nut06, MintLoadService mintLoadService) {
         this.nut06 = nut06;
+        this.mintLoadService = mintLoadService;
     }
 
     @GetMapping("/keys/{mint_id}/generate")
@@ -66,14 +67,13 @@ public class CashuController<T extends Secret> {
     @GetMapping("/keys/keyset/{keyset_id}")
     public ResponseEntity<KeySetResponse> keyset(@PathVariable("keyset_id") String keysetId) throws CashuErrorException {
         log.debug("keys({})", keysetId);
-        KeySet keySet = NUT02.keys(keysetId, new DefaultMintLoadService());
+        KeySet keySet = NUT02.keys(keysetId, mintLoadService);
         KeySetResponse response = new KeySetResponse(List.of(keySet));
         return ResponseEntity.ok(response);
     }
 
-    // TODO
     @GetMapping("/keysets")
-    public ResponseEntity<ActiveKeySetResponse> keysets(MintLoadService mintLoadService) throws CashuErrorException {
+    public ResponseEntity<ActiveKeySetResponse> keysets() throws CashuErrorException {
         List<ActiveKeySet> activeKeySets = NUT02.activeKeySets(mintLoadService);
         ActiveKeySetResponse response = new ActiveKeySetResponse(activeKeySets);
         return ResponseEntity.ok(response);
