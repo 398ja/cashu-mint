@@ -73,12 +73,12 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
             var fee_reserve = gateway.getFeeReserve(quoteId);
-            fee_reserve += (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
-            log.debug("Processing melt quote {} for request {} with fee reserve {}", quoteId, request, fee_reserve);
+            var calculated_fee_reserve = fee_reserve + (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
+            log.debug("Processing melt quote {} for request {} with fee reserve {}", quoteId, request, calculated_fee_reserve);
             var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum()
-                    + postMeltRequest.getFees(keyset) + fee_reserve;
+                    + postMeltRequest.getFees(keyset) + calculated_fee_reserve;
 
-            if (totalAmount < amount + fee_reserve) {
+            if (totalAmount < amount + calculated_fee_reserve) {
                 throw new CashuErrorException("melt_proof_amount_error");
             }
 
