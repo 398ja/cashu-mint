@@ -6,11 +6,11 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
@@ -30,10 +30,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 
 public class SwapTaskTest {
 
+    private static final String VALID_KEYSET_ID = "0123456789abcdef";
+
     private RSSProof createProof() {
         RSSProof proof = new RSSProof();
         proof.setAmount(1);
-        proof.setKeySetId("ks1");
+        proof.setKeySetId(VALID_KEYSET_ID);
         proof.setSecret(RandomStringSecret.create());
         proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
         return proof;
@@ -42,7 +44,7 @@ public class SwapTaskTest {
     private BlindedMessage createBlindedMessage() {
         BlindedMessage bm = new BlindedMessage();
         bm.setAmount(1);
-        bm.setKeySetId("ks1");
+        bm.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
         bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
         return bm;
     }
@@ -69,7 +71,7 @@ public class SwapTaskTest {
              MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
                      (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(proof)));
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
-                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, "ks1", Signature.fromString(MintProtocolUtil.createRandomBytes(33))))
+                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, KeysetId.fromString(VALID_KEYSET_ID), Signature.fromString(MintProtocolUtil.createRandomBytes(33))))
                              .when(mock).execute());
              MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute())) {

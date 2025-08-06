@@ -4,14 +4,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.KeySet;
-import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.RSSProof;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
@@ -19,9 +20,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 
 public class VerifyFeesTaskTest {
+
+    private static final String VALID_KEYSET_ID = "0123456789abcdef";
 
     private RSSProof createProof(int amount) {
         RSSProof proof = new RSSProof();
@@ -34,7 +36,7 @@ public class VerifyFeesTaskTest {
     }
 
     private BlindSignature createSignature(int amount) {
-        return new BlindSignature(amount, "ks1", Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        return new BlindSignature(amount, KeysetId.fromString(VALID_KEYSET_ID) , Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
     }
 
     @Test

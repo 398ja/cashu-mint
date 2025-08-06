@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -37,6 +38,8 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class MeltTest {
 
+    private static final String VALID_KEYSET_ID = "004cf8cba2f93266";
+
     @Test
     public void mockMelt() throws CashuErrorException {
         Proof<RandomStringSecret> proof = new RSSProof();
@@ -53,12 +56,12 @@ public class MeltTest {
 
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(16);
-        blindedMessage.setKeySetId("004cf8cba2f93266");
+        blindedMessage.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
         BlindedMessage blindedMessage1 = new BlindedMessage();
         blindedMessage1.setAmount(16);
-        blindedMessage1.setKeySetId("004cf8cba2f93266");
+        blindedMessage1.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
         blindedMessage.setBlindedMessage(PublicKey.fromString("031f5a5e834c6654753263cea178bef291eb27c39bf87fec4199d95d43132c665c"));
 
         PostSwapRequest<RandomStringSecret> request = new PostSwapRequest();
@@ -109,7 +112,7 @@ public class MeltTest {
 
         BlindedMessage blindedMessage = new BlindedMessage();
         blindedMessage.setAmount(16);
-        blindedMessage.setKeySetId("004cf8cba2f93266");
+        blindedMessage.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
         blindedMessage.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
 
         PostSwapRequest<RandomStringSecret> request = new PostSwapRequest();
