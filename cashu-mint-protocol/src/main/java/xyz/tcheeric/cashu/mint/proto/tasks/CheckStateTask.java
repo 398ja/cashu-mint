@@ -69,7 +69,12 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
                 }
                 state.setWitness(proofEntity.getWitness());
             } catch (CashuErrorException e) {
-                state.setState(NUT07.UNSPENT);
+                // Only treat as UNSPENT if the error indicates "not found"
+                if (e.getMessage() != null && e.getMessage().toLowerCase().contains("not found")) {
+                    state.setState(NUT07.UNSPENT);
+                } else {
+                    throw e;
+                }
             }
             response.addResponseState(state);
         }
