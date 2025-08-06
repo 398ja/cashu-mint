@@ -35,16 +35,17 @@ public class LoadKeySetsTask implements Task<List<KeySet>> {
         log.debug("execute()");
         Mint mint = mintLoadService.load(mintId, false);
         Set<KeySet> keySets = mint.getKeySets();
-        keySets.forEach(keySet -> {
+        for (KeySet keySet : keySets) {
             if (keySet.getId() == null) {
+                String unit = keySet.getUnit();
                 try {
-                    String unit = keySet.getUnit();
                     keySet.setId(NUT01.generateKeySet(mintId, unit).getId());
                 } catch (CashuErrorException e) {
-                    throw new RuntimeException(e);
+                    log.error("Failed to generate KeySet for mintId {} and unit {}: {}", mintId, unit, e.getMessage(), e);
+                    throw e;
                 }
             }
-        });
+        }
         return new ArrayList<>(keySets);
     }
 }

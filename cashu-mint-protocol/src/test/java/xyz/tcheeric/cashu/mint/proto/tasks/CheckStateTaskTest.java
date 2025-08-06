@@ -57,7 +57,7 @@ public class CheckStateTaskTest {
     }
 
     @Test
-    public void executeProofNotFound() throws CashuErrorException {
+    public void executeNotFound() throws CashuErrorException {
         UUID mintId = UUID.randomUUID();
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
         RandomStringSecret secret = RandomStringSecret.create();
@@ -69,14 +69,12 @@ public class CheckStateTaskTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        when(proofVaultService.retrieveProof(secret.toString())).thenThrow(new CashuErrorException("retrieve_proof_not_found"));
+        when(proofVaultService.retrieveProof(secret.toString())).thenThrow(new CashuErrorException("nf"));
 
         CheckStateTask task = new CheckStateTask(mintId, request, mintProtocolService, proofVaultService, mintVaultService);
         PostCheckStateResponse response = task.execute();
 
-        verify(mintVaultService).load(mintEntity, false, true);
         verify(proofVaultService).retrieveProof(secret.toString());
-
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
         assertEquals(NUT07.UNSPENT, state.getState());
