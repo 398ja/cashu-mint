@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 
@@ -27,7 +28,8 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     public BlindSignature execute() throws CashuErrorException {
         PrivateKey privateKey = getPrivateKey(blindedMessage, mint);
         if (privateKey == null) {
-            throw new CashuErrorException("Private key not found");
+            ErrorResponse error = new ErrorResponse("sign_private_key_not_found");
+            throw new CashuErrorException(error.toJson());
         }
 
         byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());

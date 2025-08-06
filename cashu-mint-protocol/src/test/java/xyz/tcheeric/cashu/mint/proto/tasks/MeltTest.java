@@ -1,6 +1,8 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
@@ -15,6 +17,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
@@ -103,7 +106,7 @@ public class MeltTest {
     }
 
     @Test
-    public void mockMeltWithFees() throws CashuErrorException {
+    public void mockMeltWithFees() throws CashuErrorException, JsonProcessingException {
         Proof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
         proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
@@ -149,7 +152,49 @@ public class MeltTest {
 
         // Assert that a CashuErrorException is thrown
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        assertEquals("melt_proof_amount_error", exception.getMessage());
+        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        assertEquals("melt_proof_amount_error", error.code());
+        assertEquals("Proof amount error", error.message());
+    }
+
+    @Test
+    public void mockMeltNotPaid() throws CashuErrorException, JsonProcessingException {
+        Proof<RandomStringSecret> proof = new RSSProof();
+        proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setAmount(16);
+        proof.setKeySetId("004cf8cba2f93266");
+
+        PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
+        postMeltRequest.setQuoteId("0x1234567890");
+        postMeltRequest.setInputs(List.of(proof));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.getAmount(anyString())).thenReturn(16);
+        when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
+        when(mockGateway.checkPaymentStatus(anyString())).thenReturn(false);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mint mint = new Mint();
+        mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
+        Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
+
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        assertEquals("melt_invoice_not_paid_error", error.code());
+        assertEquals("Invoice not paid", error.message());
     }
 
     @Test
