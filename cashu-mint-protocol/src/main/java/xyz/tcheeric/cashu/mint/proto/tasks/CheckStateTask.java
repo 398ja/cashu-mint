@@ -58,27 +58,25 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
         mintVaultService.load(mintEntity, false, true);
 
         for (var hash : request.getHashToCurveSecrets()) {
+            PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
+            state.setHashToCurveSecret(hash);
             try {
                 ProofEntity proofEntity = proofVaultService.retrieveProof(hash.toString());
-                PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
                 if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
                     state.setState(NUT07.PENDING);
                 } else {
                     state.setState(NUT07.SPENT);
                 }
-                state.setHashToCurveSecret(hash);
                 state.setWitness(proofEntity.getWitness());
-                response.addResponseState(state);
             } catch (CashuErrorException e) {
-                if (e.getMessage() != null && e.getMessage().contains("not_found")) {
-                    PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
+                // Only treat as UNSPENT if the error indicates "not found"
+                if (e.getMessage() != null && e.getMessage().toLowerCase().contains("not found")) {
                     state.setState(NUT07.UNSPENT);
-                    state.setHashToCurveSecret(hash);
-                    response.addResponseState(state);
                 } else {
                     throw e;
                 }
             }
+            response.addResponseState(state);
         }
 
         return response;
