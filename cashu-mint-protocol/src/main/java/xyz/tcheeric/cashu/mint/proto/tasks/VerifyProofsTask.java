@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
@@ -42,7 +43,8 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         int blindedMessagesAmount = blindedMessages.stream().mapToInt(BlindedMessage::getAmount).sum();
 
         if (proofsAmount != blindedMessagesAmount) {
-            throw new CashuErrorException("validate_amounts_error");
+            ErrorResponse error = new ErrorResponse("validate_amounts_error");
+            throw new CashuErrorException(error.toJson());
         }
     }
 

@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
@@ -13,6 +14,7 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.Utils;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
@@ -109,7 +111,8 @@ public class MintTest {
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service);
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        assertEquals("mint_invoice_not_paid_error", exception.getMessage());
-
+        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        assertEquals("mint_invoice_not_paid_error", error.code());
+        assertEquals("Invoice not paid", error.message());
     }
 }

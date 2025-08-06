@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
@@ -40,11 +41,11 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
         try {
             PostMintResponse result = new PostMintResponse();
 
-            // If the invoice was not paid yet, Bob responds with an error.
-            // TODO - Encode the error message
+            // If the invoice was not paid yet, Bob responds with a structured error.
             Gateway gateway = mintProtocolService.createGateway(method);
             if (!gateway.checkPaymentStatus(postMintRequest.getQuoteId())) {
-                throw new CashuErrorException("mint_invoice_not_paid_error");
+                ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
+                throw new CashuErrorException(error.toJson());
             }
 
             List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
