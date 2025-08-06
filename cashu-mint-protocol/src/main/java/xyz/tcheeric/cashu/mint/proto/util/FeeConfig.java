@@ -31,7 +31,11 @@ public final class FeeConfig {
      * @return the fee reserve percent as a decimal (e.g. 0.05 for 5%)
      */
     public static double getFeeReservePercent() {
-        return Double.parseDouble(PROPERTIES.getProperty("cashu.melt.fee-reserve-percent",
-                String.valueOf(DEFAULT_PERCENT)));
+        String value = PROPERTIES.getProperty("cashu.melt.fee-reserve-percent", String.valueOf(DEFAULT_PERCENT));
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException e) {
+            return DEFAULT_PERCENT;
+        }
     }
 }
