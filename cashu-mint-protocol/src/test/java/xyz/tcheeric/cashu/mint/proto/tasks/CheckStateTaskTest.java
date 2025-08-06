@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,8 +51,36 @@ public class CheckStateTaskTest {
 
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
-        assertEquals(NUT07.UNSPENT, state.getState());
+        assertEquals(NUT07.PENDING, state.getState());
         assertEquals(secret, state.getHashToCurveSecret());
         assertEquals("wit", state.getWitness());
+    }
+
+    @Test
+    public void executeProofNotFound() throws CashuErrorException {
+        UUID mintId = UUID.randomUUID();
+        PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
+        RandomStringSecret secret = RandomStringSecret.create();
+        when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
+
+        MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
+        MintEntity mintEntity = Mockito.mock(MintEntity.class);
+        when(mintProtocolService.toMintEntity(any(Mint.class))).thenReturn(mintEntity);
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        when(proofVaultService.retrieveProof(secret.toString())).thenThrow(new CashuErrorException("retrieve_proof_not_found"));
+
+        CheckStateTask task = new CheckStateTask(mintId, request, mintProtocolService, proofVaultService, mintVaultService);
+        PostCheckStateResponse response = task.execute();
+
+        verify(mintVaultService).load(mintEntity, false, true);
+        verify(proofVaultService).retrieveProof(secret.toString());
+
+        assertEquals(1, response.getStates().size());
+        PostCheckStateResponse.ResponseState state = response.getStates().get(0);
+        assertEquals(NUT07.UNSPENT, state.getState());
+        assertEquals(secret, state.getHashToCurveSecret());
+        assertNull(state.getWitness());
     }
 }
