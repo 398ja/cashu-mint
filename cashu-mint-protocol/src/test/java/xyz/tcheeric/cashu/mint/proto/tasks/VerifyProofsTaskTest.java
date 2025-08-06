@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
@@ -24,10 +25,12 @@ import static org.mockito.ArgumentMatchers.any;
 
 public class VerifyProofsTaskTest {
 
+    private static final String VALID_KEYSET_ID = "0123456789abcdef";
+
     private RSSProof createProof(int amount) {
         RSSProof proof = new RSSProof();
         proof.setAmount(amount);
-        proof.setKeySetId("ks1");
+        proof.setKeySetId(VALID_KEYSET_ID);
         proof.setSecret(RandomStringSecret.create());
         proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
         proof.setWitness(new Witness());
@@ -37,7 +40,7 @@ public class VerifyProofsTaskTest {
     private BlindedMessage createBlindedMessage(int amount) {
         BlindedMessage bm = new BlindedMessage();
         bm.setAmount(amount);
-        bm.setKeySetId("ks1");
+        bm.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
         bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
         bm.setWitness(new Witness());
         return bm;

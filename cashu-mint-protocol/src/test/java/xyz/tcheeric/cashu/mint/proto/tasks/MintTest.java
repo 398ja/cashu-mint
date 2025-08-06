@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -33,11 +34,13 @@ import static org.mockito.Mockito.when;
 
 public class MintTest {
 
+    private static final String VALID_KEYSET_ID = "004cf8cba2f93266";
+
     @Test
     public void mockMint() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
-        BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage = new BlindedMessage(100, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
         PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage), List.of(secret, secret), List.of(r));
@@ -63,7 +66,7 @@ public class MintTest {
 
         BlindSignature blindSignature = response.getBlindSignatures().get(0);
         assertEquals(100, blindSignature.getAmount());
-        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId());
+        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId().toString());
     }
 
     @Test
@@ -86,7 +89,7 @@ public class MintTest {
     public void mockMintNotPaid() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
-        BlindedMessage blindedMessage = new BlindedMessage(100, "004cf8cba2f93266", PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage = new BlindedMessage(100, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
         PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage), List.of(secret, secret), List.of(r));
