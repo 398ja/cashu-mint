@@ -135,9 +135,10 @@ public class CashuController<T extends Secret> {
 
     @ExceptionHandler(CashuErrorException.class)
     public ResponseEntity<ErrorResponse> handleCashuError(CashuErrorException ex) {
+        ObjectMapper mapper = new ObjectMapper();
         try {
-            ErrorResponse error = MAPPER.readValue(ex.getMessage(), ErrorResponse.class);
-            HttpStatus status = ex.getErrorCode() == CashuErrorException.ErrorCode.NOT_FOUND
+            ErrorResponse error = mapper.readValue(ex.getMessage(), ErrorResponse.class);
+            HttpStatus status = "not found".equalsIgnoreCase(ex.getMessage())
                     ? HttpStatus.NOT_FOUND
                     : HttpStatus.INTERNAL_SERVER_ERROR;
             return new ResponseEntity<>(error, status);

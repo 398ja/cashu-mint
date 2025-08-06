@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -105,7 +106,7 @@ public class MeltTest {
     }
 
     @Test
-    public void mockMeltWithFees() throws CashuErrorException {
+    public void mockMeltWithFees() throws CashuErrorException, JsonProcessingException {
         Proof proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
         proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
@@ -157,7 +158,7 @@ public class MeltTest {
     }
 
     @Test
-    public void mockMeltNotPaid() throws CashuErrorException {
+    public void mockMeltNotPaid() throws CashuErrorException, JsonProcessingException {
         Proof<RandomStringSecret> proof = new RSSProof();
         proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
         proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));

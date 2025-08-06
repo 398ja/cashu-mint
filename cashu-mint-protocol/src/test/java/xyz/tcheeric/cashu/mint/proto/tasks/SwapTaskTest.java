@@ -93,7 +93,7 @@ public class SwapTaskTest {
     }
 
     @Test
-    public void executeMintNotFound() {
+    public void executeMintNotFound() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
