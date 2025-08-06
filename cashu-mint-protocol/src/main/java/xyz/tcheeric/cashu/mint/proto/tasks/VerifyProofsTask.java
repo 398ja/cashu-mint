@@ -7,6 +7,8 @@ import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
@@ -59,10 +61,12 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
     }
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
-        return switch (secret.getClass().getSimpleName()) {
-            case "P2PKSecret" -> (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
-            case "RandomStringSecret" -> (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
-            case null, default -> throw new IllegalArgumentException("Unsupported proof type");
-        };
+        if (secret instanceof P2PKSecret) {
+            return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
+        }
+        if (secret instanceof RandomStringSecret) {
+            return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
+        }
+        throw new IllegalArgumentException("Unsupported proof type");
     }
 }
