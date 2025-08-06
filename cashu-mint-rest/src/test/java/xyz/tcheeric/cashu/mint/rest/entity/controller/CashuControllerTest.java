@@ -5,9 +5,9 @@ import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.CashuErrorException.ErrorCode;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,7 +16,7 @@ public class CashuControllerTest {
 
     @Test
     void handleCashuErrorReturnsStructuredError() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class));
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
         ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
         CashuErrorException ex = new CashuErrorException(error.toJson());
 
@@ -30,12 +30,12 @@ public class CashuControllerTest {
 
     @Test
     void handleCashuErrorNotFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class));
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
         ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
         CashuErrorException ex = new CashuErrorException(error.toJson()) {
             @Override
-            public ErrorCode getErrorCode() {
-                return ErrorCode.NOT_FOUND;
+            public String getMessage() {
+                return "not found";
             }
         };
 
