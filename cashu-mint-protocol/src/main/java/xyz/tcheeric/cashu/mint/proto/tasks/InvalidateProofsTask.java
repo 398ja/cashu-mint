@@ -1,54 +1,63 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import cashu.util.Utils;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.Secret;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import lombok.AllArgsConstructor;
-import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
 
-@AllArgsConstructor
-@Log
-public class InvalidateProofsTask<T extends Secret> implements Task<Boolean> {
+@Slf4j
+public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T>>> {
 
     private final Mint mint;
     private final List<Proof<T>> proofs;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
+
+    public InvalidateProofsTask(@NonNull Mint mint,
+                                @NonNull List<Proof<T>> proofs) {
+        this(mint, proofs, new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public InvalidateProofsTask(@NonNull Mint mint,
+                                @NonNull List<Proof<T>> proofs,
+                                @NonNull MintVaultService mintVaultService,
+                                @NonNull ProofVaultService proofVaultService) {
+        this.mint = mint;
+        this.proofs = proofs;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
+    }
 
     @Override
-    public Boolean execute() throws CashuErrorException {
-        MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        AtomicReference<CashuErrorException> error = new AtomicReference<>();
-        proofs
-                .forEach(proof -> {
-                    String unblindedSignature = proof.getUnblindedSignature().toString();
-                    String secret = proof.getSecret().toString();
-                    byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
-                    ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
-                    FSProofVault proofVault = new FSProofVault(proofConfiguration);
-                    // We invalidate the proof by storing it in the vault
-                    log.log(Level.INFO, "Invalidating proof " + proof);
-                    try {
-                        proofVault.deletePending();
-                        proofVault.store();
-                    } catch (CashuErrorException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+    public List<Proof<T>> execute() throws CashuErrorException {
+        var mintEntity = mintVaultService.retrieveMint(mint.getId());
+        for (Proof<T> proof : proofs) {
+            String unblindedSignature = proof.getUnblindedSignature().toString();
+            String secret = proof.getSecret().toString();
 
-        if (error.get() != null) {
-            throw error.get();
+            ProofEntity proofEntity = new ProofEntity();
+            proofEntity.setAmount(proof.getAmount());
+            proofEntity.setSecret(secret);
+            if (proof.getWitness() != null) {
+                proofEntity.setWitness(proof.getWitness().toString());
+            }
+            proofEntity.setUnblindedSignature(unblindedSignature);
+            proofEntity.setMint(mintEntity);
+
+            proofVaultService.store(proofEntity);
+            proofVaultService.invalidate(proofEntity);
         }
 
-        return Boolean.TRUE;
+        return proofs;
     }
 }

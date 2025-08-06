@@ -1,14 +1,22 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostCheckStateResponse;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
 import lombok.NonNull;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
+import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.tasks.CheckStateTask;
 
+import java.util.UUID;
+
+@Nut(value = 7, description = "Check the state of a proof")
 public class NUT07 {
 
     public static final String UNSPENT = "UNSPENT";
@@ -16,39 +24,15 @@ public class NUT07 {
     public static final String SPENT = "SPENT";
 
 
-    public static PostCheckStateResponse checkState(@NonNull PostCheckStateRequest postCheckStateRequest) {
+    public static PostCheckStateResponse checkState(@NonNull UUID mintId, @NonNull PostCheckStateRequest postCheckStateRequest) throws CashuErrorException {
+        return new CheckStateTask(mintId, postCheckStateRequest).execute();
+    }
 
-        Mint mint = FSMintVault.load(false, true);
-        MintConfiguration mintConfiguration = null;
-        if (mint != null) {
-            mintConfiguration = new MintConfiguration(mint.getId());
-        }
-        ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration);
-        FSProofVault vault = new FSProofVault(proofConfiguration);
-        PostCheckStateResponse response = new PostCheckStateResponse();
-
-        postCheckStateRequest.getHashToCurveSecrets().forEach(hashToCurveSecret -> {
-            try {
-                String unblindedSignature = vault.retrieve(hashToCurveSecret.toString(), false);
-                PostCheckStateResponse.ResponseSatate responseState = new PostCheckStateResponse.ResponseSatate();
-                if (unblindedSignature == null) {
-                    unblindedSignature = vault.retrievePending(hashToCurveSecret.toString());
-                    if (unblindedSignature == null) {
-                        responseState.setState(UNSPENT);
-                    } else {
-                        responseState.setState(PENDING);
-                    }
-                } else {
-                    responseState.setState(SPENT);
-                }
-                responseState.setHashToCurveSecret(hashToCurveSecret);
-                String witness = vault.retrieveWitness(hashToCurveSecret.toString());
-                responseState.setWitness(witness);
-                response.addResponseState(responseState);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        return response;
+    public static PostCheckStateResponse checkState(@NonNull UUID mintId,
+                                                    @NonNull PostCheckStateRequest postCheckStateRequest,
+                                                    @NonNull MintProtocolService mintProtocolService,
+                                                    @NonNull ProofVaultService proofVaultService,
+                                                    @NonNull MintVaultService mintVaultService) throws CashuErrorException {
+        return new CheckStateTask(mintId, postCheckStateRequest, mintProtocolService, proofVaultService, mintVaultService).execute();
     }
 }

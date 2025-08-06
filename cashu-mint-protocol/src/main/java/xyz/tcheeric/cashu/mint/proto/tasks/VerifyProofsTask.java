@@ -2,28 +2,31 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.extern.java.Log;
-import xyz.tcheeric.cashu.common.model.BlindedMessage;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.P2PKSecret;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.RandomStringSecret;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostSwapRequest;
+import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 import java.util.List;
 
-@Log
+@Slf4j
 @AllArgsConstructor
 public class VerifyProofsTask<T extends Secret> implements Task<Void> {
 
     private final Mint mint;
     private final PostSwapRequest<T> request;
+    private final MintProtocolService mintProtocolService;
 
     @Override
     public Void execute() throws CashuErrorException {
@@ -42,7 +45,8 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         int blindedMessagesAmount = blindedMessages.stream().mapToInt(BlindedMessage::getAmount).sum();
 
         if (proofsAmount != blindedMessagesAmount) {
-            throw new CashuErrorException("validate_amounts_error");
+            ErrorResponse error = new ErrorResponse("validate_amounts_error");
+            throw new CashuErrorException(error.toJson());
         }
     }
 
@@ -59,10 +63,12 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
     }
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
-        return switch (secret.getClass().getSimpleName()) {
-            case "P2PKSecret" -> (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
-            case "RandomStringSecret" -> (SpendingCondition<T>) new RSSSpendingCondition(mint);
-            case null, default -> throw new IllegalArgumentException("Unsupported proof type");
-        };
+        if (secret instanceof P2PKSecret) {
+            return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
+        }
+        if (secret instanceof RandomStringSecret) {
+            return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
+        }
+        throw new IllegalArgumentException("Unsupported proof type");
     }
 }

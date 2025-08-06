@@ -1,36 +1,58 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.PrivateKey;
-import xyz.tcheeric.cashu.common.model.Proof;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMeltResponse;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
-import cashu.util.ThreadUtil;
-import lombok.NonNull;
-import lombok.extern.java.Log;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 
 import java.util.List;
 
-import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
-
 // TEST -
-@Log
+@Slf4j
 public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
     private final Mint mint;
+    private final MintProtocolService mintProtocolService;
+    private final MintLoadService mintLoadService;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
 
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint) {
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService) {
+        this(postMeltRequest, method, mint, mintProtocolService, new DefaultMintLoadService(), new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.mint = mint;
+        this.mintLoadService = mintLoadService;
+        this.mintProtocolService = mintProtocolService;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     @Override
@@ -41,36 +63,47 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
             for (Proof<T> proof : proofsToMelt) {
                 if (!verify(proof)) {
-                    throw  new CashuErrorException("melt_proof_verification_error:"+proof);
+                    ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
+                    throw new CashuErrorException(error.toJson());
                 }
             }
 
             var keySetId = proofsToMelt.get(0).getKeySetId();
-            var keyset = NUT02.keys(keySetId);
+            var keyset = mintLoadService.keySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
-            var gateway = createGateway(method);
+            var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
-            var fee_reserve = gateway.getFeeReserve(quoteId); // TODO - Add 5% (configurable)
-            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum() + postMeltRequest.getFees(keyset) + fee_reserve;
+            var fee_reserve = gateway.getFeeReserve(quoteId);
+            var calculated_fee_reserve = fee_reserve + (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
+            log.debug("Processing melt quote {} for request {} with fee reserve {}", quoteId, request, calculated_fee_reserve);
+            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum()
+                    + postMeltRequest.getFees(keyset) + calculated_fee_reserve;
 
             if (totalAmount < amount + fee_reserve) {
-                throw new CashuErrorException("melt_proof_amount_error");
+                ErrorResponse error = new ErrorResponse("melt_proof_amount_error");
+                throw new CashuErrorException(error.toJson());
             }
 
             gateway.pay(quoteId);
 
-            // Invalidate the proofsToMelt.
-            new InvalidateProofsTask(mint, proofsToMelt).execute();
+            boolean paid = gateway.checkPaymentStatus(quoteId);
+            if (!paid) {
+                ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error");
+                throw new CashuErrorException(error.toJson());
+            }
 
-            return new PostMeltResponse(gateway.checkPaymentStatus(quoteId), gateway.getPaymentPreimage(quoteId));
+            // Invalidate the proofsToMelt.
+            new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
+
+            return new PostMeltResponse(paid, gateway.getPaymentPreimage(quoteId));
         } finally {
             ThreadUtil.MINT_MELT_LOCK.unlock();
         }
     }
 
-    public boolean verify(@NonNull Proof proof) {
-        PrivateKey privateKey = MintProtocolUtil.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
+    public boolean verify(@NonNull Proof proof) throws CashuErrorException {
+        PrivateKey privateKey = mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {
             return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().toBytes());
         }

@@ -1,23 +1,23 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.annotation.Nut;
-import xyz.tcheeric.cashu.common.model.KeySet;
-import xyz.tcheeric.cashu.common.model.Keys;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
-import lombok.NonNull;
-import lombok.extern.java.Log;
 
-import java.util.logging.Level;
+import java.util.UUID;
 
 @Nut(1)
-@Log
+@Slf4j
 public class NUT01 {
 
-    public static KeySet generateKeySet(@NonNull String unit) throws CashuErrorException {
-        log.log(Level.FINE, "generateKeySet({0})", unit);
-        return new KeysetGeneratorTask(unit).execute();
+    public static KeySet generateKeySet(@NonNull UUID mintId, @NonNull String unit) throws CashuErrorException {
+        log.debug("generateKeySet({}, {})", mintId, unit);
+        return new KeysetGeneratorTask(mintId.toString(), unit).execute();
     }
 
     public static KeySet generateKeySet(@NonNull String unit, @NonNull Keys keys) {

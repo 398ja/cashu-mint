@@ -1,53 +1,46 @@
 package xyz.tcheeric.cashu.mint.proto.nut;
 
-import xyz.tcheeric.cashu.common.annotation.Nut;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.PaymentMethod;
-import xyz.tcheeric.cashu.common.model.Secret;
-import xyz.tcheeric.cashu.common.model.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.common.model.rest.PostMintRequest;
-import xyz.tcheeric.cashu.common.model.rest.PostMintResponse;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.gateway.Gateway;
-import xyz.tcheeric.cashu.mint.proto.tasks.MintTask;
-import xyz.tcheeric.cashu.vault.impl.fs.FSMintVault;
 import lombok.NonNull;
-import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.annotation.Nut;
+import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
+import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteStatusTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteTask;
+import xyz.tcheeric.cashu.mint.proto.tasks.MintTokensTask;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 
-
-import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createGateway;
+import java.util.UUID;
 
 @Nut(value = 4, description = "Mint tokens")
-@Log
+@Slf4j
 public class NUT04 {
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) {
-        var gateway = createGateway(method);
-        var quoteId = gateway.createMintQuote(amount, null);
-        var request = gateway.getRequest(quoteId);
-        var expiry = gateway.getPaymentExpiry(quoteId);
-
-        return PostMintQuoteResponse.builder()
-                .quoteId(quoteId)
-                .request(request)
-                .expiry(expiry) // TODO - check if this is correct
-                .build();
+        return new MintQuoteTask(amount, method).execute();
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
-        Gateway gateway = createGateway(method);
-        return PostMintQuoteResponse
-                .builder()
-                .quoteId(quoteId)
-                .request(gateway.getRequest(quoteId))
-                .expiry(gateway.getPaymentExpiry(quoteId))
-                .paid(gateway.checkPaymentStatus(quoteId))
-                .build();
+        return new MintQuoteStatusTask(quoteId, method).execute();
     }
 
-    public static <T extends Secret> PostMintResponse mint(@NonNull PostMintRequest<T> postMintRequest, @NonNull PaymentMethod method) throws CashuErrorException {
-        Mint mint = FSMintVault.load(false, false);
-        return new MintTask(postMintRequest, method, mint).execute();
+    public static <T extends Secret> PostMintResponse mint(@NonNull UUID mintId, @NonNull PostMintRequest<T> postMintRequest, @NonNull PaymentMethod method) throws CashuErrorException {
+        return mint(mintId, postMintRequest, method, new DefaultMintLoadService(), MintProtocolServiceFactory.getInstance());
+    }
+
+    public static <T extends Secret> PostMintResponse mint(@NonNull UUID mintId,
+                                                           @NonNull PostMintRequest<T> postMintRequest,
+                                                           @NonNull PaymentMethod method,
+                                                           @NonNull MintLoadService mintLoadService,
+                                                           @NonNull MintProtocolService mintProtocolService) throws CashuErrorException {
+        return new MintTokensTask<>(mintId, postMintRequest, method, mintLoadService, mintProtocolService).execute();
     }
 
 }

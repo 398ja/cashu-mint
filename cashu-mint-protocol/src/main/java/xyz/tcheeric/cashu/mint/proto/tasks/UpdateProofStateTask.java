@@ -1,29 +1,23 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import cashu.util.Utils;
-import xyz.tcheeric.cashu.common.model.Mint;
-import xyz.tcheeric.cashu.common.model.Proof;
+import lombok.RequiredArgsConstructor;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.vault.config.MintConfiguration;
-import xyz.tcheeric.cashu.vault.config.ProofConfiguration;
-import xyz.tcheeric.cashu.vault.impl.fs.FSProofVault;
-import lombok.AllArgsConstructor;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
-@AllArgsConstructor
-public class UpdateProofStateTask implements Task<Boolean> {
+@RequiredArgsConstructor
+public class UpdateProofStateTask<T extends Secret> implements Task<Boolean> {
     private final Mint mint;
-    private final Proof proof;
+    private final Proof<T> proof;
 
     public Boolean execute() throws CashuErrorException {
-        String unblindedSignature = proof.getUnblindedSignature().toString();
-        String secret = proof.getSecret().toString();
-        byte[] hashToCurveSecret = BDHKEUtils.hashToCurve(secret);
-
-        MintConfiguration mintConfiguration = new MintConfiguration(mint.getId());
-        ProofConfiguration proofConfiguration = new ProofConfiguration(mintConfiguration, unblindedSignature, Utils.bytesToHexString(hashToCurveSecret));
-        FSProofVault vault = new FSProofVault(proofConfiguration);
+        ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, MintProtocolUtil.toMintEntity(mint));
+        DBProofVault vault = new DBProofVault(proofEntity);
         vault.storePending();
         return Boolean.TRUE;
     }

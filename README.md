@@ -21,29 +21,54 @@ OS name: "linux", version: "6.5.0-28-generic", arch: "amd64", family: "unix"
 ```
 
 ## Modules
-- ```cashu-mint-admin```: admin interface
-- ```cashu-mint-protocol```: protocol implementation
-- ```cashu-mint-rest```: REST API with wallet endpoints
-- ```cashu-mint-test```: unit test module (TODO)
-- ```cashu-mint-vault```: vault implementation
+The project currently contains two Maven modules:
+- `cashu-mint-protocol`: protocol implementation
+- `cashu-mint-rest`: REST API with wallet endpoints
 
 ## Configuration
+The mint behavior can be adjusted via the `app.properties` file located in the
+`cashu-mint-protocol` module. To control the fee reserve applied during melts
+(NUT-05), set the following property:
 
+```
+cashu.melt.fee-reserve-percent=0.05
+```
 
+The value represents the percentage of the payment amount that will be added to
+the fee reserve (5% by default).
 ## Build and install cashu-mint
-To build and install the `cashu-mint`, you need to create a vault on the file system. The vault is used to store the private keys. For now, this is just a simple file system based vault, *not suitable* for production use. 
+Clone the repository and build the project using Maven:
 
-To bootstrap a new vault, you need to run the ```VaultUtil``` class from the ```cashu-mint-admin``` module. 
+```bash
+git clone https://github.com/tcheeric/cashu-mint.git
+cd cashu-mint
+mvn clean install
+cd cashu-mint-rest
+mvn spring-boot:run
+```
 
-Then follow the steps below to build and install the `cashu-mint`.
+## Running with Docker
+
+The REST service and a PostgreSQL database can be started with `docker-compose`.
+
 ```
-$ cd <your_git_home_dir>
-$ git clone https://github.com/tcheeric/cashu-mint.git
-$ cd cashu-mint
-$ mvn clean install
-$ cd cashu-mint-rest
-$ mvn spring-boot:run
+$ docker-compose up --build
 ```
+
+The API will be available on [http://localhost:7777](http://localhost:7777).
+
+## Running the tests
+Execute the unit tests using Maven:
+```bash
+mvn test
+```
+
+### Code coverage
+Generate Jacoco reports with:
+```bash
+mvn verify
+```
+Reports are written to `target/site/jacoco` in each module.
 
 ## Supported NUTs
 - NUT-00: Notation, Utilization, and Terminology
@@ -53,7 +78,27 @@ $ mvn spring-boot:run
 - NUT-04: Mint tokens
 - NUT-05: Melt tokens
 - NUT-06: Mint information
+- [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md): Token state check
+- [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md): Spending conditions
+- [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md): Pay to Public Key (P2PK)
 
+## Sample client usage
+The `CashuClient` class provides helper methods for interacting with the REST API.
+Retrieving mint information from the `/info` endpoint can be done as follows:
+
+```java
+CashuClient client = new CashuClient();
+MintInfo info = client.info();
+System.out.println("Mint name: " + info.getName());
+```
+
+Alternatively, the `CashuController` can be wired directly and its `info()`
+method invoked to obtain the same `MintInfo` instance:
+
+```java
+CashuController<?> controller = new CashuController<>();
+MintInfo info = controller.info().getBody();
+```
 
 ## TODO
 In no particular order:
