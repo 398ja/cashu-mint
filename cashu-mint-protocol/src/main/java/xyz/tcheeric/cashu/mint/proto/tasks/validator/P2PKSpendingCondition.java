@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.Schnorr;
 import xyz.tcheeric.cashu.crypto.util.Utils;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,8 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
         // If the number of valid signatures is greater or equal to the number specified in n_sigs, the transaction is valid.
         if (validSignatureCount < n_sigs) {
-            throw new CashuErrorException("verify_invalid_number_of_signatures");
+            ErrorResponse error = new ErrorResponse("verify_invalid_number_of_signatures");
+            throw new CashuErrorException(error.toJson());
         }
 
         log.info("Multisig Verification passed");
@@ -81,7 +83,8 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             return;
         }
 
-        throw new CashuErrorException("verify_locktime_not_reached");
+        ErrorResponse error = new ErrorResponse("verify_locktime_not_reached");
+        throw new CashuErrorException(error.toJson());
     }
 
     private void verifyRefundPublicKey(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
@@ -101,9 +104,10 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
                 int validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, secretBytes);
 
-                if (validSignatureCount == 0) {
-                    throw new CashuErrorException("verify_invalid_refund_signature");
-                }
+                    if (validSignatureCount == 0) {
+                        ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
+                        throw new CashuErrorException(error.toJson());
+                    }
 
                 if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1) {
                     if (blindedMessages == null || blindedMessages.isEmpty()) {
@@ -118,7 +122,8 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                         byte[] outData = bm.getBlindedMessage().toBytes();
                         validSignatureCount = getValidSignatureCount(refundPublicKeys, outSigs, outData);
                         if (validSignatureCount == 0) {
-                            throw new CashuErrorException("verify_invalid_refund_signature");
+                            ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
+                            throw new CashuErrorException(error.toJson());
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -13,6 +14,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -86,6 +89,25 @@ public class SwapTaskTest {
             Mockito.verify(invalidateCons.constructed().get(0)).execute();
             Mockito.verify(signCons.constructed().get(0)).execute();
             Mockito.verify(feesCons.constructed().get(0)).execute();
+        }
+    }
+
+    @Test
+    public void executeMintNotFound() {
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
+
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(null);
+
+        SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
+
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        try {
+            ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+            assertEquals("swap_mint_not_found", error.code());
+            assertEquals("Mint not found", error.message());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

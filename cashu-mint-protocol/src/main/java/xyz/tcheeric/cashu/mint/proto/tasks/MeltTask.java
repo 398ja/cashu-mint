@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
@@ -61,7 +62,8 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
             for (Proof<T> proof : proofsToMelt) {
                 if (!verify(proof)) {
-                    throw  new CashuErrorException("melt_proof_verification_error:"+proof);
+                    ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
+                    throw new CashuErrorException(error.toJson());
                 }
             }
 
@@ -75,15 +77,22 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum() + postMeltRequest.getFees(keyset) + fee_reserve;
 
             if (totalAmount < amount + fee_reserve) {
-                throw new CashuErrorException("melt_proof_amount_error");
+                ErrorResponse error = new ErrorResponse("melt_proof_amount_error");
+                throw new CashuErrorException(error.toJson());
             }
 
             gateway.pay(quoteId);
 
+            boolean paid = gateway.checkPaymentStatus(quoteId);
+            if (!paid) {
+                ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error");
+                throw new CashuErrorException(error.toJson());
+            }
+
             // Invalidate the proofsToMelt.
             new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
 
-            return new PostMeltResponse(gateway.checkPaymentStatus(quoteId), gateway.getPaymentPreimage(quoteId));
+            return new PostMeltResponse(paid, gateway.getPaymentPreimage(quoteId));
         } finally {
             ThreadUtil.MINT_MELT_LOCK.unlock();
         }

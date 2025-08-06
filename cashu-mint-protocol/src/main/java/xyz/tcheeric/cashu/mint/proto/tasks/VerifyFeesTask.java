@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
@@ -32,7 +33,8 @@ public class VerifyFeesTask<T extends Secret> implements Task<Void> {
         var sum_outputs = response.getBlindSignatures().stream().mapToInt(blindSignature -> blindSignature.getAmount()).sum();
 
         if (sum_inputs - fees != sum_outputs) {
-            throw new CashuErrorException("validate_fees_error");
+            ErrorResponse error = new ErrorResponse("validate_fees_error");
+            throw new CashuErrorException(error.toJson());
         }
     }
 }

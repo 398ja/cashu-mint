@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.PaymentMethod;
@@ -17,6 +19,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
@@ -131,7 +134,17 @@ public class CashuController<T extends Secret> {
     }
 
     @ExceptionHandler(CashuErrorException.class)
-    public ResponseEntity<String> handleCashuError(CashuErrorException ex) {
-        return new ResponseEntity<>(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ErrorResponse> handleCashuError(CashuErrorException ex) {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            ErrorResponse error = mapper.readValue(ex.getMessage(), ErrorResponse.class);
+            HttpStatus status = ex.getErrorCode() == CashuErrorException.ErrorCode.NOT_FOUND
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.INTERNAL_SERVER_ERROR;
+            return new ResponseEntity<>(error, status);
+        } catch (JsonProcessingException e) {
+            ErrorResponse error = new ErrorResponse("internal_error");
+            return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

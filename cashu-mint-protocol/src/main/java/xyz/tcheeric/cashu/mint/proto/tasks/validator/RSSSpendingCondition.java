@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -42,7 +43,8 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
             // Not found
         }
         if (proofEntity != null) {
-            throw new CashuErrorException("verify_proof_already_used_error");
+            ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
+            throw new CashuErrorException(error.toJson());
         }
 
         // Check if keyset id is valid
@@ -55,10 +57,12 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
                 }
             }
             if (!found) {
-                throw new CashuErrorException("verify_proof_key_set_not_found:" + proof.getKeySetId());
+                ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
+                throw new CashuErrorException(error.toJson());
             }
         } else {
-            throw new CashuErrorException("verify_proof_key_set_id_error");
+            ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
+            throw new CashuErrorException(error.toJson());
         }
 
         // Verify the proof
@@ -69,7 +73,8 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         byte[] C = proof.getUnblindedSignature().toBytes();
         if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
-            throw new CashuErrorException("verify_proof_failed_error");
+            ErrorResponse error = new ErrorResponse("verify_proof_failed_error");
+            throw new CashuErrorException(error.toJson());
         }
     }
 
