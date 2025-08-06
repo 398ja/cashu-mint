@@ -20,7 +20,6 @@
         <maven.compiler.target>21</maven.compiler.target>
         <lombok.version>1.18.36</lombok.version>
 
-        <tcheeric.common.version>1.0-SNAPSHOT</tcheeric.common.version>
         <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
 
         <commong-config.version>1.0-SNAPSHOT</commong-config.version>
