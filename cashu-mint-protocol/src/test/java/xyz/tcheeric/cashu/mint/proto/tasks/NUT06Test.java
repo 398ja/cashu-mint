@@ -35,5 +35,8 @@ class NUT06Test {
         assertEquals("bolt11", method.getMethod());
         assertEquals("sat", method.getUnit());
         assertEquals(0, method.getMinAmount());
+
+        MintInfo.Nut nut5 = nuts.get("5");
+        assertEquals(0.05d, nut5.getFeeReservePercent(), 0.0001);
     }
 }

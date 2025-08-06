@@ -32,7 +32,7 @@ public class MeltQuoteTaskTest {
         PostMeltQuoteResponse resp = task.execute();
 
         assertEquals("qid", resp.getQuoteId());
-        assertEquals(1, resp.getFeeReserve());
+        assertEquals(2, resp.getFeeReserve());
         assertEquals(2L, resp.getExpiry());
         assertEquals(3, resp.getAmount());
     }

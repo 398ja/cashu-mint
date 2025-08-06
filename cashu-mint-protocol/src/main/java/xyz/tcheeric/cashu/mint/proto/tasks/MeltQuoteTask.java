@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 
 /**
  * Task used for generating melt quotes via the configured payment gateway.
@@ -38,6 +39,7 @@ public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
         int feeReserve = gateway.getFeeReserve(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
         int amount = gateway.getAmount(quoteId);
+        feeReserve += (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
 
         return PostMeltQuoteResponse.builder()
                 .quoteId(quoteId)
