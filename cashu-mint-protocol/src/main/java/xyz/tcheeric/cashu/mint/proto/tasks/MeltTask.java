@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 
 import java.util.List;
 
@@ -71,8 +72,11 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
-            var fee_reserve = gateway.getFeeReserve(quoteId); // TODO - Add 5% (configurable)
-            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum() + postMeltRequest.getFees(keyset) + fee_reserve;
+            var fee_reserve = gateway.getFeeReserve(quoteId);
+            fee_reserve += (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
+            log.debug("Processing melt quote {} for request {} with fee reserve {}", quoteId, request, fee_reserve);
+            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum()
+                    + postMeltRequest.getFees(keyset) + fee_reserve;
 
             if (totalAmount < amount + fee_reserve) {
                 throw new CashuErrorException("melt_proof_amount_error");

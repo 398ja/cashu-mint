@@ -26,8 +26,16 @@ The project currently contains two Maven modules:
 - `cashu-mint-rest`: REST API with wallet endpoints
 
 ## Configuration
+The mint behavior can be adjusted via the `app.properties` file located in the
+`cashu-mint-protocol` module. To control the fee reserve applied during melts
+(NUT-05), set the following property:
 
+```
+cashu.melt.fee-reserve-percent=0.05
+```
 
+The value represents the percentage of the payment amount that will be added to
+the fee reserve (5% by default).
 ## Build and install cashu-mint
 Clone the repository and build the project using Maven:
 

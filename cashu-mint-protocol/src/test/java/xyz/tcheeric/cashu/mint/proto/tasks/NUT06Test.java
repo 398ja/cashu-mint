@@ -10,9 +10,9 @@ import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(classes = {NUT06.class, DefaultMintInfoService.class})
 @EnableConfigurationProperties(value = MintInfo.class)
@@ -35,5 +35,8 @@ class NUT06Test {
         assertEquals("bolt11", method.getMethod());
         assertEquals("sat", method.getUnit());
         assertEquals(0, method.getMinAmount());
+
+        MintInfo.Nut nut5 = nuts.get("5");
+        assertEquals(0.05d, nut5.getFeeReservePercent(), 0.0001);
     }
 }
