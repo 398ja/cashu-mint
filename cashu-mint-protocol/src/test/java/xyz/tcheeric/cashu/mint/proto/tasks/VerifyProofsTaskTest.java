@@ -11,10 +11,13 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
+import xyz.tcheeric.cashu.common.P2PKProof;
+import xyz.tcheeric.cashu.common.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
@@ -44,6 +47,19 @@ public class VerifyProofsTaskTest {
         bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
         bm.setWitness(new Witness());
         return bm;
+    }
+
+    private P2PKProof createP2PKProof(int amount) {
+        P2PKProof proof = new P2PKProof();
+        proof.setAmount(amount);
+        proof.setKeySetId(VALID_KEYSET_ID);
+        P2PKSecret secret = new P2PKSecret(new byte[32]);
+        secret.setNSigs(1);
+        secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_INPUTS);
+        proof.setSecret(secret);
+        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        proof.setWitness(new Witness());
+        return proof;
     }
 
     @Test
@@ -98,6 +114,26 @@ public class VerifyProofsTaskTest {
                 (mock, ctx) -> Mockito.doThrow(new CashuErrorException("fail")).when(mock).verify(any()))) {
             VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
             assertThrows(CashuErrorException.class, task::execute);
+        }
+    }
+
+    @Test
+    public void executeP2PKSuccess() throws CashuErrorException {
+        Mint mint = new Mint();
+        PostSwapRequest<P2PKSecret> request = Mockito.mock(PostSwapRequest.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+
+        P2PKProof proof = createP2PKProof(10);
+        BlindedMessage bm = createBlindedMessage(10);
+
+        Mockito.when(request.getInputs()).thenReturn(List.of(proof));
+        Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
+
+        try (MockedConstruction<P2PKSpendingCondition> cons = Mockito.mockConstruction(P2PKSpendingCondition.class,
+                (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
+            VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(mint, request, service);
+            assertDoesNotThrow(task::execute);
+            Mockito.verify(cons.constructed().get(0)).verify(proof);
         }
     }
 }
