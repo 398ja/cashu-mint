@@ -51,7 +51,7 @@ public class CheckStateTaskTest {
 
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
-        assertEquals(NUT07.UNSPENT, state.getState());
+        assertEquals(NUT07.PENDING, state.getState());
         assertEquals(secret, state.getHashToCurveSecret());
         assertEquals("wit", state.getWitness());
     }

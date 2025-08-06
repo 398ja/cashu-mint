@@ -38,6 +38,7 @@ mint:
           min_amount: 100
           max_amount: 10000
       disabled: false
+      fee_reserve_percent: 0.05
     7:
       supported: true
     8:

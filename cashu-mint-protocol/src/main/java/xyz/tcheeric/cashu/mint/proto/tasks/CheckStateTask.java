@@ -63,7 +63,7 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
             try {
                 ProofEntity proofEntity = proofVaultService.retrieveProof(hash.toString());
                 if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
-                    state.setState(NUT07.UNSPENT);
+                    state.setState(NUT07.PENDING);
                 } else {
                     state.setState(NUT07.SPENT);
                 }
