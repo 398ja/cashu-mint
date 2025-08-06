@@ -38,6 +38,8 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
@@ -51,6 +53,10 @@ public class CashuController<T extends Secret> {
 
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
+
+    public CashuController() {
+        this(new NUT06(new DefaultMintInfoService(new MintInfo())), new DefaultMintLoadService());
+    }
 
     public CashuController(NUT06 nut06, MintLoadService mintLoadService) {
         this.nut06 = nut06;

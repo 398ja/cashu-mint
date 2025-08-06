@@ -96,7 +96,7 @@ Alternatively, the `CashuController` can be wired directly and its `info()`
 method invoked to obtain the same `MintInfo` instance:
 
 ```java
-CashuController<?> controller = new CashuController<>(new NUT06(new DefaultMintInfoService(new MintInfo())));
+CashuController<?> controller = new CashuController<>();
 MintInfo info = controller.info().getBody();
 ```
 
