@@ -111,7 +111,14 @@ public class MintTest {
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service);
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        ErrorResponse error;
+        try {
+            error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        } catch (Exception e) {
+            // Fail the test with a clear message if JSON parsing fails
+            org.junit.jupiter.api.Assertions.fail("Failed to parse exception message as JSON: " + exception.getMessage(), e);
+            return; // Unreachable, but required for compilation
+        }
         assertEquals("mint_invoice_not_paid_error", error.code());
         assertEquals("Invoice not paid", error.message());
     }
