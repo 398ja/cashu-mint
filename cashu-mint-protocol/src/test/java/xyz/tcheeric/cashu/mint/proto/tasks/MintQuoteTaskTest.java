@@ -4,8 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.gateway.common.Gateway;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

@@ -21,11 +21,11 @@ import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.gateway.common.Gateway;
 
 import java.util.List;
 import java.util.UUID;
