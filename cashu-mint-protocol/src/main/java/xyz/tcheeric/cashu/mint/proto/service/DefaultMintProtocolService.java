@@ -1,17 +1,16 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
-import org.springframework.stereotype.Service;
-
 import lombok.NonNull;
+import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.gateway.Gateway;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.gateway.common.Gateway;
 
 @Service
 public class DefaultMintProtocolService implements MintProtocolService {
