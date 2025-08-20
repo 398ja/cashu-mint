@@ -2,7 +2,10 @@
 
 This repository implements the Cashu protocol. When using GitHub Copilot, keep the following guidelines in mind:
 
-- Consult the Cashu NUT specifications:
+- Use Conventional Commits for titles and commit messages (e.g., `feat(scope): message`).
+- Ensure pull requests include a clear description and test results.
+- Reference related issues using `Closes #123` when applicable.
+- When implementing features, consult the NUT specifications:
   - [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md)
   - [NUT-01](https://github.com/cashubtc/nuts/blob/main/01.md)
   - [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md)
