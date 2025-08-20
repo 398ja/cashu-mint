@@ -1,0 +1,6 @@
+bug:
+  - '(?i)\bbug\b'
+feature:
+  - '(?i)\b(feature|enhancement)\b'
+question:
+  - '(?i)\bquestion\b'
