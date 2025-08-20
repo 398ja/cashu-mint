@@ -4,6 +4,7 @@ This repository implements the [Nostr protocol](https://github.com/nostr-protoco
 keep the following guidelines in mind:
 
 - Adhere to the [NIP specifications](https://github.com/nostr-protocol/nips/blob/master/01.md) and other relevant NIPs.
+- Consult the [Cashu NUT specifications](https://github.com/cashubtc/nuts/tree/main) for protocol details.
 - Run `mvn -q verify` before committing code.
 - Document new features in the README or related docs.
 - Ensure events remain compliant with the NIP guidelines and remove unused imports.
