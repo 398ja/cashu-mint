@@ -1,4 +1,6 @@
-# Copilot Instructions
+# GitHub Copilot Instructions
+
+This repository implements the Cashu protocol. When using GitHub Copilot, keep the following guidelines in mind:
 
 - Use Conventional Commits for titles and commit messages (e.g., `feat(scope): message`).
 - Ensure pull requests include a clear description and test results.
@@ -29,3 +31,9 @@
   - [NUT-22](https://github.com/cashubtc/nuts/blob/main/22.md)
   - [NUT-23](https://github.com/cashubtc/nuts/blob/main/23.md)
   - [NUT-24](https://github.com/cashubtc/nuts/blob/main/24.md)
+- Run `mvn -q verify` before committing code.
+- Document new features in the README or related docs.
+- Maintain Java 21 compatibility and update `pom.xml` for new dependencies.
+- Remove unused imports.
+
+These instructions help Copilot produce code that respects the repository's conventions and protocol requirements.

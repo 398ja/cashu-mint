@@ -1,15 +1,17 @@
-## Summary
+## Why now?
+<!-- What motivated this change? -->
 
-Describe the changes in this pull request.
+## What changed?
+<!-- Provide a concise summary of the changes. -->
 
-## Testing
+## Breaking changes
+- [ ] BREAKING: this change introduces breaking API or behavior
 
-- [ ] `mvn -q verify`
+## Review focus
+<!-- Highlight areas that need the most attention from reviewers. -->
 
-## Breaking Changes
-
-- [ ] None
-
-## Issues
-
-Closes #
+## Checklist
+- [ ] Tests added or updated
+- [ ] `mvn -q verify` passes
+- [ ] Documentation updated (README, docs, etc.)
+- [ ] No unused imports
