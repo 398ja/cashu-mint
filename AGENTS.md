@@ -44,6 +44,7 @@
 - Maintain the versions in the configuration section of the pom.xml files.
 - Always make sure that the events are compliant with the Nostr protocol specifications, and that the events are valid according to the NIP specifications.
 - Always remove unused imports
+- Add a comment on top of every test method to describe the test in plain English.
 
 ## Pull Requests
 
