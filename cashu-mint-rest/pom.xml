@@ -18,19 +18,19 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.17.0</version>
+            <version>${commons-lang3.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
-            <version>1.9.4</version> <!-- Use the latest stable version -->
+            <version>${commons-beanutils.version}</version> <!-- Use the latest stable version -->
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
-            <version>${project.version}</version>
+            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
