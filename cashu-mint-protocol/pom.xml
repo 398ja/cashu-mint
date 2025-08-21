@@ -16,7 +16,6 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <cashu-gateway.version>1.0-SNAPSHOT</cashu-gateway.version>
     </properties>
 
     <dependencies>
