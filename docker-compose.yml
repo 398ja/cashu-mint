@@ -51,6 +51,21 @@ services:
     ports:
       - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
     restart: unless-stopped
+    profiles:
+      - prod
+
+  phoenixd-mock:
+    image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
+    environment:
+      PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
+      SERVER_ADDRESS: 0.0.0.0
+    volumes:
+      - phoenixd-data:/root/.phoenixd
+    ports:
+      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
+    restart: unless-stopped
+    profiles:
+      - dev
 
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
