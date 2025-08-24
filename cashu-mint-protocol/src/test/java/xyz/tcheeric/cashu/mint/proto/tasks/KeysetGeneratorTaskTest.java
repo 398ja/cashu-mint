@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -20,7 +21,7 @@ public class KeysetGeneratorTaskTest {
      * Executes a test case to verify the successful execution of the `KeysetGeneratorTask`.
      *
      * **Description**
-     * This test simulates the behavior of the `KeysetGeneratorTask` when it successfully retrieves a `KeySet` from the database. It uses mocked static methods and objects to simulate database interactions.
+     * This test simulates the behavior of the `KeysetGeneratorTask` when it successfully retrieves a `KeySet` from the database. It uses mocked construction and static methods to simulate database interactions.
      * It ensures that the `KeysetGeneratorTask` correctly interacts with the database and returns the expected `KeySet` object when the operation is successful.
      *
      * **Parameters**
@@ -28,8 +29,8 @@ public class KeysetGeneratorTaskTest {
      *
      * **Test Steps**
      * 1. Creates a `KeySetEntity` and `Keys` object to simulate database entities.
-     * 2. Mocks the static methods of `DBKeySetVault` and `DBKeyVault`:
-     *    - `DBKeySetVault.retrieveKeySet` returns a mocked `DBKeySetVault` object.
+     * 2. Mocks the construction of `DBKeySetVault` so that:
+     *    - `retrieveByMintIdAndUnit("mint", "sat")` returns the `KeySetEntity`.
      *    - `DBKeyVault.load` returns the `Keys` object.
      * 3. Creates a `KeysetGeneratorTask` with the parameters `"mint"` and `"sat"`.
      * 4. Executes the task and retrieves the result.
@@ -50,12 +51,10 @@ public class KeysetGeneratorTaskTest {
         KeySetEntity entity = new KeySetEntity();
         Keys keys = new Keys();
 
-        try (MockedStatic<DBKeySetVault> ksv = Mockito.mockStatic(DBKeySetVault.class);
+        try (MockedConstruction<DBKeySetVault> cons = Mockito.mockConstruction(DBKeySetVault.class,
+                     (mock, ctx) -> Mockito.when(mock.retrieveByMintIdAndUnit("mint", "sat")).thenReturn(entity));
              MockedStatic<DBKeyVault> kv = Mockito.mockStatic(DBKeyVault.class)) {
 
-            DBKeySetVault vault = Mockito.mock(DBKeySetVault.class);
-            ksv.when(() -> DBKeySetVault.retrieveKeySet("mint", "sat")).thenReturn(vault);
-            Mockito.when(vault.getEntity()).thenReturn(entity);
             kv.when(() -> DBKeyVault.load(entity)).thenReturn(keys);
 
             KeysetGeneratorTask task = new KeysetGeneratorTask("mint", "sat");
