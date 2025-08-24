@@ -44,8 +44,10 @@ services:
     environment:
       PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
       SERVER_ADDRESS: 0.0.0.0
-      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-<your-phoenixd-api-key>}
+      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY?missing PHOENIXD_API_KEY}
       PHOENIXD_WALLET_SEED: ${PHOENIXD_WALLET_SEED:-<your-wallet-seed-or-secret>}
+    volumes:
+      - phoenixd-data:/root/.phoenixd
     ports:
       - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
     restart: unless-stopped
@@ -57,7 +59,7 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-phoenixd}
       PHOENIXD_BASE_URL: http://phoenixd-rest:${PHOENIXD_PORT:-9740}
-      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-<your-phoenixd-api-key>}
+      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY?missing PHOENIXD_API_KEY}
     depends_on:
       - phoenixd-rest
     ports:
@@ -86,3 +88,9 @@ services:
 volumes:
   mint-db-data:
   vault-db-data:
+  phoenixd-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PHOENIXD_DATA_DIR:-${HOME}/.phoenixd}

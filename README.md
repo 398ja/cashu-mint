@@ -31,6 +31,11 @@ All endpoints are rooted at `/v1`.
 | `GET` | `/info` | Retrieve mint information. |
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
+## Docker Compose
+To run the services with Docker Compose, provide a real `PHOENIXD_API_KEY` environment variable.
+Optionally set `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored; by default it uses `$HOME/.phoenixd`.
+When invoking Docker with `sudo`, pass these variables explicitly or use `sudo -E` so the home directory of the calling user is preserved.
+
 ## Supported NUTs
 - [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md): Notation, Utilization, and Terminology
 - [NUT-01](https://github.com/cashubtc/nuts/blob/main/01.md): Mint public key exchange
