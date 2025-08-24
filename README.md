@@ -7,6 +7,7 @@
 ## Configuration properties
 | Property | Default | Description |
 | --- | --- | --- |
+| `cashu_mint_port` | `7777` | Port for the mint server; override with system property or `CASHU_MINT_PORT` env var. |
 | `cashu.units` | `sat` | Unit used for amounts. |
 | `cashu.expiry` | `15` | Token expiry time in minutes. |
 | `cashu.gateway` | `xyz.tcheeric.gateway.phoenixd.PhoenixdGateway` | Payment gateway implementation class. |

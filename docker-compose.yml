@@ -18,10 +18,11 @@ services:
       DATASOURCE_URL: jdbc:postgresql://db:5432/cashu_mint
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
+      CASHU_MINT_PORT: ${CASHU_MINT_PORT:-7777}
     depends_on:
       - db
     ports:
-      - "7777:7777"
+      - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
 
 volumes:
   db-data:
