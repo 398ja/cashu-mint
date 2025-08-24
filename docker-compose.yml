@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  db:
+  cashu-mint-db:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
@@ -11,15 +11,15 @@ services:
     ports:
       - "5432:5432"
 
-  rest:
+  cashu-mint-rest:
     build:
       context: ./cashu-mint-rest
     environment:
-      DATASOURCE_URL: jdbc:postgresql://db:5432/cashu_mint
+      DATASOURCE_URL: jdbc:postgresql://cashu-mint-db:5432/cashu_mint
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
     depends_on:
-      - db
+      - cashu-mint-db
     ports:
       - "7777:7777"
 
