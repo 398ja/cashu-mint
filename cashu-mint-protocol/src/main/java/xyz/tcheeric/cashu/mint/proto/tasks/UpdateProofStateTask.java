@@ -17,8 +17,8 @@ public class UpdateProofStateTask<T extends Secret> implements Task<Boolean> {
 
     public Boolean execute() throws CashuErrorException {
         ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, MintProtocolUtil.toMintEntity(mint));
-        DBProofVault vault = new DBProofVault(proofEntity);
-        vault.storePending();
+        DBProofVault vault = new DBProofVault();
+        vault.storePending(proofEntity);
         return Boolean.TRUE;
     }
 }

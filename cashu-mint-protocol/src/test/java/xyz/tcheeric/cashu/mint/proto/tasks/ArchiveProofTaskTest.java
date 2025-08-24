@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 
 public class ArchiveProofTaskTest {
@@ -50,7 +51,7 @@ public class ArchiveProofTaskTest {
 
         try (MockedStatic<MintProtocolUtil> util = Mockito.mockStatic(MintProtocolUtil.class);
              MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, ctx) -> Mockito.doNothing().when(mock).archive())) {
+                     (mock, ctx) -> Mockito.doNothing().when(mock).archive(anyString()))) {
 
             util.when(() -> MintProtocolUtil.toMintEntity(any(Mint.class))).thenReturn(Mockito.mock(MintEntity.class));
             util.when(() -> MintProtocolUtil.toProofEntity(any(), any())).thenReturn(proofEntity);
@@ -59,7 +60,7 @@ public class ArchiveProofTaskTest {
             RSSProof result = (RSSProof) task.execute();
 
             assertSame(proof, result);
-            verify(cons.constructed().get(0)).archive();
+            verify(cons.constructed().get(0)).archive(anyString());
         }
     }
 
@@ -83,7 +84,7 @@ public class ArchiveProofTaskTest {
 
         try (MockedStatic<MintProtocolUtil> util = Mockito.mockStatic(MintProtocolUtil.class);
              MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, ctx) -> Mockito.doThrow(new CashuErrorException("fail")).when(mock).archive())) {
+                     (mock, ctx) -> Mockito.doThrow(new CashuErrorException("fail")).when(mock).archive(anyString()))) {
 
             util.when(() -> MintProtocolUtil.toMintEntity(any(Mint.class))).thenReturn(Mockito.mock(MintEntity.class));
             util.when(() -> MintProtocolUtil.toProofEntity(any(), any())).thenReturn(proofEntity);
