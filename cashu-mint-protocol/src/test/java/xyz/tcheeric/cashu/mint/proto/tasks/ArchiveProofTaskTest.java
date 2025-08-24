@@ -53,7 +53,7 @@ public class ArchiveProofTaskTest {
 
         try (MockedStatic<MintProtocolUtil> util = Mockito.mockStatic(MintProtocolUtil.class);
              MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, ctx) -> Mockito.doNothing().when(mock).archive(anyString()))) {
+                     (mock, ctx) -> Mockito.when(mock.archive(anyString())).thenReturn(null))) {
 
             util.when(() -> MintProtocolUtil.toMintEntity(any(Mint.class))).thenReturn(Mockito.mock(MintEntity.class));
             util.when(() -> MintProtocolUtil.toProofEntity(any(), any())).thenReturn(proofEntity);
