@@ -34,7 +34,7 @@ public class KeysetGeneratorTask implements Task<KeySet> {
     private Keys getKeys() throws CashuErrorException {
         log.info("getKeys()");
 
-        KeySetEntity keySetEntity = DBKeySetVault.retrieveKeySet(mintId, unit).getEntity();
+        KeySetEntity keySetEntity = new DBKeySetVault().retrieveByMintIdAndUnit(mintId, unit);
         return DBKeyVault.load(keySetEntity);
     }
 }

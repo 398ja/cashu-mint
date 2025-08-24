@@ -44,10 +44,10 @@ public class MintProtocolUtil {
 
     public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) throws CashuErrorException {
         MintEntity mintEntity = toMintEntity(mint);
-        DBMintVault mintVault = new DBMintVault(mintEntity);
-        String unit = mintVault.getUnit(keySetId);
+        DBMintVault mintVault = new DBMintVault();
+        String unit = mintVault.getUnit(mintEntity, keySetId);
         if (unit != null) {
-            return PrivateKey.fromString(mintVault.getPrivateKey(unit, amount));
+            return PrivateKey.fromString(mintVault.getPrivateKey(mintEntity, unit, amount));
         }
         return null;
     }
