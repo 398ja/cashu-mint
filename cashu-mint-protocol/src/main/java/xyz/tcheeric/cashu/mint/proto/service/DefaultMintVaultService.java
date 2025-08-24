@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 public class DefaultMintVaultService implements MintVaultService {
     @Override
     public MintEntity retrieveMint(String mintId) throws CashuErrorException {
-        return DBMintVault.retrieveMint(mintId).getEntity();
+        return new DBMintVault().retrieve(mintId);
     }
 
     @Override
