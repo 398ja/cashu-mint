@@ -32,9 +32,20 @@ All endpoints are rooted at `/v1`.
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
 ## Docker Compose
-To run the services with Docker Compose, provide a real `PHOENIXD_API_KEY` environment variable.
-Optionally set `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored; by default it uses `$HOME/.phoenixd`.
-When invoking Docker with `sudo`, pass these variables explicitly or use `sudo -E` so the home directory of the calling user is preserved.
+To run the services with Docker Compose select a profile and set
+`PHOENIXD_SERVICE` to match it:
+
+- `docker compose --profile dev up` starts the `phoenixd-mock` service for
+  local development. Set `PHOENIXD_SERVICE=phoenixd-mock` before running the
+  command. This profile does not require any Phoenixd credentials.
+- `docker compose --profile prod up` starts the real `phoenixd-rest` service
+  for production usage. Set `PHOENIXD_SERVICE=phoenixd-rest` and provide a real
+  `PHOENIXD_API_KEY` environment variable. Optionally set `PHOENIXD_WALLET_SEED`
+  and `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored;
+  by default it uses `$HOME/.phoenixd`.
+
+When invoking Docker with `sudo`, pass these variables explicitly or use
+`sudo -E` so the home directory of the calling user is preserved.
 
 ## Supported NUTs
 - [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md): Notation, Utilization, and Terminology
