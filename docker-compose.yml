@@ -58,10 +58,8 @@ services:
       CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8889}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-phoenixd}
-      PHOENIXD_BASE_URL: http://phoenixd-rest:${PHOENIXD_PORT:-9740}
+      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd-mock}:${PHOENIXD_PORT:-9740}
       PHOENIXD_API_KEY: ${PHOENIXD_API_KEY?missing PHOENIXD_API_KEY}
-    depends_on:
-      - phoenixd-rest
     ports:
       - "${CASHU_GATEWAY_PORT:-8889}:${CASHU_GATEWAY_PORT:-8889}"
     restart: unless-stopped
