@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   cashu-mint-db:
     image: postgres:16
@@ -7,9 +8,61 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_mint
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - mint-db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    restart: unless-stopped
+
+  cashu-vault-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+    volumes:
+      - vault-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+
+  cashu-vault-rest:
+    image: docker.398ja.xyz/cashu-vault-rest:${CASHU_VAULT_VERSION:-latest}
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-8888}
+      SERVER_ADDRESS: 0.0.0.0
+    depends_on:
+      - cashu-vault-db
+    ports:
+      - "${CASHU_VAULT_PORT:-8888}:${CASHU_VAULT_PORT:-8888}"
+    restart: unless-stopped
+
+  phoenixd-rest:
+    image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
+    environment:
+      PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
+      SERVER_ADDRESS: 0.0.0.0
+      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-<your-phoenixd-api-key>}
+      PHOENIXD_WALLET_SEED: ${PHOENIXD_WALLET_SEED:-<your-wallet-seed-or-secret>}
+    ports:
+      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
+    restart: unless-stopped
+
+  cashu-gateway-rest:
+    image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
+    environment:
+      CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8889}
+      SERVER_ADDRESS: 0.0.0.0
+      CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-phoenixd}
+      PHOENIXD_BASE_URL: http://phoenixd-rest:${PHOENIXD_PORT:-9740}
+      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-<your-phoenixd-api-key>}
+    depends_on:
+      - phoenixd-rest
+    ports:
+      - "${CASHU_GATEWAY_PORT:-8889}:${CASHU_GATEWAY_PORT:-8889}"
+    restart: unless-stopped
 
   cashu-mint-rest:
     build:
@@ -19,10 +72,17 @@ services:
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
       CASHU_MINT_PORT: ${CASHU_MINT_PORT:-7777}
+      SERVER_ADDRESS: 0.0.0.0
+      CASHU_VAULT_BASE_URL: http://cashu-vault-rest:${CASHU_VAULT_PORT:-8888}
+      CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
     depends_on:
       - cashu-mint-db
+      - cashu-vault-rest
+      - cashu-gateway-rest
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
+    restart: unless-stopped
 
 volumes:
-  db-data:
+  mint-db-data:
+  vault-db-data:
