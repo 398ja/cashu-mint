@@ -31,8 +31,7 @@ public class UpdateProofStateTaskTest {
     }
 
     /**
-     * Ensures that executing the task stores the proof entity as pending
-     * and returns true.
+     * Verifies that the task converts a proof to an entity and stores it as pending without error.
      */
     @Test
     public void executeSuccess() throws CashuErrorException {

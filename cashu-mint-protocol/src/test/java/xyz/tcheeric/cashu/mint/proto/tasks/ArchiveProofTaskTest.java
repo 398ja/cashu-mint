@@ -48,6 +48,8 @@ public class ArchiveProofTaskTest {
         RSSProof proof = createProof();
 
         ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
+        String secret = proof.getSecret().toString();
+        Mockito.when(proofEntity.getSecret()).thenReturn(secret);
 
         try (MockedStatic<MintProtocolUtil> util = Mockito.mockStatic(MintProtocolUtil.class);
              MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
@@ -60,7 +62,7 @@ public class ArchiveProofTaskTest {
             RSSProof result = (RSSProof) task.execute();
 
             assertSame(proof, result);
-            verify(cons.constructed().get(0)).archive(anyString());
+            verify(cons.constructed().get(0)).archive(secret);
         }
     }
 
@@ -81,6 +83,8 @@ public class ArchiveProofTaskTest {
         RSSProof proof = createProof();
 
         ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
+        String secret = proof.getSecret().toString();
+        Mockito.when(proofEntity.getSecret()).thenReturn(secret);
 
         try (MockedStatic<MintProtocolUtil> util = Mockito.mockStatic(MintProtocolUtil.class);
              MockedConstruction<DBProofVault> cons = Mockito.mockConstruction(DBProofVault.class,
