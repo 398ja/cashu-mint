@@ -9,30 +9,30 @@ import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 public class DefaultProofVaultService implements ProofVaultService {
     @Override
     public void store(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault(proofEntity);
-        vault.store();
+        DBProofVault vault = new DBProofVault();
+        vault.store(proofEntity);
     }
 
     @Override
     public void invalidate(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault(proofEntity);
-        vault.invalidate();
+        DBProofVault vault = new DBProofVault();
+        vault.invalidate(proofEntity.getSecret());
     }
 
     @Override
     public void archive(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault(proofEntity);
-        vault.archive();
+        DBProofVault vault = new DBProofVault();
+        vault.archive(proofEntity.getSecret());
     }
 
     @Override
     public void storePending(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault(proofEntity);
-        vault.storePending();
+        DBProofVault vault = new DBProofVault();
+        vault.storePending(proofEntity);
     }
 
     @Override
     public ProofEntity retrieveProof(String secret) throws CashuErrorException {
-        return DBProofVault.retrieveProof(secret).getEntity();
+        return DBProofVault.retrieveProof(secret);
     }
 }
