@@ -39,11 +39,12 @@ All endpoints are rooted at `/v1`.
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
 ## Docker Compose
-Select a profile and ensure `PHOENIXD_SERVICE` matches it:
+The `PHOENIXD_SERVICE` environment variable controls which Phoenixd backend is
+used. It defaults to `phoenixd-mock` for local development. For production,
+set `PHOENIXD_SERVICE=phoenixd-rest`.
 
 - `docker compose --profile dev up` starts the `phoenixd-mock` service for
-  local development. Set `PHOENIXD_SERVICE=phoenixd-mock` before running the
-  command. This profile does not require any Phoenixd credentials.
+  local development. This profile does not require any Phoenixd credentials.
 - `docker compose --profile prod up` starts the real `phoenixd-rest` service
   for production usage. Set `PHOENIXD_SERVICE=phoenixd-rest` and provide a real
   `PHOENIXD_API_KEY` environment variable. Optionally set `PHOENIXD_WALLET_SEED`
@@ -53,7 +54,7 @@ Select a profile and ensure `PHOENIXD_SERVICE` matches it:
 Example commands:
 
 ```bash
-PHOENIXD_SERVICE=phoenixd-mock docker compose --profile dev up
+docker compose --profile dev up
 PHOENIXD_SERVICE=phoenixd-rest PHOENIXD_API_KEY=your-key \
   docker compose --profile prod up
 ```
