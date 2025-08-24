@@ -35,6 +35,7 @@ All endpoints are rooted at `/v1`.
 To run the services with Docker Compose, provide a real `PHOENIXD_API_KEY` environment variable.
 Optionally set `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored; by default it uses `$HOME/.phoenixd`.
 When invoking Docker with `sudo`, pass these variables explicitly or use `sudo -E` so the home directory of the calling user is preserved.
+Set `PHOENIXD_SERVICE` to `phoenixd-rest` when running Docker Compose with `--profile prod` to target the real Phoenixd service.
 
 ## Supported NUTs
 - [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md): Notation, Utilization, and Terminology
