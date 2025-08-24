@@ -32,8 +32,7 @@ All endpoints are rooted at `/v1`.
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
 ## Docker Compose
-To run the services with Docker Compose select a profile and set
-`PHOENIXD_SERVICE` to match it:
+Select a profile and ensure `PHOENIXD_SERVICE` matches it:
 
 - `docker compose --profile dev up` starts the `phoenixd-mock` service for
   local development. Set `PHOENIXD_SERVICE=phoenixd-mock` before running the
@@ -41,8 +40,16 @@ To run the services with Docker Compose select a profile and set
 - `docker compose --profile prod up` starts the real `phoenixd-rest` service
   for production usage. Set `PHOENIXD_SERVICE=phoenixd-rest` and provide a real
   `PHOENIXD_API_KEY` environment variable. Optionally set `PHOENIXD_WALLET_SEED`
-  and `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored;
-  by default it uses `$HOME/.phoenixd`.
+  and `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored.
+  By default it uses `$HOME/.phoenixd`.
+
+Example commands:
+
+```bash
+PHOENIXD_SERVICE=phoenixd-mock docker compose --profile dev up
+PHOENIXD_SERVICE=phoenixd-rest PHOENIXD_API_KEY=your-key \
+  docker compose --profile prod up
+```
 
 When invoking Docker with `sudo`, pass these variables explicitly or use
 `sudo -E` so the home directory of the calling user is preserved.
