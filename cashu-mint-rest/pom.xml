@@ -102,7 +102,11 @@
                         <image>eclipse-temurin:21-jre</image>
                     </from>
                     <to>
-                        <image>docker.398ja.xyz/cashu-mint-rest:${project.version}</image>
+                        <image>docker.398ja.xyz/cashu-mint-rest</image>
+                        <tags>
+                            <tag>${project.version}</tag>
+                            <tag>latest</tag>
+                        </tags>
                     </to>
                     <container>
                         <ports>
