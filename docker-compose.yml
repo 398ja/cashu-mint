@@ -25,8 +25,8 @@ services:
       - "5433:5432"
     restart: unless-stopped
 
-  cashu-vault-rest:
-    image: docker.398ja.xyz/cashu-vault-rest:${CASHU_VAULT_VERSION:-latest}
+  cashu-vault-jpa:
+    image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       DATASOURCE_USERNAME: postgres
@@ -90,7 +90,7 @@ services:
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
     depends_on:
       - cashu-mint-db
-      - cashu-vault-rest
+      - cashu-vault-jpa
       - cashu-gateway-rest
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
