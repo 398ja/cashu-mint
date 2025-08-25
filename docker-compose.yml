@@ -78,8 +78,7 @@ services:
     restart: unless-stopped
 
   cashu-mint-rest:
-    build:
-      context: ./cashu-mint-rest
+    image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-mint-db:5432/cashu_mint
       DATASOURCE_USERNAME: postgres
