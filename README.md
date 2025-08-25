@@ -62,6 +62,11 @@ PHOENIXD_SERVICE=phoenixd-rest PHOENIXD_API_KEY=your-key \
 When invoking Docker with `sudo`, pass these variables explicitly or use
 `sudo -E` so the home directory of the calling user is preserved.
 
+## Docker Image Publishing
+The project uses the Jib Maven plugin to publish the `cashu-mint-rest` Docker image
+to `docker.398ja.xyz/cashu-mint-rest`. Each release is tagged with both the
+current project version and `latest`.
+
 ## Supported NUTs
 - [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md): Notation, Utilization, and Terminology
 - [NUT-01](https://github.com/cashubtc/nuts/blob/main/01.md): Mint public key exchange
