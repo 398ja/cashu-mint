@@ -51,6 +51,10 @@ set `PHOENIXD_SERVICE=phoenixd-rest`.
   and `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored.
   By default it uses `$HOME/.phoenixd`.
 
+Docker Compose uses pre-built images hosted at `docker.398ja.xyz`. Run
+`docker compose --profile dev pull` (or `prod`) to fetch the latest images
+before starting the services.
+
 Example commands:
 
 ```bash
