@@ -7,6 +7,7 @@ RUN mvn -B -pl cashu-mint-rest -am package -DskipTests
 # Runtime stage
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /build/cashu-mint-rest/target/cashu-mint-rest-*.jar app.jar
+COPY --from=build /build/cashu-mint-rest/target/cashu-mint-rest-*.jar /app/app.jar
+RUN chown -R /app
 EXPOSE 7777
 ENTRYPOINT ["java","-jar","/app/app.jar"]
