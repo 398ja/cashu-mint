@@ -25,7 +25,7 @@ services:
 
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
-    #entrypoint: ["java", "-jar", "/app/app.jar"]
+    entrypoint: ["java", "-jar", "/app/app.jar"]
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       DATASOURCE_USERNAME: postgres
@@ -40,7 +40,7 @@ services:
 
   phoenixd-rest:
     image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
-    #entrypoint: ["java", "-jar", "/app/app.jar"]
+    entrypoint: ["java", "-jar", "/app/app.jar"]
     environment:
       PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
       SERVER_ADDRESS: 0.0.0.0
@@ -55,7 +55,7 @@ services:
 
   phoenixd-mock:
     image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
-    #entrypoint: ["java", "-jar", "/app/app.jar"]
+    entrypoint: ["java", "-jar", "/app/app.jar"]
     environment:
       PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
       SERVER_ADDRESS: 0.0.0.0
@@ -66,7 +66,7 @@ services:
 
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
-    #entrypoint: ["java", "-jar", "/app/app.jar"]
+    entrypoint: ["java", "-jar", "/app/app.jar"]
     environment:
       CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8889}
       SERVER_ADDRESS: 0.0.0.0
@@ -81,7 +81,7 @@ services:
 
   cashu-mint-rest:
     image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
-    #entrypoint: ["java", "-jar", "/app/app.jar"]
+    entrypoint: ["java", "-jar", "/app/app.jar"]
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-mint-db:5432/cashu_mint
       DATASOURCE_USERNAME: postgres
