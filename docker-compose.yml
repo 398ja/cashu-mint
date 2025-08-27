@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   cashu-mint-db:
     image: postgres:16
