@@ -2,7 +2,7 @@
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY . /build
-RUN mvn -B -pl cashu-mint-rest -am package -DskipTests
+RUN mvn -B -pl cashu-mint-rest -am -DskipTests package spring-boot:repackage
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
