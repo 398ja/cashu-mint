@@ -33,11 +33,27 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
         }
 
         byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
-        return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
+        // Signature.fromBytes expects 64-byte Schnorr signatures, while blind signatures (C)
+        // are 33-byte compressed points. Convert 33-byte results to hex and use fromString.
+        if (signature != null && signature.length == 64) {
+            return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
+        } else {
+            String hex = bytesToHex(signature);
+            return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromString(hex));
+        }
     }
 
     private PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
         return mintProtocolService.getPrivateKey(blindedMessage.getKeySetId().toString(), blindedMessage.getAmount(), mint);
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        if (bytes == null) return null;
+        StringBuilder hexString = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            hexString.append(String.format("%02x", b));
+        }
+        return hexString.toString();
     }
 
 }
