@@ -26,7 +26,7 @@
         <cashu-vaults.version>0.1.2</cashu-vaults.version>
         <cashu-gateway.version>0.1.1</cashu-gateway.version>
 
-        <spring.boot.version>3.5.0</spring.boot.version>
+        <spring.boot.version>3.5.5</spring.boot.version>
         <postgresql.version>42.2.23</postgresql.version>
 
         <jackson-datatype-jsr310.version>2.18.0</jackson-datatype-jsr310.version>
