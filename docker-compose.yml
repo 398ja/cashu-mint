@@ -103,8 +103,8 @@ services:
 
   cashu-mint-rest:
     build:
-      context: ./cashu-mint-rest
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: cashu-mint-rest/Dockerfile
     image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
