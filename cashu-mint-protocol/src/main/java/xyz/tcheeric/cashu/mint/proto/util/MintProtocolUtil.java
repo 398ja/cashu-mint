@@ -17,8 +17,8 @@ import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.gateway.common.Gateway;
 
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
@@ -44,10 +44,10 @@ public class MintProtocolUtil {
 
     public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) throws CashuErrorException {
         MintEntity mintEntity = toMintEntity(mint);
-        DBMintVault mintVault = new DBMintVault(mintEntity);
-        String unit = mintVault.getUnit(keySetId);
+        DBMintVault mintVault = new DBMintVault();
+        String unit = mintVault.getUnit(mintEntity, keySetId);
         if (unit != null) {
-            return PrivateKey.fromString(mintVault.getPrivateKey(unit, amount));
+            return PrivateKey.fromString(mintVault.getPrivateKey(mintEntity, unit, amount));
         }
         return null;
     }
@@ -132,15 +132,28 @@ public class MintProtocolUtil {
 
             Properties properties = new Properties();
 
-            try (FileInputStream input = new FileInputStream(GatewayLoader.class.getClassLoader().getResource("app.properties").getFile())) {
+            try (InputStream input = GatewayLoader.class.getClassLoader().getResourceAsStream("app.properties")) {
+                if (input == null) {
+                    throw new RuntimeException("Failed to load properties file");
+                }
                 properties.load(input);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to load properties file", e);
             }
 
-            String gatewayClassName = properties.getProperty("cashu.gateway");
+            String profile = System.getenv("PROFILE");
+            if (profile == null) {
+                profile = System.getenv("ENV");
+            }
+            if (profile == null) {
+                profile = "dev";
+            }
+
+            String gatewayKey = "prod".equalsIgnoreCase(profile) ? "gateway.prod" : "gateway.mock";
+
+            String gatewayClassName = properties.getProperty(gatewayKey);
             if (gatewayClassName == null || gatewayClassName.isEmpty()) {
-                throw new IllegalArgumentException("Gateway class not specified in properties file");
+                throw new IllegalArgumentException("Gateway class not specified for profile: " + profile);
             }
 
             Class<?> gatewayClass = Class.forName(gatewayClassName);

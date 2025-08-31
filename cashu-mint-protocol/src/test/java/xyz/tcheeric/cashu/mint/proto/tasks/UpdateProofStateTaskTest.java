@@ -30,6 +30,9 @@ public class UpdateProofStateTaskTest {
         return proof;
     }
 
+    /**
+     * Verifies that the task converts a proof to an entity and stores it as pending without error.
+     */
     @Test
     public void executeSuccess() throws CashuErrorException {
         Mint mint = new Mint();
@@ -45,7 +48,7 @@ public class UpdateProofStateTaskTest {
             UpdateProofStateTask<RandomStringSecret> task = new UpdateProofStateTask<>(mint, proof);
             Boolean result = task.execute();
             assertTrue(result);
-            Mockito.verify(cons.constructed().get(0)).storePending();
+            Mockito.verify(cons.constructed().get(0)).storePending(proofEntity);
         }
     }
 }

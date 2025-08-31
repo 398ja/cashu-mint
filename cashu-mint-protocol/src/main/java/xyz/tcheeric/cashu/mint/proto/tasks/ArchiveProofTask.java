@@ -19,8 +19,8 @@ public class ArchiveProofTask<T extends Secret> implements Task<Proof<T>> {
     @Override
     public Proof<T> execute() throws CashuErrorException {
         ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, MintProtocolUtil.toMintEntity(mint));
-        DBProofVault proofVault = new DBProofVault(proofEntity);
-        proofVault.archive();
+        DBProofVault proofVault = new DBProofVault();
+        proofVault.archive(proofEntity.getSecret());
         return proof;
     }
 }

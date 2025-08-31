@@ -71,7 +71,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
             throw new IllegalStateException("Private key not found");
         }
 
-        byte[] C = proof.getUnblindedSignature().toBytes();
+        byte[] C = proof.getUnblindedSignature().getBytes();
         if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
             ErrorResponse error = new ErrorResponse("verify_proof_failed_error");
             throw new CashuErrorException(error.toJson());

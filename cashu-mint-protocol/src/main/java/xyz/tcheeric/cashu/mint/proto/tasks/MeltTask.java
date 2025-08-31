@@ -105,7 +105,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     public boolean verify(@NonNull Proof proof) throws CashuErrorException {
         PrivateKey privateKey = mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {
-            return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().toBytes());
+            return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().getBytes());
         }
         return false;
     }
