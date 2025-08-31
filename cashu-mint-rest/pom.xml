@@ -78,7 +78,7 @@
             <url>https://maven.398ja.xyz/releases</url>
         </repository>
         <repository>
-            <id>reposilite-releases</id>
+            <id>reposilite-snapshots</id>
             <url>https://maven.398ja.xyz/snapshots</url>
         </repository>
     </repositories>
