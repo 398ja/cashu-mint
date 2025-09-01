@@ -47,6 +47,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-8888}
+      SERVER_PORT: ${CASHU_VAULT_PORT:-8888}
       SERVER_ADDRESS: 0.0.0.0
     depends_on:
       cashu-vault-db:
@@ -92,6 +93,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SERVER_PORT: ${CASHU_GATEWAY_PORT:-8889}
     depends_on:
       cashu-vault-db:
         condition: service_healthy
