@@ -49,6 +49,7 @@ services:
       CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-8888}
       SERVER_PORT: ${CASHU_VAULT_PORT:-8888}
       SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-vault-db:
         condition: service_healthy
@@ -57,7 +58,7 @@ services:
     restart: unless-stopped
     profiles: ["dev", "prod"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_VAULT_PORT:-8888}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_VAULT_PORT:-8888}/actuator/health/readiness >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -76,6 +77,12 @@ services:
       - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
     restart: unless-stopped
     profiles: ["prod"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${PHOENIXD_PORT:-9740}/actuator/health/readiness >/dev/null || curl -fsS http://localhost:${PHOENIXD_PORT:-9740}/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   phoenixd-mock:
     image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
@@ -100,6 +107,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_GATEWAY_PORT:-8889}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-vault-db:
         condition: service_healthy
@@ -109,7 +117,7 @@ services:
     restart: unless-stopped
     profiles: ["dev", "prod"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_GATEWAY_PORT:-8889}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_GATEWAY_PORT:-8889}/actuator/health/readiness >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -133,6 +141,7 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-mint-db:
         condition: service_healthy
@@ -142,7 +151,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
