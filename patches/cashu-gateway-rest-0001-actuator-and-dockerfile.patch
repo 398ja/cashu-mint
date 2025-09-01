@@ -1,0 +1,70 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Your Name <you@example.com>
+Date: Mon, 1 Sep 2025 16:20:00 +0100
+Subject: [gateway] Add Actuator, expose health/info, and Dockerfile with curl
+
+This patch enables HTTP healthchecks for cashu-gateway-rest by:
+
+1) Adding Spring Boot Actuator dependency
+2) Exposing health/info endpoints in application.properties and standardizing
+   SERVER_PORT / SERVER_ADDRESS
+3) Providing a Dockerfile that builds a fat Spring Boot jar, installs curl, and
+   sets a simple java -jar entrypoint
+
+Apply with:
+  git am < patches/cashu-gateway-rest-0001-actuator-and-dockerfile.patch
+
+--- a/pom.xml
++++ b/pom.xml
+@@
+   <dependencies>
+@@
+     <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-test</artifactId>
+       <version>${spring.boot.version}</version>
+       <scope>test</scope>
+     </dependency>
+ +    <dependency>
+ +      <groupId>org.springframework.boot</groupId>
+ +      <artifactId>spring-boot-starter-actuator</artifactId>
+ +      <version>${spring.boot.version}</version>
+ +    </dependency>
+   </dependencies>
+
+--- a/src/main/resources/application.properties
++++ b/src/main/resources/application.properties
+@@
+ +# HTTP
+ +server.port=${SERVER_PORT:${CASHU_GATEWAY_PORT:8889}}
+ +server.address=${SERVER_ADDRESS:0.0.0.0}
+ +
+ +# Actuator
+ +management.endpoints.web.exposure.include=health,info
+ +management.endpoint.health.probes.enabled=true
+ +management.health.defaults.enabled=true
+
+--- /dev/null
++++ b/Dockerfile
+@@
+ +# Build stage
+ +FROM maven:3.9.6-eclipse-temurin-21 AS build
+ +WORKDIR /build
+ +COPY . .
+ +RUN mvn -B -DskipTests package spring-boot:repackage
+ +
+ +# Runtime stage
+ +FROM eclipse-temurin:21-jre
+ +WORKDIR /app
+ +RUN apt-get update \
+ +    && apt-get install -y --no-install-recommends curl \
+ +    && rm -rf /var/lib/apt/lists/*
+ +COPY --from=build /build/target/*-SNAPSHOT.jar /app/app.jar 2>/dev/null || \
+ +      true
+ +COPY --from=build /build/target/*-runner.jar /app/app.jar 2>/dev/null || \
+ +      true
+ +# Fallback to any jar built by repackage
+ +COPY --from=build /build/target/*.jar /app/app.jar
+ +EXPOSE 8889
+ +ENTRYPOINT ["java","-jar","/app/app.jar"]
+
