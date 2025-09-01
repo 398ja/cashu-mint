@@ -58,6 +58,8 @@ Services and ports (host → container):
 Health checks and startup order:
 - Both Postgres containers have healthchecks and dependent services wait until
   databases are healthy before starting.
+- Java services expose `/actuator/health` and `/actuator/info` (mint REST) for
+  basic readiness/diagnostics.
 
 Docker Compose uses pre-built images hosted at `docker.398ja.xyz`. Run
 `docker compose --profile dev pull` (or `prod`) to fetch the latest images
