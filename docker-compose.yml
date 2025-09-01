@@ -56,13 +56,12 @@ services:
       - "${CASHU_VAULT_PORT:-8888}:${CASHU_VAULT_PORT:-8888}"
     restart: unless-stopped
     profiles: ["dev", "prod"]
-    # healthcheck (enable once image exposes Actuator and has curl/wget):
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_VAULT_PORT:-8888}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 6
-    #   start_period: 20s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_VAULT_PORT:-8888}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   phoenixd-rest:
     image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
@@ -109,13 +108,12 @@ services:
       - "${CASHU_GATEWAY_PORT:-8889}:${CASHU_GATEWAY_PORT:-8889}"
     restart: unless-stopped
     profiles: ["dev", "prod"]
-    # healthcheck (enable once image exposes Actuator and has curl/wget):
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_GATEWAY_PORT:-8889}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 6
-    #   start_period: 20s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_GATEWAY_PORT:-8889}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   cashu-mint-rest:
     build:
@@ -139,9 +137,9 @@ services:
       cashu-mint-db:
         condition: service_healthy
       cashu-vault-jpa:
-        condition: service_started
+        condition: service_healthy
       cashu-gateway-rest:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]

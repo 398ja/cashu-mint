@@ -58,9 +58,9 @@ Services and ports (host → container):
 Health checks and startup order:
 - Both Postgres containers have healthchecks and dependent services wait until
   databases are healthy before starting.
-- Java services expose `/actuator/health` and `/actuator/info` (mint REST) for
-  basic readiness/diagnostics. docker-compose uses `/actuator/health` to mark
-  the mint REST service healthy.
+- Java services expose `/actuator/health` and `/actuator/info` (mint REST,
+  gateway, and vault). docker-compose uses `/actuator/health` to mark these
+  services healthy and waits on them before starting the mint.
   - Gateway and Vault JPA will add HTTP healthchecks once their images expose
     Actuator and include a minimal HTTP client.
 
