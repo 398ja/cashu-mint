@@ -61,6 +61,8 @@ Health checks and startup order:
 - Java services expose `/actuator/health` and `/actuator/info` (mint REST) for
   basic readiness/diagnostics. docker-compose uses `/actuator/health` to mark
   the mint REST service healthy.
+  - Gateway and Vault JPA will add HTTP healthchecks once their images expose
+    Actuator and include a minimal HTTP client.
 
 Docker Compose uses pre-built images hosted at `docker.398ja.xyz`. Run
 `docker compose --profile dev pull` (or `prod`) to fetch the latest images
