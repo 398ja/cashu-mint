@@ -31,7 +31,7 @@
 
         <jackson-datatype-jsr310.version>2.20.0</jackson-datatype-jsr310.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
-        <commons-beanutils.version>1.9.4</commons-beanutils.version>
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
 
         <!-- Test Dependency Versions -->
         <junit.version>5.9.1</junit.version>
