@@ -129,6 +129,12 @@ services:
       cashu-gateway-rest:
         condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health | grep -q '\\"status\\":\\"UP\\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     profiles: ["dev", "prod"]
 
 volumes:
