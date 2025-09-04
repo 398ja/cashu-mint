@@ -56,13 +56,14 @@ Services and ports (host → container):
 - cashu-vault-db (Postgres): 55433 → 5432 (db `cashu_vault`, user/pass `postgres`)
 
 Health checks and startup order:
-- Both Postgres containers have healthchecks and dependent services wait until
-  databases are healthy before starting.
-- Java services expose `/actuator/health` and `/actuator/info` (mint REST,
-  gateway, and vault). docker-compose uses `/actuator/health` to mark these
-  services healthy and waits on them before starting the mint.
-  - Gateway and Vault JPA will add HTTP healthchecks once their images expose
-    Actuator and include a minimal HTTP client.
+- Postgres containers have healthchecks; dependent services wait for DB readiness.
+- Java services expose `/actuator/health` (and readiness when probes are enabled).
+- Compose healthchecks for Gateway and Vault now attempt HTTP checks using
+  either `curl` or `wget` (whichever is available in the image). If neither
+  client exists, the healthcheck fails but the service can still be functional.
+- To avoid blocking local development when a container lacks an HTTP client,
+  the mint service waits for the databases to be healthy, and only requires
+  Gateway and Vault to be started (not necessarily marked healthy).
 
 Docker Compose uses pre-built images hosted at `docker.398ja.xyz`. Run
 `docker compose --profile dev pull` (or `prod`) to fetch the latest images
