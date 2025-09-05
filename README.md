@@ -43,13 +43,27 @@ The `PHOENIXD_SERVICE` environment variable controls which Phoenixd backend is
 used. It defaults to `phoenixd-mock` for local development. For production,
 set `PHOENIXD_SERVICE=phoenixd-rest`.
 
-- `docker compose --profile dev up` starts the `phoenixd-mock` service for
-  local development. This profile does not require any Phoenixd credentials.
-- `docker compose --profile prod up` starts the real `phoenixd-rest` service
-  for production usage. Set `PHOENIXD_SERVICE=phoenixd-rest` and provide a real
-  `PHOENIXD_API_KEY` environment variable. Optionally set `PHOENIXD_WALLET_SEED`
-  and `PHOENIXD_DATA_DIR` to choose where the Phoenixd wallet data is stored.
-  By default it uses `$HOME/.phoenixd`.
+Profiles and services:
+- dev: runs all services except `phoenixd-rest` (uses `phoenixd-mock`).
+- prod: runs all services except `phoenixd-mock` (uses `phoenixd-rest`).
+
+Services and ports (host → container):
+- cashu-mint-rest: 7777 → 7777
+- cashu-gateway-rest: 8889 → 8889 (dev provider: mock; prod: phoenixd)
+- cashu-vault-jpa: 8888 → 8888
+- phoenixd (mock or rest): 9740 → 9740
+- cashu-mint-db (Postgres): 55432 → 5432 (db `cashu_mint`, user/pass `postgres`)
+- cashu-vault-db (Postgres): 55433 → 5432 (db `cashu_vault`, user/pass `postgres`)
+
+Health checks and startup order:
+- Postgres containers have healthchecks; dependent services wait for DB readiness.
+- Java services expose `/actuator/health` (and readiness when probes are enabled).
+- Compose healthchecks for Gateway and Vault now attempt HTTP checks using
+  either `curl` or `wget` (whichever is available in the image). If neither
+  client exists, the healthcheck fails but the service can still be functional.
+- To avoid blocking local development when a container lacks an HTTP client,
+  the mint service waits for the databases to be healthy, and only requires
+  Gateway and Vault to be started (not necessarily marked healthy).
 
 Docker Compose uses pre-built images hosted at `docker.398ja.xyz`. Run
 `docker compose --profile dev pull` (or `prod`) to fetch the latest images
@@ -64,7 +78,7 @@ PHOENIXD_SERVICE=phoenixd-rest PHOENIXD_API_KEY=your-key \
 ```
 
 When invoking Docker with `sudo`, pass these variables explicitly or use
-`sudo -E` so the home directory of the calling user is preserved.
+`sudo -E` so the environment and home directory of the calling user are preserved.
 
 ## Docker Image Publishing
 The project uses the Jib Maven plugin to publish the `cashu-mint-rest` Docker image

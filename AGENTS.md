@@ -42,15 +42,14 @@
 - Add integration tests for new features to verify end-to-end functionality.
 - Ensure new dependencies or configurations do not introduce security vulnerabilities.
 - Maintain the versions in the configuration section of the pom.xml files.
-- Always make sure that the events are compliant with the Nostr protocol specifications, and that the events are valid according to the NIP specifications.
+- Always make sure that the events are compliant with the Cashu protocol specifications, and that the events are valid according to the NIP specifications.
 - Always remove unused imports
 - Add a comment on top of every test method to describe the test in plain English.
 
 ## Pull Requests
 
 - Always follow the PR submission guidelines and use the [PR template](.github/pull_request_template.md) when creating pull requests.
-- Summarize the changes made and describe how they were tested.
+- Summarize the changes made and describe how they were testSummarize the changes made and describe how they were testeded.
 - Include any limitations or known issues in the description.
-- Add a "Network Access" section summarizing blocked domains if network requests were denied.
 - Ensure all new features, modules, or dependencies are properly documented in the `README.md` file.
 - Ensure all new features are compliant with the API specification provided above.
