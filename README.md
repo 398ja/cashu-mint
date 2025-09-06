@@ -94,6 +94,7 @@ current project version and `latest`.
 - [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md): Melt tokens
 - [NUT-06](https://github.com/cashubtc/nuts/blob/main/06.md): Mint information
 - [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md): Token state check
+- [NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md): Restore signatures
 - [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md): Spending conditions
 - [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md): Pay to Public Key (P2PK)
 
