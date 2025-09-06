@@ -25,12 +25,15 @@ import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
+import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
@@ -274,6 +277,22 @@ public class CashuControllerTest {
         try (MockedStatic<NUT07> mocked = Mockito.mockStatic(NUT07.class)) {
             mocked.when(() -> NUT07.checkState(Mockito.any(UUID.class), Mockito.eq(request))).thenReturn(expected);
             ResponseEntity<PostCheckStateResponse> response = controller.checkstate(request, UUID.randomUUID().toString());
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertEquals(expected, response.getBody());
+        }
+    }
+
+    /**
+     * Verifies that restore endpoint delegates to NUT09 and returns its response.
+     */
+    @Test
+    void restore() throws CashuErrorException {
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        PostRestoreRequest request = Mockito.mock(PostRestoreRequest.class);
+        PostRestoreResponse expected = Mockito.mock(PostRestoreResponse.class);
+        try (MockedStatic<NUT09> mocked = Mockito.mockStatic(NUT09.class)) {
+            mocked.when(() -> NUT09.restore(request)).thenReturn(expected);
+            ResponseEntity<PostRestoreResponse> response = controller.restore(request);
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(expected, response.getBody());
         }
