@@ -22,7 +22,7 @@
 
         <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
 
-        <cashu-libs.version>0.1.2</cashu-libs.version>
+        <cashu-libs.version>0.2.0</cashu-libs.version>
         <cashu-vaults.version>0.1.2</cashu-vaults.version>
         <cashu-gateway.version>0.1.2</cashu-gateway.version>
 
