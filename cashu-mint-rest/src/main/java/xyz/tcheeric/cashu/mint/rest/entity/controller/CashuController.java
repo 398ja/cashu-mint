@@ -44,6 +44,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.List;
+import java.lang.reflect.Field;
 import java.util.UUID;
 
 @Slf4j
@@ -142,15 +143,41 @@ public class CashuController<T extends Secret> {
     @ExceptionHandler(CashuErrorException.class)
     public ResponseEntity<ErrorResponse> handleCashuError(CashuErrorException ex) {
         ObjectMapper mapper = new ObjectMapper();
+
+        // Decide status first, independent of whether we can parse JSON
+        String message = ex.getMessage();
+        String normalized = message == null ? "" : message.trim();
+        HttpStatus status = (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found"))
+                ? HttpStatus.NOT_FOUND
+                : HttpStatus.INTERNAL_SERVER_ERROR;
+
+        // Try to recover the original JSON from the exception's detailMessage
+        String rawMessage = ex.getMessage();
         try {
-            ErrorResponse error = mapper.readValue(ex.getMessage(), ErrorResponse.class);
-            HttpStatus status = "not found".equalsIgnoreCase(ex.getMessage())
-                    ? HttpStatus.NOT_FOUND
-                    : HttpStatus.INTERNAL_SERVER_ERROR;
-            return new ResponseEntity<>(error, status);
-        } catch (JsonProcessingException e) {
-            ErrorResponse error = new ErrorResponse("internal_error");
-            return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+            Field detailMessageField = Throwable.class.getDeclaredField("detailMessage");
+            detailMessageField.setAccessible(true);
+            Object value = detailMessageField.get(ex);
+            if (value instanceof String s && s != null) {
+                rawMessage = s;
+            }
+        } catch (Exception ignore) {
+            // Fallbacks below will handle parsing if reflection is not allowed
         }
+
+        ErrorResponse error;
+        try {
+            // Prefer parsing the recovered raw message
+            error = mapper.readValue(rawMessage, ErrorResponse.class);
+        } catch (Exception parsePrimary) {
+            try {
+                // If that failed, try parsing getMessage() directly in case it actually contains JSON
+                error = mapper.readValue(ex.getMessage(), ErrorResponse.class);
+            } catch (Exception parseFallback) {
+                // Last resort: generic internal error payload (status already chosen above)
+                error = new ErrorResponse("internal_error");
+            }
+        }
+
+        return new ResponseEntity<>(error, status);
     }
 }
