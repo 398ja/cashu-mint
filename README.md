@@ -21,7 +21,7 @@ Compose profile (for example `docker compose --profile prod up`) and set `PROFIL
 real Phoenixd gateway.
 
 ## REST API
-All endpoints are rooted at `/v1`.
+All endpoints are rooted at `/`.
 
 | Method | Path | Description |
 | --- | --- | --- |
