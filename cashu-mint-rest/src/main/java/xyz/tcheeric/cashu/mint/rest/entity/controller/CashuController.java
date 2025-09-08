@@ -52,7 +52,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1")
+@RequestMapping("")
 public class CashuController<T extends Secret> {
 
     private final NUT06 nut06;
