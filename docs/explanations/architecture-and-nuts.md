@@ -4,7 +4,7 @@ This explanation outlines the responsibilities of each module and how Cashu NUT 
 
 ## Module responsibilities
 - **cashu-mint-protocol** – core protocol logic for keysets, token issuance, swaps, melts and state checks. This module contains the business rules and cryptographic operations.
-- **cashu-mint-rest** – REST interface exposing the mint over HTTP. See the [REST API overview](../../README.md#rest-api) in the project README.
+- **cashu-mint-rest** – REST interface exposing the mint over HTTP. See the [REST API reference](../reference/rest-api.md) for endpoint details.
 
 ## Supported NUTs
 The project supports the following NUT specifications.
@@ -22,4 +22,3 @@ The project supports the following NUT specifications.
 | [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md) | Spending conditions | Enforced by condition handling in `cashu-mint-protocol`. |
 | [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md) | Pay to Public Key (P2PK) | Supported through P2PK conditions in `cashu-mint-protocol`. |
 
-For an overview of the project structure, see the [modules section](../../README.md#modules) of the README.

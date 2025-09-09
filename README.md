@@ -1,7 +1,8 @@
 # cashu-mint
 
-cashu-mint is a Java implementation of the Cashu protocol providing a core library and REST API for running a mint.
+cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/cashubtc/nuts) providing a core library and REST API for running a mint.
 
 ## Documentation
 
-The full documentation is organized using the Diátaxis framework and lives in [docs](docs/README.md).
+Documentation following the [Diátaxis](https://diataxis.fr/) framework is available in [docs](docs/README.md).
+
