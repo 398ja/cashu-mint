@@ -10,12 +10,21 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Run tests](how-to/run-tests.md) - Step-by-step instructions for executing the test suite.
 - [Publish a Docker image](how-to/publish-docker-image.md)
 - [Configure the mint](how-to/configure-mint.md)
+- [Run with Docker Compose](how-to-guides/docker-compose.md)
 
 ## Reference
 - [Configuration](reference/configuration.md) - Details on application properties and their defaults.
 - [Configuration properties](reference/configuration.md)
 - [REST API](reference/rest-api.md)
+- [Java Version](reference/java-version.md)
+- [Configuration Properties](reference/configuration.md)
+- [REST API](reference/rest-api.md)
+- [Supported NUTs](reference/nuts.md)
+- [License](reference/license.md)
 
 ## Explanation
 - [Architecture overview](explanations/architecture-overview.md) - Rationale behind major components of the mint.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md): Overview of module responsibilities and supported NUT specifications.
+- [Modules](explanation/modules.md)
+- [Docker Image Publishing](explanation/docker-image-publishing.md)
+- [Disclaimer](explanation/disclaimer.md)
