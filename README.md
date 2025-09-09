@@ -20,21 +20,7 @@ real Phoenixd gateway.
 
 ## REST API
 All endpoints are rooted at `/v1`.
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/keys/{mint_id}/generate` | Generate keyset IDs for a mint. |
-| `GET` | `/keys/keyset/{keyset_id}` | Retrieve keys for a specific keyset. |
-| `GET` | `/keysets` | List active keysets. |
-| `POST` | `/swap/{mint_id}` | Swap tokens within a mint. |
-| `POST` | `/mint/quote/{method}` | Request a mint quote for a payment method. |
-| `GET` | `/mint/quote/{method}/{quote_id}` | Check status of a mint quote. |
-| `POST` | `/mint/{mintId}/{method}` | Mint tokens using a payment method. |
-| `POST` | `/melt/quote/{method}` | Request a melt quote for a payment method. |
-| `GET` | `/melt/quote/{method}/{quote_id}` | Check status of a melt quote. |
-| `POST` | `/melt/{mint_id}/{method}` | Melt tokens using a payment method. |
-| `GET` | `/info` | Retrieve mint information. |
-| `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
+See [REST API reference](docs/reference/rest-api.md) for endpoint details.
 
 ## Docker Compose
 The `PHOENIXD_SERVICE` environment variable controls which Phoenixd backend is
@@ -82,18 +68,10 @@ When invoking Docker with `sudo`, pass these variables explicitly or use
 The project uses the Jib Maven plugin to publish the `cashu-mint-rest` Docker image
 to `docker.398ja.xyz/cashu-mint-rest`. Each release is tagged with both the
 current project version and `latest`.
+See [Publish a Docker image](docs/how-to/publish-docker-image.md) for step-by-step instructions.
 
 ## Supported NUTs
-- [NUT-00](https://github.com/cashubtc/nuts/blob/main/00.md): Notation, Utilization, and Terminology
-- [NUT-01](https://github.com/cashubtc/nuts/blob/main/01.md): Mint public key exchange
-- [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md): Keysets and keyset ID
-- [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md): Swap tokens
-- [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md): Mint tokens
-- [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md): Melt tokens
-- [NUT-06](https://github.com/cashubtc/nuts/blob/main/06.md): Mint information
-- [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md): Token state check
-- [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md): Spending conditions
-- [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md): Pay to Public Key (P2PK)
+See [Architecture and NUTs](docs/explanations/architecture-and-nuts.md#supported-nuts) for the list of supported NUT specifications.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
