@@ -10,7 +10,9 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 
 public class SignBlindedMessageTask implements Task<BlindSignature> {
@@ -18,10 +20,22 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     private final Mint mint;
     private final BlindedMessage blindedMessage;
     private final MintProtocolService mintProtocolService;
-    public SignBlindedMessageTask(@NonNull Mint mint, @NonNull BlindedMessage blindedMessage, @NonNull MintProtocolService mintProtocolService) {
+    private final SignatureVaultService signatureVaultService;
+
+    public SignBlindedMessageTask(@NonNull Mint mint,
+                                  @NonNull BlindedMessage blindedMessage,
+                                  @NonNull MintProtocolService mintProtocolService) {
+        this(mint, blindedMessage, mintProtocolService, new DefaultSignatureVaultService());
+    }
+
+    public SignBlindedMessageTask(@NonNull Mint mint,
+                                  @NonNull BlindedMessage blindedMessage,
+                                  @NonNull MintProtocolService mintProtocolService,
+                                  @NonNull SignatureVaultService signatureVaultService) {
         this.mint = mint;
         this.blindedMessage = blindedMessage;
         this.mintProtocolService = mintProtocolService;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @Override
@@ -35,12 +49,15 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
         byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
         // Signature.fromBytes expects 64-byte Schnorr signatures, while blind signatures (C)
         // are 33-byte compressed points. Convert 33-byte results to hex and use fromString.
+        BlindSignature blindSignature;
         if (signature != null && signature.length == 64) {
-            return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
+            blindSignature = new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromBytes(signature));
         } else {
             String hex = bytesToHex(signature);
-            return new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromString(hex));
+            blindSignature = new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), Signature.fromString(hex));
         }
+        signatureVaultService.store(blindedMessage, blindSignature);
+        return blindSignature;
     }
 
     private PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
