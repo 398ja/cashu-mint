@@ -254,3 +254,28 @@ Content-Type: application/json
   "spent": []
 }
 ```
+
+
+### `POST /restore`
+Restore blind signatures for previously signed messages (NUT-09).
+| Parameter | In | Type | Description |
+| --- | --- | --- | --- |
+| `body` | body | object | Restore request payload containing blinded messages. |
+**Sample request**
+```http
+POST /v1/restore HTTP/1.1
+Host: example.com
+Content-Type: application/json
+{
+  "blinded_messages": [
+    { "B_": "..." }
+  ]
+}
+```
+**Sample response**
+```json
+{
+  "outputs": [ { "B_": "..." } ],
+  "signatures": [ "..." ]
+}
+```
