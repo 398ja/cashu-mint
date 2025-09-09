@@ -88,6 +88,7 @@ When invoking Docker with `sudo`, pass these variables explicitly or use
 The project uses the Jib Maven plugin to publish the `cashu-mint-rest` Docker image
 to `docker.398ja.xyz/cashu-mint-rest`. Each release is tagged with both the
 current project version and `latest`.
+See [Publish a Docker image](docs/how-to/publish-docker-image.md) for step-by-step instructions.
 
 ## Supported NUTs
 See [Architecture and NUTs](docs/explanations/architecture-and-nuts.md#supported-nuts) for the list of supported NUT specifications.
