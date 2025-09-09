@@ -33,7 +33,8 @@ public class RestoreSignaturesTaskTest {
         RestoreSignaturesTask task = new RestoreSignaturesTask(request, service);
         var response = task.execute();
 
-        assertThat(response.outputs()).containsExactly(message);
-        assertThat(response.signatures()).containsExactly(signature);
+        xyz.tcheeric.cashu.entities.rest.PostRestoreResponse expected =
+                new xyz.tcheeric.cashu.entities.rest.PostRestoreResponse(List.of(message), List.of(signature));
+        assertThat(response).isEqualTo(expected);
     }
 }
