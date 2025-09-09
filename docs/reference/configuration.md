@@ -1,3 +1,4 @@
+
 # Configuration
 
 This reference lists configuration properties used by the mint and their default values.
