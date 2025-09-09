@@ -1,4 +1,3 @@
-
 # REST API Reference
 This document provides details about the Cashu Mint REST API endpoints. All paths are rooted at `/v1`.
 

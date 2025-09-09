@@ -1,4 +1,3 @@
-
 # Configuration
 
 This reference lists configuration properties used by the mint and their default values.
@@ -13,3 +12,4 @@ This reference lists configuration properties used by the mint and their default
 - [Getting started](../tutorials/getting-started.md)
 - [Run tests](../how-to/run-tests.md)
 - [Architecture overview](../explanations/architecture-overview.md)
+
