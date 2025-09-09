@@ -1,18 +1,17 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class RestoreSignaturesTaskTest {
 
