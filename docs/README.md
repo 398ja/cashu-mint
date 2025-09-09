@@ -4,6 +4,7 @@ This directory contains documentation organized using the Diátaxis framework.
 
 ## Tutorials
 - [Getting started](tutorials/getting-started.md) - Walk through starting a local Cashu mint.
+- [Run with Docker Compose](tutorials/run-with-docker-compose.md)
 
 ## How-to guides
 - [Run tests](how-to/run-tests.md) - Step-by-step instructions for executing the test suite.
