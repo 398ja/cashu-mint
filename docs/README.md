@@ -1,5 +1,14 @@
 # Documentation
 
+This directory contains project documentation organized using the Diátaxis framework.
+
+## Reference
+
+- [REST API](reference/rest-api.md)
+
+## Explanation
+
+_No explanation documents are available yet._
 This directory contains project documentation organized by the Diátaxis framework.
 
 # Cashu Mint Documentation
