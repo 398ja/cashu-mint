@@ -9,14 +9,8 @@
 - Ensure your `JAVA_HOME` points to a JDK 21 installation, or configure a Maven Toolchain with JDK 21.
 
 ## Configuration properties
-| Property | Default | Description |
-| --- | --- | --- |
-| `cashu_mint_port` | `7777` | Port for the mint server; override with system property or `CASHU_MINT_PORT` env var. |
-| `cashu.units` | `sat` | Unit used for amounts. |
-| `cashu.expiry` | `15` | Token expiry time in minutes. |
-| `gateway.prod` | `xyz.tcheeric.gateway.phoenixd.PhoenixdGateway` | Production gateway implementation class. |
-| `gateway.mock` | `xyz.tcheeric.gateway.mock.PhoenixdMockGateway` | Mock gateway used for development and tests. |
-| `cashu.melt.fee-reserve-percent` | `0.05` | Fraction added as fee reserve during melts. |
+
+Configuration options and defaults are documented in [docs/reference/configuration.md](docs/reference/configuration.md). Properties can be overridden via Java system properties or environment variables; see [docs/how-to/configure-mint.md](docs/how-to/configure-mint.md) for examples.
 
 The gateway used by the protocol is chosen via the `PROFILE` (or `ENV`) environment variable.
 If `PROFILE` is set to `prod`, the class defined in `gateway.prod` is instantiated; otherwise the
