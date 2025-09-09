@@ -19,6 +19,6 @@ The project supports the following NUT specifications.
 | [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md) | Melt tokens | Melting endpoints in `cashu-mint-rest` backed by protocol redemption services. |
 | [NUT-06](https://github.com/cashubtc/nuts/blob/main/06.md) | Mint information | Exposed via `/info` endpoint. |
 | [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md) | Token state check | `/checkstate/{mint_id}` endpoint with protocol verification. |
+| [NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md) | Restore signatures | `/restore` endpoint delegates to protocol restore task (NUT09). |
 | [NUT-10](https://github.com/cashubtc/nuts/blob/main/10.md) | Spending conditions | Enforced by condition handling in `cashu-mint-protocol`. |
 | [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md) | Pay to Public Key (P2PK) | Supported through P2PK conditions in `cashu-mint-protocol`. |
-
