@@ -5,4 +5,3 @@ cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/c
 ## Documentation
 
 Documentation following the [Diátaxis](https://diataxis.fr/) framework is available in [docs](docs/README.md).
-

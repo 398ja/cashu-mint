@@ -32,12 +32,15 @@ import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
+import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -137,6 +140,12 @@ public class CashuController<T extends Secret> {
     @PostMapping("/checkstate/{mint_id}")
     public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request, @PathVariable("mint_id") String mintId) throws CashuErrorException {
         PostCheckStateResponse response = NUT07.checkState(UUID.fromString(mintId), request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/restore")
+    public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
+        PostRestoreResponse response = NUT09.restore(request);
         return ResponseEntity.ok(response);
     }
 
