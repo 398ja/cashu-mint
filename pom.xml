@@ -190,6 +190,28 @@
         </pluginManagement>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>Java 21 is required to build and test this project.</message>
+                                </requireJavaVersion>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco-maven-plugin.version}</version>
@@ -213,8 +235,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <!-- Allow reflective access needed by tests and error handling on Java 21+ -->
-                    <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED</argLine>
+                    <!-- Allow reflective access and enable agent self-attach when on 21 -->
+                    <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED -Djdk.attach.allowAttachSelf=true</argLine>
                 </configuration>
             </plugin>
         </plugins>

@@ -4,6 +4,10 @@
 - `cashu-mint-protocol` – core protocol implementation
 - `cashu-mint-rest` – REST API exposing wallet endpoints
 
+## Java Version
+- Requires Java 21 for build and tests. The build now enforces JDK version 21 via the Maven Enforcer plugin.
+- Ensure your `JAVA_HOME` points to a JDK 21 installation, or configure a Maven Toolchain with JDK 21.
+
 ## Configuration properties
 | Property | Default | Description |
 | --- | --- | --- |
