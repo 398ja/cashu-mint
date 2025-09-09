@@ -33,7 +33,7 @@ public class RestoreSignaturesTaskTest {
         RestoreSignaturesTask task = new RestoreSignaturesTask(request, service);
         var response = task.execute();
 
-        assertThat(response.getOutputs()).containsExactly(message);
-        assertThat(response.getSignatures()).containsExactly(signature);
+        assertThat(response.outputs()).containsExactly(message);
+        assertThat(response.signatures()).containsExactly(signature);
     }
 }
