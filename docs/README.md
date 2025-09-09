@@ -1,3 +1,9 @@
+# Documentation
+
+## How-to guides
+
+- [Publish a Docker image](how-to/publish-docker-image.md)
+
 # Cashu Mint Documentation
 
 This directory contains documentation organized using the Diátaxis framework.
