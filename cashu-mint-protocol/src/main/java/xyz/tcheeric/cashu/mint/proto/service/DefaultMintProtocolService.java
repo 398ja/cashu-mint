@@ -16,7 +16,12 @@ import xyz.tcheeric.gateway.common.Gateway;
 public class DefaultMintProtocolService implements MintProtocolService {
     @Override
     public Gateway createGateway(@NonNull PaymentMethod method) {
-        return MintProtocolUtil.createGateway(method);
+        return MintProtocolUtil.createGateway(method, null);
+    }
+
+    @Override
+    public Gateway createGateway(@NonNull PaymentMethod method, String unit) {
+        return MintProtocolUtil.createGateway(method, unit);
     }
 
     @Override

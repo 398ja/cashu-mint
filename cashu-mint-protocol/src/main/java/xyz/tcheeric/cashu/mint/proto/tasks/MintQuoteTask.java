@@ -15,23 +15,27 @@ public class MintQuoteTask implements Task<PostMintQuoteResponse> {
 
     private final int amount;
     private final PaymentMethod method;
+    private final String unit;
     private final MintProtocolService mintProtocolService;
 
     public MintQuoteTask(int amount, @NonNull PaymentMethod method) {
-        this(amount, method, MintProtocolServiceFactory.getInstance());
+        this(amount, method, null, MintProtocolServiceFactory.getInstance());
     }
 
     public MintQuoteTask(int amount,
                          @NonNull PaymentMethod method,
+                         String unit,
                          @NonNull MintProtocolService mintProtocolService) {
         this.amount = amount;
         this.method = method;
+        this.unit = unit;
         this.mintProtocolService = mintProtocolService;
     }
 
     @Override
     public PostMintQuoteResponse execute() {
-        Gateway gateway = mintProtocolService.createGateway(method);
+        Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                : mintProtocolService.createGateway(method, unit);
         String quoteId = gateway.createMintQuote(amount, null);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
