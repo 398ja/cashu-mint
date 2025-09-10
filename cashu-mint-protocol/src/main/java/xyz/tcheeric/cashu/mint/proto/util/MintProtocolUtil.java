@@ -157,11 +157,15 @@ public class MintProtocolUtil {
             }
 
             Class<?> gatewayClass = Class.forName(gatewayClassName);
-            Gateway gatewayInstance = (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
-            if (!(gatewayInstance instanceof Gateway)) {
-                throw new IllegalArgumentException("Loaded class is not an instance of Gateway");
+            if (!Gateway.class.isAssignableFrom(gatewayClass)) {
+                throw new IllegalArgumentException("Configured gateway does not implement Gateway: " + gatewayClassName);
             }
-            return gatewayInstance;
+            try {
+                return (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
+            } catch (NoSuchMethodException e) {
+                throw new IllegalArgumentException(
+                        "Gateway class must have a public no-args constructor: " + gatewayClassName, e);
+            }
         }
     }
 
