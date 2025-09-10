@@ -16,7 +16,7 @@ docker compose --profile dev up
 When startup completes, the mint API is available at `http://localhost:7777`. Verify it by checking the mint information:
 
 ```bash
-curl http://localhost:7777/v1/info
+curl http://localhost:7777/info
 ```
 
 You should receive a JSON response with details about the mint.
