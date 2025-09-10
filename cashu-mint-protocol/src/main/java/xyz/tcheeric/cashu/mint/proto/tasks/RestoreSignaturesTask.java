@@ -7,7 +7,6 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.ArrayList;
@@ -17,10 +16,6 @@ public class RestoreSignaturesTask implements Task<PostRestoreResponse> {
 
     private final PostRestoreRequest request;
     private final SignatureVaultService signatureVaultService;
-
-    public RestoreSignaturesTask(@NonNull PostRestoreRequest request) {
-        this(request, new DefaultSignatureVaultService());
-    }
 
     public RestoreSignaturesTask(@NonNull PostRestoreRequest request,
                                  @NonNull SignatureVaultService signatureVaultService) {

@@ -44,6 +44,7 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.List;
@@ -57,10 +58,12 @@ public class CashuController<T extends Secret> {
 
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
+    private final SignatureVaultService signatureVaultService;
 
-    public CashuController(NUT06 nut06, MintLoadService mintLoadService) {
+    public CashuController(NUT06 nut06, MintLoadService mintLoadService, SignatureVaultService signatureVaultService) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @GetMapping("/keys/{mint_id}/generate")
@@ -87,7 +90,7 @@ public class CashuController<T extends Secret> {
 
     @PostMapping("/swap/{mint_id}")
     public ResponseEntity<PostSwapResponse> swap(@PathVariable("mint_id") String mintId, @RequestBody PostSwapRequest<T> request) throws CashuErrorException {
-        PostSwapResponse response = NUT03.swap(UUID.fromString(mintId), request);
+        PostSwapResponse response = NUT03.swap(UUID.fromString(mintId), request, signatureVaultService);
         return ResponseEntity.ok(response);
     }
 
@@ -105,7 +108,7 @@ public class CashuController<T extends Secret> {
 
     @PostMapping("/mint/{mintId}/{method}")
     public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request, @PathVariable("method") String method, @PathVariable("mintId") String mintId) throws CashuErrorException {
-        PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()));
+        PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()), signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -141,7 +144,7 @@ public class CashuController<T extends Secret> {
 
     @PostMapping("/restore")
     public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
-        PostRestoreResponse response = NUT09.restore(request);
+        PostRestoreResponse response = NUT09.restore(request, signatureVaultService);
         return ResponseEntity.ok(response);
     }
 
