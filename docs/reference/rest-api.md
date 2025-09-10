@@ -13,7 +13,7 @@ Generate keyset IDs for a mint.
 | `mint_id` | path | string | Unique mint identifier. |
 **Sample request**
 ```http
-GET /v1/keys/123/generate HTTP/1.1
+GET /keys/123/generate HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -31,7 +31,7 @@ Retrieve keys for a specific keyset.
 | `keyset_id` | path | string | Identifier of the keyset. |
 **Sample request**
 ```http
-GET /v1/keys/keyset/abc123 HTTP/1.1
+GET /keys/keyset/abc123 HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -47,7 +47,7 @@ List active keysets.
 _No parameters._
 **Sample request**
 ```http
-GET /v1/keysets HTTP/1.1
+GET /keysets HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -66,7 +66,7 @@ Swap tokens within a mint.
 | `body` | body | object | Swap request payload. |
 **Sample request**
 ```http
-POST /v1/swap/123 HTTP/1.1
+POST /swap/123 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -90,7 +90,7 @@ Request a mint quote for a payment method.
 | `body` | body | object | Quote request payload. |
 **Sample request**
 ```http
-POST /v1/mint/quote/bolt11 HTTP/1.1
+POST /mint/quote/bolt11 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -114,7 +114,7 @@ Check status of a mint quote.
 | `quote_id` | path | string | Identifier returned from quote request. |
 **Sample request**
 ```http
-GET /v1/mint/quote/bolt11/q123 HTTP/1.1
+GET /mint/quote/bolt11/q123 HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -134,7 +134,7 @@ Mint tokens using a payment method.
 | `body` | body | object | Mint request payload. |
 **Sample request**
 ```http
-POST /v1/mint/123/bolt11 HTTP/1.1
+POST /mint/123/bolt11 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -157,7 +157,7 @@ Request a melt quote for a payment method.
 | `body` | body | object | Quote request payload. |
 **Sample request**
 ```http
-POST /v1/melt/quote/bolt11 HTTP/1.1
+POST /melt/quote/bolt11 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -181,7 +181,7 @@ Check status of a melt quote.
 | `quote_id` | path | string | Identifier returned from melt quote request. |
 **Sample request**
 ```http
-GET /v1/melt/quote/bolt11/m123 HTTP/1.1
+GET /melt/quote/bolt11/m123 HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -201,7 +201,7 @@ Melt tokens using a payment method.
 | `body` | body | object | Melt request payload. |
 **Sample request**
 ```http
-POST /v1/melt/123/bolt11 HTTP/1.1
+POST /melt/123/bolt11 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -222,7 +222,7 @@ Retrieve mint information.
 _No parameters._
 **Sample request**
 ```http
-GET /v1/info HTTP/1.1
+GET /info HTTP/1.1
 Host: example.com
 ```
 **Sample response**
@@ -241,7 +241,7 @@ Check state of tokens against a mint.
 | `body` | body | object | State check payload. |
 **Sample request**
 ```http
-POST /v1/checkstate/123 HTTP/1.1
+POST /checkstate/123 HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -263,7 +263,7 @@ Restore blind signatures for previously signed messages (NUT-09).
 | `body` | body | object | Restore request payload containing blinded messages. |
 **Sample request**
 ```http
-POST /v1/restore HTTP/1.1
+POST /restore HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
