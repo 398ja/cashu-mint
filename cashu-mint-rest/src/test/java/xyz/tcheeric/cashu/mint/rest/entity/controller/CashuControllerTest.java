@@ -261,13 +261,7 @@ public class CashuControllerTest {
         assertEquals(info, response.getBody());
     }
 
-    @Test
-    void defaultConstructorInfo() {
-        CashuController<Secret> controller = new CashuController<>();
-        ResponseEntity<MintInfo> response = controller.info();
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-    }
+    // Removed default constructor test: controller now requires injected dependencies.
 
     @Test
     void checkstate() throws CashuErrorException {
