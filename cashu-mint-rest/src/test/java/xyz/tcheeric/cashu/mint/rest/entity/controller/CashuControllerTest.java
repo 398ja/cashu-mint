@@ -36,6 +36,8 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 import java.util.UUID;
 
@@ -47,7 +49,7 @@ public class CashuControllerTest {
 
     @Test
     void handleCashuErrorReturnsStructuredError() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
         CashuErrorException ex = new CashuErrorException(error.toJson());
 
@@ -61,7 +63,7 @@ public class CashuControllerTest {
 
     @Test
     void handleCashuErrorNotFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
         CashuErrorException ex = new CashuErrorException(error.toJson()) {
             @Override
@@ -80,7 +82,7 @@ public class CashuControllerTest {
 
     @Test
     void generateKeySetIds() throws CashuErrorException {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         KeySet keySet = Mockito.mock(KeySet.class);
         try (MockedStatic<NUT02> mocked = Mockito.mockStatic(NUT02.class)) {
             mocked.when(() -> NUT02.keys(Mockito.any(UUID.class))).thenReturn(java.util.List.of(keySet));
@@ -92,7 +94,7 @@ public class CashuControllerTest {
 
     @Test
     void keyset() throws CashuErrorException {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         KeySet keySet = Mockito.mock(KeySet.class);
         try (MockedStatic<NUT02> mocked = Mockito.mockStatic(NUT02.class)) {
             mocked.when(() -> NUT02.keys(Mockito.anyString(), Mockito.any(MintLoadService.class))).thenReturn(keySet);
@@ -104,7 +106,7 @@ public class CashuControllerTest {
 
     @Test
     void keysets() throws CashuErrorException {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         ActiveKeySet active = Mockito.mock(ActiveKeySet.class);
         try (MockedStatic<NUT02> mocked = Mockito.mockStatic(NUT02.class)) {
             mocked.when(() -> NUT02.activeKeySets(Mockito.any(MintLoadService.class))).thenReturn(java.util.List.of(active));
@@ -116,11 +118,11 @@ public class CashuControllerTest {
 
     @Test
     void swap() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostSwapRequest<Secret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse expected = Mockito.mock(PostSwapResponse.class);
         try (MockedStatic<NUT03> mocked = Mockito.mockStatic(NUT03.class)) {
-            mocked.when(() -> NUT03.swap(Mockito.any(UUID.class), Mockito.any())).thenReturn(expected);
+            mocked.when(() -> NUT03.swap(Mockito.any(UUID.class), Mockito.any(), Mockito.any(SignatureVaultService.class))).thenReturn(expected);
             ResponseEntity<PostSwapResponse> response = controller.swap(UUID.randomUUID().toString(), request);
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(expected, response.getBody());
@@ -129,7 +131,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMintPost() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMintQuoteRequest request = Mockito.mock(PostMintQuoteRequest.class);
         Mockito.when(request.getAmount()).thenReturn(1);
         PostMintQuoteResponse expected = Mockito.mock(PostMintQuoteResponse.class);
@@ -143,7 +145,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMintGetFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMintQuoteResponse expected = Mockito.mock(PostMintQuoteResponse.class);
         try (MockedStatic<NUT04> mocked = Mockito.mockStatic(NUT04.class)) {
             mocked.when(() -> NUT04.quotePaymentStatus("qid", PaymentMethod.MOCK)).thenReturn(expected);
@@ -155,7 +157,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMintGetNotFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         try (MockedStatic<NUT04> mocked = Mockito.mockStatic(NUT04.class)) {
             mocked.when(() -> NUT04.quotePaymentStatus("qid", PaymentMethod.MOCK)).thenReturn(null);
             ResponseEntity<PostMintQuoteResponse> response = controller.quoteMint(PaymentMethod.MOCK.name().toLowerCase(), "qid");
@@ -166,11 +168,11 @@ public class CashuControllerTest {
 
     @Test
     void mintFound() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMintRequest<Secret> request = Mockito.mock(PostMintRequest.class);
         PostMintResponse expected = Mockito.mock(PostMintResponse.class);
         try (MockedStatic<NUT04> mocked = Mockito.mockStatic(NUT04.class)) {
-            mocked.when(() -> NUT04.mint(Mockito.any(UUID.class), Mockito.any(), Mockito.eq(PaymentMethod.MOCK))).thenReturn(expected);
+            mocked.when(() -> NUT04.mint(Mockito.any(UUID.class), Mockito.any(), Mockito.eq(PaymentMethod.MOCK), Mockito.any(SignatureVaultService.class))).thenReturn(expected);
             ResponseEntity<PostMintResponse> response = controller.mint(request, PaymentMethod.MOCK.name().toLowerCase(), UUID.randomUUID().toString());
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(expected, response.getBody());
@@ -179,10 +181,10 @@ public class CashuControllerTest {
 
     @Test
     void mintNotFound() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMintRequest<Secret> request = Mockito.mock(PostMintRequest.class);
         try (MockedStatic<NUT04> mocked = Mockito.mockStatic(NUT04.class)) {
-            mocked.when(() -> NUT04.mint(Mockito.any(UUID.class), Mockito.any(), Mockito.eq(PaymentMethod.MOCK))).thenReturn(null);
+            mocked.when(() -> NUT04.mint(Mockito.any(UUID.class), Mockito.any(), Mockito.eq(PaymentMethod.MOCK), Mockito.any(SignatureVaultService.class))).thenReturn(null);
             ResponseEntity<PostMintResponse> response = controller.mint(request, PaymentMethod.MOCK.name().toLowerCase(), UUID.randomUUID().toString());
             assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
             assertNull(response.getBody());
@@ -191,7 +193,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMeltPost() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMeltQuoteRequest request = Mockito.mock(PostMeltQuoteRequest.class);
         PostMeltQuoteResponse expected = Mockito.mock(PostMeltQuoteResponse.class);
         try (MockedStatic<NUT05> mocked = Mockito.mockStatic(NUT05.class)) {
@@ -204,7 +206,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMeltGetFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMeltQuoteResponse expected = Mockito.mock(PostMeltQuoteResponse.class);
         try (MockedStatic<NUT05> mocked = Mockito.mockStatic(NUT05.class)) {
             mocked.when(() -> NUT05.quotePaymentStatus("qid", PaymentMethod.MOCK)).thenReturn(expected);
@@ -216,7 +218,7 @@ public class CashuControllerTest {
 
     @Test
     void quoteMeltGetNotFound() {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         try (MockedStatic<NUT05> mocked = Mockito.mockStatic(NUT05.class)) {
             mocked.when(() -> NUT05.quotePaymentStatus("qid", PaymentMethod.MOCK)).thenReturn(null);
             ResponseEntity<PostMeltQuoteResponse> response = controller.quoteMelt(PaymentMethod.MOCK.name().toLowerCase(), "qid");
@@ -227,7 +229,7 @@ public class CashuControllerTest {
 
     @Test
     void meltFound() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMeltRequest<Secret> request = Mockito.mock(PostMeltRequest.class);
         PostMeltResponse expected = Mockito.mock(PostMeltResponse.class);
         try (MockedStatic<NUT05> mocked = Mockito.mockStatic(NUT05.class)) {
@@ -240,7 +242,7 @@ public class CashuControllerTest {
 
     @Test
     void meltNotFound() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostMeltRequest<Secret> request = Mockito.mock(PostMeltRequest.class);
         try (MockedStatic<NUT05> mocked = Mockito.mockStatic(NUT05.class)) {
             mocked.when(() -> NUT05.melt(Mockito.any(UUID.class), Mockito.any(), Mockito.eq(PaymentMethod.MOCK))).thenReturn(null);
@@ -253,7 +255,7 @@ public class CashuControllerTest {
     @Test
     void info() {
         NUT06 nut06 = Mockito.mock(NUT06.class);
-        CashuController<?> controller = new CashuController<>(nut06, new DefaultMintLoadService());
+        CashuController<?> controller = new CashuController<>(nut06, new DefaultMintLoadService(), new DefaultSignatureVaultService());
         MintInfo info = new MintInfo();
         Mockito.when(nut06.mintInfo()).thenReturn(info);
         ResponseEntity<MintInfo> response = controller.info();
@@ -265,7 +267,7 @@ public class CashuControllerTest {
 
     @Test
     void checkstate() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
         PostCheckStateResponse expected = Mockito.mock(PostCheckStateResponse.class);
         try (MockedStatic<NUT07> mocked = Mockito.mockStatic(NUT07.class)) {
@@ -281,11 +283,11 @@ public class CashuControllerTest {
      */
     @Test
     void restore() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService());
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         PostRestoreRequest request = Mockito.mock(PostRestoreRequest.class);
         PostRestoreResponse expected = Mockito.mock(PostRestoreResponse.class);
         try (MockedStatic<NUT09> mocked = Mockito.mockStatic(NUT09.class)) {
-            mocked.when(() -> NUT09.restore(request)).thenReturn(expected);
+            mocked.when(() -> NUT09.restore(Mockito.eq(request), Mockito.any(SignatureVaultService.class))).thenReturn(expected);
             ResponseEntity<PostRestoreResponse> response = controller.restore(request);
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(expected, response.getBody());
