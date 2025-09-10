@@ -31,12 +31,11 @@ public class MintProtocolUtil {
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
         try {
-            Gateway gateway = GatewayLoader.loadGateway();
-            if(gateway.supports(method)) {
-                return gateway;
-            } else {
+            Gateway gateway = GatewayLoader.loadGateway(method);
+            if (!gateway.supports(method)) {
                 throw new IllegalArgumentException("Gateway does not support payment method: " + method);
             }
+            return gateway;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create gateway instance", e);
         }
@@ -128,10 +127,8 @@ public class MintProtocolUtil {
 
 
     static class GatewayLoader {
-        public static Gateway loadGateway() throws Exception {
-
+        public static Gateway loadGateway(@NonNull PaymentMethod method) throws Exception {
             Properties properties = new Properties();
-
             try (InputStream input = GatewayLoader.class.getClassLoader().getResourceAsStream("app.properties")) {
                 if (input == null) {
                     throw new RuntimeException("Failed to load properties file");
@@ -141,31 +138,17 @@ public class MintProtocolUtil {
                 throw new RuntimeException("Failed to load properties file", e);
             }
 
-            String profile = System.getenv("PROFILE");
-            if (profile == null) {
-                profile = System.getenv("ENV");
-            }
-            if (profile == null) {
-                profile = "dev";
-            }
-
-            String gatewayKey = "prod".equalsIgnoreCase(profile) ? "gateway.prod" : "gateway.mock";
-
-            String gatewayClassName = properties.getProperty(gatewayKey);
-            if (gatewayClassName == null || gatewayClassName.isEmpty()) {
-                throw new IllegalArgumentException("Gateway class not specified for profile: " + profile);
+            String key = "gateway." + method.name().toLowerCase();
+            String gatewayClassName = properties.getProperty(key);
+            if (gatewayClassName == null || gatewayClassName.isBlank()) {
+                throw new IllegalArgumentException("Gateway class not specified for method: " + method);
             }
 
             Class<?> gatewayClass = Class.forName(gatewayClassName);
             if (!Gateway.class.isAssignableFrom(gatewayClass)) {
                 throw new IllegalArgumentException("Configured gateway does not implement Gateway: " + gatewayClassName);
             }
-            try {
-                return (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
-            } catch (NoSuchMethodException e) {
-                throw new IllegalArgumentException(
-                        "Gateway class must have a public no-args constructor: " + gatewayClassName, e);
-            }
+            return (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
         }
     }
 
