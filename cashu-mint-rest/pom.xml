@@ -18,8 +18,8 @@
         <!-- Mock LN server providing the mock gateway class used in dev profile -->
         <dependency>
             <groupId>xyz.tcheeric</groupId>
-            <artifactId>phoenixd-mock</artifactId>
-            <version>${phoenixd-mock.version}</version>
+            <artifactId>cashu-gateway-dummy</artifactId>
+            <version>${cashu-gateway.version}</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
