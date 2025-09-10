@@ -12,6 +12,7 @@ import xyz.tcheeric.gateway.common.Gateway;
 
 public interface MintProtocolService {
     Gateway createGateway(@NonNull PaymentMethod method);
+    Gateway createGateway(@NonNull PaymentMethod method, String unit);
     PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) throws CashuErrorException;
     MintEntity toMintEntity(@NonNull Mint mint);
     <T extends xyz.tcheeric.cashu.common.Secret> ProofEntity toProofEntity(@NonNull Proof<T> proof, @NonNull MintEntity mintEntity);

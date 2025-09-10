@@ -30,8 +30,12 @@ import java.util.UUID;
 public class MintProtocolUtil {
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
+        return createGateway(method, null);
+    }
+
+    public static Gateway createGateway(@NonNull PaymentMethod method, String unit) {
         try {
-            Gateway gateway = GatewayLoader.loadGateway(method);
+            Gateway gateway = GatewayLoader.loadGateway(method, unit);
             if (!gateway.supports(method)) {
                 throw new IllegalArgumentException("Gateway does not support payment method: " + method);
             }
@@ -127,7 +131,7 @@ public class MintProtocolUtil {
 
 
     static class GatewayLoader {
-        public static Gateway loadGateway(@NonNull PaymentMethod method) throws Exception {
+        public static Gateway loadGateway(@NonNull PaymentMethod method, String unit) throws Exception {
             Properties properties = new Properties();
             try (InputStream input = GatewayLoader.class.getClassLoader().getResourceAsStream("app.properties")) {
                 if (input == null) {
@@ -138,10 +142,19 @@ public class MintProtocolUtil {
                 throw new RuntimeException("Failed to load properties file", e);
             }
 
-            String key = "gateway." + method.name().toLowerCase();
-            String gatewayClassName = properties.getProperty(key);
+            String methodKey = method.name().toLowerCase();
+
+            String gatewayClassName = null;
+            if (unit != null && !unit.isBlank()) {
+                String keyWithUnit = "gateway." + methodKey + "." + unit.toLowerCase();
+                gatewayClassName = properties.getProperty(keyWithUnit);
+            }
             if (gatewayClassName == null || gatewayClassName.isBlank()) {
-                throw new IllegalArgumentException("Gateway class not specified for method: " + method);
+                String key = "gateway." + methodKey;
+                gatewayClassName = properties.getProperty(key);
+            }
+            if (gatewayClassName == null || gatewayClassName.isBlank()) {
+                throw new IllegalArgumentException("Gateway class not specified for method " + method + (unit != null ? (" and unit " + unit) : ""));
             }
 
             Class<?> gatewayClass = Class.forName(gatewayClassName);
