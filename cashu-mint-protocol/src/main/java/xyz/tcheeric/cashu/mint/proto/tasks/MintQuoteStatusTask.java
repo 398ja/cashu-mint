@@ -32,6 +32,13 @@ public class MintQuoteStatusTask implements Task<PostMintQuoteResponse> {
         this.mintProtocolService = mintProtocolService;
     }
 
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MintQuoteStatusTask(@NonNull String quoteId,
+                               @NonNull PaymentMethod method,
+                               @NonNull MintProtocolService mintProtocolService) {
+        this(quoteId, method, null, mintProtocolService);
+    }
+
     @Override
     public PostMintQuoteResponse execute() {
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)

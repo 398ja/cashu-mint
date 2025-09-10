@@ -47,6 +47,17 @@ public class MeltTokensTask<T extends Secret> implements Task<PostMeltResponse> 
         this.unit = unit;
     }
 
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MeltTokensTask(@NonNull UUID mintId,
+                          @NonNull PostMeltRequest<T> request,
+                          @NonNull PaymentMethod method,
+                          @NonNull MintProtocolService mintProtocolService,
+                          @NonNull MintLoadService mintLoadService,
+                          @NonNull MintVaultService mintVaultService,
+                          @NonNull ProofVaultService proofVaultService) {
+        this(mintId, request, method, null, mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
+    }
+
     @Override
     public PostMeltResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, true);
