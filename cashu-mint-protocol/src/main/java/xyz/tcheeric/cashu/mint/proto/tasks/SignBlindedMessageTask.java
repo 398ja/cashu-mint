@@ -10,7 +10,6 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
@@ -21,12 +20,6 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     private final BlindedMessage blindedMessage;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
-
-    public SignBlindedMessageTask(@NonNull Mint mint,
-                                  @NonNull BlindedMessage blindedMessage,
-                                  @NonNull MintProtocolService mintProtocolService) {
-        this(mint, blindedMessage, mintProtocolService, new DefaultSignatureVaultService());
-    }
 
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,

@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
@@ -81,7 +82,7 @@ public class SwapTaskTest {
 
             factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
 
-            SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
+            SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
             PostSwapResponse response = task.execute();
 
             assertEquals(1, response.getBlindSignatures().size());
@@ -99,7 +100,7 @@ public class SwapTaskTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(null);
 
-        SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService);
+        SwapTask<RandomStringSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         try {

@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.UUID;
 
@@ -27,30 +28,35 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
     private final PaymentMethod method;
     private final MintLoadService mintLoadService;
     private final MintProtocolService mintProtocolService;
+    private final SignatureVaultService signatureVaultService;
 
     public MintTokensTask(@NonNull UUID mintId,
                           @NonNull PostMintRequest<T> postMintRequest,
-                          @NonNull PaymentMethod method) {
+                          @NonNull PaymentMethod method,
+                          @NonNull SignatureVaultService signatureVaultService) {
         this(mintId, postMintRequest, method,
                 new DefaultMintLoadService(),
-                MintProtocolServiceFactory.getInstance());
+                MintProtocolServiceFactory.getInstance(),
+                signatureVaultService);
     }
 
     public MintTokensTask(@NonNull UUID mintId,
                           @NonNull PostMintRequest<T> postMintRequest,
                           @NonNull PaymentMethod method,
                           @NonNull MintLoadService mintLoadService,
-                          @NonNull MintProtocolService mintProtocolService) {
+                          @NonNull MintProtocolService mintProtocolService,
+                          @NonNull SignatureVaultService signatureVaultService) {
         this.mintId = mintId;
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.mintLoadService = mintLoadService;
         this.mintProtocolService = mintProtocolService;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @Override
     public PostMintResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
-        return new MintTask<>(postMintRequest, method, mint, mintProtocolService).execute();
+        return new MintTask<>(postMintRequest, method, mint, mintProtocolService, signatureVaultService).execute();
     }
 }
