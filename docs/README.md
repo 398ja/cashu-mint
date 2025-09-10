@@ -10,6 +10,7 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Run tests](how-to/run-tests.md) - Step-by-step instructions for executing the test suite.
 - [Publish a Docker image](how-to/publish-docker-image.md) - Build and push the REST image.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
+ - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
 
 ## Reference
 - [Configuration](reference/configuration.md) - Application properties and defaults.
@@ -22,4 +23,3 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
-

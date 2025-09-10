@@ -28,15 +28,23 @@ public class NUT04 {
         return new MintQuoteTask(amount, method).execute();
     }
 
+    public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method, String unit) {
+        return new MintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance()).execute();
+    }
+
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
         return new MintQuoteStatusTask(quoteId, method).execute();
+    }
+
+    public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) {
+        return new MintQuoteStatusTask(quoteId, method, unit, MintProtocolServiceFactory.getInstance()).execute();
     }
 
     public static <T extends Secret> PostMintResponse mint(@NonNull UUID mintId,
                                                            @NonNull PostMintRequest<T> postMintRequest,
                                                            @NonNull PaymentMethod method,
                                                            @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
-        return mint(mintId, postMintRequest, method,
+        return mint(mintId, postMintRequest, method, null,
                 new DefaultMintLoadService(),
                 MintProtocolServiceFactory.getInstance(),
                 signatureVaultService);
@@ -45,10 +53,11 @@ public class NUT04 {
     public static <T extends Secret> PostMintResponse mint(@NonNull UUID mintId,
                                                            @NonNull PostMintRequest<T> postMintRequest,
                                                            @NonNull PaymentMethod method,
+                                                           String unit,
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull MintProtocolService mintProtocolService,
                                                            @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
-        return new MintTokensTask<>(mintId, postMintRequest, method, mintLoadService, mintProtocolService, signatureVaultService).execute();
+        return new MintTokensTask<>(mintId, postMintRequest, method, unit, mintLoadService, mintProtocolService, signatureVaultService).execute();
     }
 
 }

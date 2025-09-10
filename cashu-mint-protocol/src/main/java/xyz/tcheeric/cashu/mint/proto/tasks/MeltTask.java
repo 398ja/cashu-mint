@@ -30,6 +30,7 @@ import java.util.List;
 public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
+    private final String unit;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
     private final MintLoadService mintLoadService;
@@ -38,16 +39,17 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
-        this(postMeltRequest, method, mint, mintProtocolService, new DefaultMintLoadService(), new DefaultMintVaultService(), new DefaultProofVaultService());
+        this(postMeltRequest, method, null, mint, mintProtocolService, new DefaultMintLoadService(), new DefaultMintVaultService(), new DefaultProofVaultService());
     }
 
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, String unit, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull MintLoadService mintLoadService,
                     @NonNull MintVaultService mintVaultService,
                     @NonNull ProofVaultService proofVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
+        this.unit = unit;
         this.mint = mint;
         this.mintLoadService = mintLoadService;
         this.mintProtocolService = mintProtocolService;
@@ -71,7 +73,8 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var keySetId = proofsToMelt.get(0).getKeySetId();
             var keyset = mintLoadService.keySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
-            var gateway = mintProtocolService.createGateway(method);
+            var gateway = unit == null ? mintProtocolService.createGateway(method)
+                    : mintProtocolService.createGateway(method, unit);
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
             var fee_reserve = gateway.getFeeReserve(quoteId);

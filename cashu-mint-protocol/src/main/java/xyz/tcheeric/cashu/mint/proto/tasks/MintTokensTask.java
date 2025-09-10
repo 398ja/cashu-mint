@@ -26,6 +26,7 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
     private final UUID mintId;
     private final PostMintRequest<T> postMintRequest;
     private final PaymentMethod method;
+    private final String unit;
     private final MintLoadService mintLoadService;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
@@ -34,7 +35,7 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
                           @NonNull PostMintRequest<T> postMintRequest,
                           @NonNull PaymentMethod method,
                           @NonNull SignatureVaultService signatureVaultService) {
-        this(mintId, postMintRequest, method,
+        this(mintId, postMintRequest, method, null,
                 new DefaultMintLoadService(),
                 MintProtocolServiceFactory.getInstance(),
                 signatureVaultService);
@@ -43,12 +44,14 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
     public MintTokensTask(@NonNull UUID mintId,
                           @NonNull PostMintRequest<T> postMintRequest,
                           @NonNull PaymentMethod method,
+                          String unit,
                           @NonNull MintLoadService mintLoadService,
                           @NonNull MintProtocolService mintProtocolService,
                           @NonNull SignatureVaultService signatureVaultService) {
         this.mintId = mintId;
         this.postMintRequest = postMintRequest;
         this.method = method;
+        this.unit = unit;
         this.mintLoadService = mintLoadService;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
@@ -57,6 +60,6 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
     @Override
     public PostMintResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
-        return new MintTask<>(postMintRequest, method, mint, mintProtocolService, signatureVaultService).execute();
+        return new MintTask<>(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService).execute();
     }
 }

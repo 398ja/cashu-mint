@@ -24,6 +24,7 @@ import java.util.List;
 public class MintTask<T extends Secret> implements Task<PostMintResponse> {
     private final PostMintRequest<T> postMintRequest;
     private final PaymentMethod method;
+    private final String unit;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
@@ -34,8 +35,18 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService);
+    }
+
+    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
+                    @NonNull PaymentMethod method,
+                    String unit,
+                    @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull SignatureVaultService signatureVaultService) {
         this.postMintRequest = postMintRequest;
         this.method = method;
+        this.unit = unit;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
@@ -48,7 +59,8 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
             PostMintResponse result = new PostMintResponse();
 
             // If the invoice was not paid yet, Bob responds with a structured error.
-            Gateway gateway = mintProtocolService.createGateway(method);
+            Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                    : mintProtocolService.createGateway(method, unit);
             if (!gateway.checkPaymentStatus(postMintRequest.getQuoteId())) {
                 ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
                 throw new CashuErrorException(error.toJson());
