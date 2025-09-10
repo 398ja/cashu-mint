@@ -17,7 +17,7 @@ mint:
       info: contact@me.com
     -
       method: twitter
-      info: @me
+      info: "@me"
     -
       method: nostr
       info: npub...
