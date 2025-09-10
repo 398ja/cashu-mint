@@ -57,6 +57,16 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
         this.signatureVaultService = signatureVaultService;
     }
 
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MintTokensTask(@NonNull UUID mintId,
+                          @NonNull PostMintRequest<T> postMintRequest,
+                          @NonNull PaymentMethod method,
+                          @NonNull MintLoadService mintLoadService,
+                          @NonNull MintProtocolService mintProtocolService,
+                          @NonNull SignatureVaultService signatureVaultService) {
+        this(mintId, postMintRequest, method, null, mintLoadService, mintProtocolService, signatureVaultService);
+    }
+
     @Override
     public PostMintResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
