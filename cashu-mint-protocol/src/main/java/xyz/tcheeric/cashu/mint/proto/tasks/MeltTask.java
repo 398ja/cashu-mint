@@ -57,6 +57,15 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
         this.proofVaultService = proofVaultService;
     }
 
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService) {
+        this(postMeltRequest, method, null, mint, mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
+    }
+
     @Override
     public PostMeltResponse execute() throws CashuErrorException {
         ThreadUtil.MINT_MELT_LOCK.lock();

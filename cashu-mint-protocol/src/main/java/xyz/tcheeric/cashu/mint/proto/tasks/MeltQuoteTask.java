@@ -35,6 +35,13 @@ public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
         this.mintProtocolService = mintProtocolService;
     }
 
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MeltQuoteTask(@NonNull PostMeltQuoteRequest request,
+                         @NonNull PaymentMethod method,
+                         @NonNull MintProtocolService mintProtocolService) {
+        this(request, method, null, mintProtocolService);
+    }
+
     @Override
     public PostMeltQuoteResponse execute() throws CashuErrorException {
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)

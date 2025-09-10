@@ -55,7 +55,7 @@ public class MintThenRestoreIntegrationTest {
         SignatureVaultService vault = new DefaultSignatureVaultService();
 
         // Act: mint then restore
-        PostMintResponse mintResponse = NUT04.mint(UUID.randomUUID(), mintRequest, PaymentMethod.MOCK,
+        PostMintResponse mintResponse = NUT04.mint(UUID.randomUUID(), mintRequest, PaymentMethod.MOCK, null,
                 mintLoadService, protocolService, vault);
 
         PostRestoreRequest restoreRequest = new PostRestoreRequest(List.of(blindedMessage));
