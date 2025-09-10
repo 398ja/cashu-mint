@@ -33,6 +33,9 @@
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
 
+        <!-- External tool versions -->
+        <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
+
         <!-- Test Dependency Versions -->
         <junit.version>5.13.4</junit.version>
         <assertj.version>3.27.4</assertj.version>
