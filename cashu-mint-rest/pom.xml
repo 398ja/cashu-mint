@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.1.5</version>
+        <version>0.1.6</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>

@@ -58,10 +58,6 @@ public class CashuController<T extends Secret> {
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
 
-    public CashuController() {
-        this(new NUT06(new DefaultMintInfoService(new MintInfo())), new DefaultMintLoadService());
-    }
-
     public CashuController(NUT06 nut06, MintLoadService mintLoadService) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
