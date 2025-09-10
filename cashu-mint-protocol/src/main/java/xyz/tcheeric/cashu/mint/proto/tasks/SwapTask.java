@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,17 +30,22 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
     private final UUID mintId;
     private final PostSwapRequest<T> request;
     private final MintLoadService mintLoadService;
+    private final SignatureVaultService signatureVaultService;
 
-    public SwapTask(@NonNull UUID mintId, @NonNull PostSwapRequest<T> request) {
-        this(mintId, request, new DefaultMintLoadService());
+    public SwapTask(@NonNull UUID mintId,
+                    @NonNull PostSwapRequest<T> request,
+                    @NonNull SignatureVaultService signatureVaultService) {
+        this(mintId, request, new DefaultMintLoadService(), signatureVaultService);
     }
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
-                    @NonNull MintLoadService mintLoadService) {
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull SignatureVaultService signatureVaultService) {
         this.mintId = mintId;
         this.request = request;
         this.mintLoadService = mintLoadService;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @Override
@@ -56,7 +62,7 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
 
         List<BlindSignature> blindSignatures = new ArrayList<>();
         for (BlindedMessage bm : request.getBlindedMessages()) {
-            BlindSignature sig = new SignBlindedMessageTask(mint, bm, service).execute();
+            BlindSignature sig = new SignBlindedMessageTask(mint, bm, service, signatureVaultService).execute();
             blindSignatures.add(sig);
         }
 

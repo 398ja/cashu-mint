@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 import xyz.tcheeric.gateway.common.Gateway;
 
@@ -25,14 +26,19 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
     private final PaymentMethod method;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
+    private final SignatureVaultService signatureVaultService;
 
 
-    public MintTask(@NonNull PostMintRequest<T> postMintRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
-                    @NonNull MintProtocolService mintProtocolService) {
+    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
+                    @NonNull PaymentMethod method,
+                    @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull SignatureVaultService signatureVaultService) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @Override
@@ -50,7 +56,8 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
 
             List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
             for (BlindedMessage bm : blindedMessages) {
-                SignBlindedMessageTask signBlindedMessageTask = new SignBlindedMessageTask(mint, bm, mintProtocolService);
+                SignBlindedMessageTask signBlindedMessageTask =
+                        new SignBlindedMessageTask(mint, bm, mintProtocolService, signatureVaultService);
                 BlindSignature bSignature = signBlindedMessageTask.execute();
                 result.addBlindSignature(bSignature);
             }
