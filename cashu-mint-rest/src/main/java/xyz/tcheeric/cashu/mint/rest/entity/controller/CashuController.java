@@ -95,37 +95,45 @@ public class CashuController<T extends Secret> {
     }
 
     @PostMapping("/mint/quote/{method}")
-    public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request, @PathVariable("method") String method) {
+    public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request,
+                                                           @PathVariable("method") String method) {
         var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/mint/quote/{method}/{quote_id}")
-    public ResponseEntity<PostMintQuoteResponse> quoteMint(@PathVariable("method") String method, @PathVariable("quote_id") String quoteId) {
+    public ResponseEntity<PostMintQuoteResponse> quoteMint(@PathVariable("method") String method,
+                                                           @PathVariable("quote_id") String quoteId) {
         PostMintQuoteResponse response = NUT04.quotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/mint/{mintId}/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request, @PathVariable("method") String method, @PathVariable("mintId") String mintId) throws CashuErrorException {
+    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
+                                                 @PathVariable("method") String method,
+                                                 @PathVariable("mintId") String mintId) throws CashuErrorException {
         PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()), signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/melt/quote/{method}")
-    public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@RequestBody PostMeltQuoteRequest request, @PathVariable("method") String method) {
+    public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@RequestBody PostMeltQuoteRequest request,
+                                                           @PathVariable("method") String method) {
         PostMeltQuoteResponse response = NUT05.quote(request, PaymentMethod.valueOf(method.toUpperCase()));
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/melt/quote/{method}/{quote_id}")
-    public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@PathVariable("method") String method, @PathVariable("quote_id") String quoteId) {
+    public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@PathVariable("method") String method,
+                                                           @PathVariable("quote_id") String quoteId) {
         PostMeltQuoteResponse response = NUT05.quotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/melt/{mint_id}/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request, @PathVariable("method") String method, @PathVariable("mint_id") String mintId) throws CashuErrorException {
+    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request,
+                                                 @PathVariable("method") String method,
+                                                 @PathVariable("mint_id") String mintId) throws CashuErrorException {
         PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }

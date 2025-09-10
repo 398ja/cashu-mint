@@ -16,23 +16,27 @@ public class MeltQuoteStatusTask implements Task<PostMeltQuoteResponse> {
 
     private final String quoteId;
     private final PaymentMethod method;
+    private final String unit;
     private final MintProtocolService mintProtocolService;
 
     public MeltQuoteStatusTask(@NonNull String quoteId, @NonNull PaymentMethod method) {
-        this(quoteId, method, MintProtocolServiceFactory.getInstance());
+        this(quoteId, method, null, MintProtocolServiceFactory.getInstance());
     }
 
     public MeltQuoteStatusTask(@NonNull String quoteId,
                                @NonNull PaymentMethod method,
+                               String unit,
                                @NonNull MintProtocolService mintProtocolService) {
         this.quoteId = quoteId;
         this.method = method;
+        this.unit = unit;
         this.mintProtocolService = mintProtocolService;
     }
 
     @Override
     public PostMeltQuoteResponse execute() throws CashuErrorException {
-        Gateway gateway = mintProtocolService.createGateway(method);
+        Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                : mintProtocolService.createGateway(method, unit);
         return PostMeltQuoteResponse.builder()
                 .quoteId(quoteId)
                 .expiry(gateway.getPaymentExpiry(quoteId))
