@@ -74,6 +74,10 @@ services:
     image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
     environment:
       PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
+      # Webhook identifier passed into phoenixd for callback validation
+      WID: ${WEBHOOK_WID:-phoenixd}
+      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd-mock}:${PHOENIXD_PORT:-9740}
+      PHOENIXD_CURRENCY: sat
       SERVER_ADDRESS: 0.0.0.0
       PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
       PHOENIXD_WALLET_SEED: ${PHOENIXD_WALLET_SEED:-<your-wallet-seed-or-secret>}
@@ -151,6 +155,9 @@ services:
       DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
+      # Webhook configuration used by the Phoenixd gateway in the mint
+      WEBHOOK_WID: ${WEBHOOK_WID:-phoenixd}
+      WEBHOOK_BASE_URL: http://cashu-mint-rest:${CASHU_MINT_PORT:-7777}
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
