@@ -8,4 +8,4 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 
 Documentation following the [Diátaxis](https://diataxis.fr/) framework is available in [docs](docs/README.md).
 
-- Gateway configuration (Phoenixd webhook base URL, method/unit mappings): see docs/how-to/configure-gateways.md. The webhook base URL is configurable via `WEBHOOK_BASE_URL` and injected into the JVM as `-Dwebhook.base_url` by Docker Compose.
+- Gateway configuration (method/unit mappings): see docs/how-to/configure-gateways.md.
