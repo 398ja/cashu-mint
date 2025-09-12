@@ -8,6 +8,7 @@ This reference lists configuration properties used by the mint and their default
 | `cashu.units` | `sat` | Default unit used for amounts (also used as a fallback when no unit is provided in NUT‑06). |
 | `gateway.<method>` |  | FQCN of gateway implementation for a payment method (e.g., `gateway.bolt11=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway`). |
 | `gateway.<method>.<unit>` |  | FQCN of gateway for a specific method and unit (e.g., `gateway.bolt11.sat=…`). Takes precedence over `gateway.<method>`. |
+| `WEBHOOK_BASE_URL` (env) | `http://cashu-gateway-webhook:9090` | Externalized base URL for PhoenixdGateway webhooks. Injected into JVM as `-Dwebhook.base_url`. |
 | `cashu.expiry` | `15` | Token expiry time in minutes. |
 
 ## See also

@@ -13,7 +13,7 @@ public final class FeeConfig {
     private static final double DEFAULT_PERCENT = 0.05d;
 
     static {
-        try (InputStream input = FeeConfig.class.getClassLoader().getResourceAsStream("app.properties")) {
+        try (InputStream input = FeeConfig.class.getClassLoader().getResourceAsStream("proto.properties")) {
             if (input != null) {
                 PROPERTIES.load(input);
             }
