@@ -167,6 +167,8 @@ services:
         condition: service_started
       cashu-gateway-rest:
         condition: service_started
+      cashu-gateway-webhook:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
