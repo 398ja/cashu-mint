@@ -74,8 +74,8 @@ services:
     image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
     environment:
       PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
-      # Webhook identifier passed into phoenixd for callback validation
-      WID: ${WEBHOOK_WID:-phoenixd}
+      # WID not required when using DummyGateway in mint; keep configurable if needed later
+      # WID: ${WEBHOOK_ID:-A1b2C3d4}
       PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd-mock}:${PHOENIXD_PORT:-9740}
       PHOENIXD_CURRENCY: sat
       SERVER_ADDRESS: 0.0.0.0
@@ -155,11 +155,12 @@ services:
       DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
-      # Webhook configuration used by the Phoenixd gateway in the mint
-      WEBHOOK_WID: ${WEBHOOK_WID:-phoenixd}
-      WEBHOOK_BASE_URL: http://cashu-mint-rest:${CASHU_MINT_PORT:-7777}
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
+      # Externalize webhook base URL (override via env)
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://cashu-gateway-webhook:9090}
+      # Provide it to PhoenixdGateway via JVM system property
+      JAVA_TOOL_OPTIONS: "-Dwebhook.base_url=${WEBHOOK_BASE_URL:-http://cashu-gateway-webhook:9090}"
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-mint-db:
@@ -167,6 +168,8 @@ services:
       cashu-vault-jpa:
         condition: service_started
       cashu-gateway-rest:
+        condition: service_started
+      cashu-gateway-webhook:
         condition: service_started
     restart: unless-stopped
     healthcheck:
@@ -176,6 +179,26 @@ services:
       retries: 6
       start_period: 20s
     profiles: ["dev", "prod"]
+
+  cashu-gateway-webhook:
+    image: docker.398ja.xyz/cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_VERSION:-latest}
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: ${CASHU_GATEWAY_WEBHOOK_PORT:-9090}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    ports:
+      - "${CASHU_GATEWAY_WEBHOOK_PORT:-9090}:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}"
+    restart: unless-stopped
+    profiles: ["dev", "prod"]
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "URL=http://localhost:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}/actuator/health/readiness; \\\n+        if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \\\n+        elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \\\n+        else echo 'no http client for healthcheck' >&2; exit 1; fi"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 volumes:
   mint-db-data:

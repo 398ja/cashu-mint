@@ -1,13 +1,57 @@
 package xyz.tcheeric.cashu.mint.rest;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
+
+import java.io.InputStream;
+import java.util.Properties;
 
 // Limit component scanning to Cashu packages to avoid picking up external gateway beans
+@Slf4j
 @SpringBootApplication(scanBasePackages = "xyz.tcheeric.cashu")
 public class CashuMintRestApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(CashuMintRestApplication.class, args);
+    }
+
+    @Bean
+    ApplicationRunner diagnostics(Environment env) {
+        return args -> {
+            try {
+                String sysProp = System.getProperty("webhook.base_url");
+                String envVar = System.getenv("WEBHOOK_BASE_URL");
+                String springProp = env.getProperty("webhook.base_url");
+
+                log.info("Diagnostics: webhook.base_url (sys)={} (env)={} (spring)={}", sysProp, envVar, springProp);
+
+                try (InputStream in = CashuMintRestApplication.class.getClassLoader().getResourceAsStream("app.properties")) {
+                    if (in != null) {
+                        Properties p = new Properties();
+                        p.load(in);
+                        log.info("Diagnostics: classpath app.properties webhook.base_url={}", p.getProperty("webhook.base_url"));
+                        log.info("Diagnostics: classpath app.properties gateway.bolt11={} gateway.bolt11.sat={}",
+                                p.getProperty("gateway.bolt11"), p.getProperty("gateway.bolt11.sat"));
+                    } else {
+                        log.warn("Diagnostics: classpath app.properties not found by application classloader");
+                    }
+                }
+
+                try {
+                    Class<?> clazz = Class.forName("xyz.tcheeric.gateway.phoenixd.PhoenixdGateway");
+                    Package pkg = clazz.getPackage();
+                    log.info("Diagnostics: PhoenixdGateway present. package={} version={}",
+                            (pkg != null ? pkg.getName() : "n/a"), (pkg != null ? pkg.getImplementationVersion() : "n/a"));
+                } catch (Throwable t) {
+                    log.warn("Diagnostics: PhoenixdGateway class not found on classpath");
+                }
+            } catch (Exception e) {
+                log.warn("Diagnostics: failed to collect startup diagnostics", e);
+            }
+        };
     }
 }
