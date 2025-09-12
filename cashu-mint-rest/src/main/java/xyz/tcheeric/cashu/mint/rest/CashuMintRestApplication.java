@@ -5,7 +5,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
 
 import java.io.InputStream;
 import java.util.Properties;
@@ -20,20 +19,13 @@ public class CashuMintRestApplication {
     }
 
     @Bean
-    ApplicationRunner diagnostics(Environment env) {
+    ApplicationRunner diagnostics() {
         return args -> {
             try {
-                String sysProp = System.getProperty("webhook.base_url");
-                String envVar = System.getenv("WEBHOOK_BASE_URL");
-                String springProp = env.getProperty("webhook.base_url");
-
-                log.info("Diagnostics: webhook.base_url (sys)={} (env)={} (spring)={}", sysProp, envVar, springProp);
-
                 try (InputStream in = CashuMintRestApplication.class.getClassLoader().getResourceAsStream("app.properties")) {
                     if (in != null) {
                         Properties p = new Properties();
                         p.load(in);
-                        log.info("Diagnostics: classpath app.properties webhook.base_url={}", p.getProperty("webhook.base_url"));
                         log.info("Diagnostics: classpath app.properties gateway.bolt11={} gateway.bolt11.sat={}",
                                 p.getProperty("gateway.bolt11"), p.getProperty("gateway.bolt11.sat"));
                     } else {
