@@ -155,14 +155,12 @@ services:
       DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
-      # Webhook base URL required by PhoenixdGateway (for Spring visibility)
-      WEBHOOK_BASE_URL: http://cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
       # Externalize webhook base URL (override via env)
       WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://cashu-gateway-webhook:9090}
       # Provide it to PhoenixdGateway via JVM system property
-      JAVA_TOOL_OPTIONS: "-Dwebhook.base_url=${WEBHOOK_BASE_URL}"
+      JAVA_TOOL_OPTIONS: "-Dwebhook.base_url=${WEBHOOK_BASE_URL:-http://cashu-gateway-webhook:9090}"
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-mint-db:
