@@ -133,7 +133,7 @@ public class MintProtocolUtil {
     static class GatewayLoader {
         public static Gateway loadGateway(@NonNull PaymentMethod method, String unit) throws Exception {
             Properties properties = new Properties();
-            try (InputStream input = GatewayLoader.class.getClassLoader().getResourceAsStream("app.properties")) {
+            try (InputStream input = GatewayLoader.class.getClassLoader().getResourceAsStream("proto.properties")) {
                 if (input == null) {
                     throw new RuntimeException("Failed to load properties file");
                 }
