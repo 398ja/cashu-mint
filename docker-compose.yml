@@ -159,6 +159,8 @@ services:
       WEBHOOK_BASE_URL: http://cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
+      # Force webhook.base_url for PhoenixdGateway via JVM system property
+      JAVA_TOOL_OPTIONS: "-Dwebhook.base_url=http://cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}"
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-mint-db:
@@ -168,7 +170,7 @@ services:
       cashu-gateway-rest:
         condition: service_started
       cashu-gateway-webhook:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
