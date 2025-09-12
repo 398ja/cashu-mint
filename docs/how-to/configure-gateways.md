@@ -3,7 +3,7 @@
 This guide shows how to map payment methods and units to gateway implementations without changing the REST API.
 
 - The mint selects a gateway based on the payment method from the request and the unit configured in NUT‑06 (`mint.yaml`).
-- You configure gateway classes in `app.properties` using either a method-wide key or a method+unit key.
+- You configure gateway classes in `rest.properties` using either a method-wide key or a method+unit key.
 
 ## Steps
 
@@ -16,7 +16,7 @@ This guide shows how to map payment methods and units to gateway implementations
            - method: bolt11
              unit: sat
    ```
-2. Map gateways in `app.properties`:
+2. Map gateways in `rest.properties`:
    - Prefer unit-specific mapping and keep a method fallback.
    ```properties
    # Unit-specific mapping takes precedence
@@ -46,12 +46,12 @@ This guide shows how to map payment methods and units to gateway implementations
 ## Webhook base URL explained
 
 - PhoenixdGateway constructs callback URLs using `webhook.base_url`.
-- The gateway reads a classpath `app.properties`. To avoid classpath ordering issues, we also inject `-Dwebhook.base_url=${WEBHOOK_BASE_URL}` via `JAVA_TOOL_OPTIONS`.
+- The gateway reads a classpath `rest.properties`. To avoid classpath ordering issues, we also inject `-Dwebhook.base_url=${WEBHOOK_BASE_URL}` via `JAVA_TOOL_OPTIONS`.
 - Default in Compose points to the local webhook service (`cashu-gateway-webhook:9090`). Change it to your public ingress URL in production.
 
 ## Tips
 
-- Keep `mint.yaml` and `app.properties` aligned: only advertise methods/units for which you have a gateway mapping.
+- Keep `mint.yaml` and `proto.properties` aligned: only advertise methods/units for which you have a gateway mapping.
 - Use different gateways per unit if needed (e.g., `usd` via a card processor, `sat` via LN).
 
 ## See also
