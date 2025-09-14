@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "gwdev"]
 
   cashu-vault-db:
     image: postgres:16
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "gwdev"]
     
   cashu-gateway-db:
     image: postgres:16
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "gwdev"]
 
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
@@ -110,7 +110,7 @@ services:
       cashu:
         aliases:
           - phoenixd
-    profiles: ["dev"]
+    profiles: ["dev", "gwdev"]
 
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
@@ -137,7 +137,7 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "gwdev"]
     healthcheck:
       test: [
         "CMD-SHELL",
@@ -191,7 +191,7 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
-    profiles: ["dev", "prod"]
+    profiles: ["dev", "prod", "gwdev"]
 
   cashu-gateway-webhook:
     image: docker.398ja.xyz/cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_VERSION:-latest}
