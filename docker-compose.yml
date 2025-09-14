@@ -166,7 +166,7 @@ services:
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
-      CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
+      CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
       GATEWAY_API_BASE_URL: ${GATEWAY_API_BASE_URL:-http://cashu-gateway-rest}
       GATEWAY_API_PORT: ${CASHU_GATEWAY_PORT:-8080}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
