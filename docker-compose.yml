@@ -115,7 +115,8 @@ services:
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
     environment:
-      CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8889}
+      CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8080}
+      GATEWAY_API_BASE_URL: ${GATEWAY_API_BASE_URL:-http://cashu-gateway-rest}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-mock}
       PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd}:${PHOENIXD_PORT:-9740}
@@ -123,14 +124,14 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-gateway-db:5432/cashu_gateway
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
-      SERVER_PORT: ${CASHU_GATEWAY_PORT:-8889}
+      SERVER_PORT: ${CASHU_GATEWAY_PORT:-8080}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-gateway-db:
         condition: service_healthy
     # No hard dependency on Phoenixd in dev; provider can be 'mock'.
     ports:
-      - "${CASHU_GATEWAY_PORT:-8889}:${CASHU_GATEWAY_PORT:-8889}"
+      - "${CASHU_GATEWAY_PORT:-8080}:${CASHU_GATEWAY_PORT:-8080}"
     restart: unless-stopped
     networks:
       - cashu
@@ -138,7 +139,7 @@ services:
     healthcheck:
       test: [
         "CMD-SHELL",
-        "URL=http://localhost:${CASHU_GATEWAY_PORT:-8889}/actuator/health/readiness; \
+        "URL=http://localhost:${CASHU_GATEWAY_PORT:-8080}/actuator/health/readiness; \
         if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \
         elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \
         else echo 'no http client for healthcheck' >&2; exit 1; fi"
@@ -166,6 +167,8 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8889}
+      GATEWAY_API_BASE_URL: ${GATEWAY_API_BASE_URL:-http://cashu-gateway-rest}
+      GATEWAY_API_PORT: ${CASHU_GATEWAY_PORT:-8080}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-mint-db:
