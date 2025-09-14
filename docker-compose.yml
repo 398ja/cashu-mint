@@ -40,6 +40,27 @@ services:
     networks:
       - cashu
     profiles: ["dev", "prod"]
+    
+  cashu-gateway-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_gateway
+    volumes:
+      - gateway-db-data:/var/lib/postgresql/data
+    ports:
+      - "55434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - cashu
+    profiles: ["dev", "prod"]
 
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
@@ -99,13 +120,13 @@ services:
       CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-mock}
       PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd}:${PHOENIXD_PORT:-9740}
       PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-gateway-db:5432/cashu_gateway
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_GATEWAY_PORT:-8889}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
-      cashu-vault-db:
+      cashu-gateway-db:
         condition: service_healthy
     # No hard dependency on Phoenixd in dev; provider can be 'mock'.
     ports:
@@ -210,6 +231,7 @@ services:
 volumes:
   mint-db-data:
   vault-db-data:
+  gateway-db-data:
   phoenixd-data:
     driver: local
     driver_opts:
