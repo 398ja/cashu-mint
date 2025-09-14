@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod", "gwdev"]
+    profiles: ["dev", "prod"]
 
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
