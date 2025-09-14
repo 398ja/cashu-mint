@@ -168,9 +168,8 @@ services:
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
-      # Use API base path expected by gateway client (avoid 405 on POST /quote)
+      # Gateway 0.2.x serves under /api; include it to avoid 405 on /quote
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}/api
-      # Some gateway clients resolve BASE_URL first; include /api and port explicitly
       GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}/api
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
