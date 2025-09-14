@@ -88,6 +88,14 @@ public class CashuController<T extends Secret> {
         return ResponseEntity.ok(response);
     }
 
+    // Compatibility alias for clients expecting "/keys/active"
+    @GetMapping("/keys/active")
+    public ResponseEntity<ActiveKeySetResponse> keysActive() throws CashuErrorException {
+        List<ActiveKeySet> activeKeySets = NUT02.activeKeySets(mintLoadService);
+        ActiveKeySetResponse response = new ActiveKeySetResponse(activeKeySets);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/swap/{mint_id}")
     public ResponseEntity<PostSwapResponse> swap(@PathVariable("mint_id") String mintId, @RequestBody PostSwapRequest<T> request) throws CashuErrorException {
         PostSwapResponse response = NUT03.swap(UUID.fromString(mintId), request, signatureVaultService);
