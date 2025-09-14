@@ -16,6 +16,8 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - cashu
     profiles: ["dev", "prod"]
 
   cashu-vault-db:
@@ -35,6 +37,8 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - cashu
     profiles: ["dev", "prod"]
 
   cashu-vault-jpa:
@@ -56,6 +60,8 @@ services:
     ports:
       - "${CASHU_VAULT_PORT:-8888}:${CASHU_VAULT_PORT:-8888}"
     restart: unless-stopped
+    networks:
+      - cashu
     profiles: ["dev", "prod"]
     healthcheck:
       test: [
@@ -70,30 +76,6 @@ services:
       retries: 6
       start_period: 20s
 
-  phoenixd-rest:
-    image: docker.398ja.xyz/phoenixd-rest:${PHOENIXD_VERSION:-latest}
-    environment:
-      PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
-      # WID not required when using DummyGateway in mint; keep configurable if needed later
-      # WID: ${WEBHOOK_ID:-A1b2C3d4}
-      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd-mock}:${PHOENIXD_PORT:-9740}
-      PHOENIXD_CURRENCY: sat
-      SERVER_ADDRESS: 0.0.0.0
-      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
-      PHOENIXD_WALLET_SEED: ${PHOENIXD_WALLET_SEED:-<your-wallet-seed-or-secret>}
-    volumes:
-      - phoenixd-data:/root/.phoenixd
-    ports:
-      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
-    restart: unless-stopped
-    profiles: ["prod"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${PHOENIXD_PORT:-9740}/actuator/health/readiness >/dev/null || curl -fsS http://localhost:${PHOENIXD_PORT:-9740}/actuator/health >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-
   phoenixd-mock:
     image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
     entrypoint: ["java", "-cp", "@/app/jib-classpath-file", "xyz.tcheeric.phoenixd.mock.Main"]
@@ -103,6 +85,10 @@ services:
     ports:
       - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
     restart: unless-stopped
+    networks:
+      cashu:
+        aliases:
+          - phoenixd
     profiles: ["dev"]
 
   cashu-gateway-rest:
@@ -111,7 +97,7 @@ services:
       CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8889}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-mock}
-      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd-mock}:${PHOENIXD_PORT:-9740}
+      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd}:${PHOENIXD_PORT:-9740}
       PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       SPRING_DATASOURCE_USERNAME: postgres
@@ -125,6 +111,8 @@ services:
     ports:
       - "${CASHU_GATEWAY_PORT:-8889}:${CASHU_GATEWAY_PORT:-8889}"
     restart: unless-stopped
+    networks:
+      - cashu
     profiles: ["dev", "prod"]
     healthcheck:
       test: [
@@ -168,6 +156,8 @@ services:
       cashu-gateway-webhook:
         condition: service_started
     restart: unless-stopped
+    networks:
+      - cashu
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
       interval: 10s
@@ -185,12 +175,33 @@ services:
     ports:
       - "${CASHU_GATEWAY_WEBHOOK_PORT:-9090}:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}"
     restart: unless-stopped
+    networks:
+      - cashu
     profiles: ["dev", "prod"]
     healthcheck:
       test: [
         "CMD-SHELL",
         "URL=http://localhost:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}/actuator/health/readiness; \\\n+        if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \\\n+        elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \\\n+        else echo 'no http client for healthcheck' >&2; exit 1; fi"
       ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  phoenixd:
+    image: acinq/phoenixd:latest
+    ports:
+      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
+    restart: unless-stopped
+    networks:
+      cashu:
+        aliases:
+          - phoenixd
+    profiles: ["prod"]
+    volumes:
+      - phoenixd-data:/var/lib/phoenixd/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${PHOENIXD_PORT:-9740}"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -205,3 +216,7 @@ volumes:
       type: none
       o: bind
       device: ${PHOENIXD_DATA_DIR:-${HOME}/.phoenixd}
+
+networks:
+  cashu:
+    name: cashu
