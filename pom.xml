@@ -30,7 +30,8 @@
         <spring.boot.version>3.5.5</spring.boot.version>
         <postgresql.version>42.7.7</postgresql.version>
 
-        <jackson-datatype-jsr310.version>2.20.0</jackson-datatype-jsr310.version>
+        <jackson.version>2.20.0</jackson.version>
+        <jackson-datatype-jsr310.version>${jackson.version}</jackson-datatype-jsr310.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
 
