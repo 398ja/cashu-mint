@@ -7,6 +7,7 @@ import lombok.NonNull;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -41,7 +42,7 @@ public final class MintPreloadDataGenerator {
     private MintPreloadData cachedData;
 
     public MintPreloadDataGenerator(@NonNull UUID mintId, @NonNull String unit, @NonNull List<Integer> denominations) {
-        this(mintId, unit, denominations, amount -> null);
+        this(mintId, unit, denominations, amount -> MintProtocolUtil.createRandomBytes(32));
     }
 
     MintPreloadDataGenerator(@NonNull UUID mintId,
