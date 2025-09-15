@@ -1,0 +1,138 @@
+spring:
+  application:
+    name: cashu-mint-admin
+  main:
+    banner-mode: off
+    web-application-type: none
+  profiles:
+    default: postgres
+  datasource:
+    hikari:
+      auto-commit: true
+      initialization-fail-timeout: 0
+  flyway:
+    enabled: true
+  liquibase:
+    enabled: false
+  mvc:
+    problemdetails:
+      enabled: true
+    log-request-details: true
+  web:
+    resources:
+      add-mappings: false
+  sql:
+    init:
+      mode: never
+  threads:
+    virtual:
+      enabled: true
+
+mint:
+  admin:
+    migrations:
+      flyway:
+        enabled: true
+        clean-before-migrate: false
+        repair-on-migrate: true
+        locations:
+          - classpath:db/migration/admin
+      liquibase:
+        enabled: false
+        change-log: classpath:db/changelog/db.changelog-master.yaml
+        contexts: []
+        drop-first: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    root: INFO
+    xyz.tcheeric.cashu.mint: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %5level %logger{36} - [%X{traceId:-},%X{spanId:-}] %msg%n"
+    level: "%5p [%X{traceId:-},%X{spanId:-}]"
+
+server:
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    whitelabel:
+      enabled: false
+  servlet:
+    session:
+      tracking-modes: cookie
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cashu_mint_admin
+    username: cashu_admin
+    password: change_me
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    baseline-on-migrate: true
+
+mint:
+  admin:
+    migrations:
+      flyway:
+        locations:
+          - classpath:db/migration/admin/postgres
+      liquibase:
+        default-schema: public
+
+---
+spring:
+  config:
+    activate:
+      on-profile: h2
+  datasource:
+    url: jdbc:h2:mem:cashu_mint_admin;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
+  h2:
+    console:
+      enabled: true
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+  flyway:
+    baseline-on-migrate: false
+  liquibase:
+    enabled: false
+
+mint:
+  admin:
+    migrations:
+      flyway:
+        locations:
+          - classpath:db/migration/admin/h2
+      liquibase:
+        enabled: false
