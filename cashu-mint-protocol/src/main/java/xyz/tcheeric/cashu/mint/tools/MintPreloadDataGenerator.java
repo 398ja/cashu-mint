@@ -42,7 +42,7 @@ public final class MintPreloadDataGenerator {
     private MintPreloadData cachedData;
 
     public MintPreloadDataGenerator(@NonNull UUID mintId, @NonNull String unit, @NonNull List<Integer> denominations) {
-        this(mintId, unit, denominations, amount -> MintProtocolUtil.createRandomBytes(32));
+        this(mintId, unit, denominations, amount -> null);
     }
 
     MintPreloadDataGenerator(@NonNull UUID mintId,
