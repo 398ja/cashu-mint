@@ -23,4 +23,3 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
-- [Technical analysis](explanations/technical-analysis.md) - Deep dive into modules, risks, and milestone impact.
