@@ -6,8 +6,8 @@ public record MintUserRecord(String id,
                              boolean active) {
 
     public MintUserRecord {
-        this.id = ModelValidations.requireText(id, "id");
-        this.displayName = ModelValidations.requireText(displayName, "displayName");
-        this.role = ModelValidations.requireText(role, "role");
+        id = ModelValidations.requireText(id, "id");
+        displayName = ModelValidations.requireText(displayName, "displayName");
+        role = ModelValidations.requireText(role, "role");
     }
 }

@@ -8,8 +8,8 @@ public record MintConfigResponse(String mintId,
                                  Map<String, String> parameters) {
 
     public MintConfigResponse {
-        this.mintId = ModelValidations.requireMintId(mintId);
-        this.revision = ModelValidations.requireText(revision, "revision");
-        this.parameters = parameters == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(parameters));
+        mintId = ModelValidations.requireMintId(mintId);
+        revision = ModelValidations.requireText(revision, "revision");
+        parameters = parameters == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(parameters));
     }
 }

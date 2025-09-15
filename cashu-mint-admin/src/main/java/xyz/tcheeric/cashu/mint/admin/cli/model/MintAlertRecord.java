@@ -6,9 +6,9 @@ public record MintAlertRecord(String id,
                               String createdAt) {
 
     public MintAlertRecord {
-        this.id = ModelValidations.requireText(id, "id");
-        this.severity = ModelValidations.requireText(severity, "severity").toUpperCase();
-        this.message = ModelValidations.requireText(message, "message");
-        this.createdAt = ModelValidations.requireText(createdAt, "createdAt");
+        id = ModelValidations.requireText(id, "id");
+        severity = ModelValidations.requireText(severity, "severity").toUpperCase();
+        message = ModelValidations.requireText(message, "message");
+        createdAt = ModelValidations.requireText(createdAt, "createdAt");
     }
 }
