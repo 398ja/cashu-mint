@@ -42,6 +42,7 @@ The Cashu protocol is defined in the NUT specifications maintained at [cashubtc/
         - Follow design patterns as described in the book, whenever possible.
 - When commiting code, follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
 - When adding new features, ensure they are compliant with the Cashu specification (NUTs) provided above.
+- Make use of the lombok library to reduce boilerplate code.
 
 ## Documentation
 
