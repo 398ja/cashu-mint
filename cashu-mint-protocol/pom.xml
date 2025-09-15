@@ -50,6 +50,11 @@
             <version>${cashu-vaults.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
             <groupId>xyz.tcheeric</groupId>
             <artifactId>cashu-vault-jpa</artifactId>
             <version>${cashu-vaults.version}</version>
@@ -124,6 +129,14 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
