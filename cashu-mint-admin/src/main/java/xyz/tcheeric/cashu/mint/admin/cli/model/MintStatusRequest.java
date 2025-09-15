@@ -5,7 +5,7 @@ public record MintStatusRequest(String mintId) {
     public static final String DEFAULT_MINT_ID = "default-mint";
 
     public MintStatusRequest {
-        this.mintId = ModelValidations.requireMintId(mintId);
+        mintId = ModelValidations.requireMintId(mintId);
     }
 
     public static MintStatusRequest defaultRequest() {
