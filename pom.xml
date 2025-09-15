@@ -34,6 +34,7 @@
         <jackson-datatype-jsr310.version>${jackson.version}</jackson-datatype-jsr310.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <picocli.version>4.7.6</picocli.version>
 
         <!-- External tool versions -->
         <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
