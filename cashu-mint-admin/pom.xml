@@ -7,11 +7,11 @@
         <version>0.1.10</version>
     </parent>
 
-    <artifactId>mint-admin</artifactId>
+    <artifactId>cashu-mint-admin</artifactId>
     <version>0.1.10</version>
     <packaging>jar</packaging>
 
-    <name>mint-admin</name>
+    <name>cashu-mint-admin</name>
     <description>Administrative module for managing mints.</description>
 
     <properties>
