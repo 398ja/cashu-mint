@@ -10,6 +10,29 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-rest` – REST API for running a mint.
 - `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
+## Admin CLI
+
+The `cashu-mint-admin` module now exposes a Picocli-based command line entry point for
+day-to-day mint operations. Run the CLI with the Maven wrapper or a packaged jar:
+
+```bash
+./mvnw -pl cashu-mint-admin -q exec:java \
+  -Dexec.mainClass=xyz.tcheeric.cashu.mint.admin.cli.MintAdminCliApplication -- mint --output-format=JSON
+```
+
+Available commands:
+
+- `mint` – shows a summary of the mint's lifecycle state and alert counts.
+- `mint config` – inspects or applies configuration payloads (`--payload` inline or
+  `--payload-file` pointing to JSON/YAML content).
+- `mint users` – lists operator accounts, optionally including inactive users via
+  `--include-inactive` or a structured payload.
+- `mint alerts` – displays alert information with a configurable severity filter.
+
+Commands accept JSON payloads by default (`--input-format=JSON`) and can switch to
+YAML with `--input-format=YAML`. Responses default to tabular output (`--output-format=TABLE`)
+but can emit prettified JSON.
+
 ## Admin persistence
 
 The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
