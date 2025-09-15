@@ -10,6 +10,12 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-rest` – REST API for running a mint.
 - `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
+The REST module now exposes authenticated administrative endpoints under `/admin` for
+mint lifecycle, configuration, operator management, and alert workflows. These routes
+currently return `501 Not Implemented` while the corresponding use cases are built, but
+they already enforce token-based authentication (`X-Admin-Token`) and validate payloads
+into request DTOs shared with the future admin services.
+
 ## Admin CLI
 
 The `cashu-mint-admin` module now exposes a Picocli-based command line entry point for
