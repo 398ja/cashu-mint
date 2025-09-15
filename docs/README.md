@@ -7,14 +7,16 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Run with Docker Compose](tutorials/run-with-docker-compose.md) - Start the stack using Docker Compose.
 
 ## How-to guides
+- [Development workflow](how-to/development-workflow.md) - Prepare dependencies, migrations, and tests.
 - [Run tests](how-to/run-tests.md) - Step-by-step instructions for executing the test suite.
 - [Publish a Docker image](how-to/publish-docker-image.md) - Build and push the REST image.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
- - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
+- [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
 
 ## Reference
 - [Configuration](reference/configuration.md) - Application properties and defaults.
 - [REST API](reference/rest-api.md) - HTTP endpoints exposed by the mint.
+- [Module layers](reference/module-layers.md) - Module boundaries, package layout, and wiring examples.
 - [Supported NUTs](reference/nuts.md) - Implemented Cashu protocol specs.
 - [Java version](reference/java-version.md) - Required JDK for building.
 - [License](reference/license.md) - Licensing information.
