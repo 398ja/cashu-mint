@@ -10,6 +10,13 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-rest` – REST API for running a mint.
 - `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
+## Admin persistence
+
+The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
+event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
+`cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
+database to verify persistence and rehydration behaviour.
+
 ## Test data preload
 
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
