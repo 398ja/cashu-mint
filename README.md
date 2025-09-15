@@ -33,6 +33,13 @@ Commands accept JSON payloads by default (`--input-format=JSON`) and can switch 
 YAML with `--input-format=YAML`. Responses default to tabular output (`--output-format=TABLE`)
 but can emit prettified JSON.
 
+## Admin persistence
+
+The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
+event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
+`cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
+database to verify persistence and rehydration behaviour.
+
 ## Test data preload
 
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
