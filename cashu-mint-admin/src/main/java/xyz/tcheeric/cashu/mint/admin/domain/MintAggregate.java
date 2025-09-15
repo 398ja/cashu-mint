@@ -53,6 +53,17 @@ public final class MintAggregate {
             notificationPolicy, trail, creationMetadata);
     }
 
+    public static MintAggregate reconstitute(final MintId mintId,
+                                             final LifecycleState lifecycleState,
+                                             final ConfigurationSet configurationSet,
+                                             final OperatorAccount operatorAccount,
+                                             final NotificationPolicy notificationPolicy,
+                                             final AuditTrail auditTrail,
+                                             final AuditMetadata auditMetadata) {
+        return new MintAggregate(mintId, lifecycleState, configurationSet, operatorAccount, notificationPolicy,
+            auditTrail, auditMetadata);
+    }
+
     public MintAggregate activate(final AuditMetadata metadata) {
         final LifecycleState nextState = lifecycleState.transitionTo(LifecycleState.State.ACTIVE);
         return withChange(nextState, configurationSet, operatorAccount, notificationPolicy, metadata);
