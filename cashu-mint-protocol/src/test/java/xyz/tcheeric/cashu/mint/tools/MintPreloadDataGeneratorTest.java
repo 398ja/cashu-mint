@@ -50,4 +50,18 @@ class MintPreloadDataGeneratorTest {
         String fromDisk = Files.readString(output);
         assertEquals(expected, fromDisk);
     }
+
+    /**
+     * Confirms the default generator yields deterministic JSON for identical inputs.
+     */
+    @Test
+    void defaultGeneratorProducesDeterministicResults() {
+        UUID mintId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        List<Integer> denominations = List.of(1, 2, 4, 8);
+
+        MintPreloadDataGenerator first = new MintPreloadDataGenerator(mintId, "sat", denominations);
+        MintPreloadDataGenerator second = new MintPreloadDataGenerator(mintId, "sat", denominations);
+
+        assertEquals(first.buildJson(), second.buildJson());
+    }
 }
