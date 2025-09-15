@@ -279,3 +279,83 @@ Content-Type: application/json
   "signatures": [ "..." ]
 }
 ```
+
+## Administrative API (Preview)
+
+Administrative endpoints live under the `/admin` path and require the `X-Admin-Token`
+header. The token value defaults to `local-dev-token` for local development and can be
+overridden with the `ADMIN_API_TOKEN` environment variable.
+
+### `POST /admin/lifecycle/mints`
+Provision a new mint instance.
+| Parameter | In | Type | Description |
+| --- | --- | --- | --- |
+| `body` | body | object | Lifecycle request payload containing mint metadata and configuration. |
+**Sample request**
+```http
+POST /admin/lifecycle/mints HTTP/1.1
+Host: example.com
+Content-Type: application/json
+X-Admin-Token: local-dev-token
+{
+  "mintId": "mint-001",
+  "requestedBy": {"id": "ops", "displayName": "Ops"},
+  "metadata": {"displayName": "Primary", "description": "Prod mint"},
+  "configuration": {"limits": {"max": 10}}
+}
+```
+
+### `PUT /admin/lifecycle/mints/{mintId}`
+Update metadata or configuration bindings for an existing mint.
+
+### `POST /admin/lifecycle/mints/{mintId}/pause`
+Pause mint operations for maintenance.
+
+### `POST /admin/lifecycle/mints/{mintId}/resume`
+Resume a paused mint.
+
+### `POST /admin/lifecycle/mints/{mintId}/retire`
+Retire a mint and revoke access.
+
+### `POST /admin/configuration/mints/{mintId}/preview`
+Preview configuration changes without applying them.
+| Parameter | In | Type | Description |
+| --- | --- | --- | --- |
+| `mintId` | path | string | Target mint identifier. |
+| `body` | body | object | Configuration preview payload containing the proposed changes. |
+
+### `POST /admin/configuration/mints/{mintId}/apply`
+Apply a configuration change set to a mint.
+
+### `POST /admin/configuration/mints/{mintId}/rollback`
+Rollback a mint to a previous configuration revision.
+
+### `POST /admin/users`
+Create a new operator account.
+
+### `PUT /admin/users/{userId}`
+Update operator account details.
+
+### `POST /admin/users/{userId}/roles`
+Assign roles to an operator account.
+
+### `POST /admin/users/{userId}/reset-credentials`
+Trigger a credential reset workflow for an operator.
+
+### `POST /admin/users/{userId}/deactivate`
+Deactivate an operator account.
+
+### `POST /admin/alerts`
+Declare an operational alert.
+
+### `POST /admin/alerts/{alertId}/acknowledge`
+Acknowledge an alert.
+
+### `POST /admin/alerts/{alertId}/silence`
+Silence alert notifications for a period.
+
+### `POST /admin/alerts/{alertId}/unsilence`
+Unsilence an alert, resuming notifications.
+
+### `POST /admin/alerts/{alertId}/escalate`
+Escalate an alert to an external policy.
