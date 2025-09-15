@@ -6,7 +6,7 @@ public record MintAlertsRequest(String mintId, String severity) {
     public static final String DEFAULT_SEVERITY = "INFO";
 
     public MintAlertsRequest {
-        this.mintId = ModelValidations.requireMintId(mintId);
-        this.severity = ModelValidations.requireText(severity, "severity").toUpperCase();
+        mintId = ModelValidations.requireMintId(mintId);
+        severity = ModelValidations.requireText(severity, "severity").toUpperCase();
     }
 }
