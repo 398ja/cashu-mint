@@ -8,7 +8,7 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 
 - `cashu-mint-protocol` – core library for the Cashu protocol.
 - `cashu-mint-rest` – REST API for running a mint.
-- `mint-admin` – administrative module (see `mint-admin/specification.md`).
+- `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
 ## Documentation
 
