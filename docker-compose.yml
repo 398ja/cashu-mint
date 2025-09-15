@@ -167,8 +167,8 @@ services:
       DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
-      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
-      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-8888}
+      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       # Gateway REST endpoints are rooted at "/quote" (no /api prefix)
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
       GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
