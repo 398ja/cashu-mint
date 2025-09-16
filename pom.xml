@@ -38,14 +38,11 @@
         <flyway.version>10.19.0</flyway.version>
         <h2.version>2.2.224</h2.version>
 
-        <picocli.version>4.7.6</picocli.version>
-        <h2.version>2.3.232</h2.version>
-    
         <!-- External tool versions -->
         <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
 
         <!-- Test Dependency Versions -->
-        <junit.version>5.12.2</junit.version>
+        <junit.version>5.13.4</junit.version>
         <assertj.version>3.27.4</assertj.version>
         <mockito.version>5.19.0</mockito.version>
 
