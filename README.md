@@ -70,7 +70,9 @@ but can emit prettified JSON.
 The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
 event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
 `cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
-database to verify persistence and rehydration behaviour.
+database to verify persistence and rehydration behaviour. Lifecycle audit events now capture the active configuration revision
+and a snapshot of the notification policy so downstream tooling can trace each state change back to the exact policy and
+configuration in effect when it occurred.
 
 ## Test data preload
 
