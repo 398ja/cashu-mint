@@ -4,10 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
@@ -17,36 +18,48 @@ import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 
 class JdbcConfigurationSetRepositoryIntegrationTest {
 
-    private DataSource dataSource;
-    private ObjectMapper objectMapper;
+    private MintId mintId;
     private JdbcConfigurationSetRepository repository;
 
     @BeforeEach
     void setUp() {
-        dataSource = TestDatabaseFactory.createDataSource();
-        TestDatabaseFactory.migrate(dataSource);
-        objectMapper = new ObjectMapper();
-        repository = new JdbcConfigurationSetRepository(dataSource, objectMapper);
+        repository = new JdbcConfigurationSetRepository(H2TestDataSourceFactory.createDataSource(), new ObjectMapper());
+        mintId = MintId.of(UUID.randomUUID());
     }
 
-    // Ensures configuration revisions are stored and retrieved in the expected order.
+    // Verifies that a configuration revision is stored and can be retrieved by its revision identifier.
     @Test
-    void shouldPersistAndLoadConfigurationHistory() {
-        final MintId mintId = MintId.of(UUID.randomUUID());
-        final AuditMetadata auditOne = new AuditMetadata("alice", "create-config", Instant.parse("2024-03-01T00:00:00Z"));
-        final ConfigurationSet revisionOne = new ConfigurationSet(ConfigurationRevisionId.of(1L),
-            Map.of("currency", "USD"), auditOne);
-        repository.save(mintId, revisionOne);
+    void shouldPersistAndLoadConfigurationRevision() {
+        final Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        final AuditMetadata audit = new AuditMetadata("alice", "create-config", createdAt);
+        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("mint-name", "Atlantis"), audit);
 
-        final AuditMetadata auditTwo = new AuditMetadata("bob", "update-config", Instant.parse("2024-03-02T00:00:00Z"));
-        final ConfigurationSet revisionTwo = new ConfigurationSet(ConfigurationRevisionId.of(2L),
-            Map.of("currency", "USD", "fee", "0.0005"), auditTwo);
+        repository.save(mintId, configuration);
+
+        final Optional<ConfigurationSet> loaded = repository.findByRevision(mintId, configuration.revisionId());
+
+        assertThat(loaded).isPresent();
+        assertThat(loaded.orElseThrow()).isEqualTo(configuration);
+    }
+
+    // Ensures the repository returns the complete configuration history ordered by revision number.
+    @Test
+    void shouldReturnAllRevisionsForMintInAscendingOrder() {
+        final Instant baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        final AuditMetadata revisionOneAudit = new AuditMetadata("alice", "create-config", baseTime);
+        final ConfigurationSet revisionOne = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("mint-name", "Atlantis"), revisionOneAudit);
+
+        final AuditMetadata revisionTwoAudit = new AuditMetadata("bob", "update-config", baseTime.plusSeconds(5));
+        final ConfigurationSet revisionTwo = new ConfigurationSet(ConfigurationRevisionId.of(2),
+            Map.of("mint-name", "Atlantis", "fee", "1.0"), revisionTwoAudit);
+
+        repository.save(mintId, revisionOne);
         repository.save(mintId, revisionTwo);
 
-        final List<ConfigurationSet> history = repository.findByMintId(mintId);
-        assertThat(history).extracting(ConfigurationSet::revisionId).containsExactly(
-            ConfigurationRevisionId.of(1L), ConfigurationRevisionId.of(2L));
+        final List<ConfigurationSet> revisions = repository.findByMintId(mintId);
 
-        assertThat(repository.findByRevision(mintId, revisionTwo.revisionId())).contains(revisionTwo);
+        assertThat(revisions).containsExactly(revisionOne, revisionTwo);
     }
 }
