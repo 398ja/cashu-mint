@@ -282,7 +282,7 @@ Content-Type: application/json
 
 ## Administrative API
 
-Administrative endpoints live under the `/admin` path and require both the
+Administrative endpoints provided by the `cashu-mint-admin-rest` service live under the `/admin` path and require both the
 `X-Admin-Token` header and an `X-Admin-Roles` header indicating the caller's role. The
 token value defaults to `local-dev-token` for local development and can be overridden
 with the `ADMIN_API_TOKEN` environment variable. Supported roles include `MINT_ADMIN`,
@@ -291,7 +291,7 @@ CLI output and are documented via OpenAPI at `/v3/api-docs`.
 
 ### `POST /admin/lifecycle/mints`
 Provision a new mint instance (role: `MINT_ADMIN`). Returns a
-[`LifecycleActionResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/lifecycle/LifecycleActionResponse.java)
+[`LifecycleActionResponse`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/dto/lifecycle/LifecycleActionResponse.java)
 summarising the change.
 **Sample request**
 ```http
@@ -359,7 +359,7 @@ Rollback a mint to a previous configuration revision.
 
 ### `POST /admin/users`
 Create a new operator account (role: `USER_ADMIN`). Returns a
-[`UserResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/users/UserResponse.java)
+[`UserResponse`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/dto/users/UserResponse.java)
 with the active status and assigned roles.
 
 ### `PUT /admin/users/{userId}`
@@ -370,7 +370,7 @@ Assign roles to an operator account.
 
 ### `POST /admin/users/{userId}/reset-credentials`
 Trigger a credential reset workflow for an operator (role: `USER_ADMIN`). Returns a
-[`CredentialResetResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/users/CredentialResetResponse.java)
+[`CredentialResetResponse`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/dto/users/CredentialResetResponse.java)
 containing the reset token.
 
 ### `POST /admin/users/{userId}/deactivate`
@@ -378,7 +378,7 @@ Deactivate an operator account.
 
 ### `POST /admin/alerts`
 Declare an operational alert (role: `ALERTS_ADMIN`). Returns an
-[`AlertActionResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/alerts/AlertActionResponse.java)
+[`AlertActionResponse`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/dto/alerts/AlertActionResponse.java)
 describing the alert's acknowledgement, silence, and escalation state.
 
 ### `POST /admin/alerts/{alertId}/acknowledge`

@@ -19,6 +19,12 @@
     </properties>
 
     <dependencies>
+        <!-- Bring MVC auto-configuration onto the test classpath so MockMvc is available -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
