@@ -1,0 +1,124 @@
+package xyz.tcheeric.cashu.mint.admin.cli.command;
+
+import picocli.CommandLine;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+
+import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
+import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
+import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleOperation;
+import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
+import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleResponse;
+import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.Reader;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+
+abstract class MintLifecycleCommandSupport implements Callable<Integer> {
+
+    private final MintLifecycleOperation operation;
+    private final MintLifecyclePort lifecyclePort;
+    private final CommandPayloadMapper payloadMapper;
+    private final ResponseRenderingService renderingService;
+
+    @Spec
+    private CommandSpec spec;
+
+    @CommandLine.Mixin
+    private final CommandIOOptions ioOptions = new CommandIOOptions();
+
+    @Option(names = "--mint-id",
+            description = "Identifier of the mint to operate on.")
+    private String mintId;
+
+    @Option(names = "--operator-id",
+            description = "Operator UUID authorising the lifecycle change.")
+    private String operatorId;
+
+    @Option(names = "--version-tag",
+            description = "Version tag recorded with the lifecycle change.")
+    private String versionTag;
+
+    @Option(names = {"-y", "--yes"},
+            description = "Automatically confirm the lifecycle action.")
+    private boolean autoConfirm;
+
+    MintLifecycleCommandSupport(final MintLifecycleOperation operation,
+                                final MintLifecyclePort lifecyclePort,
+                                final CommandPayloadMapper payloadMapper,
+                                final ResponseRenderingService renderingService) {
+        this.operation = Objects.requireNonNull(operation, "operation");
+        this.lifecyclePort = Objects.requireNonNull(lifecyclePort, "lifecyclePort");
+        this.payloadMapper = Objects.requireNonNull(payloadMapper, "payloadMapper");
+        this.renderingService = Objects.requireNonNull(renderingService, "renderingService");
+    }
+
+    @Override
+    public final Integer call() {
+        try {
+            final MintLifecycleRequest request = resolveRequest();
+            if (!autoConfirm && !confirm(request)) {
+                spec.commandLine().getOut().println("Lifecycle command aborted by user.");
+                return CommandLine.ExitCode.SOFTWARE;
+            }
+            final MintLifecyclePort.MintLifecycleCommand command =
+                new MintLifecyclePort.MintLifecycleCommand(operation, request);
+            final MintLifecycleResponse response = lifecyclePort.execute(command);
+            final String rendered = renderingService.render(response, ioOptions.outputFormat());
+            spec.commandLine().getOut().println(rendered);
+            if (response.idempotent()) {
+                spec.commandLine().getErr().println("No changes applied (idempotent request).");
+            }
+            return CommandLine.ExitCode.OK;
+        } catch (final IllegalArgumentException ex) {
+            throw new CommandLine.ParameterException(spec.commandLine(), ex.getMessage(), ex);
+        }
+    }
+
+    private MintLifecycleRequest resolveRequest() {
+        return ioOptions
+            .readPayload(payloadMapper, MintLifecycleRequest.class)
+            .orElseGet(this::buildFromOptions);
+    }
+
+    private MintLifecycleRequest buildFromOptions() {
+        if (mintId == null || operatorId == null || versionTag == null) {
+            throw new IllegalArgumentException(
+                "Lifecycle command requires --mint-id, --operator-id, and --version-tag when no payload is provided.");
+        }
+        return new MintLifecycleRequest(mintId, operatorId, versionTag);
+    }
+
+    private boolean confirm(final MintLifecycleRequest request) {
+        final PrintWriter out = spec.commandLine().getOut();
+        out.printf("%s [y/N]: ", confirmationPrompt(request));
+        out.flush();
+        try {
+            final BufferedReader reader = inputReader();
+            final String line = reader.readLine();
+            if (line == null) {
+                return false;
+            }
+            final String trimmed = line.trim().toLowerCase();
+            return "y".equals(trimmed) || "yes".equals(trimmed);
+        } catch (final IOException ex) {
+            throw new CommandLine.ExecutionException(spec.commandLine(), "Failed to read confirmation input", ex);
+        }
+    }
+
+    protected abstract String confirmationPrompt(MintLifecycleRequest request);
+
+    private BufferedReader inputReader() {
+        final Reader consoleReader = System.console() != null ? System.console().reader() : null;
+        if (consoleReader != null) {
+            return new BufferedReader(consoleReader);
+        }
+        return new BufferedReader(new InputStreamReader(System.in));
+    }
+}
