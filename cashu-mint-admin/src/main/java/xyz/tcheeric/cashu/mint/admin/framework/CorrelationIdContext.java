@@ -40,6 +40,28 @@ public final class CorrelationIdContext {
     }
 
     /**
+     * Initialises the context and returns an auto-closeable scope that restores the previous state
+     * when closed.
+     *
+     * @param correlationId identifier provided by a caller, may be {@code null} or blank
+     * @return scope that must be closed to release the bound identifier
+     */
+    public static Scope open(final String correlationId) {
+        final String previous = CURRENT.get();
+        final String assigned = init(correlationId);
+        return new Scope(previous, assigned);
+    }
+
+    /**
+     * Initialises the context with a generated identifier and returns an auto-closeable scope.
+     *
+     * @return scope that must be closed to release the bound identifier
+     */
+    public static Scope open() {
+        return open(null);
+    }
+
+    /**
      * Returns the correlation identifier bound to the current thread.
      *
      * @return correlation identifier or {@code null} if not initialised
@@ -68,5 +90,46 @@ public final class CorrelationIdContext {
         }
         final String trimmed = candidate.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * Scope that ensures correlation identifiers are cleared when the surrounding block exits.
+     */
+    public static final class Scope implements AutoCloseable {
+
+        private final String previous;
+        private final String assigned;
+        private boolean closed;
+
+        private Scope(final String previous, final String assigned) {
+            this.previous = previous;
+            this.assigned = Objects.requireNonNull(assigned, "assigned");
+        }
+
+        /**
+         * Returns the identifier assigned to the current thread for the duration of this scope.
+         *
+         * @return current correlation identifier
+         */
+        public String correlationId() {
+            return assigned;
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            final String current = CURRENT.get();
+            if (!Objects.equals(current, assigned)) {
+                return;
+            }
+            if (previous != null) {
+                set(previous);
+            } else {
+                clear();
+            }
+        }
     }
 }
