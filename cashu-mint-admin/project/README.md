@@ -10,6 +10,13 @@ This directory hosts the product, UX, and technical planning assets that guide t
 | [`Phase1/technical-analysis.md`](./Phase1/technical-analysis.md) | Supporting technical discovery covering architecture, workflows, and integration constraints for the admin toolchain. |
 | [`Phase1/Milestones/`](./Phase1/Milestones) | Milestone breakdowns (M1–M8) capturing deliverable sequencing and acceptance criteria for the CLI foundation. |
 | [`Phase2/cashu-admin-web-phase-2-spec.md`](./Phase2/cashu-admin-web-phase-2-spec.md) | Functional scope, user roles, API mappings, and implementation roadmap for the phase 2 browser interface. |
+| [`Phase2/cashu-admin-web-phase-2-ux-ui-spec.md`](./Phase2/cashu-admin-web-phase-2-ux-ui-spec.md) | UX/UI guidelines covering flows, interaction patterns, accessibility, and visual language for the web experience. |
+| [`Phase2/cashu-admin-web-phase-2-wireframes.md`](./Phase2/cashu-admin-web-phase-2-wireframes.md) | Low-fidelity wireframes illustrating layout, responsive behaviors, and annotations for key operator workflows. |
+| [`Phase2/cashu-admin-web-phase-2-mockups.md`](./Phase2/cashu-admin-web-phase-2-mockups.md) | High-fidelity mockup directions detailing design tokens, component styling, and deliverables for design handoff. |
+
+## Using the documentation
+- **Product & engineering alignment:** Start with the phase specifications to understand the problem space and feature commitments before diving into implementation details or design workstreams.
+- **Design delivery:** Use the UX/UI specification for flow definitions, the wireframes document for structural blueprints, and the mockups package for pixel-level styling when producing assets or integrating with the design system.
 | [`Phase2/cashu-admin-web-phase-2-ux-ui-spec.md`](./Phase2/cashu-admin-web-phase-2-ux-ui-spec.md) | UX/UI guidelines covering flows, wireframes, interaction patterns, accessibility, and visual language for the web experience. |
 
 ## Using the documentation
