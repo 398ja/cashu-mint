@@ -6,12 +6,14 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintAggregateViewRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleContext;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
@@ -132,12 +134,16 @@ public class LifecycleEventOutboxHandler {
             ? AutomationContext.manual()
             : new AutomationContext(Boolean.TRUE.equals(automationPayload.automated()), automationPayload.system(),
                 automationPayload.runId());
+        final UUID requestId = parseRequestId(auditPayload.requestId());
         return new AuditMetadata(requireNonBlank(auditPayload.actor(), "audit.actor"),
             requireNonBlank(auditPayload.action(), "audit.action"),
             timestamp,
             reasons,
             tickets,
-            automationContext);
+            automationContext,
+            LifecycleContext.empty(),
+            requestId,
+            auditPayload.correlationId());
     }
 
     private String requireNonBlank(final String value, final String field) {
@@ -161,7 +167,20 @@ public class LifecycleEventOutboxHandler {
                                 String timestamp,
                                 List<String> reasonCodes,
                                 List<String> ticketReferences,
-                                AutomationPayload automation) { }
+                                AutomationPayload automation,
+                                String requestId,
+                                String correlationId) { }
 
     private record AutomationPayload(Boolean automated, String system, String runId) { }
+
+    private UUID parseRequestId(final String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(requestId.trim());
+        } catch (final IllegalArgumentException ex) {
+            throw new OutboxMessageHandlingException("Invalid audit request id: " + requestId, ex);
+        }
+    }
 }

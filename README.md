@@ -74,6 +74,12 @@ signals whether a change occurred. Responses default to tabular output
 summaries are produced by shared presenters so the CLI tables, JSON payloads, and
 REST `LifecycleActionResponse` structures remain identical.
 
+Each CLI invocation carries a traceable identifier. Provide `--request-id` to reuse a
+known UUID (the CLI generates one automatically when omitted) and `--correlation-id`
+to link the action to external change-management tickets. Both identifiers flow
+through the lifecycle interactor and into audit metadata so outbox events and
+observability tooling can align terminal activity with persisted history.
+
 ## Admin persistence
 
 The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, lifecycle history
