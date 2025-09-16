@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -46,5 +47,23 @@ class AuditTrailTest {
         final AuditTrail trail = AuditTrail.create(new AuditMetadata("alice", "created", Instant.now()));
 
         assertThrows(NullPointerException.class, () -> trail.append(null));
+    }
+
+    @Test
+    // Ensures the latest metadata exposes lifecycle context fields.
+    void shouldExposeLatestLifecycleContext() {
+        final AuditMetadata metadata = new AuditMetadata(
+            "system",
+            "pause",
+            Instant.now(),
+            List.of("scheduled_maintenance"),
+            List.of("CHG-101"),
+            new AutomationContext(true, "orchestrator", "run-22"));
+
+        final AuditTrail trail = AuditTrail.create(metadata);
+
+        assertThat(trail.latestReasonCodes()).containsExactly("scheduled_maintenance");
+        assertThat(trail.latestTicketReferences()).containsExactly("CHG-101");
+        assertThat(trail.latestAutomationContext()).isEqualTo(metadata.automationContext());
     }
 }
