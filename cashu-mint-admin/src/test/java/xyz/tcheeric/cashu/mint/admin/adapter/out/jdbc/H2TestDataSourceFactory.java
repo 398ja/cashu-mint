@@ -47,7 +47,8 @@ final class H2TestDataSourceFactory {
     private static String readSchemaScript() throws IOException {
         final String v1 = readMigration("/db/migration/V1__create_admin_schema.sql");
         final String v2 = readMigration("/db/migration/V2__link_audit_events.sql");
-        return (v1 + "\n" + v2)
+        final String v3 = readMigration("/db/migration/V3__extend_audit_metadata.sql");
+        return (v1 + "\n" + v2 + "\n" + v3)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }
