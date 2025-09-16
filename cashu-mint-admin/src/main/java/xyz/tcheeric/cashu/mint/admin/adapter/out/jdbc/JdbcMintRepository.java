@@ -46,6 +46,13 @@ public class JdbcMintRepository implements MintRepository {
                 version = EXCLUDED.version
         """;
 
+    private static final String H2_UPSERT_MINT_SQL =
+        """
+            MERGE INTO mints (mint_id, lifecycle_state, current_configuration_revision, last_actor, last_action, last_timestamp, version)
+            KEY (mint_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """;
+
     private static final String UPSERT_OPERATOR_SQL =
         """
             INSERT INTO operator_accounts (mint_id, operator_id, display_name, roles, audit_actor, audit_action, audit_timestamp)
@@ -59,6 +66,13 @@ public class JdbcMintRepository implements MintRepository {
                 audit_timestamp = EXCLUDED.audit_timestamp
         """;
 
+    private static final String H2_UPSERT_OPERATOR_SQL =
+        """
+            MERGE INTO operator_accounts (mint_id, operator_id, display_name, roles, audit_actor, audit_action, audit_timestamp)
+            KEY (mint_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """;
+
     private static final String UPSERT_NOTIFICATION_SQL =
         """
             INSERT INTO notification_policies (mint_id, email_enabled, webhook_enabled, throttle_interval_seconds, audit_actor, audit_action, audit_timestamp)
@@ -70,6 +84,13 @@ public class JdbcMintRepository implements MintRepository {
                 audit_actor = EXCLUDED.audit_actor,
                 audit_action = EXCLUDED.audit_action,
                 audit_timestamp = EXCLUDED.audit_timestamp
+        """;
+
+    private static final String H2_UPSERT_NOTIFICATION_SQL =
+        """
+            MERGE INTO notification_policies (mint_id, email_enabled, webhook_enabled, throttle_interval_seconds, audit_actor, audit_action, audit_timestamp)
+            KEY (mint_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String DELETE_AUDIT_SQL = "DELETE FROM audit_events WHERE mint_id = ?";
@@ -175,7 +196,7 @@ public class JdbcMintRepository implements MintRepository {
 
     private void upsertMint(final Connection connection, final MintAggregate aggregate)
         throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(UPSERT_MINT_SQL)) {
+        try (PreparedStatement statement = prepareStatement(connection, UPSERT_MINT_SQL, H2_UPSERT_MINT_SQL)) {
             final AuditMetadata audit = aggregate.auditMetadata();
             statement.setObject(1, aggregate.mintId().value());
             statement.setString(2, aggregate.lifecycleState().value().name());
@@ -190,7 +211,7 @@ public class JdbcMintRepository implements MintRepository {
 
     private void upsertOperator(final Connection connection, final MintId mintId, final OperatorAccount operator)
         throws SQLException, IOException {
-        try (PreparedStatement statement = connection.prepareStatement(UPSERT_OPERATOR_SQL)) {
+        try (PreparedStatement statement = prepareStatement(connection, UPSERT_OPERATOR_SQL, H2_UPSERT_OPERATOR_SQL)) {
             final AuditMetadata audit = operator.auditMetadata();
             statement.setObject(1, mintId.value());
             statement.setObject(2, operator.operatorId());
@@ -207,7 +228,7 @@ public class JdbcMintRepository implements MintRepository {
                                     final MintId mintId,
                                     final NotificationPolicy policy)
         throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(UPSERT_NOTIFICATION_SQL)) {
+        try (PreparedStatement statement = prepareStatement(connection, UPSERT_NOTIFICATION_SQL, H2_UPSERT_NOTIFICATION_SQL)) {
             final AuditMetadata audit = policy.auditMetadata();
             statement.setObject(1, mintId.value());
             statement.setBoolean(2, policy.emailEnabled());
@@ -338,6 +359,20 @@ public class JdbcMintRepository implements MintRepository {
             return null;
         }
         return timestamp.toInstant();
+    }
+
+    private PreparedStatement prepareStatement(final Connection connection,
+                                               final String postgresSql,
+                                               final String h2Sql) throws SQLException {
+        if (isH2(connection)) {
+            return connection.prepareStatement(h2Sql);
+        }
+        return connection.prepareStatement(postgresSql);
+    }
+
+    private boolean isH2(final Connection connection) throws SQLException {
+        final String productName = connection.getMetaData().getDatabaseProductName();
+        return "H2".equalsIgnoreCase(productName);
     }
 
     private UUID getUuid(final ResultSet resultSet, final String column) throws SQLException {
