@@ -4,7 +4,15 @@ This reference explains how the Cashu mint project is organised into modules and
 
 ## Modules at a glance
 
-The Maven build defines three modules: the protocol core, the REST interface, and the administrative domain (see [`pom.xml`](../../pom.xml)).
+The Maven build now defines five modules: the protocol core, the public REST interface,
+the shared administrative domain, and dedicated adapters for the admin REST service and CLI
+(see [`pom.xml`](../../pom.xml)).
+
+- `cashu-mint-protocol` – reusable Cashu protocol workflows and tooling.
+- `cashu-mint-rest` – Spring Boot service that exposes the public mint API.
+- `cashu-mint-admin` – domain, ports, persistence adapters, and presenters for admin workflows.
+- `cashu-mint-admin-rest` – Spring Boot service that adapts the admin domain to authenticated HTTP routes.
+- `cashu-mint-admin-cli` – Picocli command line backed by the admin domain ports.
 
 ## `cashu-mint-protocol`
 
@@ -27,9 +35,66 @@ The REST module turns the protocol into a Spring Boot service.
 
 ## `cashu-mint-admin`
 
-The administrative module holds the domain model for operator workflows so that a CLI or UI can reason about configuration state transitions without depending on Spring.
+The administrative module houses the shared domain and application services that both adapter modules consume.
 
-- The domain package models the mint lifecycle with aggregates, value objects, and invariants (see `MintAggregate` for the aggregate root that enforces revision and audit rules in [`MintAggregate.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/domain/MintAggregate.java)).
+- **Domain model.** Aggregates, value objects, and invariants live under
+  `xyz.tcheeric.cashu.mint.admin.domain`. The `MintAggregate` root enforces
+  revision and audit rules (see [`MintAggregate.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/domain/MintAggregate.java)).
+- **Use case interactors.** Application services under
+  `xyz.tcheeric.cashu.mint.admin.application.service` orchestrate lifecycle,
+  configuration, and operator workflows. For example,
+  [`ManageMintLifecycleInteractor.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/application/service/ManageMintLifecycleInteractor.java)
+  coordinates repository access and presenters for lifecycle changes.
+- **Ports.** The `application.port` packages define incoming and outgoing interfaces
+  so adapters stay decoupled from the domain (see
+  [`ManageMintLifecycleUseCase.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/application/port/in/ManageMintLifecycleUseCase.java)
+  and
+  [`MintRepository.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/adapter/persistence/MintRepository.java)).
+- **Persistence adapters.** JDBC-backed repositories in
+  `adapter.persistence` implement the outgoing ports (for example
+  [`RelationalMintRepository.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/adapter/persistence/RelationalMintRepository.java)).
+- **Outbox dispatch.** Infrastructure for transactional outbox processing lives in
+  `adapter.out.outbox`, including the
+  [`LifecycleEventOutboxHandler`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/adapter/out/outbox/LifecycleEventOutboxHandler.java)
+  and dispatcher.
+- **Presenters.** Presenter implementations under `presentation` render lifecycle
+  summaries for both CLI and REST consumers (see
+  [`LifecycleSummaryPresenter.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/presentation/lifecycle/LifecycleSummaryPresenter.java)).
+
+## `cashu-mint-admin-rest`
+
+This Spring Boot module adapts the admin domain to authenticated HTTP endpoints.
+
+- **Application entry point.**
+  [`CashuMintAdminRestApplication`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/CashuMintAdminRestApplication.java)
+  scans the admin packages and configures security filters for the `/admin` surface.
+- **Controllers.** Classes under `controller` expose lifecycle, configuration,
+  user, and alert routes (for example
+  [`LifecycleAdminController.java`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/controller/LifecycleAdminController.java)).
+- **DTOs and presenters.** The `dto` package defines request/response payloads,
+  while presenters such as
+  [`LifecycleSummaryApiPresenter`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/presenter/LifecycleSummaryApiPresenter.java)
+  transform admin-domain summaries into API responses.
+- **Services.** Coordinator classes in `service` translate HTTP input into admin
+  use-case invocations, handling authentication and error reporting (see
+  [`AdminLifecycleService`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/service/AdminLifecycleService.java)).
+
+## `cashu-mint-admin-cli`
+
+The CLI module packages a Picocli launcher that calls the admin domain through ports.
+
+- **Launcher.**
+  [`MintAdminCliApplication`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java)
+  wires port implementations and builds the command tree.
+- **Commands.** Subcommands live under `command` and map CLI arguments to port
+  calls (see [`MintCommand.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintCommand.java)).
+- **Ports.** The `port` package declares the interfaces adapters must satisfy.
+  Stub implementations in `port.stub` make it easy to rehearse commands offline
+  (for example
+  [`StubMintStatusPort`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/stub/StubMintStatusPort.java)).
+- **Presentation.** CLI presenters in `presentation` reuse the shared lifecycle
+  view models while adapting output for tables or JSON (see
+  [`LifecycleSummaryCliPresenter`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/presentation/lifecycle/LifecycleSummaryCliPresenter.java)).
 
 ## Wiring examples
 

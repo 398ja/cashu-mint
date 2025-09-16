@@ -6,11 +6,19 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 
 ## Modules
 
+The build is split into five Maven modules so that protocol logic, public APIs,
+and administrative surfaces evolve independently:
+
 - `cashu-mint-protocol` – core library for the Cashu protocol.
 - `cashu-mint-rest` – public REST API for running a mint.
-- `cashu-mint-admin-rest` – administrative REST API mirroring CLI workflows.
-- `cashu-mint-admin` – administrative domain, persistence, and presenter logic (see `cashu-mint-admin/project/specification.md`).
-- `cashu-mint-admin-cli` – Picocli-based command line built on the admin domain.
+- `cashu-mint-admin` – shared administrative domain, persistence adapters, and
+  presenters (see `cashu-mint-admin/project/specification.md`). This module no
+  longer exposes HTTP controllers or CLI launchers—those live in the dedicated
+  adapter modules below.
+- `cashu-mint-admin-rest` – administrative REST API that adapts the admin domain
+  to authenticated `/admin` endpoints.
+- `cashu-mint-admin-cli` – Picocli-based command line that shells the admin
+  domain for operators.
 
 ## Container images and Compose services
 
@@ -41,17 +49,26 @@ domain artifacts when images are produced.
 
 ## Admin module bootstrap
 
-The `cashu-mint-admin` module now concentrates the shared domain model, persistence adapters, and presenter logic that power the
-CLI and REST entry points. It includes hardened JDBC configuration for PostgreSQL and H2 development profiles, plus Flyway and
-Liquibase hooks for future migrations. Observability defaults—such as correlation identifiers and structured error handling—live
-alongside the shared resources in `cashu-mint-admin/src/main/resources`, keeping downstream adapters consistent.
+The `cashu-mint-admin` module concentrates the shared domain model, persistence
+adapters, and presenter logic that power the CLI and REST entry points. It
+includes hardened JDBC configuration for PostgreSQL and H2 development
+profiles, plus Flyway and Liquibase hooks for future migrations. Observability
+defaults—such as correlation identifiers and structured error handling—live
+alongside the shared resources in `cashu-mint-admin/src/main/resources`, keeping
+downstream adapters consistent.
 
-The `cashu-mint-admin-rest` module now exposes authenticated administrative endpoints
-under `/admin` for mint lifecycle, configuration, operator management, and alert
-workflows. Each route returns structured responses that mirror the CLI experience,
-enforces token-based authentication (`X-Admin-Token`), and checks role membership via
-`X-Admin-Roles`. OpenAPI documentation is published at runtime so operators can explore
-the admin surface from `/v3/api-docs` or the bundled Swagger UI.
+Two adapter modules now consume that core:
+
+- `cashu-mint-admin-rest` exposes authenticated administrative endpoints under
+  `/admin` for mint lifecycle, configuration, operator management, and alert
+  workflows. Each route returns structured responses that mirror the CLI
+  experience, enforces token-based authentication (`X-Admin-Token`), and checks
+  role membership via `X-Admin-Roles`. OpenAPI documentation is published at
+  runtime so operators can explore the admin surface from `/v3/api-docs` or the
+  bundled Swagger UI.
+- `cashu-mint-admin-cli` packages the Picocli command tree while delegating all
+  lifecycle orchestration to the admin domain so scripted operators see the same
+  presenters and validation rules as the REST callers.
 
 ## Admin CLI
 
