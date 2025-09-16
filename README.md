@@ -10,6 +10,68 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-rest` – REST API for running a mint.
 - `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
+## Admin module bootstrap
+
+The `cashu-mint-admin` module now boots as a Spring Boot CLI application backed by Picocli. It includes hardened JDBC
+configuration for PostgreSQL and H2 development profiles, plus Flyway and Liquibase hooks for future migrations. Observability
+is enabled out of the box with actuator endpoints, tracing identifiers in log patterns, and structured error handling defaults
+in `application.yml`.
+
+Start the admin CLI with the lightweight in-memory profile while building new workflows:
+
+```bash
+./mvnw -q -pl cashu-mint-admin spring-boot:run -Dspring-boot.run.profiles=h2
+```
+
+Switch to PostgreSQL (or override the connection string via environment variables) for integration testing:
+
+```bash
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/cashu_mint_admin \
+SPRING_DATASOURCE_USERNAME=cashu_admin \
+SPRING_DATASOURCE_PASSWORD=change_me \
+./mvnw -q -pl cashu-mint-admin spring-boot:run -Dspring-boot.run.profiles=postgres
+```
+
+Flyway migrations are resolved from `classpath:db/migration/admin/**` while Liquibase change logs default to
+`classpath:db/changelog/db.changelog-master.yaml` when enabled. Adjust tracing, logging, or migration toggles directly in
+`cashu-mint-admin/src/main/resources/application.yml`.
+
+The REST module now exposes authenticated administrative endpoints under `/admin` for
+mint lifecycle, configuration, operator management, and alert workflows. These routes
+currently return `501 Not Implemented` while the corresponding use cases are built, but
+they already enforce token-based authentication (`X-Admin-Token`) and validate payloads
+into request DTOs shared with the future admin services.
+
+## Admin CLI
+
+The `cashu-mint-admin` module now exposes a Picocli-based command line entry point for
+day-to-day mint operations. Run the CLI with the Maven wrapper or a packaged jar:
+
+```bash
+./mvnw -pl cashu-mint-admin -q exec:java \
+  -Dexec.mainClass=xyz.tcheeric.cashu.mint.admin.cli.MintAdminCliApplication -- mint --output-format=JSON
+```
+
+Available commands:
+
+- `mint` – shows a summary of the mint's lifecycle state and alert counts.
+- `mint config` – inspects or applies configuration payloads (`--payload` inline or
+  `--payload-file` pointing to JSON/YAML content).
+- `mint users` – lists operator accounts, optionally including inactive users via
+  `--include-inactive` or a structured payload.
+- `mint alerts` – displays alert information with a configurable severity filter.
+
+Commands accept JSON payloads by default (`--input-format=JSON`) and can switch to
+YAML with `--input-format=YAML`. Responses default to tabular output (`--output-format=TABLE`)
+but can emit prettified JSON.
+
+## Admin persistence
+
+The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
+event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
+`cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
+database to verify persistence and rehydration behaviour.
+
 ## Test data preload
 
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
