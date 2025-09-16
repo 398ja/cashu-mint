@@ -11,8 +11,6 @@ import xyz.tcheeric.cashu.mint.admin.cli.model.MintAlertRecord;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintAlertsRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintConfigRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintConfigResponse;
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleOperation;
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleResponse;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintStatusRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintStatusResponse;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintUserRecord;
@@ -24,6 +22,9 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.MintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintUsersPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -132,7 +133,7 @@ class MintAdminCliApplicationTest {
             .execute("create", "--payload=" + payload, "--output-format=JSON", "--yes");
 
         final MintLifecyclePort.MintLifecycleCommand command = lifecyclePort.lastCommand.get();
-        assertThat(command.operation()).isEqualTo(MintLifecycleOperation.CREATE);
+        assertThat(command.operation()).isEqualTo(LifecycleAction.CREATE);
         assertThat(command.request().mintId()).isEqualTo("mint-321");
         assertThat(execution.getSystemOutString()).contains("\"currentState\" : \"PROVISIONED\"");
         assertThat(execution.getSystemOutString()).contains("\"changed\" : true");
@@ -166,8 +167,9 @@ class MintAdminCliApplicationTest {
                                     final MintLifecyclePort lifecyclePort) {
         final CommandPayloadMapper mapper = CommandPayloadMapper.createDefault();
         final ResponseRenderingService renderer = ResponseRenderingService.createDefault(mapper.jsonMapper());
-        return MintAdminCliApplication.buildCommandLine(mapper, renderer, statusPort, configPort, usersPort, alertsPort,
-            lifecyclePort);
+        final LifecycleSummaryCliPresenter lifecyclePresenter = new LifecycleSummaryCliPresenter(mapper.jsonMapper());
+        return MintAdminCliApplication.buildCommandLine(mapper, renderer, lifecyclePresenter, statusPort, configPort, usersPort,
+            alertsPort, lifecyclePort);
     }
 
     private static final class RecordingMintStatusPort implements MintStatusPort {
@@ -220,7 +222,7 @@ class MintAdminCliApplicationTest {
         private final AtomicReference<MintLifecyclePort.MintLifecycleCommand> lastCommand = new AtomicReference<>();
 
         @Override
-        public MintLifecycleResponse execute(final MintLifecycleCommand command) {
+        public LifecycleSummary execute(final MintLifecycleCommand command) {
             lastCommand.set(command);
             return super.execute(command);
         }

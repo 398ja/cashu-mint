@@ -6,11 +6,11 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
 import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
-import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleOperation;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleResponse;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,10 +22,10 @@ import java.util.concurrent.Callable;
 
 abstract class MintLifecycleCommandSupport implements Callable<Integer> {
 
-    private final MintLifecycleOperation operation;
+    private final LifecycleAction operation;
     private final MintLifecyclePort lifecyclePort;
     private final CommandPayloadMapper payloadMapper;
-    private final ResponseRenderingService renderingService;
+    private final LifecycleSummaryCliPresenter summaryPresenter;
 
     @Spec
     private CommandSpec spec;
@@ -49,14 +49,14 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
             description = "Automatically confirm the lifecycle action.")
     private boolean autoConfirm;
 
-    MintLifecycleCommandSupport(final MintLifecycleOperation operation,
+    MintLifecycleCommandSupport(final LifecycleAction operation,
                                 final MintLifecyclePort lifecyclePort,
                                 final CommandPayloadMapper payloadMapper,
-                                final ResponseRenderingService renderingService) {
+                                final LifecycleSummaryCliPresenter summaryPresenter) {
         this.operation = Objects.requireNonNull(operation, "operation");
         this.lifecyclePort = Objects.requireNonNull(lifecyclePort, "lifecyclePort");
         this.payloadMapper = Objects.requireNonNull(payloadMapper, "payloadMapper");
-        this.renderingService = Objects.requireNonNull(renderingService, "renderingService");
+        this.summaryPresenter = Objects.requireNonNull(summaryPresenter, "summaryPresenter");
     }
 
     @Override
@@ -69,8 +69,8 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
             }
             final MintLifecyclePort.MintLifecycleCommand command =
                 new MintLifecyclePort.MintLifecycleCommand(operation, request);
-            final MintLifecycleResponse response = lifecyclePort.execute(command);
-            final String rendered = renderingService.render(response, ioOptions.outputFormat());
+            final LifecycleSummary response = lifecyclePort.execute(command);
+            final String rendered = summaryPresenter.present(response, ioOptions.outputFormat());
             spec.commandLine().getOut().println(rendered);
             if (response.idempotent()) {
                 spec.commandLine().getErr().println("No changes applied (idempotent request).");

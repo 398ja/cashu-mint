@@ -4,11 +4,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleOperation;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
-import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleResponse;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
 
 /**
  * In-memory lifecycle port used for wiring the CLI without backend integration.
@@ -16,6 +17,15 @@ import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 public class StubMintLifecyclePort implements MintLifecyclePort {
 
     private final Map<String, MintState> states = new ConcurrentHashMap<>();
+    private final LifecycleSummaryPresenter presenter;
+
+    public StubMintLifecyclePort() {
+        this(new LifecycleSummaryPresenter());
+    }
+
+    public StubMintLifecyclePort(final LifecycleSummaryPresenter presenter) {
+        this.presenter = Objects.requireNonNull(presenter, "presenter");
+    }
 
     public StubMintLifecyclePort seed(final String mintId,
                                       final LifecycleState.State state,
@@ -25,61 +35,79 @@ public class StubMintLifecyclePort implements MintLifecyclePort {
     }
 
     @Override
-    public MintLifecycleResponse execute(final MintLifecycleCommand command) {
+    public LifecycleSummary execute(final MintLifecycleCommand command) {
         Objects.requireNonNull(command, "command");
         final MintLifecycleRequest request = command.request();
         return switch (command.operation()) {
             case CREATE -> handleCreate(request);
             case UPDATE -> handleUpdate(request);
-            case PAUSE -> handleTransition(request, LifecycleState.State.SUSPENDED,
-                "Mint paused", "Mint already suspended");
-            case RESUME -> handleTransition(request, LifecycleState.State.ACTIVE,
-                "Mint resumed", "Mint already active");
-            case RETIRE -> handleTransition(request, LifecycleState.State.DECOMMISSIONED,
-                "Mint retired", "Mint already retired");
+            case PAUSE -> handleTransition(request, LifecycleState.State.SUSPENDED);
+            case RESUME -> handleTransition(request, LifecycleState.State.ACTIVE);
+            case RETIRE -> handleTransition(request, LifecycleState.State.DECOMMISSIONED);
         };
     }
 
-    private MintLifecycleResponse handleCreate(final MintLifecycleRequest request) {
+    private LifecycleSummary handleCreate(final MintLifecycleRequest request) {
         final MintState existing = states.get(request.mintId());
         if (existing != null) {
-            return new MintLifecycleResponse(MintLifecycleOperation.CREATE, request.mintId(), existing.state,
-                existing.state, existing.versionTag, false, "Mint already exists");
+            return presenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(
+                LifecycleAction.CREATE,
+                request.mintId(),
+                existing.state.name(),
+                existing.state.name(),
+                existing.versionTag,
+                false
+            ));
         }
         final MintState created = new MintState(LifecycleState.State.PROVISIONED, request.versionTag());
         states.put(request.mintId(), created);
-        return new MintLifecycleResponse(MintLifecycleOperation.CREATE, request.mintId(), null,
-            created.state, created.versionTag, true, "Mint created");
+        return presenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(
+            LifecycleAction.CREATE,
+            request.mintId(),
+            null,
+            created.state.name(),
+            created.versionTag,
+            true
+        ));
     }
 
-    private MintLifecycleResponse handleUpdate(final MintLifecycleRequest request) {
+    private LifecycleSummary handleUpdate(final MintLifecycleRequest request) {
         final MintState state = requireExistingState(request.mintId());
         final boolean changed = !Objects.equals(state.versionTag, request.versionTag());
         state.versionTag = request.versionTag();
-        return new MintLifecycleResponse(MintLifecycleOperation.UPDATE, request.mintId(), state.state,
-            state.state, state.versionTag, changed,
-            changed ? "Configuration updated" : "Configuration already up to date");
+        return presenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(
+            LifecycleAction.UPDATE,
+            request.mintId(),
+            state.state.name(),
+            state.state.name(),
+            state.versionTag,
+            changed
+        ));
     }
 
-    private MintLifecycleResponse handleTransition(final MintLifecycleRequest request,
-                                                   final LifecycleState.State target,
-                                                   final String successMessage,
-                                                   final String idempotentMessage) {
+    private LifecycleSummary handleTransition(final MintLifecycleRequest request,
+                                              final LifecycleState.State target) {
         final MintState state = requireExistingState(request.mintId());
         final LifecycleState.State previous = state.state;
         final boolean changed = previous != target;
         state.state = target;
         state.versionTag = request.versionTag();
-        return new MintLifecycleResponse(operationFor(target), request.mintId(), previous,
-            state.state, state.versionTag, changed, changed ? successMessage : idempotentMessage);
+        return presenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(
+            actionFor(target),
+            request.mintId(),
+            previous.name(),
+            state.state.name(),
+            state.versionTag,
+            changed
+        ));
     }
 
-    private MintLifecycleOperation operationFor(final LifecycleState.State target) {
+    private LifecycleAction actionFor(final LifecycleState.State target) {
         return switch (target) {
-            case PROVISIONED -> MintLifecycleOperation.CREATE;
-            case ACTIVE -> MintLifecycleOperation.RESUME;
-            case SUSPENDED -> MintLifecycleOperation.PAUSE;
-            case DECOMMISSIONED -> MintLifecycleOperation.RETIRE;
+            case PROVISIONED -> LifecycleAction.CREATE;
+            case ACTIVE -> LifecycleAction.RESUME;
+            case SUSPENDED -> LifecycleAction.PAUSE;
+            case DECOMMISSIONED -> LifecycleAction.RETIRE;
         };
     }
 
