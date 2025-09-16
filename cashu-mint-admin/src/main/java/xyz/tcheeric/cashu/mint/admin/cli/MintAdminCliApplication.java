@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.admin.cli;
 
 import picocli.CommandLine;
+import picocli.CommandLine.ParseResult;
 
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintAlertsCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintCommand;
@@ -24,6 +25,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 /**
  * Picocli entry point for mint administration commands.
@@ -74,6 +76,16 @@ public final class MintAdminCliApplication {
         commandLine.addSubcommand("pause", new MintPauseCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
         commandLine.addSubcommand("resume", new MintResumeCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
         commandLine.addSubcommand("retire", new MintRetireCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
+        commandLine.setExecutionStrategy(MintAdminCliApplication::executeWithCorrelationId);
         return commandLine;
+    }
+
+    private static int executeWithCorrelationId(final ParseResult parseResult) {
+        CorrelationIdContext.init();
+        try {
+            return new CommandLine.RunLast().execute(parseResult);
+        } finally {
+            CorrelationIdContext.clear();
+        }
     }
 }
