@@ -55,6 +55,10 @@ day-to-day mint operations. Run the CLI with the Maven wrapper or a packaged jar
 Available commands:
 
 - `mint` – shows a summary of the mint's lifecycle state and alert counts.
+- `mint create` – provisions a new mint after a confirmation prompt (skip with `--yes`).
+- `mint update` – applies configuration version bumps for an existing mint.
+- `mint pause` / `mint resume` / `mint retire` – drive lifecycle transitions with
+  idempotency checks (repeating a command returns a structured no-op response).
 - `mint config` – inspects or applies configuration payloads (`--payload` inline or
   `--payload-file` pointing to JSON/YAML content).
 - `mint users` – lists operator accounts, optionally including inactive users via
@@ -62,8 +66,10 @@ Available commands:
 - `mint alerts` – displays alert information with a configurable severity filter.
 
 Commands accept JSON payloads by default (`--input-format=JSON`) and can switch to
-YAML with `--input-format=YAML`. Responses default to tabular output (`--output-format=TABLE`)
-but can emit prettified JSON.
+YAML with `--input-format=YAML`. Lifecycle commands also accept option-derived input
+(`--mint-id`, `--operator-id`, `--version-tag`) and emit machine-readable output that
+signals whether a change occurred. Responses default to tabular output
+(`--output-format=TABLE`) but can emit prettified JSON for scripting.
 
 ## Admin persistence
 

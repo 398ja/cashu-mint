@@ -5,15 +5,22 @@ import picocli.CommandLine;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintAlertsCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintCreateCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintPauseCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintResumeCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintRetireCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintUpdateCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintUsersCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
 import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintAlertsPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintConfigPort;
+import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintUsersPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintAlertsPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintConfigPort;
+import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
 
@@ -40,7 +47,8 @@ public final class MintAdminCliApplication {
             new StubMintStatusPort(),
             new StubMintConfigPort(),
             new StubMintUsersPort(),
-            new StubMintAlertsPort()
+            new StubMintAlertsPort(),
+            new StubMintLifecyclePort()
         );
     }
 
@@ -49,13 +57,19 @@ public final class MintAdminCliApplication {
                                         final MintStatusPort statusPort,
                                         final MintConfigPort configPort,
                                         final MintUsersPort usersPort,
-                                        final MintAlertsPort alertsPort) {
+                                        final MintAlertsPort alertsPort,
+                                        final MintLifecyclePort lifecyclePort) {
         final MintCommand root = new MintCommand(statusPort, payloadMapper, renderingService);
         final CommandLine commandLine = new CommandLine(root);
         commandLine.setCaseInsensitiveEnumValuesAllowed(true);
         commandLine.addSubcommand("config", new MintConfigCommand(configPort, payloadMapper, renderingService));
         commandLine.addSubcommand("users", new MintUsersCommand(usersPort, payloadMapper, renderingService));
         commandLine.addSubcommand("alerts", new MintAlertsCommand(alertsPort, payloadMapper, renderingService));
+        commandLine.addSubcommand("create", new MintCreateCommand(lifecyclePort, payloadMapper, renderingService));
+        commandLine.addSubcommand("update", new MintUpdateCommand(lifecyclePort, payloadMapper, renderingService));
+        commandLine.addSubcommand("pause", new MintPauseCommand(lifecyclePort, payloadMapper, renderingService));
+        commandLine.addSubcommand("resume", new MintResumeCommand(lifecyclePort, payloadMapper, renderingService));
+        commandLine.addSubcommand("retire", new MintRetireCommand(lifecyclePort, payloadMapper, renderingService));
         return commandLine;
     }
 }
