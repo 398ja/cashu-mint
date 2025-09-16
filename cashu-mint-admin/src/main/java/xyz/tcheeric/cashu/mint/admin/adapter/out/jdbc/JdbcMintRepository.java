@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,14 +19,17 @@ import java.util.Set;
 import java.util.UUID;
 import javax.sql.DataSource;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditTrail;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleContext;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.NotificationPolicy;
+import xyz.tcheeric.cashu.mint.admin.domain.NotificationPolicySnapshot;
 import xyz.tcheeric.cashu.mint.admin.domain.OperatorAccount;
 
 /**
@@ -97,8 +101,15 @@ public class JdbcMintRepository implements MintRepository {
 
     private static final String INSERT_AUDIT_SQL =
         """
-            INSERT INTO audit_events (mint_id, sequence, actor, action, event_timestamp)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO audit_events (mint_id, sequence, actor, action, event_timestamp,
+                configuration_revision_id,
+                notification_policy_email_enabled,
+                notification_policy_webhook_enabled,
+                notification_policy_throttle_interval_seconds,
+                notification_policy_audit_actor,
+                notification_policy_audit_action,
+                notification_policy_audit_timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String SELECT_MINT_SQL =
@@ -126,7 +137,17 @@ public class JdbcMintRepository implements MintRepository {
 
     private static final String SELECT_AUDIT_SQL =
         """
-            SELECT sequence, actor, action, event_timestamp
+            SELECT sequence,
+                   actor,
+                   action,
+                   event_timestamp,
+                   configuration_revision_id,
+                   notification_policy_email_enabled,
+                   notification_policy_webhook_enabled,
+                   notification_policy_throttle_interval_seconds,
+                   notification_policy_audit_actor,
+                   notification_policy_audit_action,
+                   notification_policy_audit_timestamp
             FROM audit_events
             WHERE mint_id = ?
             ORDER BY sequence
@@ -258,6 +279,29 @@ public class JdbcMintRepository implements MintRepository {
                 insert.setString(3, entry.actor());
                 insert.setString(4, entry.action());
                 insert.setTimestamp(5, Timestamp.from(entry.timestamp()));
+                final LifecycleContext context = entry.lifecycleContext();
+                final ConfigurationRevisionId revisionId = context.configurationRevisionId();
+                if (revisionId == null) {
+                    insert.setNull(6, Types.BIGINT);
+                } else {
+                    insert.setLong(6, revisionId.value());
+                }
+                final NotificationPolicySnapshot snapshot = context.notificationPolicySnapshot();
+                if (snapshot == null) {
+                    insert.setNull(7, Types.BOOLEAN);
+                    insert.setNull(8, Types.BOOLEAN);
+                    insert.setNull(9, Types.BIGINT);
+                    insert.setNull(10, Types.VARCHAR);
+                    insert.setNull(11, Types.VARCHAR);
+                    insert.setNull(12, Types.TIMESTAMP_WITH_TIMEZONE);
+                } else {
+                    insert.setBoolean(7, snapshot.emailEnabled());
+                    insert.setBoolean(8, snapshot.webhookEnabled());
+                    insert.setLong(9, snapshot.throttleInterval().getSeconds());
+                    insert.setString(10, snapshot.auditActor());
+                    insert.setString(11, snapshot.auditAction());
+                    insert.setTimestamp(12, Timestamp.from(snapshot.auditTimestamp()));
+                }
                 insert.executeUpdate();
             }
         }
@@ -275,10 +319,6 @@ public class JdbcMintRepository implements MintRepository {
                     LifecycleState.State.valueOf(resultSet.getString("lifecycle_state")));
                 final ConfigurationRevisionId revisionId =
                     ConfigurationRevisionId.of(resultSet.getLong("current_configuration_revision"));
-                final AuditMetadata audit = new AuditMetadata(
-                    resultSet.getString("last_actor"),
-                    resultSet.getString("last_action"),
-                    getInstant(resultSet, "last_timestamp"));
                 final ConfigurationSet configuration = configurationRepository
                     .findByRevision(mintId, revisionId)
                     .orElseThrow(() -> new JdbcRepositoryException(
@@ -286,6 +326,7 @@ public class JdbcMintRepository implements MintRepository {
                 final OperatorAccount operator = loadOperatorAccount(connection, mintId);
                 final NotificationPolicy policy = loadNotificationPolicy(connection, mintId);
                 final AuditTrail auditTrail = loadAuditTrail(connection, mintId);
+                final AuditMetadata audit = auditTrail.latestMetadata();
                 return Optional.of(MintAggregate.reconstitute(mintId, lifecycleState, configuration, operator, policy,
                     auditTrail, audit));
             }
@@ -349,8 +390,32 @@ public class JdbcMintRepository implements MintRepository {
     }
 
     private AuditMetadata mapAuditEntry(final ResultSet resultSet) throws SQLException {
+        final LifecycleContext context = mapLifecycleContext(resultSet);
         return new AuditMetadata(resultSet.getString("actor"), resultSet.getString("action"),
-            getInstant(resultSet, "event_timestamp"));
+            getInstant(resultSet, "event_timestamp"), List.of(), List.of(), AutomationContext.manual(), context);
+    }
+
+    private LifecycleContext mapLifecycleContext(final ResultSet resultSet) throws SQLException {
+        final long revisionValue = resultSet.getLong("configuration_revision_id");
+        final ConfigurationRevisionId revisionId = resultSet.wasNull() ? null : ConfigurationRevisionId.of(revisionValue);
+
+        final Boolean emailEnabled = (Boolean) resultSet.getObject("notification_policy_email_enabled");
+        final Boolean webhookEnabled = (Boolean) resultSet.getObject("notification_policy_webhook_enabled");
+        final Long throttleSeconds = (Long) resultSet.getObject("notification_policy_throttle_interval_seconds");
+        final String auditActor = resultSet.getString("notification_policy_audit_actor");
+        final String auditAction = resultSet.getString("notification_policy_audit_action");
+        final Instant auditTimestamp = getInstant(resultSet, "notification_policy_audit_timestamp");
+
+        NotificationPolicySnapshot snapshot = null;
+        if (emailEnabled != null && webhookEnabled != null && throttleSeconds != null
+            && auditActor != null && auditAction != null && auditTimestamp != null) {
+            snapshot = new NotificationPolicySnapshot(emailEnabled, webhookEnabled, Duration.ofSeconds(throttleSeconds),
+                auditActor, auditAction, auditTimestamp);
+        }
+        if (revisionId == null && snapshot == null) {
+            return LifecycleContext.empty();
+        }
+        return new LifecycleContext(revisionId, snapshot);
     }
 
     private Instant getInstant(final ResultSet resultSet, final String column) throws SQLException {
