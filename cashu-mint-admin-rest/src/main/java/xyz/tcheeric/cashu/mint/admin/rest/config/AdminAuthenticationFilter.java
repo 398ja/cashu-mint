@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Minimal token based authentication protecting the administrative API surface.
+ * Minimal token-based authentication protecting the administrative API surface.
  */
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
 

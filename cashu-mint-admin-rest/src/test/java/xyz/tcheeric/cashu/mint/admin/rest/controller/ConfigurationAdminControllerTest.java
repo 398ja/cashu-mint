@@ -2,13 +2,14 @@ package xyz.tcheeric.cashu.mint.admin.rest.controller;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
@@ -18,7 +19,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ExtendWith(org.springframework.test.context.junit.jupiter.SpringExtension.class)
 @WebMvcTest(ConfigurationAdminController.class)
+@AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminConfigurationService.class})
 @TestPropertySource(properties = "admin.security.api-token=test-token")
 class ConfigurationAdminControllerTest {
