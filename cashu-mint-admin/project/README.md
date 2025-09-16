@@ -17,6 +17,11 @@ This directory hosts the product, UX, and technical planning assets that guide t
 ## Using the documentation
 - **Product & engineering alignment:** Start with the phase specifications to understand the problem space and feature commitments before diving into implementation details or design workstreams.
 - **Design delivery:** Use the UX/UI specification for flow definitions, the wireframes document for structural blueprints, and the mockups package for pixel-level styling when producing assets or integrating with the design system.
+| [`Phase2/cashu-admin-web-phase-2-ux-ui-spec.md`](./Phase2/cashu-admin-web-phase-2-ux-ui-spec.md) | UX/UI guidelines covering flows, wireframes, interaction patterns, accessibility, and visual language for the web experience. |
+
+## Using the documentation
+- **Product & engineering alignment:** Start with the phase specifications to understand the problem space and feature commitments before diving into implementation details or design workstreams.
+- **Design delivery:** Refer to the UX/UI specification for flow definitions, interaction states, and component guidance when producing mockups or integrating with the design system.
 - **Development handoff:** Pair the functional specification with the UX/UI document to ensure screens, validations, and feedback match the expected REST contracts and role permissions.
 - **Operational readiness:** Consult phase 1 references when enhancing tooling, CLI parity, or auditing features to keep the browser interface aligned with existing guarantees.
 
