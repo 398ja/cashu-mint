@@ -74,12 +74,13 @@ signals whether a change occurred. Responses default to tabular output
 
 ## Admin persistence
 
-The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
-event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
+The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, lifecycle history
+projections, and an event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
 `cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
 database to verify persistence and rehydration behaviour. Lifecycle audit events now capture the active configuration revision
 and a snapshot of the notification policy so downstream tooling can trace each state change back to the exact policy and
-configuration in effect when it occurred.
+configuration in effect when it occurred. Domain lifecycle events are projected into dedicated snapshot and history tables
+while simultaneously being serialised into the transactional outbox for external dispatch.
 
 ## Test data preload
 

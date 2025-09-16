@@ -48,7 +48,8 @@ final class H2TestDataSourceFactory {
         final String v1 = readMigration("/db/migration/V1__create_admin_schema.sql");
         final String v2 = readMigration("/db/migration/V2__link_audit_events.sql");
         final String v3 = readMigration("/db/migration/V3__extend_audit_metadata.sql");
-        return (v1 + "\n" + v2 + "\n" + v3)
+        final String v4 = readMigration("/db/migration/V4__create_mint_lifecycle_history.sql");
+        return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }
