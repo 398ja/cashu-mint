@@ -6,7 +6,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
 @Command(name = "retire",
          description = "Decommission a mint and mark it as retired.",

@@ -9,33 +9,15 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-protocol` – core library for the Cashu protocol.
 - `cashu-mint-rest` – public REST API for running a mint.
 - `cashu-mint-admin-rest` – administrative REST API mirroring CLI workflows.
-- `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
+- `cashu-mint-admin` – administrative domain, persistence, and presenter logic (see `cashu-mint-admin/project/specification.md`).
+- `cashu-mint-admin-cli` – Picocli-based command line built on the admin domain.
 
 ## Admin module bootstrap
 
-The `cashu-mint-admin` module now boots as a Spring Boot CLI application backed by Picocli. It includes hardened JDBC
-configuration for PostgreSQL and H2 development profiles, plus Flyway and Liquibase hooks for future migrations. Observability
-is enabled out of the box with actuator endpoints, tracing identifiers in log patterns, and structured error handling defaults
-in `application.yml`.
-
-Start the admin CLI with the lightweight in-memory profile while building new workflows:
-
-```bash
-./mvnw -q -pl cashu-mint-admin spring-boot:run -Dspring-boot.run.profiles=h2
-```
-
-Switch to PostgreSQL (or override the connection string via environment variables) for integration testing:
-
-```bash
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/cashu_mint_admin \
-SPRING_DATASOURCE_USERNAME=cashu_admin \
-SPRING_DATASOURCE_PASSWORD=change_me \
-./mvnw -q -pl cashu-mint-admin spring-boot:run -Dspring-boot.run.profiles=postgres
-```
-
-Flyway migrations are resolved from `classpath:db/migration/admin/**` while Liquibase change logs default to
-`classpath:db/changelog/db.changelog-master.yaml` when enabled. Adjust tracing, logging, or migration toggles directly in
-`cashu-mint-admin/src/main/resources/application.yml`.
+The `cashu-mint-admin` module now concentrates the shared domain model, persistence adapters, and presenter logic that power the
+CLI and REST entry points. It includes hardened JDBC configuration for PostgreSQL and H2 development profiles, plus Flyway and
+Liquibase hooks for future migrations. Observability defaults—such as correlation identifiers and structured error handling—live
+alongside the shared resources in `cashu-mint-admin/src/main/resources`, keeping downstream adapters consistent.
 
 The `cashu-mint-admin-rest` module now exposes authenticated administrative endpoints
 under `/admin` for mint lifecycle, configuration, operator management, and alert
@@ -46,11 +28,16 @@ the admin surface from `/v3/api-docs` or the bundled Swagger UI.
 
 ## Admin CLI
 
-The `cashu-mint-admin` module now exposes a Picocli-based command line entry point for
-day-to-day mint operations. Run the CLI with the Maven wrapper or a packaged jar:
+The `cashu-mint-admin-cli` module packages a Picocli-based command line for day-to-day mint operations. Build the shaded runner
+jar or invoke the launcher directly during development:
 
 ```bash
-./mvnw -pl cashu-mint-admin -q exec:java \
+./mvnw -q -pl cashu-mint-admin-cli package
+java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-0.1.10-runner.jar mint --output-format=JSON
+```
+
+```bash
+./mvnw -pl cashu-mint-admin-cli -q exec:java \
   -Dexec.mainClass=xyz.tcheeric.cashu.mint.admin.cli.MintAdminCliApplication -- mint --output-format=JSON
 ```
 

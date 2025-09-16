@@ -24,7 +24,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 import java.io.IOException;

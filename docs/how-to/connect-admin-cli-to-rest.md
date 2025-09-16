@@ -1,15 +1,15 @@
 # Connect the admin CLI to the REST service
 
-The CLI ships with stub ports so you can rehearse workflows locally, but production usage requires calling the administrative REST API. This guide replaces the stub implementations with adapters that authenticate against the `/admin` endpoints exposed by the REST module (see [`MintAdminCliApplication.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java) and the [REST API reference](../reference/rest-api.md)).
+The CLI ships with stub ports so you can rehearse workflows locally, but production usage requires calling the administrative REST API. This guide replaces the stub implementations with adapters that authenticate against the `/admin` endpoints exposed by the REST module (see [`MintAdminCliApplication.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java) and the [REST API reference](../reference/rest-api.md)).
 
 ## 1. Implement HTTP-backed ports
 
 Each CLI subcommand depends on one of four port interfaces. Create classes that implement these interfaces and translate requests into HTTP calls:
 
-* `MintStatusPort` → `GET`/`POST` an endpoint that returns mint health snapshots (interface defined in [`MintStatusPort.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintStatusPort.java)).
-* `MintConfigPort` → call `/admin/configuration/mints/{mintId}/apply` (or preview/rollback) to manage revisions (see [`MintConfigPort.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintConfigPort.java) and the [configuration endpoints](../reference/rest-api.md#administrative-endpoints)).
-* `MintUsersPort` → wrap the `/admin/users` family for provisioning and listing operator accounts (interface defined in [`MintUsersPort.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintUsersPort.java); refer to the [user endpoints](../reference/rest-api.md#administrative-endpoints)).
-* `MintAlertsPort` → integrate with `/admin/alerts` to acknowledge, silence, or escalate incidents (see [`MintAlertsPort.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintAlertsPort.java) and the [alert endpoints](../reference/rest-api.md#administrative-endpoints)).
+* `MintStatusPort` → `GET`/`POST` an endpoint that returns mint health snapshots (interface defined in [`MintStatusPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintStatusPort.java)).
+* `MintConfigPort` → call `/admin/configuration/mints/{mintId}/apply` (or preview/rollback) to manage revisions (see [`MintConfigPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintConfigPort.java) and the [configuration endpoints](../reference/rest-api.md#administrative-endpoints)).
+* `MintUsersPort` → wrap the `/admin/users` family for provisioning and listing operator accounts (interface defined in [`MintUsersPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintUsersPort.java); refer to the [user endpoints](../reference/rest-api.md#administrative-endpoints)).
+* `MintAlertsPort` → integrate with `/admin/alerts` to acknowledge, silence, or escalate incidents (see [`MintAlertsPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintAlertsPort.java) and the [alert endpoints](../reference/rest-api.md#administrative-endpoints)).
 
 The API requires the `X-Admin-Token` header, so read the token from configuration or the environment when creating your HTTP client (documented in the [REST API reference](../reference/rest-api.md#authentication)). A minimal Java 21 adapter using `HttpClient` might look like this:
 
@@ -40,11 +40,11 @@ public final class RestMintStatusPort implements MintStatusPort {
 }
 ```
 
-Follow the same pattern for the other ports, reusing the CLI’s JSON mapper if you prefer (`CommandPayloadMapper.createDefault()` exposes the configured `ObjectMapper`; see [`CommandPayloadMapper.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/io/CommandPayloadMapper.java)).
+Follow the same pattern for the other ports, reusing the CLI’s JSON mapper if you prefer (`CommandPayloadMapper.createDefault()` exposes the configured `ObjectMapper`; see [`CommandPayloadMapper.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/io/CommandPayloadMapper.java)).
 
 ## 2. Register the adapters with Picocli
 
-Construct a new command line that injects your adapters instead of the stub classes. You can either modify `MintAdminCliApplication.defaultCommandLine()` or create a separate bootstrapper that delegates to `buildCommandLine` with your ports (see [`MintAdminCliApplication.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java)).
+Construct a new command line that injects your adapters instead of the stub classes. You can either modify `MintAdminCliApplication.defaultCommandLine()` or create a separate bootstrapper that delegates to `buildCommandLine` with your ports (see [`MintAdminCliApplication.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java)).
 
 ```java
 public final class RestBackedMintAdminCli {

@@ -6,21 +6,21 @@ import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
-@Command(name = "resume",
-         description = "Reactivate a paused mint.",
+@Command(name = "update",
+         description = "Apply a configuration update to an existing mint.",
          mixinStandardHelpOptions = true)
-public final class MintResumeCommand extends MintLifecycleCommandSupport {
+public final class MintUpdateCommand extends MintLifecycleCommandSupport {
 
-    public MintResumeCommand(final MintLifecyclePort lifecyclePort,
+    public MintUpdateCommand(final MintLifecyclePort lifecyclePort,
                              final CommandPayloadMapper payloadMapper,
                              final LifecycleSummaryCliPresenter summaryPresenter) {
-        super(LifecycleAction.RESUME, lifecyclePort, payloadMapper, summaryPresenter);
+        super(LifecycleAction.UPDATE, lifecyclePort, payloadMapper, summaryPresenter);
     }
 
     @Override
     protected String confirmationPrompt(final MintLifecycleRequest request) {
-        return "Resume mint '" + request.mintId() + "' with version tag '" + request.versionTag() + "'?";
+        return "Update configuration for mint '" + request.mintId() + "' to version '" + request.versionTag() + "'?";
     }
 }

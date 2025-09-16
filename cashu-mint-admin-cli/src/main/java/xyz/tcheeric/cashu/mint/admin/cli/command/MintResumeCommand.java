@@ -6,21 +6,21 @@ import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
-@Command(name = "create",
-         description = "Provision a new mint with the supplied configuration.",
+@Command(name = "resume",
+         description = "Reactivate a paused mint.",
          mixinStandardHelpOptions = true)
-public final class MintCreateCommand extends MintLifecycleCommandSupport {
+public final class MintResumeCommand extends MintLifecycleCommandSupport {
 
-    public MintCreateCommand(final MintLifecyclePort lifecyclePort,
+    public MintResumeCommand(final MintLifecyclePort lifecyclePort,
                              final CommandPayloadMapper payloadMapper,
                              final LifecycleSummaryCliPresenter summaryPresenter) {
-        super(LifecycleAction.CREATE, lifecyclePort, payloadMapper, summaryPresenter);
+        super(LifecycleAction.RESUME, lifecyclePort, payloadMapper, summaryPresenter);
     }
 
     @Override
     protected String confirmationPrompt(final MintLifecycleRequest request) {
-        return "Create mint '" + request.mintId() + "' with version tag '" + request.versionTag() + "'?";
+        return "Resume mint '" + request.mintId() + "' with version tag '" + request.versionTag() + "'?";
     }
 }
