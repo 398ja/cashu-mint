@@ -36,6 +36,13 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
                 audit_timestamp = EXCLUDED.audit_timestamp
         """;
 
+    private static final String H2_UPSERT_SQL =
+        """
+            MERGE INTO configuration_revisions (mint_id, revision_id, parameters, audit_actor, audit_action, audit_timestamp)
+            KEY (mint_id, revision_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """;
+
     private static final String SELECT_ONE_SQL =
         """
             SELECT revision_id, parameters, audit_actor, audit_action, audit_timestamp
@@ -115,7 +122,7 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
 
     void save(final Connection connection, final MintId mintId, final ConfigurationSet configurationSet)
         throws SQLException, IOException {
-        try (PreparedStatement statement = connection.prepareStatement(UPSERT_SQL)) {
+        try (PreparedStatement statement = prepareUpsertStatement(connection)) {
             final AuditMetadata audit = configurationSet.auditMetadata();
             statement.setObject(1, mintId.value());
             statement.setLong(2, configurationSet.revisionId().value());
@@ -125,6 +132,18 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
             statement.setTimestamp(6, Timestamp.from(audit.timestamp()));
             statement.executeUpdate();
         }
+    }
+
+    private PreparedStatement prepareUpsertStatement(final Connection connection) throws SQLException {
+        if (isH2(connection)) {
+            return connection.prepareStatement(H2_UPSERT_SQL);
+        }
+        return connection.prepareStatement(UPSERT_SQL);
+    }
+
+    private boolean isH2(final Connection connection) throws SQLException {
+        final String productName = connection.getMetaData().getDatabaseProductName();
+        return "H2".equalsIgnoreCase(productName);
     }
 
     private ConfigurationSet mapRow(final ResultSet resultSet) throws SQLException, IOException {
