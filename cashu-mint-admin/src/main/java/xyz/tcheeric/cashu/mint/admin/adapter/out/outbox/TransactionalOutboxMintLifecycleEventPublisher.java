@@ -73,6 +73,10 @@ public class TransactionalOutboxMintLifecycleEventPublisher implements MintLifec
         audit.put("reasonCodes", event.auditMetadata().reasonCodes());
         audit.put("ticketReferences", event.auditMetadata().ticketReferences());
         audit.put("automation", automation);
+        audit.put("requestId", event.auditMetadata().requestId() == null
+            ? null
+            : event.auditMetadata().requestId().toString());
+        audit.put("correlationId", event.auditMetadata().correlationId());
 
         final Map<String, Object> body = new HashMap<>();
         body.put("eventId", eventId.toString());

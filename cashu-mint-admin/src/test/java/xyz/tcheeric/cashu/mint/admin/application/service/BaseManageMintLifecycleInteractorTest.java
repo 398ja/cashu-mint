@@ -9,9 +9,11 @@ import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseC
 
 class BaseManageMintLifecycleInteractorTest {
 
+    private static final String REQUEST_ID = "11111111-2222-3333-4444-555555555555";
+    private static final String CORRELATION_ID = "change-ticket-123";
     private static final ManageMintLifecycleUseCase.ManageMintLifecycleRequest VALID_REQUEST =
         new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
-            "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1");
+            "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1", REQUEST_ID, CORRELATION_ID);
 
     private final BaseManageMintLifecycleInteractor interactor = new BaseManageMintLifecycleInteractor();
 
@@ -26,7 +28,7 @@ class BaseManageMintLifecycleInteractorTest {
     void shouldRejectInvalidMintId() {
         final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
             new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("invalid",
-                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1");
+                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1", REQUEST_ID, CORRELATION_ID);
 
         assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
@@ -36,7 +38,7 @@ class BaseManageMintLifecycleInteractorTest {
     void shouldRejectInvalidOperatorId() {
         final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
             new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
-                "not-a-uuid", LifecycleCommand.CREATE, "v1");
+                "not-a-uuid", LifecycleCommand.CREATE, "v1", REQUEST_ID, CORRELATION_ID);
 
         assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
@@ -46,7 +48,7 @@ class BaseManageMintLifecycleInteractorTest {
     void shouldRejectNullCommand() {
         final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
             new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
-                "123e4567-e89b-12d3-a456-426614174001", null, "v1");
+                "123e4567-e89b-12d3-a456-426614174001", null, "v1", REQUEST_ID, CORRELATION_ID);
 
         assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
@@ -56,7 +58,7 @@ class BaseManageMintLifecycleInteractorTest {
     void shouldRejectBlankVersionTag() {
         final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
             new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
-                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, " ");
+                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, " ", REQUEST_ID, CORRELATION_ID);
 
         assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }

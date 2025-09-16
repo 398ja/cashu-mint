@@ -44,6 +44,8 @@ class ManageMintLifecycleInteractorTest {
     private static final String MINT_ID = "123e4567-e89b-12d3-a456-426614174000";
     private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174001";
     private static final String VERSION_TAG = "v1";
+    private static final String REQUEST_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    private static final String CORRELATION_ID = "maintenance-window";
 
     private RecordingMintRepository mintRepository;
     private RecordingConfigurationSetRepository configurationSetRepository;
@@ -66,8 +68,7 @@ class ManageMintLifecycleInteractorTest {
     @Test
     // Ensures a mint can be created, saved, and emits a creation event.
     void shouldCreateMintAndEmitEvent() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.CREATE, VERSION_TAG);
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.CREATE, VERSION_TAG);
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
@@ -90,8 +91,7 @@ class ManageMintLifecycleInteractorTest {
     void shouldRejectDuplicateMintCreation() {
         storeProvisionedMint("existing");
 
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.CREATE, "duplicate");
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.CREATE, "duplicate");
 
         assertThrows(IllegalStateException.class, () -> interactor.handle(request));
         assertEquals(1, transactionManager.executionCount);
@@ -103,8 +103,7 @@ class ManageMintLifecycleInteractorTest {
     void shouldUpdateConfigurationAndEmitEvent() {
         storeProvisionedMint("initial");
 
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.UPDATE_CONFIGURATION, "next");
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.UPDATE_CONFIGURATION, "next");
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
@@ -122,8 +121,7 @@ class ManageMintLifecycleInteractorTest {
     void shouldPauseMintAndEmitEvent() {
         storeActiveMint();
 
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.PAUSE, "pause-tag");
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.PAUSE, "pause-tag");
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
@@ -139,8 +137,7 @@ class ManageMintLifecycleInteractorTest {
     void shouldResumeMintAndEmitEvent() {
         storeSuspendedMint();
 
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.RESUME, "resume-tag");
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RESUME, "resume-tag");
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
@@ -156,8 +153,7 @@ class ManageMintLifecycleInteractorTest {
     void shouldRetireMintAndEmitEvent() {
         storeSuspendedMint();
 
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.RETIRE, "retire-tag");
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RETIRE, "retire-tag");
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
@@ -171,11 +167,39 @@ class ManageMintLifecycleInteractorTest {
     @Test
     // Ensures lifecycle commands fail when the mint aggregate is missing.
     void shouldRejectLifecycleCommandForMissingMint() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
-            LifecycleCommand.PAUSE, VERSION_TAG);
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.PAUSE, VERSION_TAG);
 
         assertThrows(IllegalStateException.class, () -> interactor.handle(request));
         assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
+    // Ensures audit metadata records the supplied request and correlation identifiers.
+    void shouldIncludeRequestAndCorrelationIdsInAuditMetadata() {
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.CREATE, VERSION_TAG);
+
+        interactor.handle(request);
+
+        final MintLifecycleEvent event = eventPublisher.events.getFirst();
+        assertEquals(UUID.fromString(REQUEST_ID), event.auditMetadata().requestId());
+        assertEquals(CORRELATION_ID, event.auditMetadata().correlationId());
+    }
+
+    @Test
+    // Ensures identifiers are generated when the request omits them.
+    void shouldGenerateIdentifiersWhenMissing() {
+        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
+            LifecycleCommand.CREATE, VERSION_TAG, null, null);
+
+        interactor.handle(request);
+
+        final MintLifecycleEvent event = eventPublisher.events.getFirst();
+        assertNotNull(event.auditMetadata().requestId());
+        assertEquals(event.auditMetadata().requestId().toString(), event.auditMetadata().correlationId());
+    }
+
+    private ManageMintLifecycleRequest request(final LifecycleCommand command, final String versionTag) {
+        return new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID, command, versionTag, REQUEST_ID, CORRELATION_ID);
     }
 
     private void storeProvisionedMint(final String versionTag) {
