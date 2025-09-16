@@ -38,6 +38,13 @@ All endpoints are rooted at `/v1`.
 | `GET` | `/info` | Retrieve mint information. |
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
+## Auditing
+The protocol module now exposes an auditing facade that captures lifecycle events alongside the
+configuration revision and notification policy that produced them. Use
+`LifecycleAuditService` together with the in-memory implementation `InMemoryLifecycleAuditRepository`
+to persist events, enrich them with lifecycle-specific details, and query the resulting records by
+configuration revision or notification policy.
+
 ## Docker Compose
 The `PHOENIXD_SERVICE` environment variable controls which Phoenixd backend is
 used. It defaults to `phoenixd-mock` for local development. For production,
