@@ -10,7 +10,7 @@ The Cashu admin web interface (phase 2) delivers a browser-based control plane f
 - Offer safer, auditable changes by surfacing preview states, revision history, and confirmation prompts before performing irreversible actions.
 
 ### Non-goals
-- Replacing or extending the existing REST endpoints beyond the documented contract; phase 2 consumes APIs exposed in [`cashu-mint-admin-rest`](../../cashu-mint-admin-rest).
+- Replacing or extending the existing REST endpoints beyond the documented contract; phase 2 consumes APIs exposed in [`cashu-mint-admin-rest`](../../../cashu-mint-admin-rest).
 - Implementing real-time push channels for alerts or metrics; polling and manual refresh cover the initial release.
 - Building customer-facing wallet interactions; the interface remains limited to internal mint operations.
 

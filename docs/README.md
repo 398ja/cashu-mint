@@ -28,7 +28,6 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Mint admin CLI](reference/mint-admin-cli.md) - Commands, payloads, and renderer options for the admin tool.
 - [Administrative lifecycle audit schema](reference/admin-lifecycle-audit-schema.md) - Tables backing lifecycle projections,
   approvals, and audit linkage.
-- [Cashu admin web interface (phase 2) specification](reference/cashu-admin-web-phase-2-spec.md) - Scope, requirements, and roadmap for the web client.
 
 ## Explanations
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
