@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
@@ -31,7 +32,8 @@ class JdbcConfigurationSetRepositoryIntegrationTest {
     @Test
     void shouldPersistAndLoadConfigurationRevision() {
         final Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        final AuditMetadata audit = new AuditMetadata("alice", "create-config", createdAt);
+        final AuditMetadata audit = new AuditMetadata("alice", "create-config", createdAt,
+            List.of("initial-config"), List.of("INC-300"), AutomationContext.manual());
         final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
             Map.of("mint-name", "Atlantis"), audit);
 
@@ -41,17 +43,21 @@ class JdbcConfigurationSetRepositoryIntegrationTest {
 
         assertThat(loaded).isPresent();
         assertThat(loaded.orElseThrow()).isEqualTo(configuration);
+        assertThat(loaded.orElseThrow().auditMetadata().reasonCodes()).containsExactly("initial-config");
+        assertThat(loaded.orElseThrow().auditMetadata().ticketReferences()).containsExactly("INC-300");
     }
 
     // Ensures the repository returns the complete configuration history ordered by revision number.
     @Test
     void shouldReturnAllRevisionsForMintInAscendingOrder() {
         final Instant baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        final AuditMetadata revisionOneAudit = new AuditMetadata("alice", "create-config", baseTime);
+        final AuditMetadata revisionOneAudit = new AuditMetadata("alice", "create-config", baseTime,
+            List.of("initial-config"), List.of("INC-301"), AutomationContext.manual());
         final ConfigurationSet revisionOne = new ConfigurationSet(ConfigurationRevisionId.of(1),
             Map.of("mint-name", "Atlantis"), revisionOneAudit);
 
-        final AuditMetadata revisionTwoAudit = new AuditMetadata("bob", "update-config", baseTime.plusSeconds(5));
+        final AuditMetadata revisionTwoAudit = new AuditMetadata("bob", "update-config", baseTime.plusSeconds(5),
+            List.of("config-update"), List.of("INC-302"), new AutomationContext(true, "config-runner", "run-302"));
         final ConfigurationSet revisionTwo = new ConfigurationSet(ConfigurationRevisionId.of(2),
             Map.of("mint-name", "Atlantis", "fee", "1.0"), revisionTwoAudit);
 

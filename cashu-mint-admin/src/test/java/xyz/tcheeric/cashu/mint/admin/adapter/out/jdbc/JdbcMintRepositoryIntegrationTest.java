@@ -14,6 +14,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
@@ -43,7 +44,8 @@ class JdbcMintRepositoryIntegrationTest {
     @Test
     void shouldPersistAndLoadMintAggregate() {
         final Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", createdAt);
+        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", createdAt,
+            List.of("initial-provision"), List.of("INC-100"), AutomationContext.manual());
         final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
             Map.of("name", "TestMint"), creationAudit);
         final OperatorAccount operator = new OperatorAccount(UUID.randomUUID(), "Operator One", Set.of("ADMIN"),
@@ -65,8 +67,10 @@ class JdbcMintRepositoryIntegrationTest {
         assertThat(reconstituted.auditTrail()).isEqualTo(aggregate.auditTrail());
         assertThat(reconstituted.auditTrail().latestLifecycleContext().configurationRevisionId())
             .isEqualTo(configuration.revisionId());
-        assertThat(reconstituted.auditTrail().latestLifecycleContext().notificationPolicySnapshot())
-            .isNotNull();
+        assertThat(reconstituted.auditTrail().latestLifecycleContext().notificationPolicySnapshot()).isNotNull();
+        assertThat(reconstituted.auditTrail().latestReasonCodes()).containsExactly("initial-provision");
+        assertThat(reconstituted.auditTrail().latestTicketReferences()).containsExactly("INC-100");
+        assertThat(reconstituted.auditTrail().latestAutomationContext()).isEqualTo(AutomationContext.manual());
 
         final List<MintAggregate> all = mintRepository.findAll();
         assertThat(all).hasSize(1);
@@ -77,7 +81,8 @@ class JdbcMintRepositoryIntegrationTest {
     @Test
     void shouldUpdateExistingAggregateState() {
         final Instant baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", baseTime);
+        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", baseTime,
+            List.of("initial-provision"), List.of("INC-200"), AutomationContext.manual());
         final ConfigurationSet initialConfig = new ConfigurationSet(ConfigurationRevisionId.of(1),
             Map.of("name", "TestMint"), creationAudit);
         final OperatorAccount initialOperator = new OperatorAccount(UUID.randomUUID(), "Operator One",
@@ -89,19 +94,23 @@ class JdbcMintRepositoryIntegrationTest {
 
         mintRepository.save(aggregate);
 
-        final AuditMetadata configAudit = new AuditMetadata("system", "update-config", baseTime.plusSeconds(10));
+        final AuditMetadata configAudit = new AuditMetadata("system", "update-config", baseTime.plusSeconds(10),
+            List.of("config-change"), List.of("INC-201"), new AutomationContext(true, "pipeline", "run-config"));
         final ConfigurationSet updatedConfig = initialConfig.updateParameter("fee", "0.5",
             ConfigurationRevisionId.of(2), configAudit);
 
-        final AuditMetadata operatorAudit = new AuditMetadata("system", "update-operator", baseTime.plusSeconds(20));
+        final AuditMetadata operatorAudit = new AuditMetadata("system", "update-operator", baseTime.plusSeconds(20),
+            List.of("operator-update"), List.of("INC-202"), AutomationContext.manual());
         final OperatorAccount updatedOperator = new OperatorAccount(initialOperator.operatorId(), "Operator Two",
             Set.of("ADMIN", "AUDITOR"), operatorAudit);
 
-        final AuditMetadata policyAudit = new AuditMetadata("system", "update-policy", baseTime.plusSeconds(30));
+        final AuditMetadata policyAudit = new AuditMetadata("system", "update-policy", baseTime.plusSeconds(30),
+            List.of("policy-update"), List.of("INC-203"), AutomationContext.manual());
         final NotificationPolicy updatedPolicy = new NotificationPolicy(true, true, Duration.ofMinutes(5),
             policyAudit);
 
-        final AuditMetadata activationAudit = new AuditMetadata("system", "activate-mint", baseTime.plusSeconds(40));
+        final AuditMetadata activationAudit = new AuditMetadata("system", "activate-mint", baseTime.plusSeconds(40),
+            List.of("activate"), List.of("INC-204"), new AutomationContext(true, "orchestrator", "run-activation"));
 
         MintAggregate updatedAggregate = aggregate.updateConfiguration(updatedConfig, configAudit);
         updatedAggregate = updatedAggregate.updateOperatorAccount(updatedOperator, operatorAudit);
@@ -121,8 +130,11 @@ class JdbcMintRepositoryIntegrationTest {
         assertThat(reloaded.auditTrail()).isEqualTo(updatedAggregate.auditTrail());
         assertThat(reloaded.auditTrail().latestLifecycleContext().configurationRevisionId())
             .isEqualTo(updatedConfig.revisionId());
-        assertThat(reloaded.auditTrail().latestLifecycleContext().notificationPolicySnapshot())
-            .isNotNull();
+        assertThat(reloaded.auditTrail().latestLifecycleContext().notificationPolicySnapshot()).isNotNull();
+        assertThat(reloaded.auditTrail().latestReasonCodes()).containsExactly("activate");
+        assertThat(reloaded.auditTrail().latestTicketReferences()).containsExactly("INC-204");
+        assertThat(reloaded.auditTrail().latestAutomationContext())
+            .isEqualTo(new AutomationContext(true, "orchestrator", "run-activation"));
 
         final List<MintAggregate> all = mintRepository.findAll();
         assertThat(all).hasSize(1);
