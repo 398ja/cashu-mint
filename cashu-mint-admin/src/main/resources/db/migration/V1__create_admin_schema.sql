@@ -4,7 +4,7 @@ CREATE TABLE mints (
     current_configuration_revision BIGINT NOT NULL,
     last_actor VARCHAR(255) NOT NULL,
     last_action VARCHAR(255) NOT NULL,
-    last_timestamp TIMESTAMPTZ NOT NULL,
+    last_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -14,7 +14,7 @@ CREATE TABLE configuration_revisions (
     parameters TEXT NOT NULL,
     audit_actor VARCHAR(255) NOT NULL,
     audit_action VARCHAR(255) NOT NULL,
-    audit_timestamp TIMESTAMPTZ NOT NULL,
+    audit_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     PRIMARY KEY (mint_id, revision_id)
 );
 
@@ -25,7 +25,7 @@ CREATE TABLE operator_accounts (
     roles TEXT NOT NULL,
     audit_actor VARCHAR(255) NOT NULL,
     audit_action VARCHAR(255) NOT NULL,
-    audit_timestamp TIMESTAMPTZ NOT NULL
+    audit_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE TABLE notification_policies (
@@ -35,7 +35,7 @@ CREATE TABLE notification_policies (
     throttle_interval_seconds BIGINT NOT NULL,
     audit_actor VARCHAR(255) NOT NULL,
     audit_action VARCHAR(255) NOT NULL,
-    audit_timestamp TIMESTAMPTZ NOT NULL
+    audit_timestamp TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE TABLE audit_events (
@@ -43,7 +43,7 @@ CREATE TABLE audit_events (
     sequence BIGINT NOT NULL,
     actor VARCHAR(255) NOT NULL,
     action VARCHAR(255) NOT NULL,
-    event_timestamp TIMESTAMPTZ NOT NULL,
+    event_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
     PRIMARY KEY (mint_id, sequence)
 );
 
@@ -56,15 +56,14 @@ CREATE TABLE admin_outbox (
     event_type VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,
     attributes TEXT NOT NULL,
-    occurred_at TIMESTAMPTZ NOT NULL,
-    available_at TIMESTAMPTZ NOT NULL,
-    last_attempt_at TIMESTAMPTZ,
-    dispatched_at TIMESTAMPTZ,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    available_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_attempt_at TIMESTAMP WITH TIME ZONE,
+    dispatched_at TIMESTAMP WITH TIME ZONE,
     delivery_attempts INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_admin_outbox_pending ON admin_outbox (available_at)
-    WHERE dispatched_at IS NULL;
+CREATE INDEX idx_admin_outbox_pending ON admin_outbox (dispatched_at, available_at);
 
 CREATE VIEW v_mint_overview AS
 SELECT m.mint_id,
