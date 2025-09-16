@@ -12,6 +12,7 @@
     <modules>
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
+        <module>cashu-mint-admin-rest</module>
         <module>cashu-mint-admin</module>
     </modules>
 

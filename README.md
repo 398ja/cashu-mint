@@ -7,7 +7,8 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 ## Modules
 
 - `cashu-mint-protocol` – core library for the Cashu protocol.
-- `cashu-mint-rest` – REST API for running a mint.
+- `cashu-mint-rest` – public REST API for running a mint.
+- `cashu-mint-admin-rest` – administrative REST API mirroring CLI workflows.
 - `cashu-mint-admin` – administrative module (see `cashu-mint-admin/project/specification.md`).
 
 ## Admin module bootstrap
@@ -36,12 +37,12 @@ Flyway migrations are resolved from `classpath:db/migration/admin/**` while Liqu
 `classpath:db/changelog/db.changelog-master.yaml` when enabled. Adjust tracing, logging, or migration toggles directly in
 `cashu-mint-admin/src/main/resources/application.yml`.
 
-The REST module now exposes authenticated administrative endpoints under `/admin` for
-mint lifecycle, configuration, operator management, and alert workflows. Each route now
-returns structured responses that mirror the CLI experience, enforces token-based
-authentication (`X-Admin-Token`), and checks role membership via `X-Admin-Roles`.
-OpenAPI documentation is published at runtime so operators can explore the admin
-surface from `/v3/api-docs` or the bundled Swagger UI.
+The `cashu-mint-admin-rest` module now exposes authenticated administrative endpoints
+under `/admin` for mint lifecycle, configuration, operator management, and alert
+workflows. Each route returns structured responses that mirror the CLI experience,
+enforces token-based authentication (`X-Admin-Token`), and checks role membership via
+`X-Admin-Roles`. OpenAPI documentation is published at runtime so operators can explore
+the admin surface from `/v3/api-docs` or the bundled Swagger UI.
 
 ## Admin CLI
 

@@ -1,0 +1,16 @@
+package xyz.tcheeric.cashu.mint.admin.rest.dto.users;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import xyz.tcheeric.cashu.mint.admin.rest.dto.common.ActorDto;
+
+/**
+ * Request payload for initiating a credential reset.
+ */
+public record ResetCredentialsRequest(
+        @NotNull(message = "requestedBy is required") @Valid ActorDto requestedBy,
+        @NotBlank(message = "reason is required") String reason
+) {
+}
