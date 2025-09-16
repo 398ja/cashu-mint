@@ -117,6 +117,15 @@ class ManageMintLifecycleInteractorTest {
     }
 
     @Test
+    // Ensures configuration updates fail when the mint aggregate is missing.
+    void shouldRejectConfigurationUpdateForMissingMint() {
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.UPDATE_CONFIGURATION, "stale");
+
+        assertThrows(IllegalStateException.class, () -> interactor.handle(request));
+        assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
     // Ensures a mint can be paused from an active state and emits the correct event.
     void shouldPauseMintAndEmitEvent() {
         storeActiveMint();
@@ -165,9 +174,49 @@ class ManageMintLifecycleInteractorTest {
     }
 
     @Test
-    // Ensures lifecycle commands fail when the mint aggregate is missing.
-    void shouldRejectLifecycleCommandForMissingMint() {
+    // Ensures pausing a provisioned mint without activation is rejected.
+    void shouldRejectPauseWhenTransitionDisallowed() {
+        storeProvisionedMint("initial");
+
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.PAUSE, "pause-tag");
+
+        assertThrows(IllegalStateException.class, () -> interactor.handle(request));
+        assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
+    // Ensures lifecycle pause fails when the mint aggregate is missing.
+    void shouldRejectPauseForMissingMint() {
         final ManageMintLifecycleRequest request = request(LifecycleCommand.PAUSE, VERSION_TAG);
+
+        assertThrows(IllegalStateException.class, () -> interactor.handle(request));
+        assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
+    // Ensures lifecycle resume fails when the mint aggregate is missing.
+    void shouldRejectResumeForMissingMint() {
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RESUME, VERSION_TAG);
+
+        assertThrows(IllegalStateException.class, () -> interactor.handle(request));
+        assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
+    // Ensures resuming a decommissioned mint is rejected.
+    void shouldRejectResumeWhenMintRetired() {
+        storeRetiredMint();
+
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RESUME, "resume-tag");
+
+        assertThrows(IllegalStateException.class, () -> interactor.handle(request));
+        assertTrue(eventPublisher.events.isEmpty());
+    }
+
+    @Test
+    // Ensures lifecycle retire fails when the mint aggregate is missing.
+    void shouldRejectRetireForMissingMint() {
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RETIRE, VERSION_TAG);
 
         assertThrows(IllegalStateException.class, () -> interactor.handle(request));
         assertTrue(eventPublisher.events.isEmpty());
@@ -225,6 +274,17 @@ class ManageMintLifecycleInteractorTest {
         final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
         mintRepository.save(suspended);
         configurationSetRepository.save(suspended.mintId(), suspended.configurationSet());
+        eventPublisher.events.clear();
+        transactionManager.executionCount = 0;
+    }
+
+    private void storeRetiredMint() {
+        final MintAggregate provisioned = createProvisionedAggregate("initial");
+        final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
+        final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
+        final MintAggregate retired = suspended.decommission(new AuditMetadata(OPERATOR_ID, "Retired", clock.instant()));
+        mintRepository.save(retired);
+        configurationSetRepository.save(retired.mintId(), retired.configurationSet());
         eventPublisher.events.clear();
         transactionManager.executionCount = 0;
     }
