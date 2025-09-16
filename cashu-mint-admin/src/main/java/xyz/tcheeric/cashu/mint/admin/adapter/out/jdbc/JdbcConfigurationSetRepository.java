@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import javax.sql.DataSource;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetRepository;
+import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
@@ -27,38 +28,86 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
 
     private static final String UPSERT_SQL =
         """
-            INSERT INTO configuration_revisions (mint_id, revision_id, parameters, audit_actor, audit_action, audit_timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO configuration_revisions (
+                mint_id,
+                revision_id,
+                parameters,
+                audit_actor,
+                audit_action,
+                audit_timestamp,
+                audit_reason_codes,
+                audit_ticket_references,
+                audit_automation_automated,
+                audit_automation_system,
+                audit_automation_run_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (mint_id, revision_id) DO UPDATE SET
                 parameters = EXCLUDED.parameters,
                 audit_actor = EXCLUDED.audit_actor,
                 audit_action = EXCLUDED.audit_action,
-                audit_timestamp = EXCLUDED.audit_timestamp
+                audit_timestamp = EXCLUDED.audit_timestamp,
+                audit_reason_codes = EXCLUDED.audit_reason_codes,
+                audit_ticket_references = EXCLUDED.audit_ticket_references,
+                audit_automation_automated = EXCLUDED.audit_automation_automated,
+                audit_automation_system = EXCLUDED.audit_automation_system,
+                audit_automation_run_id = EXCLUDED.audit_automation_run_id
         """;
 
     private static final String H2_UPSERT_SQL =
         """
-            MERGE INTO configuration_revisions (mint_id, revision_id, parameters, audit_actor, audit_action, audit_timestamp)
+            MERGE INTO configuration_revisions (
+                mint_id,
+                revision_id,
+                parameters,
+                audit_actor,
+                audit_action,
+                audit_timestamp,
+                audit_reason_codes,
+                audit_ticket_references,
+                audit_automation_automated,
+                audit_automation_system,
+                audit_automation_run_id)
             KEY (mint_id, revision_id)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String SELECT_ONE_SQL =
         """
-            SELECT revision_id, parameters, audit_actor, audit_action, audit_timestamp
+            SELECT
+                revision_id,
+                parameters,
+                audit_actor,
+                audit_action,
+                audit_timestamp,
+                audit_reason_codes,
+                audit_ticket_references,
+                audit_automation_automated,
+                audit_automation_system,
+                audit_automation_run_id
             FROM configuration_revisions
             WHERE mint_id = ? AND revision_id = ?
         """;
 
     private static final String SELECT_ALL_SQL =
         """
-            SELECT revision_id, parameters, audit_actor, audit_action, audit_timestamp
+            SELECT
+                revision_id,
+                parameters,
+                audit_actor,
+                audit_action,
+                audit_timestamp,
+                audit_reason_codes,
+                audit_ticket_references,
+                audit_automation_automated,
+                audit_automation_system,
+                audit_automation_run_id
             FROM configuration_revisions
             WHERE mint_id = ?
             ORDER BY revision_id
         """;
 
     private static final TypeReference<Map<String, String>> MAP_TYPE = new TypeReference<>() { };
+    private static final TypeReference<List<String>> LIST_TYPE = new TypeReference<>() { };
 
     private final DataSource dataSource;
     private final ObjectMapper objectMapper;
@@ -130,6 +179,11 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
             statement.setString(4, audit.actor());
             statement.setString(5, audit.action());
             statement.setTimestamp(6, Timestamp.from(audit.timestamp()));
+            statement.setString(7, writeList(audit.reasonCodes()));
+            statement.setString(8, writeList(audit.ticketReferences()));
+            statement.setBoolean(9, audit.automationContext().automated());
+            statement.setString(10, audit.automationContext().system());
+            statement.setString(11, audit.automationContext().runId());
             statement.executeUpdate();
         }
     }
@@ -153,8 +207,36 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
         final AuditMetadata audit = new AuditMetadata(
             resultSet.getString("audit_actor"),
             resultSet.getString("audit_action"),
-            getInstant(resultSet, "audit_timestamp"));
+            getInstant(resultSet, "audit_timestamp"),
+            readList(resultSet, "audit_reason_codes"),
+            readList(resultSet, "audit_ticket_references"),
+            mapAutomationContext(resultSet));
         return new ConfigurationSet(revisionId, parameters, audit);
+    }
+
+    private String writeList(final List<String> values) throws IOException {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        return objectMapper.writeValueAsString(values);
+    }
+
+    private List<String> readList(final ResultSet resultSet, final String column) throws SQLException, IOException {
+        final String raw = resultSet.getString(column);
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return objectMapper.readValue(raw, LIST_TYPE);
+    }
+
+    private AutomationContext mapAutomationContext(final ResultSet resultSet) throws SQLException {
+        final Boolean automated = (Boolean) resultSet.getObject("audit_automation_automated");
+        final String system = resultSet.getString("audit_automation_system");
+        final String runId = resultSet.getString("audit_automation_run_id");
+        if (automated == null) {
+            return AutomationContext.manual();
+        }
+        return new AutomationContext(automated, system, runId);
     }
 
     private Instant getInstant(final ResultSet resultSet, final String column) throws SQLException {
