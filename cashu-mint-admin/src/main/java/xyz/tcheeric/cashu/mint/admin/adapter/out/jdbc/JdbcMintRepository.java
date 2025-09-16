@@ -200,8 +200,10 @@ public class JdbcMintRepository implements MintRepository {
                 notification_policy_throttle_interval_seconds,
                 notification_policy_audit_actor,
                 notification_policy_audit_action,
-                notification_policy_audit_timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                notification_policy_audit_timestamp,
+                request_id,
+                correlation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String SELECT_MINT_SQL =
@@ -248,7 +250,9 @@ public class JdbcMintRepository implements MintRepository {
                    notification_policy_throttle_interval_seconds,
                    notification_policy_audit_actor,
                    notification_policy_audit_action,
-                   notification_policy_audit_timestamp
+                   notification_policy_audit_timestamp,
+                   request_id,
+                   correlation_id
             FROM audit_events
             WHERE mint_id = ?
             ORDER BY sequence
@@ -424,6 +428,8 @@ public class JdbcMintRepository implements MintRepository {
                     insert.setString(16, snapshot.auditAction());
                     insert.setTimestamp(17, Timestamp.from(snapshot.auditTimestamp()));
                 }
+                insert.setObject(18, entry.requestId());
+                insert.setString(19, entry.correlationId());
                 insert.executeUpdate();
             }
         }
@@ -521,12 +527,16 @@ public class JdbcMintRepository implements MintRepository {
 
     private AuditMetadata mapAuditEntry(final ResultSet resultSet) throws SQLException, IOException {
         final LifecycleContext context = mapLifecycleContext(resultSet);
+        final UUID requestId = getNullableUuid(resultSet, "request_id");
+        final String correlationId = resultSet.getString("correlation_id");
         return new AuditMetadata(resultSet.getString("actor"), resultSet.getString("action"),
             getInstant(resultSet, "event_timestamp"),
             readList(resultSet, "reason_codes"),
             readList(resultSet, "ticket_references"),
             mapAutomationContext(resultSet, "automation_automated", "automation_system", "automation_run_id"),
-            context);
+            context,
+            requestId,
+            correlationId);
     }
 
     private String writeList(final List<String> values) throws IOException {
@@ -608,5 +618,20 @@ public class JdbcMintRepository implements MintRepository {
             return uuid;
         }
         return UUID.fromString(resultSet.getString(column));
+    }
+
+    private UUID getNullableUuid(final ResultSet resultSet, final String column) throws SQLException {
+        final Object value = resultSet.getObject(column);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof UUID uuid) {
+            return uuid;
+        }
+        final String text = value.toString();
+        if (text.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(text);
     }
 }

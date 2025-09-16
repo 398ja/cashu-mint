@@ -30,13 +30,17 @@ public class JdbcMintAggregateViewRepository implements MintAggregateViewReposit
                 lifecycle_state,
                 configuration_revision_id,
                 version_tag,
-                updated_at)
-            VALUES (?, ?, ?, ?, ?)
+                updated_at,
+                audit_request_id,
+                audit_correlation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (mint_id) DO UPDATE SET
                 lifecycle_state = EXCLUDED.lifecycle_state,
                 configuration_revision_id = EXCLUDED.configuration_revision_id,
                 version_tag = EXCLUDED.version_tag,
-                updated_at = EXCLUDED.updated_at
+                updated_at = EXCLUDED.updated_at,
+                audit_request_id = EXCLUDED.audit_request_id,
+                audit_correlation_id = EXCLUDED.audit_correlation_id
         """;
 
     private static final String H2_UPSERT_SQL =
@@ -46,9 +50,11 @@ public class JdbcMintAggregateViewRepository implements MintAggregateViewReposit
                 lifecycle_state,
                 configuration_revision_id,
                 version_tag,
-                updated_at)
+                updated_at,
+                audit_request_id,
+                audit_correlation_id)
             KEY (mint_id)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String SELECT_ONE_SQL =
@@ -80,6 +86,8 @@ public class JdbcMintAggregateViewRepository implements MintAggregateViewReposit
             statement.setLong(3, event.configurationRevisionId().value());
             statement.setString(4, event.versionTag());
             statement.setTimestamp(5, Timestamp.from(event.auditMetadata().timestamp()));
+            statement.setObject(6, event.auditMetadata().requestId());
+            statement.setString(7, event.auditMetadata().correlationId());
             statement.executeUpdate();
         } catch (final SQLException ex) {
             throw new JdbcRepositoryException("Failed to persist mint aggregate snapshot", ex);

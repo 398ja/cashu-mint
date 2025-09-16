@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRe
 import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleContext;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 
@@ -43,8 +44,10 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
                 audit_ticket_references,
                 audit_automation_automated,
                 audit_automation_system,
-                audit_automation_run_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                audit_automation_run_id,
+                audit_request_id,
+                audit_correlation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String SELECT_BY_MINT_SQL =
@@ -52,7 +55,7 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             SELECT event_id, event_type, previous_state, current_state, configuration_revision_id,
                    version_tag, audit_actor, audit_action, audit_timestamp, audit_reason_codes,
                    audit_ticket_references, audit_automation_automated, audit_automation_system,
-                   audit_automation_run_id
+                   audit_automation_run_id, audit_request_id, audit_correlation_id
             FROM mint_lifecycle_history
             WHERE mint_id = ?
             ORDER BY audit_timestamp, event_id
@@ -88,6 +91,8 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             statement.setBoolean(13, audit.automationContext().automated());
             statement.setString(14, audit.automationContext().system());
             statement.setString(15, audit.automationContext().runId());
+            statement.setObject(16, audit.requestId());
+            statement.setString(17, audit.correlationId());
             statement.executeUpdate();
         } catch (final SQLException | IOException ex) {
             throw new JdbcRepositoryException("Failed to append lifecycle history entry", ex);
@@ -120,6 +125,8 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
         final LifecycleState.State current = LifecycleState.State.valueOf(resultSet.getString("current_state"));
         final ConfigurationRevisionId revision = ConfigurationRevisionId.of(resultSet.getLong("configuration_revision_id"));
         final String versionTag = resultSet.getString("version_tag");
+        final UUID requestId = getNullableUuid(resultSet, "audit_request_id");
+        final String correlationId = resultSet.getString("audit_correlation_id");
         final AuditMetadata audit = new AuditMetadata(
             resultSet.getString("audit_actor"),
             resultSet.getString("audit_action"),
@@ -129,7 +136,10 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             new AutomationContext(
                 resultSet.getBoolean("audit_automation_automated"),
                 resultSet.getString("audit_automation_system"),
-                resultSet.getString("audit_automation_run_id"))
+                resultSet.getString("audit_automation_run_id")),
+            LifecycleContext.empty(),
+            requestId,
+            correlationId
         );
         final MintLifecycleEvent event = new MintLifecycleEvent(type, mintId, previous, current, revision, versionTag, audit);
         return new MintLifecycleHistoryEntry(eventId, event);
@@ -170,5 +180,20 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             return uuid;
         }
         return UUID.fromString(raw.toString());
+    }
+
+    private UUID getNullableUuid(final ResultSet resultSet, final String column) throws SQLException {
+        final Object raw = resultSet.getObject(column);
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof UUID uuid) {
+            return uuid;
+        }
+        final String value = raw.toString();
+        if (value.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(value);
     }
 }
