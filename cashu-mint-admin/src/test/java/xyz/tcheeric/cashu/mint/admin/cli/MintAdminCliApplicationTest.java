@@ -25,6 +25,7 @@ import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -160,6 +161,26 @@ class MintAdminCliApplicationTest {
         execution.assertExitCode(CommandLine.ExitCode.OK);
     }
 
+    // Ensures lifecycle commands run with a generated correlation identifier.
+    @Test
+    void shouldPopulateCorrelationIdDuringLifecycleExecution() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+        lifecyclePort.seed("mint-200", LifecycleState.State.ACTIVE, "v1");
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("pause", "--mint-id=mint-200", "--operator-id=123e4567-e89b-12d3-a456-426614174000",
+                "--version-tag=v1", "--output-format=JSON", "--yes");
+
+        assertThat(lifecyclePort.lastCorrelationId.get()).isNotBlank();
+        assertThat(CorrelationIdContext.currentId()).isNull();
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
     private CommandLine commandLine(final MintStatusPort statusPort,
                                     final MintConfigPort configPort,
                                     final MintUsersPort usersPort,
@@ -220,10 +241,12 @@ class MintAdminCliApplicationTest {
 
     private static final class RecordingMintLifecyclePort extends StubMintLifecyclePort {
         private final AtomicReference<MintLifecyclePort.MintLifecycleCommand> lastCommand = new AtomicReference<>();
+        private final AtomicReference<String> lastCorrelationId = new AtomicReference<>();
 
         @Override
         public LifecycleSummary execute(final MintLifecycleCommand command) {
             lastCommand.set(command);
+            lastCorrelationId.set(CorrelationIdContext.currentId());
             return super.execute(command);
         }
     }
