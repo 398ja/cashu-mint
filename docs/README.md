@@ -33,3 +33,4 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
+- [Cashu admin phase 2 technical analysis](explanations/phase2-technical-analysis.md) - Technical interpretation of the phase 2 web interface scope.
