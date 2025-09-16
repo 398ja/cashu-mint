@@ -280,28 +280,43 @@ Content-Type: application/json
 }
 ```
 
-## Administrative API (Preview)
+## Administrative API
 
-Administrative endpoints live under the `/admin` path and require the `X-Admin-Token`
-header. The token value defaults to `local-dev-token` for local development and can be
-overridden with the `ADMIN_API_TOKEN` environment variable.
+Administrative endpoints live under the `/admin` path and require both the
+`X-Admin-Token` header and an `X-Admin-Roles` header indicating the caller's role. The
+token value defaults to `local-dev-token` for local development and can be overridden
+with the `ADMIN_API_TOKEN` environment variable. Supported roles include `MINT_ADMIN`,
+`USER_ADMIN`, and `ALERTS_ADMIN` depending on the target workflow. Responses mirror the
+CLI output and are documented via OpenAPI at `/v3/api-docs`.
 
 ### `POST /admin/lifecycle/mints`
-Provision a new mint instance.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `body` | body | object | Lifecycle request payload containing mint metadata and configuration. |
+Provision a new mint instance (role: `MINT_ADMIN`). Returns a
+[`LifecycleActionResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/lifecycle/LifecycleActionResponse.java)
+summarising the change.
 **Sample request**
 ```http
 POST /admin/lifecycle/mints HTTP/1.1
 Host: example.com
 Content-Type: application/json
 X-Admin-Token: local-dev-token
+X-Admin-Roles: MINT_ADMIN
 {
   "mintId": "mint-001",
   "requestedBy": {"id": "ops", "displayName": "Ops"},
   "metadata": {"displayName": "Primary", "description": "Prod mint"},
-  "configuration": {"limits": {"max": 10}}
+  "configuration": {"versionTag": "2024-Q1"}
+}
+```
+**Sample response**
+```json
+{
+  "operation": "CREATE",
+  "mintId": "mint-001",
+  "previousState": null,
+  "currentState": "PROVISIONED",
+  "versionTag": "2024-Q1",
+  "changed": true,
+  "message": "Mint created"
 }
 ```
 
@@ -325,13 +340,27 @@ Preview configuration changes without applying them.
 | `body` | body | object | Configuration preview payload containing the proposed changes. |
 
 ### `POST /admin/configuration/mints/{mintId}/apply`
-Apply a configuration change set to a mint.
+Apply a configuration change set to a mint (role: `MINT_ADMIN`).
+**Sample response**
+```json
+{
+  "mintId": "mint-001",
+  "revisionId": "rev-1",
+  "parameters": {
+    "currency": "sat",
+    "limits": "{\"max\":1}"
+  },
+  "message": "Configuration applied: increase limit"
+}
+```
 
 ### `POST /admin/configuration/mints/{mintId}/rollback`
 Rollback a mint to a previous configuration revision.
 
 ### `POST /admin/users`
-Create a new operator account.
+Create a new operator account (role: `USER_ADMIN`). Returns a
+[`UserResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/users/UserResponse.java)
+with the active status and assigned roles.
 
 ### `PUT /admin/users/{userId}`
 Update operator account details.
@@ -340,13 +369,17 @@ Update operator account details.
 Assign roles to an operator account.
 
 ### `POST /admin/users/{userId}/reset-credentials`
-Trigger a credential reset workflow for an operator.
+Trigger a credential reset workflow for an operator (role: `USER_ADMIN`). Returns a
+[`CredentialResetResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/users/CredentialResetResponse.java)
+containing the reset token.
 
 ### `POST /admin/users/{userId}/deactivate`
 Deactivate an operator account.
 
 ### `POST /admin/alerts`
-Declare an operational alert.
+Declare an operational alert (role: `ALERTS_ADMIN`). Returns an
+[`AlertActionResponse`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/admin/dto/alerts/AlertActionResponse.java)
+describing the alert's acknowledgement, silence, and escalation state.
 
 ### `POST /admin/alerts/{alertId}/acknowledge`
 Acknowledge an alert.
