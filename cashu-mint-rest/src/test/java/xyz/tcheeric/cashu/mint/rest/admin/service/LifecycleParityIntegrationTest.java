@@ -131,6 +131,7 @@ class LifecycleParityIntegrationTest {
 
         assertThatThrownBy(() -> restService.updateMint(MINT_ID, updateRequest("v2", "rev-2")))
             .isInstanceOf(AdminServiceException.class)
+            .hasMessageContaining("Mint not found: " + MINT_ID)
             .satisfies(ex -> assertThat(((AdminServiceException) ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
@@ -143,6 +144,7 @@ class LifecycleParityIntegrationTest {
 
         assertThatThrownBy(() -> restService.pauseMint(MINT_ID, changeRequest("maintenance", "pause-tag")))
             .isInstanceOf(AdminServiceException.class)
+            .hasMessageContaining("Mint not found: " + MINT_ID)
             .satisfies(ex -> assertThat(((AdminServiceException) ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
@@ -155,6 +157,7 @@ class LifecycleParityIntegrationTest {
 
         assertThatThrownBy(() -> restService.resumeMint(MINT_ID, changeRequest("resumption", "resume-tag")))
             .isInstanceOf(AdminServiceException.class)
+            .hasMessageContaining("Mint not found: " + MINT_ID)
             .satisfies(ex -> assertThat(((AdminServiceException) ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
@@ -167,6 +170,7 @@ class LifecycleParityIntegrationTest {
 
         assertThatThrownBy(() -> restService.retireMint(MINT_ID, changeRequest("retire", "retire-tag")))
             .isInstanceOf(AdminServiceException.class)
+            .hasMessageContaining("Mint not found: " + MINT_ID)
             .satisfies(ex -> assertThat(((AdminServiceException) ex).getStatus()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
