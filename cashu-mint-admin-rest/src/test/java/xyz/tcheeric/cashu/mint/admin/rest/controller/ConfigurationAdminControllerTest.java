@@ -18,7 +18,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ExtendWith(org.springframework.test.context.junit.jupiter.SpringExtension.class)
 @WebMvcTest(ConfigurationAdminController.class)
+@AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminConfigurationService.class})
 @TestPropertySource(properties = "admin.security.api-token=test-token")
 class ConfigurationAdminControllerTest {
@@ -80,5 +82,7 @@ class ConfigurationAdminControllerTest {
                 .andExpect(jsonPath("$.mintId").value("mint-001"))
                 .andExpect(jsonPath("$.revisionId").value("rev-1"))
                 .andExpect(jsonPath("$.message").value("Configuration applied: increase limit"));
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
     }
 }
