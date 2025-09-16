@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.admin.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
 import java.util.Map;
@@ -9,21 +10,55 @@ import org.junit.jupiter.api.Test;
 
 class ConfigurationSetTest {
 
-    // Ensures updating a parameter returns a new immutable configuration snapshot.
+    private static AuditMetadata metadata() {
+        return new AuditMetadata("alice", "create-config", Instant.now());
+    }
+
     @Test
-    void shouldReturnNewInstanceWhenParameterIsUpdated() {
-        final AuditMetadata initialAudit = new AuditMetadata("system", "seed-config", Instant.parse("2024-01-01T00:00:00Z"));
-        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
-            Map.of("max_tokens", "100"),
-            initialAudit);
-        final AuditMetadata updateAudit = new AuditMetadata("operator", "update-config", Instant.parse("2024-01-02T00:00:00Z"));
+    // Ensures constructor copies values and exposes immutable parameters.
+    void shouldCreateConfigurationSetWithValidatedInputs() {
+        final ConfigurationSet configurationSet = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("key", "value"), metadata());
 
-        final ConfigurationSet updated = configuration.updateParameter("max_tokens", "200",
-            ConfigurationRevisionId.of(2), updateAudit);
+        assertThat(configurationSet.parameters()).containsEntry("key", "value");
+        assertThat(configurationSet.parameters()).isUnmodifiable();
+    }
 
-        assertThat(updated.revisionId().value()).isEqualTo(2);
-        assertThat(updated.parameters()).containsEntry("max_tokens", "200");
-        assertThat(configuration.parameters()).containsEntry("max_tokens", "100");
-        assertThat(updated.auditMetadata()).isEqualTo(updateAudit);
+    @Test
+    // Ensures blank keys are rejected when constructing the configuration set.
+    void shouldThrowWhenParameterKeyBlank() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new ConfigurationSet(ConfigurationRevisionId.of(1), Map.of(" ", "value"), metadata()));
+    }
+
+    @Test
+    // Ensures blank values are rejected when constructing the configuration set.
+    void shouldThrowWhenParameterValueBlank() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new ConfigurationSet(ConfigurationRevisionId.of(1), Map.of("key", ""), metadata()));
+    }
+
+    @Test
+    // Ensures updateParameter enforces monotonically increasing revisions.
+    void shouldThrowWhenNextRevisionNotGreater() {
+        final ConfigurationSet configurationSet = new ConfigurationSet(ConfigurationRevisionId.of(2),
+            Map.of("key", "value"), metadata());
+
+        assertThrows(IllegalArgumentException.class,
+            () -> configurationSet.updateParameter("key", "new", ConfigurationRevisionId.of(2), metadata()));
+    }
+
+    @Test
+    // Ensures updateParameter returns a new configuration with updated values and revision.
+    void shouldUpdateParameterAndAdvanceRevision() {
+        final ConfigurationSet configurationSet = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("key", "value"), metadata());
+        final ConfigurationRevisionId nextRevision = ConfigurationRevisionId.of(2);
+
+        final ConfigurationSet updated = configurationSet.updateParameter("key", "new", nextRevision, metadata());
+
+        assertThat(updated.parameters()).containsEntry("key", "new");
+        assertThat(updated.revisionId()).isEqualTo(nextRevision);
+        assertThat(configurationSet.parameters()).containsEntry("key", "value");
     }
 }

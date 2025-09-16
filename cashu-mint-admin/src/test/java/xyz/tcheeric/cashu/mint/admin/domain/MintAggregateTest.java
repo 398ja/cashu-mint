@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.admin.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -13,49 +13,86 @@ import org.junit.jupiter.api.Test;
 
 class MintAggregateTest {
 
-    // Ensures activating a mint advances the lifecycle and records audit metadata.
-    @Test
-    void shouldActivateMintAndRecordAuditMetadata() {
-        final MintAggregate provisioned = newAggregate();
-        final AuditMetadata activation = new AuditMetadata("operator", "activate", Instant.parse("2024-01-02T00:00:00Z"));
+    private static final MintId MINT_ID = MintId.of(UUID.fromString("123e4567-e89b-12d3-a456-426614174000"));
 
-        final MintAggregate activated = provisioned.activate(activation);
+    private static AuditMetadata metadata(final String action) {
+        return new AuditMetadata("operator", action, Instant.now());
+    }
+
+    private static ConfigurationSet configuration(final long revision, final String value) {
+        return new ConfigurationSet(ConfigurationRevisionId.of(revision), Map.of("threshold", value), metadata("config"));
+    }
+
+    private static OperatorAccount operator() {
+        return new OperatorAccount(UUID.fromString("123e4567-e89b-12d3-a456-426614174001"), "Operator",
+            Set.of("ADMIN"), metadata("operator"));
+    }
+
+    private static NotificationPolicy policy() {
+        return new NotificationPolicy(true, false, Duration.ofMinutes(5), metadata("policy"));
+    }
+
+    @Test
+    // Ensures create initialises the aggregate in a provisioned state with matching audit trail metadata.
+    void shouldCreateMintAggregateWithProvisionedState() {
+        final AuditMetadata creationMetadata = metadata("create");
+
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            creationMetadata);
+
+        assertThat(aggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONED);
+        assertThat(aggregate.auditMetadata()).isEqualTo(creationMetadata);
+        assertThat(aggregate.auditTrail().entries()).containsExactly(creationMetadata);
+    }
+
+    @Test
+    // Ensures activate transitions the state and appends audit metadata.
+    void shouldActivateMintAggregate() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final AuditMetadata activationMetadata = metadata("activate");
+
+        final MintAggregate activated = aggregate.activate(activationMetadata);
 
         assertThat(activated.lifecycleState().value()).isEqualTo(LifecycleState.State.ACTIVE);
-        assertThat(activated.auditTrail().entries()).hasSize(2);
-        assertThat(activated.auditTrail().latestMetadata()).isEqualTo(activation);
-        assertThat(activated.auditMetadata()).isEqualTo(activation);
-        assertThat(provisioned.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONED);
-        assertThat(provisioned.auditTrail().entries()).hasSize(1);
+        assertThat(activated.auditTrail().entries()).hasSize(2).contains(activationMetadata);
+        assertThat(aggregate.auditTrail().entries()).hasSize(1);
     }
 
-    // Ensures configuration updates must increase the revision to preserve ordering.
     @Test
-    void shouldRejectConfigurationWithStaleRevision() {
-        final MintAggregate aggregate = newAggregate();
-        final ConfigurationSet staleConfiguration = new ConfigurationSet(ConfigurationRevisionId.of(1),
-            Map.of("max_tokens", "1000"),
-            new AuditMetadata("operator", "stale-config", Instant.parse("2024-01-03T00:00:00Z")));
+    // Ensures configuration updates require the revision to advance.
+    void shouldThrowWhenUpdatingConfigurationWithNonAdvancingRevision() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final ConfigurationSet sameRevision = configuration(1, "200");
 
-        final AuditMetadata audit = new AuditMetadata("operator", "config-update", Instant.parse("2024-01-04T00:00:00Z"));
-
-        assertThatThrownBy(() -> aggregate.updateConfiguration(staleConfiguration, audit))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("revision must advance");
+        assertThrows(IllegalArgumentException.class, () -> aggregate.updateConfiguration(sameRevision, metadata("update")));
     }
 
-    private MintAggregate newAggregate() {
-        final MintId mintId = MintId.of(UUID.fromString("11111111-1111-1111-1111-111111111111"));
-        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
-            Map.of("max_tokens", "500"),
-            new AuditMetadata("operator", "seed-config", Instant.parse("2024-01-01T00:00:00Z")));
-        final OperatorAccount operator = new OperatorAccount(UUID.fromString("22222222-2222-2222-2222-222222222222"),
-            "Primary Operator",
-            Set.of("ADMIN"),
-            new AuditMetadata("system", "operator-created", Instant.parse("2024-01-01T01:00:00Z")));
-        final NotificationPolicy policy = new NotificationPolicy(true, true, Duration.ofMinutes(5),
-            new AuditMetadata("system", "policy-created", Instant.parse("2024-01-01T02:00:00Z")));
-        final AuditMetadata creation = new AuditMetadata("system", "mint-created", Instant.parse("2024-01-01T03:00:00Z"));
-        return MintAggregate.create(mintId, configuration, operator, policy, creation);
+    @Test
+    // Ensures configuration updates succeed when the revision advances.
+    void shouldUpdateConfigurationWhenRevisionAdvances() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final ConfigurationSet nextRevision = configuration(2, "200");
+        final AuditMetadata updateMetadata = metadata("update");
+
+        final MintAggregate updated = aggregate.updateConfiguration(nextRevision, updateMetadata);
+
+        assertThat(updated.configurationSet()).isEqualTo(nextRevision);
+        assertThat(updated.auditMetadata()).isEqualTo(updateMetadata);
+        assertThat(updated.auditTrail().entries()).hasSize(2);
+    }
+
+    @Test
+    // Ensures reconstitution rejects inconsistent audit metadata.
+    void shouldRejectReconstitutionWhenAuditMetadataDoesNotMatchLatest() {
+        final AuditMetadata initial = metadata("initial");
+        final AuditMetadata later = metadata("later");
+        final AuditTrail trail = AuditTrail.create(initial).append(later);
+
+        assertThrows(IllegalArgumentException.class,
+            () -> MintAggregate.reconstitute(MINT_ID, LifecycleState.provisioned(), configuration(1, "100"), operator(),
+                policy(), trail, initial));
     }
 }
