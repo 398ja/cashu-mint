@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.admin.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -23,6 +24,8 @@ class AuditMetadataTest {
         assertThat(metadata.reasonCodes()).isEmpty();
         assertThat(metadata.ticketReferences()).isEmpty();
         assertThat(metadata.automationContext()).isEqualTo(AutomationContext.manual());
+        assertThat(metadata.lifecycleContext().hasConfigurationRevision()).isFalse();
+        assertThat(metadata.lifecycleContext().hasNotificationPolicySnapshot()).isFalse();
     }
 
     @Test
@@ -42,6 +45,7 @@ class AuditMetadataTest {
         assertThat(metadata.reasonCodes()).containsExactly("policy_violation", "manual_override");
         assertThat(metadata.ticketReferences()).containsExactly("INC-123", "RFO-456");
         assertThat(metadata.automationContext()).isEqualTo(automation);
+        assertThat(metadata.lifecycleContext().hasConfigurationRevision()).isFalse();
     }
 
     @Test
@@ -88,5 +92,24 @@ class AuditMetadataTest {
         assertThat(metadata.reasonCodes()).isEmpty();
         assertThat(metadata.ticketReferences()).isEmpty();
         assertThat(metadata.automationContext()).isEqualTo(AutomationContext.manual());
+    }
+
+    @Test
+    // Ensures lifecycle context captures configuration revision and notification policy snapshot details.
+    void shouldAttachLifecycleContext() {
+        final AuditMetadata metadata = new AuditMetadata("alice", "resume", Instant.now());
+        final ConfigurationRevisionId revisionId = ConfigurationRevisionId.of(4);
+        final NotificationPolicy policy = new NotificationPolicy(true, false, Duration.ofMinutes(5), metadata);
+
+        final AuditMetadata enriched = metadata.withLifecycleContext(revisionId, policy);
+
+        assertThat(enriched.lifecycleContext().configurationRevisionId()).isEqualTo(revisionId);
+        assertThat(enriched.lifecycleContext().notificationPolicySnapshot()).isNotNull();
+        final NotificationPolicySnapshot snapshot = enriched.lifecycleContext().notificationPolicySnapshot();
+        assertThat(snapshot.emailEnabled()).isTrue();
+        assertThat(snapshot.webhookEnabled()).isFalse();
+        assertThat(snapshot.throttleInterval()).isEqualTo(Duration.ofMinutes(5));
+        assertThat(snapshot.auditActor()).isEqualTo(metadata.actor());
+        assertThat(snapshot.auditAction()).isEqualTo(metadata.action());
     }
 }
