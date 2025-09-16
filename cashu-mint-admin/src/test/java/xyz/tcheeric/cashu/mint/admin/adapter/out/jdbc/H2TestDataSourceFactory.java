@@ -45,15 +45,19 @@ final class H2TestDataSourceFactory {
     }
 
     private static String readSchemaScript() throws IOException {
-        try (InputStream inputStream =
-                 H2TestDataSourceFactory.class.getResourceAsStream("/db/migration/V1__create_admin_schema.sql")) {
+        final String v1 = readMigration("/db/migration/V1__create_admin_schema.sql");
+        final String v2 = readMigration("/db/migration/V2__link_audit_events.sql");
+        return (v1 + "\n" + v2)
+            .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
+            .replace("    WHERE dispatched_at IS NULL", "");
+    }
+
+    private static String readMigration(final String resource) throws IOException {
+        try (InputStream inputStream = H2TestDataSourceFactory.class.getResourceAsStream(resource)) {
             if (inputStream == null) {
-                throw new IllegalStateException("Unable to locate admin schema migration script");
+                throw new IllegalStateException("Unable to locate admin schema migration script: " + resource);
             }
-            final String raw = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            return raw
-                .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
-                .replace("    WHERE dispatched_at IS NULL", "");
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
 }

@@ -55,4 +55,8 @@ public final class AuditTrail {
     public AutomationContext latestAutomationContext() {
         return auditMetadata.automationContext();
     }
+
+    public LifecycleContext latestLifecycleContext() {
+        return auditMetadata.lifecycleContext();
+    }
 }

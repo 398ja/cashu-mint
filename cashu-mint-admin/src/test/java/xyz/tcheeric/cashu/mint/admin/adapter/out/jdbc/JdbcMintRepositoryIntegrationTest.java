@@ -63,6 +63,10 @@ class JdbcMintRepositoryIntegrationTest {
         assertThat(reconstituted.operatorAccount()).isEqualTo(operator);
         assertThat(reconstituted.notificationPolicy()).isEqualTo(policy);
         assertThat(reconstituted.auditTrail()).isEqualTo(aggregate.auditTrail());
+        assertThat(reconstituted.auditTrail().latestLifecycleContext().configurationRevisionId())
+            .isEqualTo(configuration.revisionId());
+        assertThat(reconstituted.auditTrail().latestLifecycleContext().notificationPolicySnapshot())
+            .isNotNull();
 
         final List<MintAggregate> all = mintRepository.findAll();
         assertThat(all).hasSize(1);
@@ -111,8 +115,14 @@ class JdbcMintRepositoryIntegrationTest {
         assertThat(reloaded.configurationSet()).isEqualTo(updatedConfig);
         assertThat(reloaded.operatorAccount()).isEqualTo(updatedOperator);
         assertThat(reloaded.notificationPolicy()).isEqualTo(updatedPolicy);
-        assertThat(reloaded.auditMetadata()).isEqualTo(activationAudit);
+        assertThat(reloaded.auditMetadata().actor()).isEqualTo(activationAudit.actor());
+        assertThat(reloaded.auditMetadata().action()).isEqualTo(activationAudit.action());
+        assertThat(reloaded.auditMetadata().timestamp()).isEqualTo(activationAudit.timestamp());
         assertThat(reloaded.auditTrail()).isEqualTo(updatedAggregate.auditTrail());
+        assertThat(reloaded.auditTrail().latestLifecycleContext().configurationRevisionId())
+            .isEqualTo(updatedConfig.revisionId());
+        assertThat(reloaded.auditTrail().latestLifecycleContext().notificationPolicySnapshot())
+            .isNotNull();
 
         final List<MintAggregate> all = mintRepository.findAll();
         assertThat(all).hasSize(1);
