@@ -93,6 +93,12 @@ while simultaneously being serialised into the transactional outbox for external
 `LifecycleEventOutboxDispatcher`, which can be scheduled through the `LifecycleEventOutboxTask` runnable in queue-driven or
 polling deployments.
 
+Recent migrations extend the admin schema with dedicated approval tracking and audit linkage. `V5__create_mint_lifecycle_approval_states`
+adds an approval state table so transition workflows retain reviewer status, while `V6__extend_lifecycle_audit_linkage` threads
+request and correlation identifiers through lifecycle snapshots, history, and the `v_mint_audit_log` view. Refer to the
+[Administrative lifecycle audit schema](docs/reference/admin-lifecycle-audit-schema.md) reference for a full breakdown of the
+new tables and columns.
+
 ## Test data preload
 
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
