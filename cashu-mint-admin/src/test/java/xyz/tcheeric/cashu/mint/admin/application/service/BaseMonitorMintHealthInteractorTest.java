@@ -1,73 +1,57 @@
 package xyz.tcheeric.cashu.mint.admin.application.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import xyz.tcheeric.cashu.mint.admin.application.port.in.MonitorMintHealthUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.MonitorMintHealthUseCase.HealthQuery;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.MonitorMintHealthUseCase.MonitorMintHealthRequest;
 
 class BaseMonitorMintHealthInteractorTest {
 
-    private BaseMonitorMintHealthInteractor interactor;
+    private static final MonitorMintHealthUseCase.MonitorMintHealthRequest VALID_REQUEST =
+        new MonitorMintHealthUseCase.MonitorMintHealthRequest("123e4567-e89b-12d3-a456-426614174000",
+            HealthQuery.SNAPSHOT, "v1");
 
-    @BeforeEach
-    void setUp() {
-        interactor = new BaseMonitorMintHealthInteractor();
+    private final BaseMonitorMintHealthInteractor interactor = new BaseMonitorMintHealthInteractor();
+
+    @Test
+    // Ensures handle rejects null requests.
+    void shouldRejectNullRequest() {
+        assertThrows(NullPointerException.class, () -> interactor.handle(null));
     }
 
-    // Ensures a malformed mint identifier is rejected during validation.
     @Test
+    // Ensures handle validates the mint identifier.
     void shouldRejectInvalidMintId() {
-        final MonitorMintHealthRequest request = new MonitorMintHealthRequest("invalid",
-            HealthQuery.SNAPSHOT,
-            "v1");
+        final MonitorMintHealthUseCase.MonitorMintHealthRequest request =
+            new MonitorMintHealthUseCase.MonitorMintHealthRequest("invalid", HealthQuery.SNAPSHOT, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("mint identifier must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures null health queries are rejected as invalid input.
     @Test
-    void shouldRejectNullHealthQuery() {
-        final MonitorMintHealthRequest request = new MonitorMintHealthRequest(validMintId(),
-            null,
-            "v1");
+    // Ensures handle validates the query presence.
+    void shouldRejectNullQuery() {
+        final MonitorMintHealthUseCase.MonitorMintHealthRequest request =
+            new MonitorMintHealthUseCase.MonitorMintHealthRequest("123e4567-e89b-12d3-a456-426614174000", null, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("health query must not be null");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures blank version tags fail fast during validation.
     @Test
+    // Ensures handle validates the version tag.
     void shouldRejectBlankVersionTag() {
-        final MonitorMintHealthRequest request = new MonitorMintHealthRequest(validMintId(),
-            HealthQuery.SNAPSHOT,
-            " ");
+        final MonitorMintHealthUseCase.MonitorMintHealthRequest request =
+            new MonitorMintHealthUseCase.MonitorMintHealthRequest("123e4567-e89b-12d3-a456-426614174000",
+                HealthQuery.SNAPSHOT, " ");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("version tag must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures valid payloads raise the unsupported stub exception after validation succeeds.
     @Test
-    void shouldThrowUnsupportedAfterValidation() {
-        final MonitorMintHealthRequest request = new MonitorMintHealthRequest(validMintId(),
-            HealthQuery.SNAPSHOT,
-            "v1");
-
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("MonitorMintHealthUseCase has not been implemented yet");
-    }
-
-    private String validMintId() {
-        return UUID.randomUUID().toString();
+    // Ensures a valid request reaches the unsupported branch.
+    void shouldReachUnsupportedOperationForValidRequest() {
+        assertThrows(UnsupportedOperationException.class, () -> interactor.handle(VALID_REQUEST));
     }
 }

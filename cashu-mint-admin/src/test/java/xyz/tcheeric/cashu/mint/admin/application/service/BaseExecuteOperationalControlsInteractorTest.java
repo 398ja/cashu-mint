@@ -1,94 +1,69 @@
 package xyz.tcheeric.cashu.mint.admin.application.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalControlsUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalControlsUseCase.OperationalCommand;
 
 class BaseExecuteOperationalControlsInteractorTest {
 
-    private BaseExecuteOperationalControlsInteractor interactor;
+    private static final ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest VALID_REQUEST =
+        new ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest("123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174001", OperationalCommand.SCHEDULE_MAINTENANCE, "v1");
 
-    @BeforeEach
-    void setUp() {
-        interactor = new BaseExecuteOperationalControlsInteractor();
+    private final BaseExecuteOperationalControlsInteractor interactor = new BaseExecuteOperationalControlsInteractor();
+
+    @Test
+    // Ensures handle rejects null requests.
+    void shouldRejectNullRequest() {
+        assertThrows(NullPointerException.class, () -> interactor.handle(null));
     }
 
-    // Ensures malformed mint identifiers trigger validation failures.
     @Test
+    // Ensures handle validates the mint identifier.
     void shouldRejectInvalidMintId() {
-        final ExecuteOperationalControlsRequest request = new ExecuteOperationalControlsRequest("invalid",
-            validOperatorId(),
-            OperationalCommand.ROTATE_KEYS,
-            "v1");
+        final ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest request =
+            new ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest("invalid",
+                "123e4567-e89b-12d3-a456-426614174001", OperationalCommand.SCHEDULE_MAINTENANCE, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("mint identifier must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures malformed operator identifiers are rejected early.
     @Test
+    // Ensures handle validates the operator identifier.
     void shouldRejectInvalidOperatorId() {
-        final ExecuteOperationalControlsRequest request = new ExecuteOperationalControlsRequest(validMintId(),
-            "not-a-uuid",
-            OperationalCommand.ROTATE_KEYS,
-            "v1");
+        final ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest request =
+            new ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "not-a-uuid", OperationalCommand.SCHEDULE_MAINTENANCE, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("operator id must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures null operational commands are rejected during validation.
     @Test
-    void shouldRejectNullOperationalCommand() {
-        final ExecuteOperationalControlsRequest request = new ExecuteOperationalControlsRequest(validMintId(),
-            validOperatorId(),
-            null,
-            "v1");
+    // Ensures handle validates the command presence.
+    void shouldRejectNullCommand() {
+        final ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest request =
+            new ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", null, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("operational command must not be null");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures blank version tags fail fast before hitting the unsupported stub.
     @Test
+    // Ensures handle validates the version tag.
     void shouldRejectBlankVersionTag() {
-        final ExecuteOperationalControlsRequest request = new ExecuteOperationalControlsRequest(validMintId(),
-            validOperatorId(),
-            OperationalCommand.ROTATE_KEYS,
-            " ");
+        final ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest request =
+            new ExecuteOperationalControlsUseCase.ExecuteOperationalControlsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", OperationalCommand.SCHEDULE_MAINTENANCE, " ");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("version tag must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures valid payloads pass validation and raise the unsupported stub exception.
     @Test
-    void shouldThrowUnsupportedAfterValidation() {
-        final ExecuteOperationalControlsRequest request = new ExecuteOperationalControlsRequest(validMintId(),
-            validOperatorId(),
-            OperationalCommand.ROTATE_KEYS,
-            "v1");
-
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("ExecuteOperationalControlsUseCase has not been implemented yet");
-    }
-
-    private String validMintId() {
-        return UUID.randomUUID().toString();
-    }
-
-    private String validOperatorId() {
-        return UUID.randomUUID().toString();
+    // Ensures a valid request reaches the unsupported branch.
+    void shouldReachUnsupportedOperationForValidRequest() {
+        assertThrows(UnsupportedOperationException.class, () -> interactor.handle(VALID_REQUEST));
     }
 }

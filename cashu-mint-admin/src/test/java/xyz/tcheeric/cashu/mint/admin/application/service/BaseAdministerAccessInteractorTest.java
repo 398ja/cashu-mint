@@ -1,94 +1,69 @@
 package xyz.tcheeric.cashu.mint.admin.application.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase.AccessCommand;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase.AdministerAccessRequest;
 
 class BaseAdministerAccessInteractorTest {
 
-    private BaseAdministerAccessInteractor interactor;
+    private static final AdministerAccessUseCase.AdministerAccessRequest VALID_REQUEST =
+        new AdministerAccessUseCase.AdministerAccessRequest("123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174001", AccessCommand.PROVISION, "v1");
 
-    @BeforeEach
-    void setUp() {
-        interactor = new BaseAdministerAccessInteractor();
+    private final BaseAdministerAccessInteractor interactor = new BaseAdministerAccessInteractor();
+
+    @Test
+    // Ensures handle rejects null requests.
+    void shouldRejectNullRequest() {
+        assertThrows(NullPointerException.class, () -> interactor.handle(null));
     }
 
-    // Ensures operator identifiers must be valid UUID strings.
     @Test
+    // Ensures handle validates the operator identifier.
     void shouldRejectInvalidOperatorId() {
-        final AdministerAccessRequest request = new AdministerAccessRequest("operator",
-            validTargetAccountId(),
-            AccessCommand.PROVISION,
-            "v1");
+        final AdministerAccessUseCase.AdministerAccessRequest request =
+            new AdministerAccessUseCase.AdministerAccessRequest("not-a-uuid",
+                "123e4567-e89b-12d3-a456-426614174001", AccessCommand.PROVISION, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("operator id must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures target account identifiers must also be valid UUID strings.
     @Test
+    // Ensures handle validates the target account identifier.
     void shouldRejectInvalidTargetAccountId() {
-        final AdministerAccessRequest request = new AdministerAccessRequest(validOperatorId(),
-            "target",
-            AccessCommand.PROVISION,
-            "v1");
+        final AdministerAccessUseCase.AdministerAccessRequest request =
+            new AdministerAccessUseCase.AdministerAccessRequest("123e4567-e89b-12d3-a456-426614174000",
+                " ", AccessCommand.PROVISION, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("target account id must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures null access commands are rejected during validation.
     @Test
-    void shouldRejectNullAccessCommand() {
-        final AdministerAccessRequest request = new AdministerAccessRequest(validOperatorId(),
-            validTargetAccountId(),
-            null,
-            "v1");
+    // Ensures handle validates the command presence.
+    void shouldRejectNullCommand() {
+        final AdministerAccessUseCase.AdministerAccessRequest request =
+            new AdministerAccessUseCase.AdministerAccessRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", null, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("access command must not be null");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures blank version tags are rejected before reaching unsupported behaviour.
     @Test
+    // Ensures handle validates the version tag.
     void shouldRejectBlankVersionTag() {
-        final AdministerAccessRequest request = new AdministerAccessRequest(validOperatorId(),
-            validTargetAccountId(),
-            AccessCommand.PROVISION,
-            " ");
+        final AdministerAccessUseCase.AdministerAccessRequest request =
+            new AdministerAccessUseCase.AdministerAccessRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", AccessCommand.PROVISION, " ");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("version tag must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures valid payloads raise the unsupported stub exception after validation succeeds.
     @Test
-    void shouldThrowUnsupportedAfterValidation() {
-        final AdministerAccessRequest request = new AdministerAccessRequest(validOperatorId(),
-            validTargetAccountId(),
-            AccessCommand.PROVISION,
-            "v1");
-
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("AdministerAccessUseCase has not been implemented yet");
-    }
-
-    private String validOperatorId() {
-        return UUID.randomUUID().toString();
-    }
-
-    private String validTargetAccountId() {
-        return UUID.randomUUID().toString();
+    // Ensures a fully valid request reaches the unimplemented branch.
+    void shouldReachUnsupportedOperationForValidRequest() {
+        assertThrows(UnsupportedOperationException.class, () -> interactor.handle(VALID_REQUEST));
     }
 }

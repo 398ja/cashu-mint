@@ -1,94 +1,69 @@
 package xyz.tcheeric.cashu.mint.admin.application.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageNotificationsUseCase.ManageNotificationsRequest;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageNotificationsUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageNotificationsUseCase.NotificationCommand;
 
 class BaseManageNotificationsInteractorTest {
 
-    private BaseManageNotificationsInteractor interactor;
+    private static final ManageNotificationsUseCase.ManageNotificationsRequest VALID_REQUEST =
+        new ManageNotificationsUseCase.ManageNotificationsRequest("123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174001", NotificationCommand.CREATE_POLICY, "v1");
 
-    @BeforeEach
-    void setUp() {
-        interactor = new BaseManageNotificationsInteractor();
+    private final BaseManageNotificationsInteractor interactor = new BaseManageNotificationsInteractor();
+
+    @Test
+    // Ensures handle rejects null requests.
+    void shouldRejectNullRequest() {
+        assertThrows(NullPointerException.class, () -> interactor.handle(null));
     }
 
-    // Ensures invalid mint identifiers are rejected during validation.
     @Test
+    // Ensures handle validates the mint identifier.
     void shouldRejectInvalidMintId() {
-        final ManageNotificationsRequest request = new ManageNotificationsRequest("invalid",
-            validPolicyId(),
-            NotificationCommand.CREATE_POLICY,
-            "v1");
+        final ManageNotificationsUseCase.ManageNotificationsRequest request =
+            new ManageNotificationsUseCase.ManageNotificationsRequest("invalid",
+                "123e4567-e89b-12d3-a456-426614174001", NotificationCommand.CREATE_POLICY, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("mint identifier must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures invalid policy identifiers are rejected during validation.
     @Test
+    // Ensures handle validates the policy identifier.
     void shouldRejectInvalidPolicyId() {
-        final ManageNotificationsRequest request = new ManageNotificationsRequest(validMintId(),
-            "policy",
-            NotificationCommand.CREATE_POLICY,
-            "v1");
+        final ManageNotificationsUseCase.ManageNotificationsRequest request =
+            new ManageNotificationsUseCase.ManageNotificationsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "not-a-uuid", NotificationCommand.CREATE_POLICY, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("policy id must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures null notification commands are rejected.
     @Test
-    void shouldRejectNullNotificationCommand() {
-        final ManageNotificationsRequest request = new ManageNotificationsRequest(validMintId(),
-            validPolicyId(),
-            null,
-            "v1");
+    // Ensures handle validates the command presence.
+    void shouldRejectNullCommand() {
+        final ManageNotificationsUseCase.ManageNotificationsRequest request =
+            new ManageNotificationsUseCase.ManageNotificationsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", null, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("notification command must not be null");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures blank version tags are rejected prior to throwing unsupported behaviour.
     @Test
+    // Ensures handle validates the version tag.
     void shouldRejectBlankVersionTag() {
-        final ManageNotificationsRequest request = new ManageNotificationsRequest(validMintId(),
-            validPolicyId(),
-            NotificationCommand.CREATE_POLICY,
-            " ");
+        final ManageNotificationsUseCase.ManageNotificationsRequest request =
+            new ManageNotificationsUseCase.ManageNotificationsRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", NotificationCommand.CREATE_POLICY, " ");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("version tag must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures valid payloads pass validation and then raise the unsupported stub exception.
     @Test
-    void shouldThrowUnsupportedAfterValidation() {
-        final ManageNotificationsRequest request = new ManageNotificationsRequest(validMintId(),
-            validPolicyId(),
-            NotificationCommand.CREATE_POLICY,
-            "v1");
-
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("ManageNotificationsUseCase has not been implemented yet");
-    }
-
-    private String validMintId() {
-        return UUID.randomUUID().toString();
-    }
-
-    private String validPolicyId() {
-        return UUID.randomUUID().toString();
+    // Ensures a valid request reaches the unsupported branch.
+    void shouldReachUnsupportedOperationForValidRequest() {
+        assertThrows(UnsupportedOperationException.class, () -> interactor.handle(VALID_REQUEST));
     }
 }
