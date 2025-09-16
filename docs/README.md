@@ -24,6 +24,8 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Java version](reference/java-version.md) - Required JDK for building.
 - [License](reference/license.md) - Licensing information.
 - [Mint admin CLI](reference/mint-admin-cli.md) - Commands, payloads, and renderer options for the admin tool.
+- [Administrative lifecycle audit schema](reference/admin-lifecycle-audit-schema.md) - Tables backing lifecycle projections,
+  approvals, and audit linkage.
 
 ## Explanations
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
