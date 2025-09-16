@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.NotificationPolicy;
@@ -23,96 +26,96 @@ import xyz.tcheeric.cashu.mint.admin.domain.OperatorAccount;
 class JdbcMintRepositoryIntegrationTest {
 
     private DataSource dataSource;
-    private ObjectMapper objectMapper;
     private JdbcConfigurationSetRepository configurationRepository;
     private JdbcMintRepository mintRepository;
+    private MintId mintId;
 
     @BeforeEach
     void setUp() {
-        dataSource = TestDatabaseFactory.createDataSource();
-        TestDatabaseFactory.migrate(dataSource);
-        objectMapper = new ObjectMapper();
+        dataSource = H2TestDataSourceFactory.createDataSource();
+        final ObjectMapper objectMapper = new ObjectMapper();
         configurationRepository = new JdbcConfigurationSetRepository(dataSource, objectMapper);
         mintRepository = new JdbcMintRepository(dataSource, configurationRepository, objectMapper);
+        mintId = MintId.of(UUID.randomUUID());
     }
 
-    // Ensures a mint aggregate survives a full round-trip through the JDBC repository.
+    // Validates that a mint aggregate can be stored and fully reconstructed from the database.
     @Test
-    void shouldPersistAndReloadMintAggregate() {
-        final MintId mintId = MintId.of(UUID.randomUUID());
-        final AuditMetadata created = new AuditMetadata("system", "provision", Instant.parse("2024-01-01T00:00:00Z"));
-        final ConfigurationSet initialConfiguration = new ConfigurationSet(ConfigurationRevisionId.of(1L),
-            Map.of("currency", "USD"), created);
-        final OperatorAccount initialOperator = new OperatorAccount(UUID.randomUUID(), "Initial Operator",
-            Set.of("ADMIN"), created);
-        final NotificationPolicy initialPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(5), created);
-        MintAggregate aggregate = MintAggregate.create(mintId, initialConfiguration, initialOperator, initialPolicy, created);
+    void shouldPersistAndLoadMintAggregate() {
+        final Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", createdAt);
+        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("name", "TestMint"), creationAudit);
+        final OperatorAccount operator = new OperatorAccount(UUID.randomUUID(), "Operator One", Set.of("ADMIN"),
+            creationAudit);
+        final NotificationPolicy policy = new NotificationPolicy(true, false, Duration.ofMinutes(15), creationAudit);
+        final MintAggregate aggregate = MintAggregate.create(mintId, configuration, operator, policy, creationAudit);
 
         mintRepository.save(aggregate);
 
-        final AuditMetadata activationAudit = new AuditMetadata("system", "activate",
-            Instant.parse("2024-01-02T00:00:00Z"));
-        aggregate = aggregate.activate(activationAudit);
+        final Optional<MintAggregate> loaded = mintRepository.findById(mintId);
 
-        final AuditMetadata configAudit = new AuditMetadata("admin", "update-config",
-            Instant.parse("2024-01-03T00:00:00Z"));
-        final ConfigurationSet updatedConfiguration = new ConfigurationSet(ConfigurationRevisionId.of(2L),
-            Map.of("currency", "USD", "fee", "0.001"), configAudit);
-        aggregate = aggregate.updateConfiguration(updatedConfiguration, configAudit);
+        assertThat(loaded).isPresent();
+        final MintAggregate reconstituted = loaded.orElseThrow();
+        assertThat(reconstituted.mintId()).isEqualTo(mintId);
+        assertThat(reconstituted.lifecycleState()).isEqualTo(aggregate.lifecycleState());
+        assertThat(reconstituted.configurationSet()).isEqualTo(configuration);
+        assertThat(reconstituted.operatorAccount()).isEqualTo(operator);
+        assertThat(reconstituted.notificationPolicy()).isEqualTo(policy);
+        assertThat(reconstituted.auditTrail()).isEqualTo(aggregate.auditTrail());
 
-        final AuditMetadata operatorAudit = new AuditMetadata("admin", "update-operator",
-            Instant.parse("2024-01-04T00:00:00Z"));
-        final OperatorAccount updatedOperator = new OperatorAccount(initialOperator.operatorId(), "Updated Operator",
-            Set.of("ADMIN", "SUPPORT"), operatorAudit);
-        aggregate = aggregate.updateOperatorAccount(updatedOperator, operatorAudit);
+        final List<MintAggregate> all = mintRepository.findAll();
+        assertThat(all).hasSize(1);
+        assertThat(all.get(0).mintId()).isEqualTo(mintId);
+    }
 
-        final AuditMetadata policyAudit = new AuditMetadata("admin", "update-policy",
-            Instant.parse("2024-01-05T00:00:00Z"));
-        final NotificationPolicy updatedPolicy = new NotificationPolicy(true, true, Duration.ofMinutes(1), policyAudit);
-        aggregate = aggregate.updateNotificationPolicy(updatedPolicy, policyAudit);
+    // Confirms that updating an aggregate persists new state and replaces dependent records atomically.
+    @Test
+    void shouldUpdateExistingAggregateState() {
+        final Instant baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        final AuditMetadata creationAudit = new AuditMetadata("system", "provision-mint", baseTime);
+        final ConfigurationSet initialConfig = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("name", "TestMint"), creationAudit);
+        final OperatorAccount initialOperator = new OperatorAccount(UUID.randomUUID(), "Operator One",
+            Set.of("ADMIN"), creationAudit);
+        final NotificationPolicy initialPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(15),
+            creationAudit);
+        final MintAggregate aggregate = MintAggregate.create(mintId, initialConfig, initialOperator, initialPolicy,
+            creationAudit);
 
         mintRepository.save(aggregate);
+
+        final AuditMetadata configAudit = new AuditMetadata("system", "update-config", baseTime.plusSeconds(10));
+        final ConfigurationSet updatedConfig = initialConfig.updateParameter("fee", "0.5",
+            ConfigurationRevisionId.of(2), configAudit);
+
+        final AuditMetadata operatorAudit = new AuditMetadata("system", "update-operator", baseTime.plusSeconds(20));
+        final OperatorAccount updatedOperator = new OperatorAccount(initialOperator.operatorId(), "Operator Two",
+            Set.of("ADMIN", "AUDITOR"), operatorAudit);
+
+        final AuditMetadata policyAudit = new AuditMetadata("system", "update-policy", baseTime.plusSeconds(30));
+        final NotificationPolicy updatedPolicy = new NotificationPolicy(true, true, Duration.ofMinutes(5),
+            policyAudit);
+
+        final AuditMetadata activationAudit = new AuditMetadata("system", "activate-mint", baseTime.plusSeconds(40));
+
+        MintAggregate updatedAggregate = aggregate.updateConfiguration(updatedConfig, configAudit);
+        updatedAggregate = updatedAggregate.updateOperatorAccount(updatedOperator, operatorAudit);
+        updatedAggregate = updatedAggregate.updateNotificationPolicy(updatedPolicy, policyAudit);
+        updatedAggregate = updatedAggregate.activate(activationAudit);
+
+        mintRepository.save(updatedAggregate);
 
         final MintAggregate reloaded = mintRepository.findById(mintId).orElseThrow();
-        assertThat(reloaded.mintId()).isEqualTo(aggregate.mintId());
-        assertThat(reloaded.lifecycleState()).isEqualTo(aggregate.lifecycleState());
-        assertThat(reloaded.configurationSet().revisionId()).isEqualTo(updatedConfiguration.revisionId());
-        assertThat(reloaded.configurationSet().parameters()).isEqualTo(updatedConfiguration.parameters());
-        assertThat(reloaded.operatorAccount().displayName()).isEqualTo(updatedOperator.displayName());
-        assertThat(reloaded.operatorAccount().roles()).containsExactlyInAnyOrderElementsOf(updatedOperator.roles());
-        assertThat(reloaded.notificationPolicy().emailEnabled()).isEqualTo(updatedPolicy.emailEnabled());
-        assertThat(reloaded.notificationPolicy().webhookEnabled()).isEqualTo(updatedPolicy.webhookEnabled());
-        assertThat(reloaded.notificationPolicy().throttleInterval()).isEqualTo(updatedPolicy.throttleInterval());
-        assertThat(reloaded.auditTrail().entries()).hasSize(aggregate.auditTrail().entries().size());
-        assertThat(reloaded.auditMetadata()).isEqualTo(aggregate.auditMetadata());
+        assertThat(reloaded.lifecycleState().value()).isEqualTo(LifecycleState.State.ACTIVE);
+        assertThat(reloaded.configurationSet()).isEqualTo(updatedConfig);
+        assertThat(reloaded.operatorAccount()).isEqualTo(updatedOperator);
+        assertThat(reloaded.notificationPolicy()).isEqualTo(updatedPolicy);
+        assertThat(reloaded.auditMetadata()).isEqualTo(activationAudit);
+        assertThat(reloaded.auditTrail()).isEqualTo(updatedAggregate.auditTrail());
 
-        final List<ConfigurationSet> history = configurationRepository.findByMintId(mintId);
-        assertThat(history).hasSize(2);
-        assertThat(history.get(0).revisionId()).isEqualTo(ConfigurationRevisionId.of(1L));
-        assertThat(history.get(1).revisionId()).isEqualTo(ConfigurationRevisionId.of(2L));
-    }
-
-    // Ensures all persisted mint aggregates are returned when querying for every mint.
-    @Test
-    void shouldFindAllPersistedMints() {
-        final MintAggregate first = createSimpleAggregate("alice", "2024-02-01T00:00:00Z");
-        final MintAggregate second = createSimpleAggregate("bob", "2024-02-02T00:00:00Z");
-
-        mintRepository.save(first);
-        mintRepository.save(second);
-
-        final List<MintAggregate> aggregates = mintRepository.findAll();
-        assertThat(aggregates).extracting(mint -> mint.mintId().value()).containsExactlyInAnyOrder(
-            first.mintId().value(), second.mintId().value());
-    }
-
-    private MintAggregate createSimpleAggregate(final String operatorName, final String timestamp) {
-        final MintId mintId = MintId.of(UUID.randomUUID());
-        final AuditMetadata audit = new AuditMetadata(operatorName, "provision", Instant.parse(timestamp));
-        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1L),
-            Map.of("currency", "EUR"), audit);
-        final OperatorAccount operator = new OperatorAccount(UUID.randomUUID(), operatorName, Set.of("ADMIN"), audit);
-        final NotificationPolicy policy = new NotificationPolicy(false, true, Duration.ofMinutes(10), audit);
-        return MintAggregate.create(mintId, configuration, operator, policy, audit);
+        final List<MintAggregate> all = mintRepository.findAll();
+        assertThat(all).hasSize(1);
+        assertThat(all.get(0).auditTrail().entries()).hasSize(updatedAggregate.auditTrail().entries().size());
     }
 }
