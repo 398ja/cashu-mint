@@ -31,6 +31,19 @@ public class AdminApiConfiguration {
     }
 
     @Bean
+    public AdminRbacFilter adminRbacFilter() {
+        return new AdminRbacFilter();
+    }
+
+    @Bean
+    public FilterRegistrationBean<AdminRbacFilter> adminRbacFilterRegistration(final AdminRbacFilter filter) {
+        final FilterRegistrationBean<AdminRbacFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        registration.addUrlPatterns("/admin/*");
+        return registration;
+    }
+
+    @Bean
     public Jackson2ObjectMapperBuilder jacksonCustomizer() {
         return Jackson2ObjectMapperBuilder.json()
                 .findModulesViaServiceLoader(true)
