@@ -42,8 +42,7 @@ class LifecycleParityIntegrationTest {
     @BeforeEach
     void setUp() {
         presenter = new LifecycleSummaryPresenter();
-        cliPort = new StubMintLifecyclePort(presenter);
-        restService = new AdminLifecycleService(new ConcurrentHashMap<>(), presenter, new LifecycleSummaryApiPresenter());
+        resetAdapters();
     }
 
     @AfterEach
@@ -175,8 +174,14 @@ class LifecycleParityIntegrationTest {
     }
 
     private void seedMint(final String versionTag) {
+        resetAdapters();
         cliPort.execute(command(LifecycleAction.CREATE, versionTag, versionTag));
         restService.createMint(createRequest(versionTag));
+    }
+
+    private void resetAdapters() {
+        cliPort = new StubMintLifecyclePort(presenter);
+        restService = new AdminLifecycleService(new ConcurrentHashMap<>(), presenter, new LifecycleSummaryApiPresenter());
     }
 
     private MintLifecycleCommand command(final LifecycleAction action, final String versionTag, final String correlationId) {
