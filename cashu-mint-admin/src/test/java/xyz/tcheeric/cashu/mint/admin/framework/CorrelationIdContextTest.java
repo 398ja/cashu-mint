@@ -43,4 +43,19 @@ class CorrelationIdContextTest {
         assertThat(CorrelationIdContext.currentId()).isNull();
         assertThat(MDC.get(CorrelationIdContext.MDC_KEY)).isNull();
     }
+
+    // Ensures the auto-closeable scope restores the previous identifier when closed.
+    @Test
+    void shouldRestorePreviousContextAfterScopeCloses() {
+        CorrelationIdContext.init("outer-scope");
+
+        try (CorrelationIdContext.Scope scope = CorrelationIdContext.open("inner-scope")) {
+            assertThat(scope.correlationId()).isEqualTo("inner-scope");
+            assertThat(CorrelationIdContext.currentId()).isEqualTo("inner-scope");
+            assertThat(MDC.get(CorrelationIdContext.MDC_KEY)).isEqualTo("inner-scope");
+        }
+
+        assertThat(CorrelationIdContext.currentId()).isEqualTo("outer-scope");
+        assertThat(MDC.get(CorrelationIdContext.MDC_KEY)).isEqualTo("outer-scope");
+    }
 }
