@@ -12,6 +12,33 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 - `cashu-mint-admin` – administrative domain, persistence, and presenter logic (see `cashu-mint-admin/project/specification.md`).
 - `cashu-mint-admin-cli` – Picocli-based command line built on the admin domain.
 
+## Container images and Compose services
+
+Both REST modules ship multi-stage Dockerfiles rooted in their module directories. The
+`cashu-mint-admin-rest/Dockerfile` mirrors the public API build but copies the
+`cashu-mint-admin-rest` runnable JAR and exposes port `7778`. `docker-compose.yml`
+now includes a `cashu-mint-admin-rest` service that binds that port, injects the
+required `ADMIN_API_TOKEN`, and enables actuator health probes so the container can
+participate in the stack's readiness checks. Build the admin API image locally with:
+
+```bash
+docker-compose build cashu-mint-admin-rest
+```
+
+The existing `cashu-mint-rest` service continues to publish the public API on port
+`7777`, with database and gateway configuration isolated to that container.
+
+The admin CLI remains packaged independently. Create the shaded runner JAR for
+distribution or local testing with:
+
+```bash
+./mvnw -q -pl cashu-mint-admin-cli package
+```
+
+The Docker build for `cashu-mint-admin-rest` will also package upstream modules via
+Maven's `-am` flag, ensuring both the REST adapter and CLI share the latest admin
+domain artifacts when images are produced.
+
 ## Admin module bootstrap
 
 The `cashu-mint-admin` module now concentrates the shared domain model, persistence adapters, and presenter logic that power the
