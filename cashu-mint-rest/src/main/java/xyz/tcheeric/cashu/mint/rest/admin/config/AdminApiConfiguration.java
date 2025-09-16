@@ -17,6 +17,20 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 public class AdminApiConfiguration {
 
     @Bean
+    public AdminCorrelationIdFilter adminCorrelationIdFilter() {
+        return new AdminCorrelationIdFilter();
+    }
+
+    @Bean
+    public FilterRegistrationBean<AdminCorrelationIdFilter> adminCorrelationIdFilterRegistration(
+            final AdminCorrelationIdFilter filter) {
+        final FilterRegistrationBean<AdminCorrelationIdFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.addUrlPatterns("/admin/*");
+        return registration;
+    }
+
+    @Bean
     public AdminAuthenticationFilter adminAuthenticationFilter(final AdminSecurityProperties properties) {
         return new AdminAuthenticationFilter(properties);
     }
@@ -25,7 +39,20 @@ public class AdminApiConfiguration {
     public FilterRegistrationBean<AdminAuthenticationFilter> adminAuthenticationFilterRegistration(
             final AdminAuthenticationFilter filter) {
         final FilterRegistrationBean<AdminAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        registration.addUrlPatterns("/admin/*");
+        return registration;
+    }
+
+    @Bean
+    public AdminRbacFilter adminRbacFilter() {
+        return new AdminRbacFilter();
+    }
+
+    @Bean
+    public FilterRegistrationBean<AdminRbacFilter> adminRbacFilterRegistration(final AdminRbacFilter filter) {
+        final FilterRegistrationBean<AdminRbacFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 2);
         registration.addUrlPatterns("/admin/*");
         return registration;
     }

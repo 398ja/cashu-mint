@@ -37,10 +37,11 @@ Flyway migrations are resolved from `classpath:db/migration/admin/**` while Liqu
 `cashu-mint-admin/src/main/resources/application.yml`.
 
 The REST module now exposes authenticated administrative endpoints under `/admin` for
-mint lifecycle, configuration, operator management, and alert workflows. These routes
-currently return `501 Not Implemented` while the corresponding use cases are built, but
-they already enforce token-based authentication (`X-Admin-Token`) and validate payloads
-into request DTOs shared with the future admin services.
+mint lifecycle, configuration, operator management, and alert workflows. Each route now
+returns structured responses that mirror the CLI experience, enforces token-based
+authentication (`X-Admin-Token`), and checks role membership via `X-Admin-Roles`.
+OpenAPI documentation is published at runtime so operators can explore the admin
+surface from `/v3/api-docs` or the bundled Swagger UI.
 
 ## Admin CLI
 
@@ -55,6 +56,10 @@ day-to-day mint operations. Run the CLI with the Maven wrapper or a packaged jar
 Available commands:
 
 - `mint` – shows a summary of the mint's lifecycle state and alert counts.
+- `mint create` – provisions a new mint after a confirmation prompt (skip with `--yes`).
+- `mint update` – applies configuration version bumps for an existing mint.
+- `mint pause` / `mint resume` / `mint retire` – drive lifecycle transitions with
+  idempotency checks (repeating a command returns a structured no-op response).
 - `mint config` – inspects or applies configuration payloads (`--payload` inline or
   `--payload-file` pointing to JSON/YAML content).
 - `mint users` – lists operator accounts, optionally including inactive users via
@@ -62,15 +67,37 @@ Available commands:
 - `mint alerts` – displays alert information with a configurable severity filter.
 
 Commands accept JSON payloads by default (`--input-format=JSON`) and can switch to
-YAML with `--input-format=YAML`. Responses default to tabular output (`--output-format=TABLE`)
-but can emit prettified JSON.
+YAML with `--input-format=YAML`. Lifecycle commands also accept option-derived input
+(`--mint-id`, `--operator-id`, `--version-tag`) and emit machine-readable output that
+signals whether a change occurred. Responses default to tabular output
+(`--output-format=TABLE`) but can emit prettified JSON for scripting. Lifecycle
+summaries are produced by shared presenters so the CLI tables, JSON payloads, and
+REST `LifecycleActionResponse` structures remain identical.
+
+Each CLI invocation carries a traceable identifier. Provide `--request-id` to reuse a
+known UUID (the CLI generates one automatically when omitted) and `--correlation-id`
+to link the action to external change-management tickets. Both identifiers flow
+through the lifecycle interactor and into audit metadata so outbox events and
+observability tooling can align terminal activity with persisted history.
 
 ## Admin persistence
 
-The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, and an
-event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
+The administrative module now ships with JDBC-based repositories for mint aggregates, configuration history, lifecycle history
+projections, and an event-dispatch outbox. The relational schema is versioned with Flyway migrations stored in
 `cashu-mint-admin/src/main/resources/db/migration`, and integration tests exercise the repositories against an in-memory H2
-database to verify persistence and rehydration behaviour.
+database to verify persistence and rehydration behaviour. Lifecycle audit events now capture the active configuration revision
+and a snapshot of the notification policy so downstream tooling can trace each state change back to the exact policy and
+configuration in effect when it occurred. Domain lifecycle events are projected into dedicated snapshot and history tables
+while simultaneously being serialised into the transactional outbox for external dispatch. A dedicated
+`LifecycleEventOutboxHandler` now reconstructs these events post-commit so the read models stay synchronised via the
+`LifecycleEventOutboxDispatcher`, which can be scheduled through the `LifecycleEventOutboxTask` runnable in queue-driven or
+polling deployments.
+
+Recent migrations extend the admin schema with dedicated approval tracking and audit linkage. `V5__create_mint_lifecycle_approval_states`
+adds an approval state table so transition workflows retain reviewer status, while `V6__extend_lifecycle_audit_linkage` threads
+request and correlation identifiers through lifecycle snapshots, history, and the `v_mint_audit_log` view. Refer to the
+[Administrative lifecycle audit schema](docs/reference/admin-lifecycle-audit-schema.md) reference for a full breakdown of the
+new tables and columns.
 
 ## Test data preload
 

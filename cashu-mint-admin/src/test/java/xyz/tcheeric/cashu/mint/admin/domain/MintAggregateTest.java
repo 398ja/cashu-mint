@@ -41,8 +41,14 @@ class MintAggregateTest {
             creationMetadata);
 
         assertThat(aggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONED);
-        assertThat(aggregate.auditMetadata()).isEqualTo(creationMetadata);
-        assertThat(aggregate.auditTrail().entries()).containsExactly(creationMetadata);
+        final AuditMetadata storedAudit = aggregate.auditMetadata();
+        assertThat(storedAudit.actor()).isEqualTo(creationMetadata.actor());
+        assertThat(storedAudit.action()).isEqualTo(creationMetadata.action());
+        assertThat(storedAudit.timestamp()).isEqualTo(creationMetadata.timestamp());
+        assertThat(storedAudit.lifecycleContext().configurationRevisionId())
+            .isEqualTo(ConfigurationRevisionId.of(1));
+        assertThat(storedAudit.lifecycleContext().notificationPolicySnapshot()).isNotNull();
+        assertThat(aggregate.auditTrail().entries()).containsExactly(storedAudit);
     }
 
     @Test
@@ -55,7 +61,13 @@ class MintAggregateTest {
         final MintAggregate activated = aggregate.activate(activationMetadata);
 
         assertThat(activated.lifecycleState().value()).isEqualTo(LifecycleState.State.ACTIVE);
-        assertThat(activated.auditTrail().entries()).hasSize(2).contains(activationMetadata);
+        assertThat(activated.auditTrail().entries()).hasSize(2);
+        final AuditMetadata latest = activated.auditTrail().latestMetadata();
+        assertThat(latest.actor()).isEqualTo(activationMetadata.actor());
+        assertThat(latest.action()).isEqualTo(activationMetadata.action());
+        assertThat(latest.timestamp()).isEqualTo(activationMetadata.timestamp());
+        assertThat(latest.lifecycleContext().configurationRevisionId())
+            .isEqualTo(aggregate.configurationSet().revisionId());
         assertThat(aggregate.auditTrail().entries()).hasSize(1);
     }
 
@@ -80,8 +92,38 @@ class MintAggregateTest {
         final MintAggregate updated = aggregate.updateConfiguration(nextRevision, updateMetadata);
 
         assertThat(updated.configurationSet()).isEqualTo(nextRevision);
-        assertThat(updated.auditMetadata()).isEqualTo(updateMetadata);
+        assertThat(updated.auditMetadata().actor()).isEqualTo(updateMetadata.actor());
+        assertThat(updated.auditMetadata().lifecycleContext().configurationRevisionId())
+            .isEqualTo(nextRevision.revisionId());
         assertThat(updated.auditTrail().entries()).hasSize(2);
+    }
+
+    @Test
+    // Ensures lifecycle approval metadata is exposed to callers.
+    void shouldExposeLifecycleApprovalMetadata() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+
+        final LifecycleState.TransitionApproval approval = aggregate
+            .approvalRequirementsFor(LifecycleState.State.ACTIVE)
+            .orElseThrow();
+
+        assertThat(approval.requiredSignoffs()).contains("Operations");
+        assertThat(approval.description()).contains("Activation");
+    }
+
+    @Test
+    // Ensures terminal states reject further transitions with descriptive context.
+    void shouldRejectTransitionsFromTerminalState() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final MintAggregate decommissioned = aggregate.decommission(metadata("decommission"));
+
+        final IllegalStateException exception = assertThrows(IllegalStateException.class,
+            () -> decommissioned.activate(metadata("activate")));
+
+        assertThat(exception).hasMessageContaining("DECOMMISSIONED");
+        assertThat(exception.getMessage()).contains("State is terminal");
     }
 
     @Test
