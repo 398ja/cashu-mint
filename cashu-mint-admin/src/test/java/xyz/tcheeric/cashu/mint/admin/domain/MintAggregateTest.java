@@ -85,6 +85,34 @@ class MintAggregateTest {
     }
 
     @Test
+    // Ensures lifecycle approval metadata is exposed to callers.
+    void shouldExposeLifecycleApprovalMetadata() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+
+        final LifecycleState.TransitionApproval approval = aggregate
+            .approvalRequirementsFor(LifecycleState.State.ACTIVE)
+            .orElseThrow();
+
+        assertThat(approval.requiredSignoffs()).contains("Operations");
+        assertThat(approval.description()).contains("Activation");
+    }
+
+    @Test
+    // Ensures terminal states reject further transitions with descriptive context.
+    void shouldRejectTransitionsFromTerminalState() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final MintAggregate decommissioned = aggregate.decommission(metadata("decommission"));
+
+        final IllegalStateException exception = assertThrows(IllegalStateException.class,
+            () -> decommissioned.activate(metadata("activate")));
+
+        assertThat(exception).hasMessageContaining("DECOMMISSIONED");
+        assertThat(exception.getMessage()).contains("State is terminal");
+    }
+
+    @Test
     // Ensures reconstitution rejects inconsistent audit metadata.
     void shouldRejectReconstitutionWhenAuditMetadataDoesNotMatchLatest() {
         final AuditMetadata initial = metadata("initial");
