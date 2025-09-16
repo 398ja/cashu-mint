@@ -5,15 +5,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.common.ActorDto;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.CreateMintRequest;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.LifecycleChangeRequest;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.MintMetadataDto;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.UpdateMintRequest;
+import xyz.tcheeric.cashu.mint.rest.admin.presenter.LifecycleSummaryApiPresenter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,7 +31,9 @@ class AdminLifecycleServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AdminLifecycleService();
+        service = new AdminLifecycleService(new ConcurrentHashMap<>(),
+            new LifecycleSummaryPresenter(),
+            new LifecycleSummaryApiPresenter());
     }
 
     @AfterEach

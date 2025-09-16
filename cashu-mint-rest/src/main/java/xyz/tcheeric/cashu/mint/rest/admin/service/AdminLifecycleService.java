@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.rest.admin.service;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
@@ -18,7 +17,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,13 +32,9 @@ public class AdminLifecycleService {
     private final LifecycleSummaryPresenter summaryPresenter;
     private final LifecycleSummaryApiPresenter apiPresenter;
 
-    public AdminLifecycleService() {
-        this(new ConcurrentHashMap<>(), new LifecycleSummaryPresenter(), new LifecycleSummaryApiPresenter());
-    }
-
-    AdminLifecycleService(final ConcurrentMap<String, MintRecord> lifecycleState,
-                          final LifecycleSummaryPresenter summaryPresenter,
-                          final LifecycleSummaryApiPresenter apiPresenter) {
+    public AdminLifecycleService(final ConcurrentMap<String, MintRecord> lifecycleState,
+                                 final LifecycleSummaryPresenter summaryPresenter,
+                                 final LifecycleSummaryApiPresenter apiPresenter) {
         this.lifecycleState = Objects.requireNonNull(lifecycleState, "lifecycleState");
         this.summaryPresenter = Objects.requireNonNull(summaryPresenter, "summaryPresenter");
         this.apiPresenter = Objects.requireNonNull(apiPresenter, "apiPresenter");
@@ -184,7 +178,7 @@ public class AdminLifecycleService {
         DECOMMISSIONED
     }
 
-    private static final class MintRecord {
+    static final class MintRecord {
         private LifecycleStatus status;
         private String versionTag;
         private MintMetadataDto metadata;
