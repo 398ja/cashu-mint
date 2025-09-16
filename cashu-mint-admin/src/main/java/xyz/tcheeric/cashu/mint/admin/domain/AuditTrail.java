@@ -43,4 +43,16 @@ public final class AuditTrail {
     public AuditMetadata latestMetadata() {
         return auditMetadata;
     }
+
+    public List<String> latestReasonCodes() {
+        return auditMetadata.reasonCodes();
+    }
+
+    public List<String> latestTicketReferences() {
+        return auditMetadata.ticketReferences();
+    }
+
+    public AutomationContext latestAutomationContext() {
+        return auditMetadata.automationContext();
+    }
 }
