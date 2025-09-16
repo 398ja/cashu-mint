@@ -38,4 +38,4 @@ The profile sections also set Hibernate’s DDL mode (`validate` for PostgreSQL,
 
 ## 6. Verify the wiring
 
-After adjusting properties, launch the admin module (for example, via `java -jar cashu-mint-admin/target/cashu-mint-admin-<version>.jar`) and watch the logs. Startup success indicates that the datasource validation passed and your chosen migration tool applied without error. Use the [`mint config` tutorial](../tutorials/administer-mint-from-cli.md) to confirm that configuration commands still function against the initialized persistence layer.
+After adjusting properties, launch the CLI (for example, via `java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-<version>-runner.jar`) and watch the logs. Startup success indicates that the datasource validation passed and your chosen migration tool applied without error. Use the [`mint config` tutorial](../tutorials/administer-mint-from-cli.md) to confirm that configuration commands still function against the initialized persistence layer.
