@@ -1,4 +1,4 @@
-package xyz.tcheeric.cashu.mint.admin.presentation.lifecycle;
+package xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import xyz.tcheeric.cashu.mint.admin.cli.io.OutputFormat;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 
 /**
  * Verifies CLI lifecycle presenters reuse shared rendering logic.

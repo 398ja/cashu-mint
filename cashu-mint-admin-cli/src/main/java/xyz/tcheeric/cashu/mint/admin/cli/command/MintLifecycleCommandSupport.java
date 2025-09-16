@@ -10,7 +10,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.model.MintLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
 import java.io.BufferedReader;
 import java.io.IOException;

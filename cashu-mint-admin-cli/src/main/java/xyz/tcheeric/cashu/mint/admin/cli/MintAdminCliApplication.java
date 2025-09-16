@@ -24,7 +24,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintConfigPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
-import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 /**
