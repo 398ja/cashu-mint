@@ -37,10 +37,11 @@ Flyway migrations are resolved from `classpath:db/migration/admin/**` while Liqu
 `cashu-mint-admin/src/main/resources/application.yml`.
 
 The REST module now exposes authenticated administrative endpoints under `/admin` for
-mint lifecycle, configuration, operator management, and alert workflows. These routes
-currently return `501 Not Implemented` while the corresponding use cases are built, but
-they already enforce token-based authentication (`X-Admin-Token`) and validate payloads
-into request DTOs shared with the future admin services.
+mint lifecycle, configuration, operator management, and alert workflows. Each route now
+returns structured responses that mirror the CLI experience, enforces token-based
+authentication (`X-Admin-Token`), and checks role membership via `X-Admin-Roles`.
+OpenAPI documentation is published at runtime so operators can explore the admin
+surface from `/v3/api-docs` or the bundled Swagger UI.
 
 ## Admin CLI
 
