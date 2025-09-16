@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.admin.service;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
@@ -165,6 +166,10 @@ public class AdminLifecycleService {
     private static String transitionVersionTag(final LifecycleChangeRequest request, final String currentVersionTag) {
         if (request.correlationId() != null && !request.correlationId().isBlank()) {
             return request.correlationId();
+        }
+        final String contextId = CorrelationIdContext.currentId();
+        if (contextId != null && !contextId.isBlank()) {
+            return contextId;
         }
         if (request.reason() != null && !request.reason().isBlank()) {
             return request.reason().trim().toLowerCase(Locale.ROOT).replace(' ', '-');
