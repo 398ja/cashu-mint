@@ -21,6 +21,7 @@ import xyz.tcheeric.cashu.mint.rest.admin.service.AdminLifecycleService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -151,5 +152,28 @@ class LifecycleAdminControllerTest {
 
         final JsonNode body = objectMapper.readTree(pauseResult.getResponse().getContentAsString());
         assertThat(body.get("versionTag").asText()).isEqualTo(provided);
+    }
+
+    // Ensures lifecycle update failures surface structured error responses consistent with CLI messaging.
+    @Test
+    @DisplayName("Lifecycle update returns structured not-found error")
+    void updateMintReturnsStructuredError() throws Exception {
+        mockMvc.perform(put("/admin/lifecycle/mints/missing-mint")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "requestedBy": {"id":"ops","displayName":"Ops"},
+                                  "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
+                                  "configuration": {"versionTag":"v2"},
+                                  "revisionId": "rev-2"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.code").value("mint_not_found"))
+                .andExpect(jsonPath("$.message").value("Mint not found: missing-mint"));
     }
 }
