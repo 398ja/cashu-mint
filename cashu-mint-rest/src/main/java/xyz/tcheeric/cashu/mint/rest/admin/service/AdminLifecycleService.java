@@ -3,11 +3,15 @@ package xyz.tcheeric.cashu.mint.rest.admin.service;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.CreateMintRequest;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.LifecycleChangeRequest;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.MintMetadataDto;
 import xyz.tcheeric.cashu.mint.rest.admin.dto.lifecycle.UpdateMintRequest;
+import xyz.tcheeric.cashu.mint.rest.admin.presenter.LifecycleSummaryApiPresenter;
 
 import java.util.Locale;
 import java.util.Map;
@@ -25,45 +29,46 @@ public class AdminLifecycleService {
 
     private static final String DEFAULT_VERSION_TAG = "v1";
 
-    private final ConcurrentMap<String, MintRecord> lifecycleState = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, MintRecord> lifecycleState;
+    private final LifecycleSummaryPresenter summaryPresenter;
+    private final LifecycleSummaryApiPresenter apiPresenter;
+
+    public AdminLifecycleService() {
+        this(new ConcurrentHashMap<>(), new LifecycleSummaryPresenter(), new LifecycleSummaryApiPresenter());
+    }
+
+    AdminLifecycleService(final ConcurrentMap<String, MintRecord> lifecycleState,
+                          final LifecycleSummaryPresenter summaryPresenter,
+                          final LifecycleSummaryApiPresenter apiPresenter) {
+        this.lifecycleState = Objects.requireNonNull(lifecycleState, "lifecycleState");
+        this.summaryPresenter = Objects.requireNonNull(summaryPresenter, "summaryPresenter");
+        this.apiPresenter = Objects.requireNonNull(apiPresenter, "apiPresenter");
+    }
 
     public LifecycleActionResponse createMint(final CreateMintRequest request) {
         Objects.requireNonNull(request, "request");
-        final AtomicReference<LifecycleActionResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<LifecycleSummary> summaryRef = new AtomicReference<>();
         lifecycleState.compute(request.mintId(), (id, current) -> {
             if (current != null) {
-                responseRef.set(new LifecycleActionResponse(
-                        LifecycleOperation.CREATE.name(),
-                        id,
-                        current.status.name(),
-                        current.status.name(),
-                        current.versionTag,
-                        false,
-                        "Mint already exists"));
+                summaryRef.set(present(LifecycleAction.CREATE, id, current.status.name(), current.status.name(),
+                    current.versionTag, false));
                 return current;
             }
             final String versionTag = extractVersionTag(request.configuration(), DEFAULT_VERSION_TAG);
             final MintRecord created = new MintRecord(LifecycleStatus.PROVISIONED, versionTag,
-                    request.metadata(), normalizeConfiguration(request.configuration()));
-            responseRef.set(new LifecycleActionResponse(
-                    LifecycleOperation.CREATE.name(),
-                    id,
-                    null,
-                    created.status.name(),
-                    created.versionTag,
-                    true,
-                    "Mint created"));
+                request.metadata(), normalizeConfiguration(request.configuration()));
+            summaryRef.set(present(LifecycleAction.CREATE, id, null, created.status.name(), created.versionTag, true));
             return created;
         });
-        return responseRef.get();
+        return apiPresenter.present(summaryRef.get());
     }
 
     public LifecycleActionResponse updateMint(final String mintId, final UpdateMintRequest request) {
         Objects.requireNonNull(request, "request");
-        final AtomicReference<LifecycleActionResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<LifecycleSummary> summaryRef = new AtomicReference<>();
         lifecycleState.compute(mintId, (id, current) -> {
             if (current == null) {
-                responseRef.set(null);
+                summaryRef.set(null);
                 return null;
             }
             final Map<String, Object> normalizedConfig = normalizeConfiguration(request.configuration());
@@ -75,71 +80,62 @@ public class AdminLifecycleService {
             current.configuration = normalizedConfig;
             current.versionTag = newVersionTag;
             final boolean changed = metadataChanged || configChanged || versionChanged;
-            responseRef.set(new LifecycleActionResponse(
-                    LifecycleOperation.UPDATE.name(),
-                    id,
-                    current.status.name(),
-                    current.status.name(),
-                    current.versionTag,
-                    changed,
-                    changed ? "Mint updated" : "No changes applied"));
+            summaryRef.set(present(LifecycleAction.UPDATE, id, current.status.name(), current.status.name(),
+                current.versionTag, changed));
             return current;
         });
-        final LifecycleActionResponse response = responseRef.get();
-        if (response == null) {
+        final LifecycleSummary summary = summaryRef.get();
+        if (summary == null) {
             throw new AdminServiceException(HttpStatus.NOT_FOUND, "mint_not_found", "Mint not found: " + mintId);
         }
-        return response;
+        return apiPresenter.present(summary);
     }
 
     public LifecycleActionResponse pauseMint(final String mintId, final LifecycleChangeRequest request) {
-        return transition(mintId, request, LifecycleStatus.SUSPENDED,
-                LifecycleOperation.PAUSE, "Mint paused", "Mint already suspended");
+        return apiPresenter.present(transition(mintId, request, LifecycleStatus.SUSPENDED, LifecycleAction.PAUSE));
     }
 
     public LifecycleActionResponse resumeMint(final String mintId, final LifecycleChangeRequest request) {
-        return transition(mintId, request, LifecycleStatus.ACTIVE,
-                LifecycleOperation.RESUME, "Mint resumed", "Mint already active");
+        return apiPresenter.present(transition(mintId, request, LifecycleStatus.ACTIVE, LifecycleAction.RESUME));
     }
 
     public LifecycleActionResponse retireMint(final String mintId, final LifecycleChangeRequest request) {
-        return transition(mintId, request, LifecycleStatus.DECOMMISSIONED,
-                LifecycleOperation.RETIRE, "Mint retired", "Mint already retired");
+        return apiPresenter.present(transition(mintId, request, LifecycleStatus.DECOMMISSIONED, LifecycleAction.RETIRE));
     }
 
-    private LifecycleActionResponse transition(final String mintId,
-                                                final LifecycleChangeRequest request,
-                                                final LifecycleStatus target,
-                                                final LifecycleOperation operation,
-                                                final String successMessage,
-                                                final String idempotentMessage) {
+    private LifecycleSummary transition(final String mintId,
+                                        final LifecycleChangeRequest request,
+                                        final LifecycleStatus target,
+                                        final LifecycleAction operation) {
         Objects.requireNonNull(request, "request");
-        final AtomicReference<LifecycleActionResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<LifecycleSummary> summaryRef = new AtomicReference<>();
         lifecycleState.compute(mintId, (id, current) -> {
             if (current == null) {
-                responseRef.set(null);
+                summaryRef.set(null);
                 return null;
             }
             final LifecycleStatus previous = current.status;
             final boolean changed = previous != target;
             current.status = target;
             current.versionTag = transitionVersionTag(request, current.versionTag);
-            final String message = changed ? successMessage : idempotentMessage;
-            responseRef.set(new LifecycleActionResponse(
-                    operation.name(),
-                    id,
-                    previous.name(),
-                    current.status.name(),
-                    current.versionTag,
-                    changed,
-                    message));
+            summaryRef.set(present(operation, id, previous.name(), current.status.name(), current.versionTag, changed));
             return current;
         });
-        final LifecycleActionResponse response = responseRef.get();
-        if (response == null) {
+        final LifecycleSummary summary = summaryRef.get();
+        if (summary == null) {
             throw new AdminServiceException(HttpStatus.NOT_FOUND, "mint_not_found", "Mint not found: " + mintId);
         }
-        return response;
+        return summary;
+    }
+
+    private LifecycleSummary present(final LifecycleAction operation,
+                                     final String mintId,
+                                     final String previousState,
+                                     final String currentState,
+                                     final String versionTag,
+                                     final boolean changed) {
+        return summaryPresenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(operation,
+            mintId, previousState, currentState, versionTag, changed));
     }
 
     private static Map<String, Object> normalizeConfiguration(final Map<String, Object> configuration) {
@@ -181,14 +177,6 @@ public class AdminLifecycleService {
         ACTIVE,
         SUSPENDED,
         DECOMMISSIONED
-    }
-
-    private enum LifecycleOperation {
-        CREATE,
-        UPDATE,
-        PAUSE,
-        RESUME,
-        RETIRE
     }
 
     private static final class MintRecord {

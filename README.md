@@ -70,7 +70,9 @@ Commands accept JSON payloads by default (`--input-format=JSON`) and can switch 
 YAML with `--input-format=YAML`. Lifecycle commands also accept option-derived input
 (`--mint-id`, `--operator-id`, `--version-tag`) and emit machine-readable output that
 signals whether a change occurred. Responses default to tabular output
-(`--output-format=TABLE`) but can emit prettified JSON for scripting.
+(`--output-format=TABLE`) but can emit prettified JSON for scripting. Lifecycle
+summaries are produced by shared presenters so the CLI tables, JSON payloads, and
+REST `LifecycleActionResponse` structures remain identical.
 
 ## Admin persistence
 
