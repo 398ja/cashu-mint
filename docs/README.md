@@ -15,6 +15,8 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
 - [Configure mint admin persistence](how-to/configure-mint-admin-persistence.md) - Wire databases and migrations for the admin module.
 - [Connect the admin CLI to the REST service](how-to/connect-admin-cli-to-rest.md) - Replace the stub ports with REST-backed adapters.
+- [Manage the mint lifecycle from the CLI](how-to/manage-mint-lifecycle-cli.md) - Drive create, update, pause, resume, and retire commands.
+- [Manage the mint lifecycle via the REST API](how-to/manage-mint-lifecycle-api.md) - Exercise lifecycle endpoints with HTTP requests.
 
 ## Reference
 - [Configuration](reference/configuration.md) - Application properties and defaults.
@@ -24,6 +26,8 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Java version](reference/java-version.md) - Required JDK for building.
 - [License](reference/license.md) - Licensing information.
 - [Mint admin CLI](reference/mint-admin-cli.md) - Commands, payloads, and renderer options for the admin tool.
+- [Administrative lifecycle audit schema](reference/admin-lifecycle-audit-schema.md) - Tables backing lifecycle projections,
+  approvals, and audit linkage.
 
 ## Explanations
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.

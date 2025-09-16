@@ -2,6 +2,8 @@ package xyz.tcheeric.cashu.mint.admin.domain;
 
 import static java.util.Objects.requireNonNull;
 
+import java.util.Optional;
+
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
@@ -40,6 +42,24 @@ public final class MintAggregate {
         if (!auditTrail.latestMetadata().equals(auditMetadata)) {
             throw new IllegalArgumentException("latest audit metadata must match aggregate audit metadata");
         }
+        final LifecycleContext context = this.auditMetadata.lifecycleContext();
+        if (context.hasConfigurationRevision()
+            && !context.configurationRevisionId().equals(configurationSet.revisionId())) {
+            throw new IllegalArgumentException("audit configuration revision must match aggregate configuration revision");
+        }
+        if (context.hasNotificationPolicySnapshot()) {
+            final NotificationPolicySnapshot snapshot = context.notificationPolicySnapshot();
+            final AuditMetadata policyAudit = notificationPolicy.auditMetadata();
+            final boolean matchesPolicy = snapshot.emailEnabled() == notificationPolicy.emailEnabled()
+                && snapshot.webhookEnabled() == notificationPolicy.webhookEnabled()
+                && snapshot.throttleInterval().equals(notificationPolicy.throttleInterval())
+                && snapshot.auditActor().equals(policyAudit.actor())
+                && snapshot.auditAction().equals(policyAudit.action())
+                && snapshot.auditTimestamp().equals(policyAudit.timestamp());
+            if (!matchesPolicy) {
+                throw new IllegalArgumentException("audit notification policy snapshot must match aggregate policy");
+            }
+        }
     }
 
     public static MintAggregate create(final MintId mintId,
@@ -47,7 +67,8 @@ public final class MintAggregate {
                                        final OperatorAccount operatorAccount,
                                        final NotificationPolicy notificationPolicy,
                                        final AuditMetadata metadata) {
-        final AuditMetadata creationMetadata = requireNonNull(metadata, "audit metadata must not be null");
+        final AuditMetadata creationMetadata = requireNonNull(metadata, "audit metadata must not be null")
+            .withLifecycleContext(configurationSet.revisionId(), notificationPolicy);
         final AuditTrail trail = AuditTrail.create(creationMetadata);
         return new MintAggregate(mintId, LifecycleState.provisioned(), configurationSet, operatorAccount,
             notificationPolicy, trail, creationMetadata);
@@ -65,18 +86,20 @@ public final class MintAggregate {
     }
 
     public MintAggregate activate(final AuditMetadata metadata) {
-        final LifecycleState nextState = lifecycleState.transitionTo(LifecycleState.State.ACTIVE);
-        return withChange(nextState, configurationSet, operatorAccount, notificationPolicy, metadata);
+        return transitionLifecycleTo(LifecycleState.State.ACTIVE, metadata);
     }
 
     public MintAggregate suspend(final AuditMetadata metadata) {
-        final LifecycleState nextState = lifecycleState.transitionTo(LifecycleState.State.SUSPENDED);
-        return withChange(nextState, configurationSet, operatorAccount, notificationPolicy, metadata);
+        return transitionLifecycleTo(LifecycleState.State.SUSPENDED, metadata);
     }
 
     public MintAggregate decommission(final AuditMetadata metadata) {
-        final LifecycleState nextState = lifecycleState.transitionTo(LifecycleState.State.DECOMMISSIONED);
-        return withChange(nextState, configurationSet, operatorAccount, notificationPolicy, metadata);
+        return transitionLifecycleTo(LifecycleState.State.DECOMMISSIONED, metadata);
+    }
+
+    public Optional<LifecycleState.TransitionApproval> approvalRequirementsFor(
+            final LifecycleState.State targetState) {
+        return lifecycleState.approvalRequirementsFor(targetState);
     }
 
     public MintAggregate updateConfiguration(final ConfigurationSet newConfiguration, final AuditMetadata metadata) {
@@ -102,8 +125,15 @@ public final class MintAggregate {
                                      final OperatorAccount operator,
                                      final NotificationPolicy policy,
                                      final AuditMetadata metadata) {
-        final AuditMetadata audit = requireNonNull(metadata, "audit metadata must not be null");
+        final AuditMetadata audit = requireNonNull(metadata, "audit metadata must not be null")
+            .withLifecycleContext(configuration.revisionId(), policy);
         final AuditTrail trail = this.auditTrail.append(audit);
         return new MintAggregate(mintId, state, configuration, operator, policy, trail, audit);
+    }
+
+    private MintAggregate transitionLifecycleTo(final LifecycleState.State targetState,
+                                                final AuditMetadata metadata) {
+        final LifecycleState nextState = lifecycleState.transitionTo(targetState);
+        return withChange(nextState, configurationSet, operatorAccount, notificationPolicy, metadata);
     }
 }

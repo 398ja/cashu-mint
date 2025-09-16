@@ -17,8 +17,15 @@ import xyz.tcheeric.cashu.mint.admin.cli.model.MintUserRecord;
 import xyz.tcheeric.cashu.mint.admin.cli.model.MintUsersRequest;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintAlertsPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintConfigPort;
+import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintUsersPort;
+import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleAction;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,8 +45,9 @@ class MintAdminCliApplicationTest {
         final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
         final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
         final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
 
-        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort))
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort, lifecyclePort))
             .execute("--output-format=JSON");
 
         assertThat(statusPort.lastRequest.get()).isEqualTo(MintStatusRequest.defaultRequest());
@@ -54,10 +62,11 @@ class MintAdminCliApplicationTest {
         final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
         final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
         final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
 
         final String payload = "{\"mintId\":\"mint-007\",\"parameters\":{\"rate\":\"5\"}}";
 
-        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort))
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort, lifecyclePort))
             .execute("config", "--payload=" + payload, "--output-format=JSON");
 
         final MintConfigRequest request = configPort.lastRequest.get();
@@ -74,11 +83,12 @@ class MintAdminCliApplicationTest {
         final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
         final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
         final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
 
         final Path yamlFile = Files.createTempFile("mint-users", ".yml");
         Files.writeString(yamlFile, "mintId: yaml-mint\nincludeInactive: true\n");
 
-        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort))
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort, lifecyclePort))
             .execute("users", "--input-format=YAML", "--payload-file=" + yamlFile.toAbsolutePath());
 
         final MintUsersRequest request = usersPort.lastRequest.get();
@@ -95,8 +105,10 @@ class MintAdminCliApplicationTest {
         final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
         final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
         final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
 
-        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort))
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort,
+                lifecyclePort))
             .execute("alerts", "--mint-id=alerts-mint", "--severity=WARN", "--output-format=JSON");
 
         final MintAlertsRequest request = alertsPort.lastRequest.get();
@@ -106,13 +118,79 @@ class MintAdminCliApplicationTest {
         execution.assertExitCode(CommandLine.ExitCode.OK);
     }
 
+    // Validates JSON lifecycle payloads execute the create command and emit machine-readable output.
+    @Test
+    void shouldExecuteCreateLifecycleCommandWithJsonPayload() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final String payload = "{\"mintId\":\"mint-321\",\"operatorId\":\"123e4567-e89b-12d3-a456-426614174000\",\"versionTag\":\"v1.0.0\"}";
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("create", "--payload=" + payload, "--output-format=JSON", "--yes");
+
+        final MintLifecyclePort.MintLifecycleCommand command = lifecyclePort.lastCommand.get();
+        assertThat(command.operation()).isEqualTo(LifecycleAction.CREATE);
+        assertThat(command.request().mintId()).isEqualTo("mint-321");
+        assertThat(execution.getSystemOutString()).contains("\"currentState\" : \"PROVISIONED\"");
+        assertThat(execution.getSystemOutString()).contains("\"changed\" : true");
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Ensures lifecycle commands flag idempotency when the target state is already applied.
+    @Test
+    void shouldIndicateIdempotentPauseLifecycleCommand() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+        lifecyclePort.seed("mint-777", LifecycleState.State.SUSPENDED, "v1");
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("pause", "--mint-id=mint-777", "--operator-id=123e4567-e89b-12d3-a456-426614174000",
+                "--version-tag=v1", "--output-format=JSON", "--yes");
+
+        assertThat(execution.getSystemOutString()).contains("\"changed\" : false");
+        assertThat(execution.getSystemOutString()).contains("already suspended");
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Ensures lifecycle commands run with a generated correlation identifier.
+    @Test
+    void shouldPopulateCorrelationIdDuringLifecycleExecution() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingMintConfigPort configPort = new RecordingMintConfigPort();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+        lifecyclePort.seed("mint-200", LifecycleState.State.ACTIVE, "v1");
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configPort, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("pause", "--mint-id=mint-200", "--operator-id=123e4567-e89b-12d3-a456-426614174000",
+                "--version-tag=v1", "--output-format=JSON", "--yes");
+
+        assertThat(lifecyclePort.lastCorrelationId.get()).isNotBlank();
+        assertThat(CorrelationIdContext.currentId()).isNull();
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
     private CommandLine commandLine(final MintStatusPort statusPort,
                                     final MintConfigPort configPort,
                                     final MintUsersPort usersPort,
-                                    final MintAlertsPort alertsPort) {
+                                    final MintAlertsPort alertsPort,
+                                    final MintLifecyclePort lifecyclePort) {
         final CommandPayloadMapper mapper = CommandPayloadMapper.createDefault();
         final ResponseRenderingService renderer = ResponseRenderingService.createDefault(mapper.jsonMapper());
-        return MintAdminCliApplication.buildCommandLine(mapper, renderer, statusPort, configPort, usersPort, alertsPort);
+        final LifecycleSummaryCliPresenter lifecyclePresenter = new LifecycleSummaryCliPresenter(mapper.jsonMapper());
+        return MintAdminCliApplication.buildCommandLine(mapper, renderer, lifecyclePresenter, statusPort, configPort, usersPort,
+            alertsPort, lifecyclePort);
     }
 
     private static final class RecordingMintStatusPort implements MintStatusPort {
@@ -158,6 +236,18 @@ class MintAdminCliApplicationTest {
                 new MintAlertRecord("alert-1", "INFO", "Info alert", OffsetDateTime.now().minusHours(6).toString()),
                 new MintAlertRecord("alert-2", "WARN", "Warning alert", OffsetDateTime.now().minusHours(1).toString())
             );
+        }
+    }
+
+    private static final class RecordingMintLifecyclePort extends StubMintLifecyclePort {
+        private final AtomicReference<MintLifecyclePort.MintLifecycleCommand> lastCommand = new AtomicReference<>();
+        private final AtomicReference<String> lastCorrelationId = new AtomicReference<>();
+
+        @Override
+        public LifecycleSummary execute(final MintLifecycleCommand command) {
+            lastCommand.set(command);
+            lastCorrelationId.set(CorrelationIdContext.currentId());
+            return super.execute(command);
         }
     }
 }

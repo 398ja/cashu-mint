@@ -8,31 +8,35 @@ import org.junit.jupiter.api.Test;
 class LifecycleStateTest {
 
     @Test
-    // Ensures allowed transitions succeed and produce new state instances.
-    void shouldAllowValidTransition() {
-        final LifecycleState provisioned = LifecycleState.provisioned();
+    // Ensures guardTransitionTo provides approval metadata for valid transitions.
+    void shouldProvideApprovalMetadataForValidTransition() {
+        final LifecycleState state = LifecycleState.provisioned();
 
-        final LifecycleState active = provisioned.transitionTo(LifecycleState.State.ACTIVE);
+        final LifecycleState.TransitionApproval approval = state.guardTransitionTo(LifecycleState.State.ACTIVE);
 
-        assertThat(active.value()).isEqualTo(LifecycleState.State.ACTIVE);
+        assertThat(approval.target()).isEqualTo(LifecycleState.State.ACTIVE);
+        assertThat(approval.requiredSignoffs()).containsExactlyInAnyOrder("Operations", "Security");
+        assertThat(approval.description()).contains("Activation");
     }
 
     @Test
-    // Ensures transitioning to the same state returns the existing instance.
-    void shouldReturnSameInstanceWhenTransitioningToSameState() {
-        final LifecycleState provisioned = LifecycleState.provisioned();
+    // Ensures guardTransitionTo describes why invalid transitions fail.
+    void shouldDescribeInvalidTransitionAttempt() {
+        final LifecycleState state = LifecycleState.provisioned();
 
-        final LifecycleState same = provisioned.transitionTo(LifecycleState.State.PROVISIONED);
+        final IllegalStateException exception = assertThrows(IllegalStateException.class,
+            () -> state.guardTransitionTo(LifecycleState.State.SUSPENDED));
 
-        assertThat(same).isSameAs(provisioned);
+        assertThat(exception).hasMessageContaining("Cannot transition from PROVISIONED to SUSPENDED");
+        assertThat(exception).hasMessageContaining("Allowed transitions");
+        assertThat(exception.getMessage()).contains("ACTIVE (requires sign-off from: Operations, Security");
     }
 
     @Test
-    // Ensures invalid transitions are rejected with an exception.
-    void shouldRejectInvalidTransition() {
-        final LifecycleState provisioned = LifecycleState.provisioned();
+    // Ensures approval metadata is unavailable for disallowed transitions.
+    void shouldReturnEmptyApprovalMetadataWhenTransitionNotAllowed() {
+        final LifecycleState state = LifecycleState.provisioned();
 
-        assertThrows(IllegalStateException.class,
-            () -> provisioned.transitionTo(LifecycleState.State.SUSPENDED));
+        assertThat(state.approvalRequirementsFor(LifecycleState.State.SUSPENDED)).isEmpty();
     }
 }
