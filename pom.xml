@@ -58,6 +58,14 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Import Spring Boot BOM to manage dependency versions consistently -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <!-- Align all JUnit Jupiter + Platform artifacts to the same version -->
             <dependency>
                 <groupId>org.junit</groupId>
