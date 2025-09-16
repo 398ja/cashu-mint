@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.rest.admin.config.AdminAuthenticationFilter;
 import xyz.tcheeric.cashu.mint.rest.admin.config.AdminCorrelationIdFilter;
 import xyz.tcheeric.cashu.mint.rest.admin.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.rest.admin.service.AdminLifecycleService;
+import xyz.tcheeric.cashu.mint.rest.admin.service.AdminLifecycleServiceConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(LifecycleAdminController.class)
-@Import({AdminApiConfiguration.class, AdminLifecycleService.class})
+@Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminLifecycleService.class})
 @TestPropertySource(properties = "admin.security.api-token=test-token")
 class LifecycleAdminControllerTest {
 
