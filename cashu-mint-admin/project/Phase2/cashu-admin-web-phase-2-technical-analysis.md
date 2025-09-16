@@ -4,7 +4,7 @@ This explanation documents the technical analysis for the Cashu admin web interf
 
 ## Scope alignment
 
-Phase 2 delivers a browser-based control plane that matches the administrative coverage achieved by the command-line tooling and REST surfaces introduced in phase 1. The scope defined in the [functional specification](../../cashu-mint-admin/project/Phase2/cashu-admin-web-phase-2-spec.md) covers seven feature pillars:
+Phase 2 delivers a browser-based control plane that matches the administrative coverage achieved by the command-line tooling and REST surfaces introduced in phase 1. The scope defined in the [functional specification](cashu-admin-web-phase-2-spec.md) covers seven feature pillars:
 
 1. Unified dashboard consolidating mint state, alerts, and recent lifecycle activity.
 2. Mint lifecycle workspace for create, update, pause, resume, and retire workflows.
