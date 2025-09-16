@@ -23,6 +23,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintConfigPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryCliPresenter;
 
 /**
  * Picocli entry point for mint administration commands.
@@ -41,9 +42,11 @@ public final class MintAdminCliApplication {
     static CommandLine defaultCommandLine() {
         final CommandPayloadMapper payloadMapper = CommandPayloadMapper.createDefault();
         final ResponseRenderingService renderingService = ResponseRenderingService.createDefault(payloadMapper.jsonMapper());
+        final LifecycleSummaryCliPresenter lifecyclePresenter = new LifecycleSummaryCliPresenter(payloadMapper.jsonMapper());
         return buildCommandLine(
             payloadMapper,
             renderingService,
+            lifecyclePresenter,
             new StubMintStatusPort(),
             new StubMintConfigPort(),
             new StubMintUsersPort(),
@@ -54,6 +57,7 @@ public final class MintAdminCliApplication {
 
     static CommandLine buildCommandLine(final CommandPayloadMapper payloadMapper,
                                         final ResponseRenderingService renderingService,
+                                        final LifecycleSummaryCliPresenter lifecyclePresenter,
                                         final MintStatusPort statusPort,
                                         final MintConfigPort configPort,
                                         final MintUsersPort usersPort,
@@ -65,11 +69,11 @@ public final class MintAdminCliApplication {
         commandLine.addSubcommand("config", new MintConfigCommand(configPort, payloadMapper, renderingService));
         commandLine.addSubcommand("users", new MintUsersCommand(usersPort, payloadMapper, renderingService));
         commandLine.addSubcommand("alerts", new MintAlertsCommand(alertsPort, payloadMapper, renderingService));
-        commandLine.addSubcommand("create", new MintCreateCommand(lifecyclePort, payloadMapper, renderingService));
-        commandLine.addSubcommand("update", new MintUpdateCommand(lifecyclePort, payloadMapper, renderingService));
-        commandLine.addSubcommand("pause", new MintPauseCommand(lifecyclePort, payloadMapper, renderingService));
-        commandLine.addSubcommand("resume", new MintResumeCommand(lifecyclePort, payloadMapper, renderingService));
-        commandLine.addSubcommand("retire", new MintRetireCommand(lifecyclePort, payloadMapper, renderingService));
+        commandLine.addSubcommand("create", new MintCreateCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
+        commandLine.addSubcommand("update", new MintUpdateCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
+        commandLine.addSubcommand("pause", new MintPauseCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
+        commandLine.addSubcommand("resume", new MintResumeCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
+        commandLine.addSubcommand("retire", new MintRetireCommand(lifecyclePort, payloadMapper, lifecyclePresenter));
         return commandLine;
     }
 }
