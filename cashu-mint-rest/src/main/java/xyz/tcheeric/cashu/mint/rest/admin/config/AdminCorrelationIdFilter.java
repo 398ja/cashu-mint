@@ -25,13 +25,12 @@ public class AdminCorrelationIdFilter extends OncePerRequestFilter {
                                     final HttpServletResponse response,
                                     final FilterChain filterChain) throws ServletException, IOException {
         final String suppliedId = request.getHeader(CORRELATION_ID_HEADER);
-        final String correlationId = CorrelationIdContext.init(StringUtils.hasText(suppliedId) ? suppliedId : null);
-        request.setAttribute(CORRELATION_ID_ATTRIBUTE, correlationId);
-        response.setHeader(CORRELATION_ID_HEADER, correlationId);
-        try {
+        try (CorrelationIdContext.Scope scope =
+                 CorrelationIdContext.open(StringUtils.hasText(suppliedId) ? suppliedId : null)) {
+            final String correlationId = scope.correlationId();
+            request.setAttribute(CORRELATION_ID_ATTRIBUTE, correlationId);
+            response.setHeader(CORRELATION_ID_HEADER, correlationId);
             filterChain.doFilter(request, response);
-        } finally {
-            CorrelationIdContext.clear();
         }
     }
 }
