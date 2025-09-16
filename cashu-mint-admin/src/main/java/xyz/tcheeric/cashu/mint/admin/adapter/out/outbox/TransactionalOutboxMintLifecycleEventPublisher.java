@@ -8,10 +8,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintAggregateViewRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
 
@@ -24,19 +22,11 @@ public class TransactionalOutboxMintLifecycleEventPublisher implements MintLifec
     private static final String EVENT_SCHEMA = "admin.mint-lifecycle.v1";
 
     private final OutboxRepository outboxRepository;
-    private final MintAggregateViewRepository aggregateViewRepository;
-    private final MintLifecycleHistoryRepository historyRepository;
     private final ObjectMapper objectMapper;
 
     public TransactionalOutboxMintLifecycleEventPublisher(final OutboxRepository outboxRepository,
-                                                          final MintAggregateViewRepository aggregateViewRepository,
-                                                          final MintLifecycleHistoryRepository historyRepository,
                                                           final ObjectMapper objectMapper) {
         this.outboxRepository = Objects.requireNonNull(outboxRepository, "outbox repository must not be null");
-        this.aggregateViewRepository =
-            Objects.requireNonNull(aggregateViewRepository, "aggregate view repository must not be null");
-        this.historyRepository =
-            Objects.requireNonNull(historyRepository, "lifecycle history repository must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
     }
 
@@ -46,8 +36,6 @@ public class TransactionalOutboxMintLifecycleEventPublisher implements MintLifec
         final UUID eventId = UUID.randomUUID();
         final OutboxMessage message = toOutboxMessage(eventId, event);
         outboxRepository.append(message);
-        aggregateViewRepository.upsert(event);
-        historyRepository.append(eventId, event);
     }
 
     private OutboxMessage toOutboxMessage(final UUID eventId, final MintLifecycleEvent event) {
