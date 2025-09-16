@@ -7,13 +7,17 @@ import java.util.UUID;
  */
 public record MintLifecycleRequest(String mintId,
                                    String operatorId,
-                                   String versionTag) {
+                                   String versionTag,
+                                   String requestId,
+                                   String correlationId) {
 
     public MintLifecycleRequest {
         mintId = ModelValidations.requireMintId(mintId);
         operatorId = ModelValidations.requireText(operatorId, "operatorId");
         versionTag = ModelValidations.requireText(versionTag, "versionTag");
         validateOperator(operatorId);
+        requestId = sanitizeRequestId(requestId);
+        correlationId = ModelValidations.optionalText(correlationId, "correlationId");
     }
 
     private static void validateOperator(final String operatorId) {
@@ -21,6 +25,17 @@ public record MintLifecycleRequest(String mintId,
             UUID.fromString(operatorId);
         } catch (final IllegalArgumentException ex) {
             throw new IllegalArgumentException("operatorId must be a valid UUID", ex);
+        }
+    }
+
+    private static String sanitizeRequestId(final String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(requestId.trim()).toString();
+        } catch (final IllegalArgumentException ex) {
+            throw new IllegalArgumentException("requestId must be a valid UUID", ex);
         }
     }
 }

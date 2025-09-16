@@ -74,12 +74,11 @@ signals whether a change occurred. Responses default to tabular output
 summaries are produced by shared presenters so the CLI tables, JSON payloads, and
 REST `LifecycleActionResponse` structures remain identical.
 
-Every CLI invocation now seeds a correlation identifier that is propagated through
-the execution context and logging MDC so lifecycle actions can be tied back to audit
-records. REST requests receive the same treatment via the `X-Correlation-ID` header:
-callers may supply their own identifier or rely on the middleware to generate one,
-and the resolved value is echoed in responses and version tags for lifecycle
-transitions.
+Each CLI invocation carries a traceable identifier. Provide `--request-id` to reuse a
+known UUID (the CLI generates one automatically when omitted) and `--correlation-id`
+to link the action to external change-management tickets. Both identifiers flow
+through the lifecycle interactor and into audit metadata so outbox events and
+observability tooling can align terminal activity with persisted history.
 
 ## Admin persistence
 

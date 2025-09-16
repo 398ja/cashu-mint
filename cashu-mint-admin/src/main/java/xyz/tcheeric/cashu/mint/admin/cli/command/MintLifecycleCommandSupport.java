@@ -18,6 +18,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
 abstract class MintLifecycleCommandSupport implements Callable<Integer> {
@@ -44,6 +45,14 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
     @Option(names = "--version-tag",
             description = "Version tag recorded with the lifecycle change.")
     private String versionTag;
+
+    @Option(names = "--request-id",
+            description = "Unique identifier for this lifecycle invocation.")
+    private String requestId;
+
+    @Option(names = "--correlation-id",
+            description = "External correlation identifier linking related changes.")
+    private String correlationId;
 
     @Option(names = {"-y", "--yes"},
             description = "Automatically confirm the lifecycle action.")
@@ -84,7 +93,8 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
     private MintLifecycleRequest resolveRequest() {
         return ioOptions
             .readPayload(payloadMapper, MintLifecycleRequest.class)
-            .orElseGet(this::buildFromOptions);
+            .map(this::ensureRequestIdentifiers)
+            .orElseGet(() -> ensureRequestIdentifiers(buildFromOptions()));
     }
 
     private MintLifecycleRequest buildFromOptions() {
@@ -92,7 +102,7 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
             throw new IllegalArgumentException(
                 "Lifecycle command requires --mint-id, --operator-id, and --version-tag when no payload is provided.");
         }
-        return new MintLifecycleRequest(mintId, operatorId, versionTag);
+        return new MintLifecycleRequest(mintId, operatorId, versionTag, requestId, correlationId);
     }
 
     private boolean confirm(final MintLifecycleRequest request) {
@@ -120,5 +130,19 @@ abstract class MintLifecycleCommandSupport implements Callable<Integer> {
             return new BufferedReader(consoleReader);
         }
         return new BufferedReader(new InputStreamReader(System.in));
+    }
+
+    private MintLifecycleRequest ensureRequestIdentifiers(final MintLifecycleRequest request) {
+        final String resolvedRequestId = request.requestId() == null
+            ? UUID.randomUUID().toString()
+            : request.requestId();
+        final String resolvedCorrelationId = request.correlationId() == null
+            ? resolvedRequestId
+            : request.correlationId();
+        if (resolvedRequestId.equals(request.requestId()) && resolvedCorrelationId.equals(request.correlationId())) {
+            return request;
+        }
+        return new MintLifecycleRequest(request.mintId(), request.operatorId(), request.versionTag(), resolvedRequestId,
+            resolvedCorrelationId);
     }
 }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,8 @@ class AuditMetadataTest {
         assertThat(metadata.automationContext()).isEqualTo(AutomationContext.manual());
         assertThat(metadata.lifecycleContext().hasConfigurationRevision()).isFalse();
         assertThat(metadata.lifecycleContext().hasNotificationPolicySnapshot()).isFalse();
+        assertThat(metadata.requestId()).isNull();
+        assertThat(metadata.correlationId()).isNull();
     }
 
     @Test
@@ -46,6 +49,28 @@ class AuditMetadataTest {
         assertThat(metadata.ticketReferences()).containsExactly("INC-123", "RFO-456");
         assertThat(metadata.automationContext()).isEqualTo(automation);
         assertThat(metadata.lifecycleContext().hasConfigurationRevision()).isFalse();
+    }
+
+    @Test
+    // Ensures identifiers are captured and sanitised when provided.
+    void shouldCaptureRequestAndCorrelationIdentifiers() {
+        final Instant now = Instant.now();
+        final UUID requestId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+
+        final AuditMetadata metadata = new AuditMetadata(
+            "alice",
+            "paused",
+            now,
+            List.of(),
+            List.of(),
+            AutomationContext.manual(),
+            LifecycleContext.empty(),
+            requestId,
+            " ticket-123 "
+        );
+
+        assertThat(metadata.requestId()).isEqualTo(requestId);
+        assertThat(metadata.correlationId()).isEqualTo("ticket-123");
     }
 
     @Test
@@ -92,6 +117,8 @@ class AuditMetadataTest {
         assertThat(metadata.reasonCodes()).isEmpty();
         assertThat(metadata.ticketReferences()).isEmpty();
         assertThat(metadata.automationContext()).isEqualTo(AutomationContext.manual());
+        assertThat(metadata.requestId()).isNull();
+        assertThat(metadata.correlationId()).isNull();
     }
 
     @Test
@@ -111,5 +138,23 @@ class AuditMetadataTest {
         assertThat(snapshot.throttleInterval()).isEqualTo(Duration.ofMinutes(5));
         assertThat(snapshot.auditActor()).isEqualTo(metadata.actor());
         assertThat(snapshot.auditAction()).isEqualTo(metadata.action());
+    }
+
+    @Test
+    // Ensures blank correlation identifiers are rejected.
+    void shouldRejectBlankCorrelationId() {
+        final UUID requestId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+        assertThrows(IllegalArgumentException.class, () -> new AuditMetadata(
+            "alice",
+            "paused",
+            Instant.now(),
+            List.of(),
+            List.of(),
+            AutomationContext.manual(),
+            LifecycleContext.empty(),
+            requestId,
+            " "
+        ));
     }
 }

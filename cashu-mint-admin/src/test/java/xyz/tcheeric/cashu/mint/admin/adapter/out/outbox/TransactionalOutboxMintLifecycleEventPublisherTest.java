@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleContext;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
@@ -41,7 +42,8 @@ class TransactionalOutboxMintLifecycleEventPublisherTest {
             ConfigurationRevisionId.of(3),
             "v3",
             new AuditMetadata("system", "pause", Instant.parse("2024-01-01T00:00:00Z"),
-                List.of(), List.of("INC-42"), AutomationContext.manual()));
+                List.of(), List.of("INC-42"), AutomationContext.manual(), LifecycleContext.empty(),
+                UUID.fromString("00000000-1111-2222-3333-444444444444"), "incident-42"));
 
         publisher.publish(event);
 
@@ -51,6 +53,8 @@ class TransactionalOutboxMintLifecycleEventPublisherTest {
         assertThat(message.eventType()).isEqualTo("PAUSED");
         assertThat(message.aggregateId()).isEqualTo(event.mintId());
         assertThat(message.payload()).contains("\"type\":\"PAUSED\"");
+        assertThat(message.payload()).contains("\"requestId\":\"00000000-1111-2222-3333-444444444444\"");
+        assertThat(message.payload()).contains("\"correlationId\":\"incident-42\"");
         assertThat(message.attributes()).containsEntry("schema", "admin.mint-lifecycle.v1");
         assertThat(message.attributes()).containsEntry("versionTag", "v3");
         assertThat(message.occurredAt()).isEqualTo(event.auditMetadata().timestamp());

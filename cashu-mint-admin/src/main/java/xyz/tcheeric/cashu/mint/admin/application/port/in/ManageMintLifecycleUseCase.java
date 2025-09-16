@@ -20,7 +20,9 @@ public interface ManageMintLifecycleUseCase {
     record ManageMintLifecycleRequest(String mintId,
                                       String operatorId,
                                       LifecycleCommand command,
-                                      String versionTag) { }
+                                      String versionTag,
+                                      String requestId,
+                                      String correlationId) { }
 
     record ManageMintLifecycleResponse(String mintId,
                                        LifecycleState.State lifecycleState,
