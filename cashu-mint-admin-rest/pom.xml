@@ -7,10 +7,10 @@
         <artifactId>cashu-mint</artifactId>
         <version>0.1.10</version>
     </parent>
-    <artifactId>cashu-mint-rest</artifactId>
+    <artifactId>cashu-mint-admin-rest</artifactId>
     <version>0.1.10</version>
-    <name>cashu-mint-rest</name>
-    <description>Demo project for Spring Boot</description>
+    <name>cashu-mint-admin-rest</name>
+    <description>Administrative REST API for the Cashu mint</description>
     <properties>
         <java.version>21</java.version>
     </properties>
@@ -20,55 +20,31 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <version>${spring.boot.version}</version>
         </dependency>
-        <!-- Phoenixd gateway is used unconditionally via protocol module -->
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>${commons-lang3.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>commons-beanutils</groupId>
-            <artifactId>commons-beanutils</artifactId>
-            <version>${commons-beanutils.version}</version> <!-- Use the latest stable version -->
-            <scope>test</scope>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+            <version>${spring.boot.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-lib-entities</artifactId>
-            <version>${cashu-libs.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-mint-protocol</artifactId>
+            <artifactId>cashu-mint-admin</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>${postgresql.version}</version>
-            <scope>runtime</scope>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.7.0</version>
         </dependency>
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <version>2.3.232</version>
-            <scope>test</scope>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <version>${spring.boot.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring.boot.version}</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-            <version>${spring.boot.version}</version>
         </dependency>
     </dependencies>
 
@@ -125,7 +101,7 @@
                         <image>eclipse-temurin:21-jre</image>
                     </from>
                     <to>
-                        <image>docker.398ja.xyz/cashu-mint-rest</image>
+                        <image>docker.398ja.xyz/cashu-mint-admin-rest</image>
                         <tags>
                             <tag>${project.version}</tag>
                             <tag>latest</tag>
