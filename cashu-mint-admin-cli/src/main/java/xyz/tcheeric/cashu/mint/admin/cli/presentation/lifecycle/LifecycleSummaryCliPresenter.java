@@ -1,10 +1,11 @@
-package xyz.tcheeric.cashu.mint.admin.presentation.lifecycle;
+package xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Objects;
 
 import xyz.tcheeric.cashu.mint.admin.cli.io.OutputFormat;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 
 /**
  * Delegates lifecycle summary rendering to the appropriate presenter based on CLI output format.

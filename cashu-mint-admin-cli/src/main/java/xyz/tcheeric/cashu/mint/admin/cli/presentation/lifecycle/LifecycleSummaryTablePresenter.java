@@ -1,10 +1,11 @@
-package xyz.tcheeric.cashu.mint.admin.presentation.lifecycle;
+package xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Objects;
 
 import xyz.tcheeric.cashu.mint.admin.cli.io.TableResponseRenderer;
+import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 
 /**
  * Presents lifecycle summaries as human-readable tables.

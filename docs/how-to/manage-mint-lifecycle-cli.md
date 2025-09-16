@@ -10,7 +10,7 @@ This guide walks operators through the `mint` admin CLI commands that create, up
 
 ## 1. Prepare a lifecycle payload
 
-Lifecycle subcommands reuse the [`MintLifecycleRequest`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/model/MintLifecycleRequest.java) model, which requires the mint identifier, the operator UUID, and a version tag. Optional request and correlation identifiers will be generated automatically when omitted. Store the values in a JSON file so the same payload can drive multiple actions:
+Lifecycle subcommands reuse the [`MintLifecycleRequest`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/model/MintLifecycleRequest.java) model, which requires the mint identifier, the operator UUID, and a version tag. Optional request and correlation identifiers will be generated automatically when omitted. Store the values in a JSON file so the same payload can drive multiple actions:
 
 ```json
 {
@@ -35,7 +35,7 @@ mint create \
   --yes
 ```
 
-A successful run prints the lifecycle summary assembled by [`MintCreateCommand`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintCreateCommand.java), including the new state and version tag.
+A successful run prints the lifecycle summary assembled by [`MintCreateCommand`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintCreateCommand.java), including the new state and version tag.
 
 ## 3. Apply lifecycle updates
 
@@ -60,7 +60,7 @@ mint pause --payload lifecycle/mint-001.json --input-format json
 mint resume --payload lifecycle/mint-001.json --input-format json --yes
 ```
 
-Both commands execute through the shared [`MintLifecycleCommandSupport`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintLifecycleCommandSupport.java), which adds correlation identifiers and renders the summary with [`LifecycleSummaryCliPresenter`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/presentation/lifecycle/LifecycleSummaryCliPresenter.java).
+Both commands execute through the shared [`MintLifecycleCommandSupport`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintLifecycleCommandSupport.java), which adds correlation identifiers and renders the summary with [`LifecycleSummaryCliPresenter`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/presentation/lifecycle/LifecycleSummaryCliPresenter.java).
 
 ## 5. Retire a mint
 
