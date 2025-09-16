@@ -81,11 +81,8 @@ public final class MintAdminCliApplication {
     }
 
     private static int executeWithCorrelationId(final ParseResult parseResult) {
-        CorrelationIdContext.init();
-        try {
+        try (CorrelationIdContext.Scope ignored = CorrelationIdContext.open()) {
             return new CommandLine.RunLast().execute(parseResult);
-        } finally {
-            CorrelationIdContext.clear();
         }
     }
 }
