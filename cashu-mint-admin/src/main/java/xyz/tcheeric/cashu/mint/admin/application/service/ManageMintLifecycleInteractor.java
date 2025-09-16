@@ -63,25 +63,30 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
         }
         final LifecycleCommand command = validated.command();
         final String versionTag = validateVersionTag(validated.versionTag());
+        final UUID requestId = resolveRequestId(validated.requestId());
+        final String correlationId = resolveCorrelationId(validated.correlationId(), requestId);
 
         return switch (command) {
-            case CREATE -> createMint(mintId, operatorId, versionTag);
-            case UPDATE_CONFIGURATION -> updateConfiguration(mintId, operatorId, versionTag);
-            case PAUSE -> pauseMint(mintId, operatorId, versionTag);
-            case RESUME -> resumeMint(mintId, operatorId, versionTag);
-            case RETIRE -> retireMint(mintId, operatorId, versionTag);
+            case CREATE -> createMint(mintId, operatorId, versionTag, requestId, correlationId);
+            case UPDATE_CONFIGURATION -> updateConfiguration(mintId, operatorId, versionTag, requestId, correlationId);
+            case PAUSE -> pauseMint(mintId, operatorId, versionTag, requestId, correlationId);
+            case RESUME -> resumeMint(mintId, operatorId, versionTag, requestId, correlationId);
+            case RETIRE -> retireMint(mintId, operatorId, versionTag, requestId, correlationId);
         };
     }
 
     private ManageMintLifecycleResponse createMint(final MintId mintId,
                                                    final UUID operatorId,
-                                                   final String versionTag) {
+                                                   final String versionTag,
+                                                   final UUID requestId,
+                                                   final String correlationId) {
         return transactionManager.execute(() -> {
             if (mintRepository.findById(mintId).isPresent()) {
                 throw new IllegalStateException("mint already exists: " + mintId.asString());
             }
 
-            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.CREATE);
+            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.CREATE, requestId,
+                correlationId);
             final ConfigurationSet configuration = new ConfigurationSet(INITIAL_REVISION,
                 Map.of(CONFIG_VERSION_PARAMETER, versionTag), auditMetadata);
             final OperatorAccount operatorAccount = new OperatorAccount(operatorId, operatorId.toString(),
@@ -101,10 +106,13 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
 
     private ManageMintLifecycleResponse updateConfiguration(final MintId mintId,
                                                             final UUID operatorId,
-                                                            final String versionTag) {
+                                                            final String versionTag,
+                                                            final UUID requestId,
+                                                            final String correlationId) {
         return transactionManager.execute(() -> {
             final MintAggregate current = loadExistingAggregate(mintId);
-            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.UPDATE_CONFIGURATION);
+            final AuditMetadata auditMetadata = createAuditMetadata(operatorId,
+                LifecycleCommand.UPDATE_CONFIGURATION, requestId, correlationId);
             final ConfigurationRevisionId nextRevision = current.configurationSet().revisionId().next();
             final ConfigurationSet updatedConfiguration = current.configurationSet()
                 .updateParameter(CONFIG_VERSION_PARAMETER, versionTag, nextRevision, auditMetadata);
@@ -120,10 +128,13 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
 
     private ManageMintLifecycleResponse pauseMint(final MintId mintId,
                                                   final UUID operatorId,
-                                                  final String versionTag) {
+                                                  final String versionTag,
+                                                  final UUID requestId,
+                                                  final String correlationId) {
         return transactionManager.execute(() -> {
             final MintAggregate current = loadExistingAggregate(mintId);
-            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.PAUSE);
+            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.PAUSE, requestId,
+                correlationId);
             final MintAggregate suspended = current.suspend(auditMetadata);
             mintRepository.save(suspended);
             eventPublisher.publish(MintLifecycleEvent.paused(mintId, current.lifecycleState().value(),
@@ -135,10 +146,13 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
 
     private ManageMintLifecycleResponse resumeMint(final MintId mintId,
                                                    final UUID operatorId,
-                                                   final String versionTag) {
+                                                   final String versionTag,
+                                                   final UUID requestId,
+                                                   final String correlationId) {
         return transactionManager.execute(() -> {
             final MintAggregate current = loadExistingAggregate(mintId);
-            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.RESUME);
+            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.RESUME, requestId,
+                correlationId);
             final MintAggregate activated = current.activate(auditMetadata);
             mintRepository.save(activated);
             eventPublisher.publish(MintLifecycleEvent.resumed(mintId, current.lifecycleState().value(),
@@ -150,10 +164,13 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
 
     private ManageMintLifecycleResponse retireMint(final MintId mintId,
                                                    final UUID operatorId,
-                                                   final String versionTag) {
+                                                   final String versionTag,
+                                                   final UUID requestId,
+                                                   final String correlationId) {
         return transactionManager.execute(() -> {
             final MintAggregate current = loadExistingAggregate(mintId);
-            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.RETIRE);
+            final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.RETIRE, requestId,
+                correlationId);
             final MintAggregate retired = current.decommission(auditMetadata);
             mintRepository.save(retired);
             eventPublisher.publish(MintLifecycleEvent.retired(mintId, current.lifecycleState().value(),
@@ -168,7 +185,10 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
             .orElseThrow(() -> new IllegalStateException("mint not found: " + mintId.asString()));
     }
 
-    private AuditMetadata createAuditMetadata(final UUID operatorId, final LifecycleCommand command) {
+    private AuditMetadata createAuditMetadata(final UUID operatorId,
+                                             final LifecycleCommand command,
+                                             final UUID requestId,
+                                             final String correlationId) {
         final Instant timestamp = clock.instant();
         final String actor = operatorId.toString();
         final String action = switch (command) {
@@ -178,7 +198,25 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
             case RESUME -> "Mint resumed";
             case RETIRE -> "Mint retired";
         };
-        return new AuditMetadata(actor, action, timestamp);
+        return new AuditMetadata(actor, action, timestamp, requestId, correlationId);
+    }
+
+    private UUID resolveRequestId(final String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            return UUID.randomUUID();
+        }
+        return validateUuid(requestId, "request id");
+    }
+
+    private String resolveCorrelationId(final String correlationId, final UUID requestId) {
+        if (correlationId == null || correlationId.isBlank()) {
+            return requestId.toString();
+        }
+        final String sanitized = correlationId.trim();
+        if (sanitized.isEmpty()) {
+            throw new IllegalArgumentException("correlation id must not be blank");
+        }
+        return sanitized;
     }
 
     private ManageMintLifecycleResponse buildResponse(final MintAggregate aggregate, final String versionTag) {

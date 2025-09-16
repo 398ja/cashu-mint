@@ -18,4 +18,15 @@ final class ModelValidations {
         }
         return value;
     }
+
+    static String optionalText(final String value, final String fieldName) {
+        if (value == null) {
+            return null;
+        }
+        final String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " must not be blank");
+        }
+        return trimmed;
+    }
 }

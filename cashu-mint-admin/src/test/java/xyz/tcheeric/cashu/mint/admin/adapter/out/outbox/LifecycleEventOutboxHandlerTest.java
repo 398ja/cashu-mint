@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleContext;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
@@ -48,7 +49,8 @@ class LifecycleEventOutboxHandlerTest {
             ConfigurationRevisionId.of(5),
             "v5",
             new AuditMetadata("system", "resume", Instant.parse("2024-03-01T12:00:00Z"),
-                List.of("INC-99"), List.of(), new AutomationContext(true, "scheduler", "run-7")));
+                List.of("INC-99"), List.of(), new AutomationContext(true, "scheduler", "run-7"),
+                LifecycleContext.empty(), UUID.fromString("99999999-8888-7777-6666-555555555555"), "resume-incident"));
 
         publisher.publish(event);
         final OutboxMessage message = outboxRepository.messages.getFirst();
@@ -61,6 +63,8 @@ class LifecycleEventOutboxHandlerTest {
         final RecordingHistoryRepository.Entry entry = historyRepository.appended.getFirst();
         assertThat(entry.event()).isEqualTo(event);
         assertThat(entry.eventId()).isEqualTo(message.eventId());
+        assertThat(processed.auditMetadata().requestId()).isEqualTo(UUID.fromString("99999999-8888-7777-6666-555555555555"));
+        assertThat(processed.auditMetadata().correlationId()).isEqualTo("resume-incident");
     }
 
     // Ensures payload mismatches result in a handling exception before projections are updated.
