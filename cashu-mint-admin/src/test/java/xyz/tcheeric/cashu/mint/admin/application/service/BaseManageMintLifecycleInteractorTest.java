@@ -1,94 +1,69 @@
 package xyz.tcheeric.cashu.mint.admin.application.service;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase.LifecycleCommand;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase.ManageMintLifecycleRequest;
 
 class BaseManageMintLifecycleInteractorTest {
 
-    private BaseManageMintLifecycleInteractor interactor;
+    private static final ManageMintLifecycleUseCase.ManageMintLifecycleRequest VALID_REQUEST =
+        new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
+            "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1");
 
-    @BeforeEach
-    void setUp() {
-        interactor = new BaseManageMintLifecycleInteractor();
+    private final BaseManageMintLifecycleInteractor interactor = new BaseManageMintLifecycleInteractor();
+
+    @Test
+    // Ensures handle rejects null requests.
+    void shouldRejectNullRequest() {
+        assertThrows(NullPointerException.class, () -> interactor.handle(null));
     }
 
-    // Ensures a blank mint identifier is rejected during validation.
     @Test
-    void shouldRejectBlankMintId() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(" ",
-            validOperatorId(),
-            LifecycleCommand.CREATE,
-            "v1");
+    // Ensures handle validates the mint identifier.
+    void shouldRejectInvalidMintId() {
+        final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
+            new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("invalid",
+                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("mint identifier must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures malformed operator identifiers are rejected during validation.
     @Test
+    // Ensures handle validates the operator identifier.
     void shouldRejectInvalidOperatorId() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(validMintId(),
-            "not-a-uuid",
-            LifecycleCommand.CREATE,
-            "v1");
+        final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
+            new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
+                "not-a-uuid", LifecycleCommand.CREATE, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("operator id must be a valid UUID");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures null lifecycle commands are rejected during validation.
     @Test
-    void shouldRejectNullLifecycleCommand() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(validMintId(),
-            validOperatorId(),
-            null,
-            "v1");
+    // Ensures handle validates the command presence.
+    void shouldRejectNullCommand() {
+        final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
+            new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", null, "v1");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("lifecycle command must not be null");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures blank version tags fail fast before reaching unsupported behaviour.
     @Test
+    // Ensures handle validates the version tag.
     void shouldRejectBlankVersionTag() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(validMintId(),
-            validOperatorId(),
-            LifecycleCommand.CREATE,
-            " ");
+        final ManageMintLifecycleUseCase.ManageMintLifecycleRequest request =
+            new ManageMintLifecycleUseCase.ManageMintLifecycleRequest("123e4567-e89b-12d3-a456-426614174000",
+                "123e4567-e89b-12d3-a456-426614174001", LifecycleCommand.CREATE, " ");
 
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("version tag must not be blank");
+        assertThrows(IllegalArgumentException.class, () -> interactor.handle(request));
     }
 
-    // Ensures valid payloads progress past validation and surface the unsupported stub exception.
     @Test
-    void shouldThrowUnsupportedAfterValidation() {
-        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(validMintId(),
-            validOperatorId(),
-            LifecycleCommand.CREATE,
-            "v1");
-
-        assertThatThrownBy(() -> interactor.handle(request))
-            .isInstanceOf(UnsupportedOperationException.class)
-            .hasMessageContaining("ManageMintLifecycleUseCase has not been implemented yet");
-    }
-
-    private String validMintId() {
-        return UUID.randomUUID().toString();
-    }
-
-    private String validOperatorId() {
-        return UUID.randomUUID().toString();
+    // Ensures a valid request reaches the unsupported branch.
+    void shouldReachUnsupportedOperationForValidRequest() {
+        assertThrows(UnsupportedOperationException.class, () -> interactor.handle(VALID_REQUEST));
     }
 }

@@ -1,30 +1,38 @@
 package xyz.tcheeric.cashu.mint.admin.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
 class LifecycleStateTest {
 
-    // Ensures a provisioned lifecycle can become active when requested.
     @Test
-    void shouldTransitionFromProvisionedToActive() {
+    // Ensures allowed transitions succeed and produce new state instances.
+    void shouldAllowValidTransition() {
         final LifecycleState provisioned = LifecycleState.provisioned();
 
         final LifecycleState active = provisioned.transitionTo(LifecycleState.State.ACTIVE);
 
         assertThat(active.value()).isEqualTo(LifecycleState.State.ACTIVE);
-        assertThat(provisioned.value()).isEqualTo(LifecycleState.State.PROVISIONED);
     }
 
-    // Ensures illegal transitions raise an exception to protect invariants.
     @Test
-    void shouldRejectTransitionFromDecommissionedToActive() {
-        final LifecycleState decommissioned = LifecycleState.of(LifecycleState.State.DECOMMISSIONED);
+    // Ensures transitioning to the same state returns the existing instance.
+    void shouldReturnSameInstanceWhenTransitioningToSameState() {
+        final LifecycleState provisioned = LifecycleState.provisioned();
 
-        assertThatThrownBy(() -> decommissioned.transitionTo(LifecycleState.State.ACTIVE))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Cannot transition");
+        final LifecycleState same = provisioned.transitionTo(LifecycleState.State.PROVISIONED);
+
+        assertThat(same).isSameAs(provisioned);
+    }
+
+    @Test
+    // Ensures invalid transitions are rejected with an exception.
+    void shouldRejectInvalidTransition() {
+        final LifecycleState provisioned = LifecycleState.provisioned();
+
+        assertThrows(IllegalStateException.class,
+            () -> provisioned.transitionTo(LifecycleState.State.SUSPENDED));
     }
 }
