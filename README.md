@@ -138,20 +138,20 @@ new tables and columns.
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
 
 ```bash
-# Step 1: create JSON preload data (optionally pass a mint UUID as the second argument)
-./mvnw -q -pl cashu-mint-tools exec:java \
-  -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
-  -Dexec.args="scripts/preload-test-data.json"
-# ./mvnw -q -pl cashu-mint-tools exec:java \
-#   -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
-#   -Dexec.args="scripts/preload-test-data.json 11111111-1111-1111-1111-111111111111"
+# Step 1: create JSON preload data (defaults read from cashu-mint-tools/mint-preload.properties)
+./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-json
+# override defaults, e.g. ./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-json -Dmint.preload.mint-id=$(uuidgen)
 
 # Step 2: transform the JSON into the SQL preload script
-./scripts/render-preload-sql.sh scripts/preload-test-data.json scripts/preload-test-data.sql
+./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-sql
 
 # Step 3: load the generated preload into Postgres
 psql -d cashu_mint -f scripts/preload-test-data.sql
 ```
+
+The reusable defaults in [`cashu-mint-tools/mint-preload.properties`](cashu-mint-tools/mint-preload.properties) keep the JSON
+and SQL locations in sync and provide a deterministic mint UUID for reproducible output. Override any of the properties on the
+command line with `-Dproperty=value` to customise the generation or rendering steps.
 
 The generator keeps the mint, keyset, and key material in memory so tests can reuse the values before the JSON is written to disk. It deterministically derives the database key identifiers from the mint id (supply your own UUID for reproducible output) and computes the keyset identifier from the generated key material. The renderer consumes the generated JSON and injects the values into the SQL template used to seed the database during environment creation.
 
