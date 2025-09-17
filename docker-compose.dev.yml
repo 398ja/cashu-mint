@@ -1,0 +1,7 @@
+services:
+  # Dev-only override to auto-create schema for the mint service
+  cashu-mint-rest:
+    environment:
+      # Convenience for local development only. Do not use in production.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
