@@ -5,7 +5,11 @@ import picocli.CommandLine.ParseResult;
 
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintAlertsCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigApplyCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigPreviewCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigRollbackCommand;
+import xyz.tcheeric.cashu.mint.admin.cli.command.MintConfigSubmitCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintCreateCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintPauseCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.command.MintResumeCommand;
@@ -15,16 +19,16 @@ import xyz.tcheeric.cashu.mint.admin.cli.command.MintUsersCommand;
 import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
 import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintAlertsPort;
-import xyz.tcheeric.cashu.mint.admin.cli.port.MintConfigPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.MintUsersPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintAlertsPort;
-import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintConfigPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
 import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubManageConfigurationUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 /**
@@ -50,7 +54,7 @@ public final class MintAdminCliApplication {
             renderingService,
             lifecyclePresenter,
             new StubMintStatusPort(),
-            new StubMintConfigPort(),
+            new StubManageConfigurationUseCase(),
             new StubMintUsersPort(),
             new StubMintAlertsPort(),
             new StubMintLifecyclePort()
@@ -61,14 +65,20 @@ public final class MintAdminCliApplication {
                                         final ResponseRenderingService renderingService,
                                         final LifecycleSummaryCliPresenter lifecyclePresenter,
                                         final MintStatusPort statusPort,
-                                        final MintConfigPort configPort,
+                                        final ManageConfigurationUseCase configurationUseCase,
                                         final MintUsersPort usersPort,
                                         final MintAlertsPort alertsPort,
                                         final MintLifecyclePort lifecyclePort) {
         final MintCommand root = new MintCommand(statusPort, payloadMapper, renderingService);
         final CommandLine commandLine = new CommandLine(root);
         commandLine.setCaseInsensitiveEnumValuesAllowed(true);
-        commandLine.addSubcommand("config", new MintConfigCommand(configPort, payloadMapper, renderingService));
+        final CommandLine config = new CommandLine(new MintConfigCommand());
+        config.setCaseInsensitiveEnumValuesAllowed(true);
+        config.addSubcommand("submit", new MintConfigSubmitCommand(configurationUseCase, payloadMapper, renderingService));
+        config.addSubcommand("preview", new MintConfigPreviewCommand(configurationUseCase, payloadMapper, renderingService));
+        config.addSubcommand("apply", new MintConfigApplyCommand(configurationUseCase, payloadMapper, renderingService));
+        config.addSubcommand("rollback", new MintConfigRollbackCommand(configurationUseCase, payloadMapper, renderingService));
+        commandLine.addSubcommand("config", config);
         commandLine.addSubcommand("users", new MintUsersCommand(usersPort, payloadMapper, renderingService));
         commandLine.addSubcommand("alerts", new MintAlertsCommand(alertsPort, payloadMapper, renderingService));
         commandLine.addSubcommand("create", new MintCreateCommand(lifecyclePort, payloadMapper, lifecyclePresenter));

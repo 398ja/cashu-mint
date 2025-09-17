@@ -39,14 +39,15 @@ These values come from the stub status port, which always reports an active mint
 
 ## 3. Preview configuration changes
 
-Switch to the `config` subcommand to merge overrides into the synthetic baseline. When no payload is supplied, the CLI targets the default mint ID; otherwise it parses the payload according to the selected input format, as implemented in [`MintConfigCommand.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintConfigCommand.java) and [`CommandIOOptions.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/CommandIOOptions.java).
+Switch to the `config` command group to drive configuration workflows. Each subcommand maps Picocli options and payloads onto the [`ManageConfigurationUseCase`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/application/port/in/ManageConfigurationUseCase.java); for example, the `submit` action reads configuration payloads and operator metadata from a mixture of flags and JSON, as implemented in [`MintConfigSubmitCommand.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/MintConfigSubmitCommand.java) and [`CommandIOOptions.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/command/CommandIOOptions.java).
 
 ```bash
-java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-<version>-runner.jar mint config \
-  --payload '{"mintId":"default-mint","parameters":{"maxTokens":"2000"}}'
+java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-<version>-runner.jar mint config submit \
+  --operator-id demo-operator \
+  --payload '{"payload":{"parameters":{"maxTokens":{"value":"2000"}}}}'
 ```
 
-The stub configuration port merges your overrides with the default currency and returns a synthetic revision marker, letting you see how revisions will look once persistence is implemented (review [`StubMintConfigPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/stub/StubMintConfigPort.java)). Add `--output-format JSON` when you want the full payload instead of the table view; the JSON renderer lives in [`JsonResponseRenderer.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/io/JsonResponseRenderer.java).
+The stub configuration workflow merges your overrides with the default currency and emits a synthetic `ConfigurationWorkflowResponse`, letting you see how revisions will look once persistence is implemented (review [`StubManageConfigurationUseCase.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/stub/StubManageConfigurationUseCase.java)). Add `--output-format JSON` when you want the full payload instead of the table view; the JSON renderer lives in [`JsonResponseRenderer.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/io/JsonResponseRenderer.java).
 
 ## 4. Review operator accounts
 
@@ -83,8 +84,8 @@ Example YAML workflow:
    ```
 2. Run:
    ```bash
-   java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-<version>-runner.jar mint config \
-     --input-format YAML --payload-file revision.yaml --output-format JSON
+   java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-<version>-runner.jar mint config submit \
+     --operator-id demo-operator --input-format YAML --payload-file revision.yaml --output-format JSON
    ```
 
 ## Next steps
