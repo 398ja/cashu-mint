@@ -136,20 +136,20 @@ new tables and columns.
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
 
 ```bash
-# Step 1: create JSON preload data (defaults come from cashu-mint-protocol/mint-preload.properties)
-./mvnw -q -pl cashu-mint-protocol compile exec:java@mint-preload-json
+# Step 1: create JSON preload data (optionally pass a mint UUID as the second argument)
+./mvnw -q -pl cashu-mint-protocol exec:java \
+  -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
+  -Dexec.args="scripts/preload-test-data.json"
+# ./mvnw -q -pl cashu-mint-protocol exec:java \
+#   -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
+#   -Dexec.args="scripts/preload-test-data.json 11111111-1111-1111-1111-111111111111"
 
 # Step 2: transform the JSON into the SQL preload script
-./mvnw -q -pl cashu-mint-protocol initialize exec:java@mint-preload-sql
+./scripts/render-preload-sql.sh scripts/preload-test-data.json scripts/preload-test-data.sql
 
 # Step 3: load the generated preload into Postgres
 psql -d cashu_mint -f scripts/preload-test-data.sql
 ```
-
-Override the defaults by editing [`cashu-mint-protocol/mint-preload.properties`](cashu-mint-protocol/mint-preload.properties)
-or by supplying `-Dmint.preload.generator.args="<json-path> [mint-uuid]"` and
-`-Dmint.preload.renderer.args="<json-path> <sql-path>"` when invoking the Maven executions. Once the module has been compiled
-you can rerun either step with `initialize exec:java@...` to pick up updated properties without recompiling.
 
 The generator keeps the mint, keyset, and key material in memory so tests can reuse the values before the JSON is written to disk. It deterministically derives the database key identifiers from the mint id (supply your own UUID for reproducible output) and computes the keyset identifier from the generated key material. The renderer consumes the generated JSON and injects the values into the SQL template used to seed the database during environment creation.
 

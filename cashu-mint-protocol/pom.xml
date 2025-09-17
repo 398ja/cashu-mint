@@ -132,48 +132,11 @@
             </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
-                <artifactId>properties-maven-plugin</artifactId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>read-project-properties</goal>
-                        </goals>
-                        <configuration>
-                            <files>
-                                <file>${project.basedir}/mint-preload.properties</file>
-                            </files>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
-                <executions>
-                    <execution>
-                        <id>mint-preload-json</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
-                        <configuration>
-                            <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator</mainClass>
-                            <commandlineArgs>${mint.preload.generator.args}</commandlineArgs>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>mint-preload-sql</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
-                        <configuration>
-                            <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadSqlRenderer</mainClass>
-                            <commandlineArgs>${mint.preload.renderer.args}</commandlineArgs>
-                        </configuration>
-                    </execution>
-                </executions>
+                <configuration>
+                    <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
