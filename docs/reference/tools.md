@@ -12,7 +12,12 @@ This page documents the developer tooling packaged in the `cashu-mint-tools` mod
 
 - One‑shot (emit JSON, then render SQL):
   - `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate`
-  - Load into Postgres: `psql -d cashu_mint -f scripts/preload-test-data.sql`
+  - Load into Postgres (docker-compose dev defaults):
+    - Host connection:
+      - `PGPASSWORD=postgres psql -h localhost -p 55432 -U postgres -d cashu_mint -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
+      - or `psql "postgresql://postgres:postgres@localhost:55432/cashu_mint" -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
+    - Inside container:
+      - `docker compose exec -T cashu-mint-db psql -U postgres -d cashu_mint -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql`
 
 - Individual steps:
   - JSON: `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java`
@@ -26,4 +31,3 @@ This page documents the developer tooling packaged in the `cashu-mint-tools` mod
   - `-Dmint.preload.json.output=target/preload.json`
   - `-Dmint.preload.sql.input=target/preload.json`
   - `-Dmint.preload.sql.output=target/preload.sql`
-
