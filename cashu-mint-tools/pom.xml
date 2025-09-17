@@ -96,12 +96,18 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.5.0</version>
-                <executions>
-                    <execution>
-                        <id>mint-preload-json</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>preload-json</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
                         <configuration>
                             <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator</mainClass>
                             <workingDirectory>${project.parent.basedir}</workingDirectory>
@@ -110,12 +116,18 @@
                                 <argument>${mint.preload.mint-id}</argument>
                             </arguments>
                         </configuration>
-                    </execution>
-                    <execution>
-                        <id>mint-preload-sql</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>preload-sql</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
                         <configuration>
                             <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadSqlRenderer</mainClass>
                             <workingDirectory>${project.parent.basedir}</workingDirectory>
@@ -124,9 +136,54 @@
                                 <argument>${mint.preload.sql.output}</argument>
                             </arguments>
                         </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Run both generators in sequence: emits JSON then renders SQL. -->
+        <profile>
+            <id>preload-all</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>mint-preload-json</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator</mainClass>
+                                    <workingDirectory>${project.parent.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>${mint.preload.json.output}</argument>
+                                        <argument>${mint.preload.mint-id}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>mint-preload-sql</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>xyz.tcheeric.cashu.mint.tools.MintPreloadSqlRenderer</mainClass>
+                                    <workingDirectory>${project.parent.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>${mint.preload.sql.input}</argument>
+                                        <argument>${mint.preload.sql.output}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
