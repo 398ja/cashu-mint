@@ -9,6 +9,6 @@ if [[ ! -f "$JSON_PATH" ]]; then
   exit 1
 fi
 
-./mvnw -q -pl cashu-mint-protocol exec:java \
+./mvnw -q -pl cashu-mint-tools exec:java \
   -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadSqlRenderer \
   -Dexec.args="$JSON_PATH $SQL_PATH"
