@@ -140,18 +140,32 @@ Generate deterministic preload data in two steps: emit JSON using the `MintPrelo
 ```bash
 # One-shot (emit JSON, then render SQL)
 ./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
-psql -d cashu_mint -f scripts/preload-test-data.sql
 
-# Or run the steps individually
+# Seed the Postgres running via docker-compose (host connection)
+PGPASSWORD=postgres psql \
+  -h localhost -p 55432 -U postgres -d cashu_mint \
+  -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+
+# Alternatively, URI style
+psql "postgresql://postgres:postgres@localhost:55432/cashu_mint" \
+  -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+
+# Or stream from the host into the DB container
+docker compose exec -T cashu-mint-db psql -U postgres -d cashu_mint -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+
+# Run the steps individually (same seeding commands as above)
 ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
 ./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java
-psql -d cashu_mint -f scripts/preload-test-data.sql
 ```
 
 The reusable defaults in [`cashu-mint-tools/mint-preload.properties`](cashu-mint-tools/mint-preload.properties) keep the JSON
 and SQL locations in sync and provide a deterministic mint UUID for reproducible output. Override any of the properties on the
 command line with `-Dproperty=value` to customise the generation or rendering steps (for example,
 `-Dmint.preload.mint-id=$(uuidgen)` or `-Dmint.preload.json.output=target/preload.json`).
+
+Note: The preload SQL script safely no-ops if the schema hasn’t been created yet. To bootstrap the mint tables for local dev, either:
+- Start the mint service with Hibernate auto-DDL using the provided dev override: `docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile dev up -d cashu-mint-rest`
+- Or manage schema via your own migrations, then run the `psql` command above.
 
 The generator keeps the mint, keyset, and key material in memory so tests can reuse the values before the JSON is written to disk. It deterministically derives the database key identifiers from the mint id (supply your own UUID for reproducible output) and computes the keyset identifier from the generated key material. The renderer consumes the generated JSON and injects the values into the SQL template used to seed the database during environment creation.
 
