@@ -25,11 +25,16 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 1. Ensure the `cashu-vault-jpa` container is running (see above). It initialises its database automatically before advertising readiness, so no extra Flyway/Liquibase command is required for the vault schema (see [`docker-compose.yml`](../../docker-compose.yml)).
 2. Optionally seed the mint database with deterministic test data:
    ```bash
-   ./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-json
-   ./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-sql
+   # one-shot: emit JSON then render SQL
+   ./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
+   psql -d cashu_mint -f scripts/preload-test-data.sql
+
+   # or run steps individually
+   ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
+   ./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java
    psql -d cashu_mint -f scripts/preload-test-data.sql
    ```
-   The Maven executions load defaults from [`cashu-mint-tools/mint-preload.properties`](../../cashu-mint-tools/mint-preload.properties) so the JSON and SQL destinations stay aligned. Override any property with `-D` flags when you need alternative locations or a specific mint identifier (see [`README.md`](../../README.md)).
+   The profiles load defaults from [`cashu-mint-tools/mint-preload.properties`](../../cashu-mint-tools/mint-preload.properties) so the JSON and SQL destinations stay aligned. Override any property with `-D` flags when you need alternative locations or a specific mint identifier (see [`README.md`](../../README.md)).
 
 ## Run tests
 

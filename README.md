@@ -138,20 +138,20 @@ new tables and columns.
 Generate deterministic preload data in two steps: emit JSON using the `MintPreloadDataGenerator`, then render SQL from that JSON via `MintPreloadSqlRenderer` (exposed through `scripts/render-preload-sql.sh`).
 
 ```bash
-# Step 1: create JSON preload data (defaults read from cashu-mint-tools/mint-preload.properties)
-./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-json
-# override defaults, e.g. ./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-json -Dmint.preload.mint-id=$(uuidgen)
+# One-shot (emit JSON, then render SQL)
+./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
+psql -d cashu_mint -f scripts/preload-test-data.sql
 
-# Step 2: transform the JSON into the SQL preload script
-./mvnw -q -pl cashu-mint-tools exec:java@mint-preload-sql
-
-# Step 3: load the generated preload into Postgres
+# Or run the steps individually
+./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
+./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java
 psql -d cashu_mint -f scripts/preload-test-data.sql
 ```
 
 The reusable defaults in [`cashu-mint-tools/mint-preload.properties`](cashu-mint-tools/mint-preload.properties) keep the JSON
 and SQL locations in sync and provide a deterministic mint UUID for reproducible output. Override any of the properties on the
-command line with `-Dproperty=value` to customise the generation or rendering steps.
+command line with `-Dproperty=value` to customise the generation or rendering steps (for example,
+`-Dmint.preload.mint-id=$(uuidgen)` or `-Dmint.preload.json.output=target/preload.json`).
 
 The generator keeps the mint, keyset, and key material in memory so tests can reuse the values before the JSON is written to disk. It deterministically derives the database key identifiers from the mint id (supply your own UUID for reproducible output) and computes the keyset identifier from the generated key material. The renderer consumes the generated JSON and injects the values into the SQL template used to seed the database during environment creation.
 
