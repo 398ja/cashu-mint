@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,6 +12,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import javax.sql.DataSource;
@@ -18,7 +20,11 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetReposi
 import xyz.tcheeric.cashu.mint.admin.domain.AutomationContext;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionHistory;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionState;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSecret;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationValue;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 
 /**
@@ -106,7 +112,6 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
             ORDER BY revision_id
         """;
 
-    private static final TypeReference<Map<String, String>> MAP_TYPE = new TypeReference<>() { };
     private static final TypeReference<List<String>> LIST_TYPE = new TypeReference<>() { };
 
     private final DataSource dataSource;
@@ -175,7 +180,7 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
             final AuditMetadata audit = configurationSet.auditMetadata();
             statement.setObject(1, mintId.value());
             statement.setLong(2, configurationSet.revisionId().value());
-            statement.setString(3, objectMapper.writeValueAsString(configurationSet.parameters()));
+            statement.setString(3, writeParameters(configurationSet.parameters()));
             statement.setString(4, audit.actor());
             statement.setString(5, audit.action());
             statement.setTimestamp(6, Timestamp.from(audit.timestamp()));
@@ -202,8 +207,7 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
 
     private ConfigurationSet mapRow(final ResultSet resultSet) throws SQLException, IOException {
         final ConfigurationRevisionId revisionId = ConfigurationRevisionId.of(resultSet.getLong("revision_id"));
-        final Map<String, String> parameters =
-            objectMapper.readValue(resultSet.getString("parameters"), MAP_TYPE);
+        final Map<String, ConfigurationValue> parameters = readParameters(resultSet.getString("parameters"));
         final AuditMetadata audit = new AuditMetadata(
             resultSet.getString("audit_actor"),
             resultSet.getString("audit_action"),
@@ -211,7 +215,65 @@ public class JdbcConfigurationSetRepository implements ConfigurationSetRepositor
             readList(resultSet, "audit_reason_codes"),
             readList(resultSet, "audit_ticket_references"),
             mapAutomationContext(resultSet));
-        return new ConfigurationSet(revisionId, parameters, audit);
+        final ConfigurationRevisionHistory history =
+            ConfigurationRevisionHistory.initial(ConfigurationRevisionState.DRAFT, audit);
+        return new ConfigurationSet(revisionId, parameters, audit, ConfigurationRevisionState.DRAFT, history, null, null);
+    }
+
+    private Map<String, ConfigurationValue> readParameters(final String raw) throws IOException {
+        if (raw == null || raw.isBlank()) {
+            return Map.of();
+        }
+        final JsonNode root = objectMapper.readTree(raw);
+        final Map<String, ConfigurationValue> parameters = new LinkedHashMap<>();
+        root.fields().forEachRemaining(entry -> {
+            final String key = entry.getKey();
+            final JsonNode valueNode = entry.getValue();
+            final ConfigurationValue value;
+            if (valueNode == null || valueNode.isNull()) {
+                throw new IllegalStateException("configuration parameter " + key + " is missing a value");
+            } else if (valueNode.isObject()) {
+                final JsonNode secretNode = valueNode.get("secret");
+                if (secretNode != null && !secretNode.isNull() && !(secretNode.isBoolean() && !secretNode.booleanValue())) {
+                    try {
+                        final ConfigurationSecret secret = objectMapper.treeToValue(secretNode, ConfigurationSecret.class);
+                        value = ConfigurationValue.ofSecret(secret);
+                    } catch (final IOException ex) {
+                        throw new IllegalStateException("Failed to deserialize secret for parameter " + key, ex);
+                    }
+                } else {
+                    final JsonNode plainNode = valueNode.get("value");
+                    final String plainValue = plainNode == null || plainNode.isNull()
+                        ? ""
+                        : plainNode.asText();
+                    value = ConfigurationValue.ofPlainText(plainValue);
+                }
+            } else if (valueNode.isTextual()) {
+                value = ConfigurationValue.ofPlainText(valueNode.asText());
+            } else if (valueNode.isNumber() || valueNode.isBoolean()) {
+                value = ConfigurationValue.ofPlainText(valueNode.asText());
+            } else {
+                throw new IllegalStateException("Unsupported configuration parameter encoding for key " + key);
+            }
+            parameters.put(key, value);
+        });
+        return Map.copyOf(parameters);
+    }
+
+    private String writeParameters(final Map<String, ConfigurationValue> parameters) throws IOException {
+        if (parameters == null || parameters.isEmpty()) {
+            return "{}";
+        }
+        final Map<String, Object> serialized = new LinkedHashMap<>();
+        for (final Map.Entry<String, ConfigurationValue> entry : parameters.entrySet()) {
+            final ConfigurationValue value = entry.getValue();
+            if (value.isSecret()) {
+                serialized.put(entry.getKey(), Map.of("secret", value.secret()));
+            } else {
+                serialized.put(entry.getKey(), Map.of("value", value.resolvedValue()));
+            }
+        }
+        return objectMapper.writeValueAsString(serialized);
     }
 
     private String writeList(final List<String> values) throws IOException {

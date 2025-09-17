@@ -108,7 +108,8 @@ class ManageMintLifecycleInteractorTest {
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
         assertEquals(LifecycleState.State.PROVISIONED, response.lifecycleState());
-        assertEquals("next", mintRepository.lastSaved.configurationSet().parameters().get("version.tag"));
+        assertEquals("next",
+            mintRepository.lastSaved.configurationSet().parameters().get("version.tag").resolvedValue());
         assertEquals(ConfigurationRevisionId.of(2), mintRepository.lastSaved.configurationSet().revisionId());
         assertEquals(1, configurationSetRepository.countRevisions(MintId.fromString(MINT_ID), ConfigurationRevisionId.of(2)));
         final MintLifecycleEvent event = eventPublisher.events.getLast();
