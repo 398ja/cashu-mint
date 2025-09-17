@@ -26,6 +26,7 @@ import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintAlertsPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintLifecyclePort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintStatusPort;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubMintUsersPort;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.configuration.ConfigurationWorkflowCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.cli.port.stub.StubManageConfigurationUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
@@ -49,10 +50,13 @@ public final class MintAdminCliApplication {
         final CommandPayloadMapper payloadMapper = CommandPayloadMapper.createDefault();
         final ResponseRenderingService renderingService = ResponseRenderingService.createDefault(payloadMapper.jsonMapper());
         final LifecycleSummaryCliPresenter lifecyclePresenter = new LifecycleSummaryCliPresenter(payloadMapper.jsonMapper());
+        final ConfigurationWorkflowCliPresenter configurationPresenter =
+            new ConfigurationWorkflowCliPresenter(payloadMapper.jsonMapper());
         return buildCommandLine(
             payloadMapper,
             renderingService,
             lifecyclePresenter,
+            configurationPresenter,
             new StubMintStatusPort(),
             new StubManageConfigurationUseCase(),
             new StubMintUsersPort(),
@@ -64,6 +68,7 @@ public final class MintAdminCliApplication {
     static CommandLine buildCommandLine(final CommandPayloadMapper payloadMapper,
                                         final ResponseRenderingService renderingService,
                                         final LifecycleSummaryCliPresenter lifecyclePresenter,
+                                        final ConfigurationWorkflowCliPresenter configurationPresenter,
                                         final MintStatusPort statusPort,
                                         final ManageConfigurationUseCase configurationUseCase,
                                         final MintUsersPort usersPort,
@@ -74,10 +79,10 @@ public final class MintAdminCliApplication {
         commandLine.setCaseInsensitiveEnumValuesAllowed(true);
         final CommandLine config = new CommandLine(new MintConfigCommand());
         config.setCaseInsensitiveEnumValuesAllowed(true);
-        config.addSubcommand("submit", new MintConfigSubmitCommand(configurationUseCase, payloadMapper, renderingService));
-        config.addSubcommand("preview", new MintConfigPreviewCommand(configurationUseCase, payloadMapper, renderingService));
-        config.addSubcommand("apply", new MintConfigApplyCommand(configurationUseCase, payloadMapper, renderingService));
-        config.addSubcommand("rollback", new MintConfigRollbackCommand(configurationUseCase, payloadMapper, renderingService));
+        config.addSubcommand("submit", new MintConfigSubmitCommand(configurationUseCase, payloadMapper, configurationPresenter));
+        config.addSubcommand("preview", new MintConfigPreviewCommand(configurationUseCase, payloadMapper, configurationPresenter));
+        config.addSubcommand("apply", new MintConfigApplyCommand(configurationUseCase, payloadMapper, configurationPresenter));
+        config.addSubcommand("rollback", new MintConfigRollbackCommand(configurationUseCase, payloadMapper, configurationPresenter));
         commandLine.addSubcommand("config", config);
         commandLine.addSubcommand("users", new MintUsersCommand(usersPort, payloadMapper, renderingService));
         commandLine.addSubcommand("alerts", new MintAlertsCommand(alertsPort, payloadMapper, renderingService));

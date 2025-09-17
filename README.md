@@ -93,7 +93,10 @@ Available commands:
 - `mint pause` / `mint resume` / `mint retire` – drive lifecycle transitions with
   idempotency checks (repeating a command returns a structured no-op response).
 - `mint config` – inspects or applies configuration payloads (`--payload` inline or
-  `--payload-file` pointing to JSON/YAML content).
+  `--payload-file` pointing to JSON/YAML content). Diff artefacts, validation reports,
+  approval history, audit metadata, and next-action hints are rendered in tables or
+  JSON with secret values redacted. `mint config apply` and `mint config rollback`
+  prompt for confirmation unless you pass `--yes`.
 - `mint users` – lists operator accounts, optionally including inactive users via
   `--include-inactive` or a structured payload.
 - `mint alerts` – displays alert information with a configurable severity filter.

@@ -3,9 +3,9 @@ package xyz.tcheeric.cashu.mint.admin.cli.command;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
-import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
+import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.configuration.ConfigurationWorkflowCliPresenter;
 
 import java.util.List;
 
@@ -23,10 +23,14 @@ public final class MintConfigApplyCommand
             description = "Deployment ticket authorising the change.")
     private String deploymentTicket;
 
+    @Option(names = {"-y", "--yes"},
+            description = "Automatically confirm applying the configuration revision.")
+    private boolean autoConfirm;
+
     public MintConfigApplyCommand(final ManageConfigurationUseCase configurationUseCase,
                                   final CommandPayloadMapper payloadMapper,
-                                  final ResponseRenderingService renderingService) {
-        super(configurationUseCase, payloadMapper, renderingService);
+                                  final ConfigurationWorkflowCliPresenter presenter) {
+        super(configurationUseCase, payloadMapper, presenter);
     }
 
     @Override
@@ -70,6 +74,9 @@ public final class MintConfigApplyCommand
                 requestId,
                 correlationId
             );
+        requireConfirmation(autoConfirm,
+            "Apply revision %s to mint %s".formatted(revision, mintId),
+            "Apply command aborted by user.");
         return configurationUseCase().apply(command);
     }
 }

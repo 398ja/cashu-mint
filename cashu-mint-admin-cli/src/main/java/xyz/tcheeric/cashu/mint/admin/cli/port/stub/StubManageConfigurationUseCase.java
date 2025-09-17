@@ -69,9 +69,27 @@ public class StubManageConfigurationUseCase implements ManageConfigurationUseCas
             "v-current"
         );
 
-        final DiffSummary diffSummary = new DiffSummary(requestedValues.size(), 0, 0);
-        final DiffArtefact diff = new DiffArtefact(requestedValues, Map.of(), Map.of());
-        final ValidationSummary validation = new ValidationSummary(true, true, List.of(), Map.of(), "stub-validator", now);
+        final Map<String, ConfigurationValueDto> added = new LinkedHashMap<>(requestedValues);
+        final Map<String, ParameterChangeDto> changed = Map.of(
+            "maxConnections",
+            new ParameterChangeDto(
+                new ConfigurationValueDto("200", false, null),
+                new ConfigurationValueDto(requestedValues.getOrDefault("maxConnections",
+                    new ConfigurationValueDto("250", false, null)).value(), false, null)
+            ),
+            "apiToken",
+            new ParameterChangeDto(
+                new ConfigurationValueDto("***", true, "secrets/api-token-old"),
+                new ConfigurationValueDto("***", true, "secrets/api-token-new")
+            )
+        );
+        final Map<String, ConfigurationValueDto> removed = Map.of(
+            "legacyEndpoint", new ConfigurationValueDto("https://legacy.cashu.invalid", false, null)
+        );
+        final DiffSummary diffSummary = new DiffSummary(added.size(), changed.size(), removed.size());
+        final DiffArtefact diff = new DiffArtefact(added, changed, removed);
+        final ValidationSummary validation = new ValidationSummary(true, true,
+            List.of(), Map.of("latencyProfile", "PASS", "throughputCheck", "WARN"), "stub-validator", now);
         final ReviewDecision decision = ReviewDecision.APPROVE;
         final ApprovalSummary approval = new ApprovalSummary(true, command.operatorId(), now, List.of(), decision);
         final ApprovalChecklist checklist = new ApprovalChecklist(List.of("security-review"), List.of(), List.of());
@@ -90,7 +108,10 @@ public class StubManageConfigurationUseCase implements ManageConfigurationUseCas
             auditReference,
             automation
         );
-        final List<HistoryCheckpoint> history = List.of(new HistoryCheckpoint(state, audit));
+        final List<HistoryCheckpoint> history = List.of(
+            new HistoryCheckpoint(ConfigurationRevisionState.DRAFT, audit),
+            new HistoryCheckpoint(state, audit)
+        );
         final RollbackMetadata rollbackMetadata = state == ConfigurationRevisionState.ROLLED_BACK
             ? new RollbackMetadata("rev-active", requestedRevision, now, "Manual rollback",
                 auditReference, "rollback-ticket")

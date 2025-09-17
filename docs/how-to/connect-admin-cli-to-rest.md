@@ -81,8 +81,11 @@ public final class RestBackedMintAdminCli {
         MintAlertsPort alerts = new RestMintAlertsPort(baseUri(), adminToken());
         MintLifecyclePort lifecycle = new RestMintLifecyclePort(baseUri(), adminToken());
         LifecycleSummaryCliPresenter lifecyclePresenter = new LifecycleSummaryCliPresenter(payloadMapper.jsonMapper());
+        ConfigurationWorkflowCliPresenter configurationPresenter =
+            new ConfigurationWorkflowCliPresenter(payloadMapper.jsonMapper());
         new CommandLine(MintAdminCliApplication
-            .buildCommandLine(payloadMapper, rendering, lifecyclePresenter, status, config, users, alerts, lifecycle))
+            .buildCommandLine(payloadMapper, rendering, lifecyclePresenter, configurationPresenter,
+                status, config, users, alerts, lifecycle))
             .execute(args);
     }
 }
