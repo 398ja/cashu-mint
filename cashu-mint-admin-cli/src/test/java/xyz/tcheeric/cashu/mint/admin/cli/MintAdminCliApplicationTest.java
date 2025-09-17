@@ -26,6 +26,15 @@ import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 import xyz.tcheeric.cashu.mint.admin.cli.presentation.configuration.ConfigurationWorkflowCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.cli.presentation.lifecycle.LifecycleSummaryCliPresenter;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.service.ConfigurationValidationException;
+import xyz.tcheeric.cashu.mint.admin.application.service.MissingApprovalException;
+import xyz.tcheeric.cashu.mint.admin.application.service.RollbackConflictException;
+import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
+import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionState;
+import xyz.tcheeric.cashu.mint.admin.domain.MintId;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
+import xyz.tcheeric.cashu.mint.admin.domain.ValidationReport;
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
 import java.io.ByteArrayInputStream;
@@ -43,6 +52,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MintAdminCliApplicationTest {
+
+    private static final String VALID_MINT_UUID = "123e4567-e89b-12d3-a456-426614174000";
 
     // Ensures the top-level mint command invokes the status port when no payload is supplied.
     @Test
@@ -78,7 +89,7 @@ class MintAdminCliApplicationTest {
             .execute("config", "submit", "--mint-id=option-mint", "--operator-id=operator-001", "--version-tag=v2",
                 "--reason-code=RC-1", "--ticket-reference=TCK-9", "--payload=" + payload, "--output-format=JSON");
 
-        final ManageConfigurationUseCase.SubmitConfigurationCommand command = configUseCase.lastSubmitCommand.get();
+        final ManageConfigurationUseCase.SubmitConfigurationCommand command = configUseCase.lastSubmitCommand();
         assertThat(command.mintId()).isEqualTo("option-mint");
         assertThat(command.operatorId()).isEqualTo("operator-001");
         assertThat(command.versionTag()).isEqualTo("v2");
@@ -90,6 +101,49 @@ class MintAdminCliApplicationTest {
         assertThat(command.correlationId()).isEqualTo("payload-correlation");
         assertThat(execution.getSystemOutString()).contains("\"mintId\" : \"option-mint\"");
         execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Confirms submit responses render diff and validation data for workflow visibility.
+    @Test
+    void shouldRenderSubmitWorkflowWithDiffAndValidationSections() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingManageConfigurationUseCase configUseCase = new RecordingManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "submit", "--mint-id=mint-visual", "--operator-id=operator-visual", "--output-format=JSON");
+
+        assertThat(configUseCase.lastSubmitCommand()).isNotNull();
+        assertThat(execution.getSystemOutString())
+            .contains("\"diff\"")
+            .contains("\"validation\"")
+            .contains("\"validator\" : \"stub-validator\"");
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Ensures validation failures during submit surface error output and workflow context.
+    @Test
+    void shouldReportValidationErrorDuringSubmit() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final SubmitValidationFailureUseCase configUseCase = new SubmitValidationFailureUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "submit", "--mint-id=" + VALID_MINT_UUID, "--operator-id=operator-validator",
+                "--output-format=JSON");
+
+        execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
+        assertThat(execution.getSystemErrString()).contains("Validation failed for configuration revision");
+        assertThat(execution.getSystemOutString())
+            .contains("\"diff\"")
+            .contains("\"validation\"");
+        assertThat(configUseCase.lastSubmitCommand()).isNotNull();
     }
 
     // Ensures workflow presenters redact secret material from rendered output.
@@ -111,6 +165,70 @@ class MintAdminCliApplicationTest {
         execution.assertExitCode(CommandLine.ExitCode.OK);
     }
 
+    // Verifies preview responses surface diff and validation details for operator review.
+    @Test
+    void shouldRenderPreviewWorkflowWithDiffAndValidationDetails() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingManageConfigurationUseCase configUseCase = new RecordingManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "preview", "--mint-id=mint-preview", "--operator-id=operator-preview",
+                "--target-revision=rev-321", "--include-validation", "--output-format=JSON");
+
+        assertThat(configUseCase.lastPreviewCommand()).isNotNull();
+        assertThat(execution.getSystemOutString())
+            .contains("\"diff\"")
+            .contains("\"validation\"")
+            .contains("\"artefacts\"")
+            .contains("\"latencyProfile\" : \"PASS\"")
+            .contains("\"throughputCheck\" : \"WARN\"")
+            .contains("\"validator\" : \"stub-validator\"");
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Ensures preview exits with usage guidance when the target revision is not supplied.
+    @Test
+    void shouldRequireTargetRevisionForPreviewCommand() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingManageConfigurationUseCase configUseCase = new RecordingManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "preview", "--mint-id=mint-preview", "--operator-id=operator-preview");
+
+        execution.assertExitCode(CommandLine.ExitCode.USAGE);
+        assertThat(configUseCase.lastPreviewCommand()).isNull();
+        assertThat(execution.getSystemErrString()).contains("--target-revision");
+    }
+
+    // Ensures validation failures during preview display workflow context for diagnosis.
+    @Test
+    void shouldReportValidationErrorDuringPreview() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final PreviewValidationFailureUseCase configUseCase = new PreviewValidationFailureUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "preview", "--mint-id=" + VALID_MINT_UUID, "--operator-id=operator-preview",
+                "--target-revision=rev-404", "--include-validation", "--output-format=JSON");
+
+        execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
+        assertThat(execution.getSystemErrString()).contains("Validation failed for configuration revision");
+        assertThat(execution.getSystemOutString())
+            .contains("\"diff\"")
+            .contains("\"validation\"");
+    }
+
     // Ensures the apply subcommand maps CLI options to the manage configuration use case.
     @Test
     void shouldConstructApplyConfigurationCommandFromOptions() {
@@ -125,7 +243,7 @@ class MintAdminCliApplicationTest {
                 "--deployment-ticket=DEP-555", "--version-tag=v1.2.3", "--reason-code=CHG-001",
                 "--ticket-reference=TCK-77", "--request-id=req-abc", "--correlation-id=cid-xyz", "--output-format=JSON", "--yes");
 
-        final ManageConfigurationUseCase.ApplyConfigurationCommand command = configUseCase.lastApplyCommand.get();
+        final ManageConfigurationUseCase.ApplyConfigurationCommand command = configUseCase.lastApplyCommand();
         assertThat(command.mintId()).isEqualTo("mint-444");
         assertThat(command.operatorId()).isEqualTo("operator-444");
         assertThat(command.targetRevision()).isEqualTo("rev-123");
@@ -135,7 +253,10 @@ class MintAdminCliApplicationTest {
         assertThat(command.ticketReferences()).containsExactly("TCK-77");
         assertThat(command.requestId()).isEqualTo("req-abc");
         assertThat(command.correlationId()).isEqualTo("cid-xyz");
-        assertThat(execution.getSystemOutString()).contains("\"nextAction\"");
+        assertThat(execution.getSystemOutString())
+            .contains("\"nextAction\"")
+            .contains("\"diff\"")
+            .contains("\"validation\"");
         execution.assertExitCode(CommandLine.ExitCode.OK);
     }
 
@@ -158,10 +279,29 @@ class MintAdminCliApplicationTest {
 
             execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
             assertThat(execution.getSystemOutString()).contains("Apply command aborted by user.");
-            assertThat(configUseCase.lastApplyCommand.get()).isNull();
+            assertThat(configUseCase.lastApplyCommand()).isNull();
         } finally {
             System.setIn(originalIn);
         }
+    }
+
+    // Ensures apply surfaces missing approval errors to the operator.
+    @Test
+    void shouldReportMissingApprovalDuringApply() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final MissingApprovalManageConfigurationUseCase configUseCase = new MissingApprovalManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "apply", "--mint-id=" + VALID_MINT_UUID, "--operator-id=operator-approval",
+                "--target-revision=rev-910", "--deployment-ticket=DEP-910", "--output-format=JSON", "--yes");
+
+        execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
+        assertThat(execution.getSystemErrString()).contains("Missing approval for configuration revision");
+        assertThat(execution.getSystemOutString().trim()).isEmpty();
     }
 
     // Validates required options are enforced for the apply subcommand.
@@ -177,8 +317,81 @@ class MintAdminCliApplicationTest {
             .execute("config", "apply", "--mint-id=mint-444", "--operator-id=operator-444", "--deployment-ticket=DEP-555");
 
         execution.assertExitCode(CommandLine.ExitCode.USAGE);
-        assertThat(configUseCase.lastApplyCommand.get()).isNull();
+        assertThat(configUseCase.lastApplyCommand()).isNull();
         assertThat(execution.getSystemErrString()).contains("--target-revision");
+    }
+
+    // Verifies rollback responses include diff, validation, and rollback metadata.
+    @Test
+    void shouldExecuteRollbackCommandAndRenderWorkflowDetails() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingManageConfigurationUseCase configUseCase = new RecordingManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "rollback", "--mint-id=mint-rollback", "--operator-id=operator-rollback",
+                "--target-revision=rev-777", "--rollback-reason=Investigate incident", "--audit-reference=AUD-9",
+                "--output-format=JSON", "--yes");
+
+        final ManageConfigurationUseCase.RollbackConfigurationCommand command = configUseCase.lastRollbackCommand();
+        assertThat(command.mintId()).isEqualTo("mint-rollback");
+        assertThat(command.operatorId()).isEqualTo("operator-rollback");
+        assertThat(command.targetRevision()).isEqualTo("rev-777");
+        assertThat(command.rollbackReason()).isEqualTo("Investigate incident");
+        assertThat(command.auditReference()).isEqualTo("AUD-9");
+        assertThat(execution.getSystemOutString())
+            .contains("\"diff\"")
+            .contains("\"validation\"")
+            .contains("\"rollback\"")
+            .contains("\"reason\" : \"Manual rollback\"");
+        execution.assertExitCode(CommandLine.ExitCode.OK);
+    }
+
+    // Ensures rollback commands honour confirmation prompts before executing.
+    @Test
+    void shouldAbortRollbackWhenConfirmationRejected() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RecordingManageConfigurationUseCase configUseCase = new RecordingManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final InputStream originalIn = System.in;
+        System.setIn(new ByteArrayInputStream("n\n".getBytes(StandardCharsets.UTF_8)));
+        try {
+            final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                    lifecyclePort))
+                .execute("config", "rollback", "--mint-id=mint-rollback", "--operator-id=operator-rollback",
+                    "--target-revision=rev-888", "--rollback-reason=Testing confirmation", "--output-format=JSON");
+
+            execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
+            assertThat(execution.getSystemOutString()).contains("Rollback command aborted by user.");
+            assertThat(configUseCase.lastRollbackCommand()).isNull();
+        } finally {
+            System.setIn(originalIn);
+        }
+    }
+
+    // Ensures rollback conflict errors are surfaced without rendering stale workflow output.
+    @Test
+    void shouldReportRollbackConflictError() {
+        final RecordingMintStatusPort statusPort = new RecordingMintStatusPort();
+        final RollbackConflictManageConfigurationUseCase configUseCase = new RollbackConflictManageConfigurationUseCase();
+        final RecordingMintUsersPort usersPort = new RecordingMintUsersPort();
+        final RecordingMintAlertsPort alertsPort = new RecordingMintAlertsPort();
+        final RecordingMintLifecyclePort lifecyclePort = new RecordingMintLifecyclePort();
+
+        final Execution execution = Execution.builder(() -> commandLine(statusPort, configUseCase, usersPort, alertsPort,
+                lifecyclePort))
+            .execute("config", "rollback", "--mint-id=" + VALID_MINT_UUID, "--operator-id=operator-rollback",
+                "--target-revision=rev-999", "--rollback-reason=Conflict detected", "--output-format=JSON", "--yes");
+
+        execution.assertExitCode(CommandLine.ExitCode.SOFTWARE);
+        assertThat(execution.getSystemErrString()).contains("Rollback conflict detected");
+        assertThat(execution.getSystemOutString().trim()).isEmpty();
     }
 
     // Confirms YAML payloads can be supplied via file for the users command.
@@ -300,6 +513,20 @@ class MintAdminCliApplicationTest {
             configurationUseCase, usersPort, alertsPort, lifecyclePort);
     }
 
+    private static ConfigurationValidationException validationFailure(final String mintId,
+                                                                       final ManageConfigurationUseCase.ConfigurationWorkflowResponse response) {
+        final Instant timestamp = Instant.parse("2024-02-01T00:00:00Z");
+        final ConfigurationRevisionId revisionId = ConfigurationRevisionId.of(99);
+        final ValidationReport report = ValidationReport.failure(
+            revisionId,
+            List.of("Latency threshold exceeded"),
+            new AuditMetadata("validator-bot", "VALIDATE", timestamp),
+            timestamp,
+            Map.of("latencyProfile", "FAIL", "throughputCheck", "FAIL")
+        );
+        return new ConfigurationValidationException(MintId.fromString(mintId), revisionId, report, response);
+    }
+
     private static final class RecordingMintStatusPort implements MintStatusPort {
         private final AtomicReference<MintStatusRequest> lastRequest = new AtomicReference<>();
 
@@ -357,7 +584,7 @@ class MintAdminCliApplicationTest {
         }
     }
 
-    private static final class RecordingManageConfigurationUseCase extends StubManageConfigurationUseCase {
+    private static class RecordingManageConfigurationUseCase extends StubManageConfigurationUseCase {
         private final AtomicReference<ManageConfigurationUseCase.SubmitConfigurationCommand> lastSubmitCommand = new AtomicReference<>();
         private final AtomicReference<ManageConfigurationUseCase.PreviewConfigurationCommand> lastPreviewCommand = new AtomicReference<>();
         private final AtomicReference<ManageConfigurationUseCase.ApplyConfigurationCommand> lastApplyCommand = new AtomicReference<>();
@@ -385,6 +612,55 @@ class MintAdminCliApplicationTest {
         public ManageConfigurationUseCase.ConfigurationWorkflowResponse rollback(final RollbackConfigurationCommand command) {
             lastRollbackCommand.set(command);
             return super.rollback(command);
+        }
+
+        ManageConfigurationUseCase.SubmitConfigurationCommand lastSubmitCommand() {
+            return lastSubmitCommand.get();
+        }
+
+        ManageConfigurationUseCase.PreviewConfigurationCommand lastPreviewCommand() {
+            return lastPreviewCommand.get();
+        }
+
+        ManageConfigurationUseCase.ApplyConfigurationCommand lastApplyCommand() {
+            return lastApplyCommand.get();
+        }
+
+        ManageConfigurationUseCase.RollbackConfigurationCommand lastRollbackCommand() {
+            return lastRollbackCommand.get();
+        }
+    }
+
+    private static final class SubmitValidationFailureUseCase extends RecordingManageConfigurationUseCase {
+        @Override
+        public ManageConfigurationUseCase.ConfigurationWorkflowResponse submit(final SubmitConfigurationCommand command) {
+            final ManageConfigurationUseCase.ConfigurationWorkflowResponse response = super.submit(command);
+            throw validationFailure(command.mintId(), response);
+        }
+    }
+
+    private static final class PreviewValidationFailureUseCase extends RecordingManageConfigurationUseCase {
+        @Override
+        public ManageConfigurationUseCase.ConfigurationWorkflowResponse preview(final PreviewConfigurationCommand command) {
+            final ManageConfigurationUseCase.ConfigurationWorkflowResponse response = super.preview(command);
+            throw validationFailure(command.mintId(), response);
+        }
+    }
+
+    private static final class MissingApprovalManageConfigurationUseCase extends RecordingManageConfigurationUseCase {
+        @Override
+        public ManageConfigurationUseCase.ConfigurationWorkflowResponse apply(final ApplyConfigurationCommand command) {
+            super.apply(command);
+            throw new MissingApprovalException(MintId.fromString(command.mintId()), ConfigurationRevisionId.of(101));
+        }
+    }
+
+    private static final class RollbackConflictManageConfigurationUseCase extends RecordingManageConfigurationUseCase {
+        @Override
+        public ManageConfigurationUseCase.ConfigurationWorkflowResponse rollback(final RollbackConfigurationCommand command) {
+            super.rollback(command);
+            throw new RollbackConflictException(MintId.fromString(command.mintId()), ConfigurationRevisionId.of(202),
+                "Rollback conflict detected", new IllegalStateException("Active revision has diverged"));
         }
     }
 
