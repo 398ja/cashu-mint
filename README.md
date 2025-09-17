@@ -38,6 +38,31 @@ All endpoints are rooted at `/v1`.
 | `GET` | `/info` | Retrieve mint information. |
 | `POST` | `/checkstate/{mint_id}` | Check state of tokens against a mint. |
 
+## Configuration governance
+
+The protocol module now ships with a configuration management workflow driven by
+`ManageConfigurationInteractor`. Adapters can submit proposed revisions,
+trigger staged approval policies, inspect validation summaries, and apply or
+rollback revisions once quorum has been reached. The interactor coordinates the
+following collaborators:
+
+- configuration revision repository
+- schema validator
+- approval policy engine
+- diff renderer
+- secrets gateway
+- notification gateway
+- audit trail writer
+- domain event publisher
+
+See the application-layer DTOs under
+`cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/application/configuration/dto`
+for the request and response contracts that adapters can rely on. The REST
+module exposes the interactor via
+`xyz.tcheeric.cashu.mint.rest.config.ConfigurationManagementConfig`, allowing
+future controllers to inject the service and build endpoints for configuration
+governance.
+
 ## Docker Compose
 The `PHOENIXD_SERVICE` environment variable controls which Phoenixd backend is
 used. It defaults to `phoenixd-mock` for local development. For production,
