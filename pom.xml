@@ -10,6 +10,7 @@
     <name>cashu-mint</name>
     <url>http://maven.apache.org</url>
     <modules>
+        <module>cashu-mint-tools</module>
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-admin-rest</module>
