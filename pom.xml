@@ -57,6 +57,8 @@
         <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
         <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
         <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
+        <maven-exec-plugin.version>3.5.0</maven-exec-plugin.version>
+        <properties-maven-plugin.version>1.1.0</properties-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -253,6 +255,23 @@
                     <!-- Allow reflective access and enable agent self-attach when on 21 -->
                     <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED -Djdk.attach.allowAttachSelf=true</argLine>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${maven-exec-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>cashu-admin-tool</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>xyz.tcheeric.cashu.mint.admin.cli.MintAdminCliApplication</mainClass>
+                            <skip>true</skip>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
