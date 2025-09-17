@@ -6,9 +6,11 @@ The mint now exposes a shared `SignatureVaultService` bean so that signatures mi
 
 ## Modules
 
-The build is split into five Maven modules so that protocol logic, public APIs,
+The build is split into six Maven modules so that protocol logic, public APIs,
 and administrative surfaces evolve independently:
 
+- `cashu-mint-tools` – deterministic preload data generation and SQL rendering
+  utilities for seeding mint databases.
 - `cashu-mint-protocol` – core library for the Cashu protocol.
 - `cashu-mint-rest` – public REST API for running a mint.
 - `cashu-mint-admin` – shared administrative domain, persistence adapters, and
@@ -137,10 +139,10 @@ Generate deterministic preload data in two steps: emit JSON using the `MintPrelo
 
 ```bash
 # Step 1: create JSON preload data (optionally pass a mint UUID as the second argument)
-./mvnw -q -pl cashu-mint-protocol exec:java \
+./mvnw -q -pl cashu-mint-tools exec:java \
   -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
   -Dexec.args="scripts/preload-test-data.json"
-# ./mvnw -q -pl cashu-mint-protocol exec:java \
+# ./mvnw -q -pl cashu-mint-tools exec:java \
 #   -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
 #   -Dexec.args="scripts/preload-test-data.json 11111111-1111-1111-1111-111111111111"
 
