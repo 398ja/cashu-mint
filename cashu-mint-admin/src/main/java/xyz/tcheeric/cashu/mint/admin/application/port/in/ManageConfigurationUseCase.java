@@ -12,34 +12,132 @@ import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSecret;
  */
 public interface ManageConfigurationUseCase {
 
-    ManageConfigurationResponse handle(ManageConfigurationRequest request);
+    ConfigurationWorkflowResponse submit(SubmitConfigurationCommand command);
+
+    ConfigurationWorkflowResponse preview(PreviewConfigurationCommand command);
+
+    ConfigurationWorkflowResponse review(ReviewConfigurationCommand command);
+
+    ConfigurationWorkflowResponse apply(ApplyConfigurationCommand command);
+
+    ConfigurationWorkflowResponse rollback(RollbackConfigurationCommand command);
 
     /**
-     * Supported commands for configuration lifecycle management.
+     * Marker interface implemented by all workflow commands.
      */
-    enum ConfigurationCommand {
-        SUBMIT,
-        DIFF,
-        VALIDATE,
-        APPROVE,
-        APPLY,
-        ROLLBACK
+    interface WorkflowCommand {
+
+        String mintId();
+
+        String operatorId();
+
+        String versionTag();
+
+        List<String> reasonCodes();
+
+        List<String> ticketReferences();
+
+        String requestId();
+
+        String correlationId();
     }
 
     /**
-     * Input payload describing the configuration request.
+     * Workflow commands that operate on a specific configuration revision.
      */
-    record ManageConfigurationRequest(String mintId,
+    interface TargetedCommand extends WorkflowCommand {
+
+        String targetRevision();
+    }
+
+    /**
+     * Command payload describing a configuration submission.
+     */
+    record SubmitConfigurationCommand(String mintId,
                                       String operatorId,
-                                      String targetRevision,
-                                      ConfigurationCommand command,
+                                      ConfigurationPayload payload,
                                       String versionTag,
-                                      Map<String, ConfigurationValueInput> parameters,
                                       List<String> reasonCodes,
                                       List<String> ticketReferences,
-                                      List<String> approvalConditions,
+                                      List<String> approvalChecklist,
                                       String requestId,
-                                      String correlationId) { }
+                                      String correlationId) implements WorkflowCommand { }
+
+    /**
+     * Command payload for previewing or validating a configuration revision.
+     */
+    record PreviewConfigurationCommand(String mintId,
+                                       String operatorId,
+                                       String targetRevision,
+                                       boolean includeValidation,
+                                       String versionTag,
+                                       List<String> reasonCodes,
+                                       List<String> ticketReferences,
+                                       String requestId,
+                                       String correlationId) implements TargetedCommand { }
+
+    /**
+     * Decision taken during configuration review.
+     */
+    enum ReviewDecision {
+        APPROVE,
+        REJECT
+    }
+
+    /**
+     * Command payload describing an approval or rejection decision.
+     */
+    record ReviewConfigurationCommand(String mintId,
+                                      String operatorId,
+                                      String targetRevision,
+                                      ReviewDecision decision,
+                                      List<String> approvalChecklist,
+                                      List<String> rejectionReasons,
+                                      String versionTag,
+                                      List<String> reasonCodes,
+                                      List<String> ticketReferences,
+                                      String requestId,
+                                      String correlationId) implements TargetedCommand { }
+
+    /**
+     * Command payload describing configuration application.
+     */
+    record ApplyConfigurationCommand(String mintId,
+                                     String operatorId,
+                                     String targetRevision,
+                                     String deploymentTicket,
+                                     String versionTag,
+                                     List<String> reasonCodes,
+                                     List<String> ticketReferences,
+                                     String requestId,
+                                     String correlationId) implements TargetedCommand { }
+
+    /**
+     * Command payload describing a rollback to a prior configuration revision.
+     */
+    record RollbackConfigurationCommand(String mintId,
+                                        String operatorId,
+                                        String targetRevision,
+                                        String rollbackReason,
+                                        String auditReference,
+                                        String versionTag,
+                                        List<String> reasonCodes,
+                                        List<String> ticketReferences,
+                                        String requestId,
+                                        String correlationId) implements TargetedCommand { }
+
+    /**
+     * Configuration payload supplied by callers.
+     */
+    record ConfigurationPayload(Map<String, ConfigurationValueInput> parameters,
+                                Map<String, String> metadata,
+                                String summary) {
+        public ConfigurationPayload {
+            parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+            metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+            summary = summary == null ? "" : summary.trim();
+        }
+    }
 
     /**
      * Input for configuration parameters. One of {@code value}, {@code secretReference}, or {@code secretPlaintext}
@@ -53,18 +151,31 @@ public interface ManageConfigurationUseCase {
     /**
      * Rich response payload describing the outcome of a configuration command.
      */
-    record ManageConfigurationResponse(String mintId,
-                                       String requestedRevision,
-                                       String activeRevision,
-                                       String versionTag,
-                                       ConfigurationRevisionState state,
-                                       DiffArtefact diff,
-                                       ValidationSummary validation,
-                                       ApprovalSummary approval,
-                                       List<ApprovalRecordSummary> approvalHistory,
-                                       AuditSummary audit,
-                                       List<HistoryCheckpoint> history,
-                                       NextAction nextAction) { }
+    record ConfigurationWorkflowResponse(String mintId,
+                                          String requestedRevision,
+                                          String activeRevision,
+                                          String versionTag,
+                                          ConfigurationRevisionState state,
+                                          ConfigurationSnapshot requestedConfiguration,
+                                          ConfigurationSnapshot activeConfiguration,
+                                          DiffSummary diffSummary,
+                                          DiffArtefact diff,
+                                          ValidationSummary validation,
+                                          ApprovalSummary approval,
+                                          ApprovalChecklist approvalChecklist,
+                                          List<ApprovalRecordSummary> approvalHistory,
+                                          AuditSummary audit,
+                                          List<HistoryCheckpoint> history,
+                                          RollbackMetadata rollback,
+                                          NextAction nextAction) { }
+
+    /**
+     * Snapshot of configuration values at a given revision.
+     */
+    record ConfigurationSnapshot(String revisionId,
+                                 Map<String, ConfigurationValueDto> values,
+                                 Instant capturedAt,
+                                 String versionTag) { }
 
     /**
      * Represents a single entry in the computed diff between configuration revisions.
@@ -72,6 +183,11 @@ public interface ManageConfigurationUseCase {
     record DiffArtefact(Map<String, ConfigurationValueDto> added,
                         Map<String, ParameterChangeDto> changed,
                         Map<String, ConfigurationValueDto> removed) { }
+
+    /**
+     * Summary view of diff statistics.
+     */
+    record DiffSummary(int added, int changed, int removed) { }
 
     /**
      * Describes a configuration value for presentation purposes.
@@ -99,7 +215,13 @@ public interface ManageConfigurationUseCase {
     record ApprovalSummary(boolean approved,
                            String approver,
                            Instant approvedAt,
-                           List<String> conditions) { }
+                           List<String> conditions,
+                           ReviewDecision decision) { }
+
+    /**
+     * Provides checklist visibility for approvals.
+     */
+    record ApprovalChecklist(List<String> required, List<String> satisfied, List<String> outstanding) { }
 
     /**
      * Captures previously recorded approvals for the revision.
@@ -108,7 +230,8 @@ public interface ManageConfigurationUseCase {
                                  Instant approvedAt,
                                  List<String> conditions,
                                  String requestId,
-                                 String correlationId) { }
+                                 String correlationId,
+                                 ReviewDecision decision) { }
 
     /**
      * Audit metadata of the latest command execution.
@@ -118,8 +241,28 @@ public interface ManageConfigurationUseCase {
                         Instant timestamp,
                         List<String> reasonCodes,
                         List<String> ticketReferences,
-                        String requestId,
-                        String correlationId) { }
+                        AuditReference reference,
+                        AutomationDescriptor automation) { }
+
+    /**
+     * Reference identifiers for correlating audit trails.
+     */
+    record AuditReference(String requestId, String correlationId) { }
+
+    /**
+     * Automation details associated with an audit action.
+     */
+    record AutomationDescriptor(boolean automated, String system, String runId) { }
+
+    /**
+     * Metadata produced when a rollback command executes.
+     */
+    record RollbackMetadata(String sourceRevision,
+                            String targetRevision,
+                            Instant executedAt,
+                            String reason,
+                            AuditReference reference,
+                            String externalReference) { }
 
     /**
      * Historical checkpoints for the configuration revision.
