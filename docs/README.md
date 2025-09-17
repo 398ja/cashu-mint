@@ -21,6 +21,7 @@ This directory contains documentation organized using the Diátaxis framework.
 ## Reference
 - [Configuration](reference/configuration.md) - Application properties and defaults.
 - [REST API](reference/rest-api.md) - HTTP endpoints exposed by the mint.
+- [Tools](reference/tools.md) - Preload profiles and usage for generating test data.
 - [Module layers](reference/module-layers.md) - Module boundaries, package layout, and wiring examples.
 - [Supported NUTs](reference/nuts.md) - Implemented Cashu protocol specs.
 - [Java version](reference/java-version.md) - Required JDK for building.
