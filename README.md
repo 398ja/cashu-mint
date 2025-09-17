@@ -83,9 +83,15 @@ java -jar cashu-mint-admin-cli/target/cashu-mint-admin-cli-0.1.10-runner.jar min
 ```
 
 ```bash
-./mvnw -pl cashu-mint-admin-cli -q exec:java \
-  -Dexec.mainClass=xyz.tcheeric.cashu.mint.admin.cli.MintAdminCliApplication -- mint --output-format=JSON
+./mvnw -pl cashu-mint-admin-cli -am -q package exec:java@cashu-admin-tool
 ```
+
+The Maven execution wires `MintAdminCliApplication` automatically and reads the
+default arguments from `cashu-mint-admin-cli/cashu-admin-tool.properties`. Edit
+that file to experiment with other command invocations or output formats without
+touching the build configuration. The combined `package exec:java@cashu-admin-tool`
+invocation compiles the admin module and immediately runs the CLI with the
+configured arguments.
 
 Available commands:
 
