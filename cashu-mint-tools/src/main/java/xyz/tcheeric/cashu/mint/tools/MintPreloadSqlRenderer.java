@@ -35,52 +35,61 @@ public final class MintPreloadSqlRenderer {
         sb.append("-- Mint: ").append(data.mintId()).append(newline);
         sb.append("-- Keyset: ").append(data.keySetId()).append(newline).append(newline);
 
-        sb.append("BEGIN;").append(newline).append(newline);
-        sb.append("TRUNCATE TABLE").append(newline)
-                .append(indent).append("t_key_a,").append(newline)
-                .append(indent).append("t_keyset_a,").append(newline)
-                .append(indent).append("t_proof_a,").append(newline)
-                .append(indent).append("t_mint_a,").append(newline)
-                .append(indent).append("t_key,").append(newline)
-                .append(indent).append("t_keyset,").append(newline)
-                .append(indent).append("t_proof,").append(newline)
-                .append(indent).append("t_mint,").append(newline)
-                .append(indent).append("revinfo").append(newline)
-                .append("RESTART IDENTITY CASCADE;").append(newline).append(newline);
+        // Safely truncate if tables exist (no-op on fresh DBs)
+        String[] tablesToTruncate = new String[] {
+                "t_key_a", "t_keyset_a", "t_proof_a", "t_mint_a",
+                "t_key", "t_keyset", "t_proof", "t_mint", "revinfo"
+        };
+        for (String table : tablesToTruncate) {
+            sb.append("DO $$ BEGIN IF to_regclass('")
+                    .append(table)
+                    .append("') IS NOT NULL THEN TRUNCATE TABLE ")
+                    .append(table)
+                    .append(" RESTART IDENTITY CASCADE; END IF; END $$;")
+                    .append(newline);
+        }
+        sb.append(newline);
 
-        sb.append("ALTER TABLE t_proof").append(newline)
-                .append(indent).append("ADD COLUMN IF NOT EXISTS unblinded_signature VARCHAR(255);").append(newline)
-                .append(newline);
+        // Add optional column only when t_proof exists
+        sb.append("DO $$ BEGIN IF to_regclass('t_proof') IS NOT NULL THEN ")
+                .append("ALTER TABLE t_proof ADD COLUMN IF NOT EXISTS unblinded_signature VARCHAR(255);")
+                .append(" END IF; END $$;")
+                .append(newline).append(newline);
 
-        sb.append("INSERT INTO t_mint AS target (id, archived, created_at, updated_at, version)").append(newline)
-                .append("VALUES ('").append(data.mintId()).append("'::uuid, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)")
+        // Upserts guarded by table existence checks
+        sb.append("DO $$ BEGIN IF ")
+                .append("to_regclass('t_mint') IS NOT NULL AND to_regclass('t_keyset') IS NOT NULL AND to_regclass('t_key') IS NOT NULL ")
+                .append("THEN").append(newline);
+
+        sb.append(indent).append("INSERT INTO t_mint AS target (id, archived, created_at, updated_at, version)").append(newline)
+                .append(indent).append("VALUES ('").append(data.mintId()).append("'::uuid, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)")
                 .append(newline)
-                .append("ON CONFLICT (id) DO UPDATE").append(newline)
-                .append("SET archived = EXCLUDED.archived,").append(newline)
-                .append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
-                .append(indent).append("version = EXCLUDED.version;").append(newline).append(newline);
+                .append(indent).append("ON CONFLICT (id) DO UPDATE").append(newline)
+                .append(indent).append("SET archived = EXCLUDED.archived,").append(newline)
+                .append(indent).append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
+                .append(indent).append(indent).append("version = EXCLUDED.version;").append(newline).append(newline);
 
-        sb.append("INSERT INTO t_keyset AS target (id, archived, created_at, updated_at, version, key_set_id, unit, mint_id)")
+        sb.append(indent).append("INSERT INTO t_keyset AS target (id, archived, created_at, updated_at, version, key_set_id, unit, mint_id)")
                 .append(newline)
-                .append("VALUES ('").append(data.keySetRowId()).append("'::uuid, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, '")
+                .append(indent).append("VALUES ('").append(data.keySetRowId()).append("'::uuid, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, '")
                 .append(data.keySetId()).append("', '").append(data.unit()).append("', '")
                 .append(data.mintId()).append("'::uuid)").append(newline)
-                .append("ON CONFLICT (id) DO UPDATE").append(newline)
-                .append("SET archived = EXCLUDED.archived,").append(newline)
-                .append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
-                .append(indent).append("version = EXCLUDED.version,").append(newline)
-                .append(indent).append("key_set_id = EXCLUDED.key_set_id,").append(newline)
-                .append(indent).append("unit = EXCLUDED.unit,").append(newline)
-                .append(indent).append("mint_id = EXCLUDED.mint_id;").append(newline).append(newline);
+                .append(indent).append("ON CONFLICT (id) DO UPDATE").append(newline)
+                .append(indent).append("SET archived = EXCLUDED.archived,").append(newline)
+                .append(indent).append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
+                .append(indent).append(indent).append("version = EXCLUDED.version,").append(newline)
+                .append(indent).append(indent).append("key_set_id = EXCLUDED.key_set_id,").append(newline)
+                .append(indent).append(indent).append("unit = EXCLUDED.unit,").append(newline)
+                .append(indent).append(indent).append("mint_id = EXCLUDED.mint_id;").append(newline).append(newline);
 
-        sb.append("INSERT INTO t_key AS target (id, archived, created_at, updated_at, version, amount, private_key, key_set_id)")
+        sb.append(indent).append("INSERT INTO t_key AS target (id, archived, created_at, updated_at, version, amount, private_key, key_set_id)")
                 .append(newline)
-                .append("VALUES").append(newline);
+                .append(indent).append("VALUES").append(newline);
 
         List<MintPreloadData.DenominationKey> keys = data.keys();
         for (int i = 0; i < keys.size(); i++) {
             MintPreloadData.DenominationKey key = keys.get(i);
-            sb.append(indent)
+            sb.append(indent).append(indent)
                     .append("('").append(key.id()).append("'::uuid, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, ")
                     .append(key.amount()).append(", '").append(key.privateKeyHex()).append("', '")
                     .append(data.keySetRowId()).append("'::uuid)");
@@ -90,15 +99,15 @@ public final class MintPreloadSqlRenderer {
             sb.append(newline);
         }
 
-        sb.append("ON CONFLICT (id) DO UPDATE").append(newline)
-                .append("SET archived = EXCLUDED.archived,").append(newline)
-                .append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
-                .append(indent).append("version = EXCLUDED.version,").append(newline)
-                .append(indent).append("amount = EXCLUDED.amount,").append(newline)
-                .append(indent).append("private_key = EXCLUDED.private_key,").append(newline)
-                .append(indent).append("key_set_id = EXCLUDED.key_set_id;").append(newline).append(newline);
+        sb.append(indent).append("ON CONFLICT (id) DO UPDATE").append(newline)
+                .append(indent).append("SET archived = EXCLUDED.archived,").append(newline)
+                .append(indent).append(indent).append("updated_at = EXCLUDED.updated_at,").append(newline)
+                .append(indent).append(indent).append("version = EXCLUDED.version,").append(newline)
+                .append(indent).append(indent).append("amount = EXCLUDED.amount,").append(newline)
+                .append(indent).append(indent).append("private_key = EXCLUDED.private_key,").append(newline)
+                .append(indent).append(indent).append("key_set_id = EXCLUDED.key_set_id;").append(newline).append(newline);
 
-        sb.append("COMMIT;").append(newline);
+        sb.append("END IF; END $$;").append(newline);
         return sb.toString();
     }
 
