@@ -27,14 +27,31 @@ This how-to guide walks through the daily development loop: preparing infrastruc
    ```bash
    # one-shot: emit JSON then render SQL
    ./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
-   psql -d cashu_mint -f scripts/preload-test-data.sql
 
-   # or run steps individually
+   # seed the mint DB using docker-compose credentials/port (host connection)
+   PGPASSWORD=postgres psql \
+     -h localhost -p 55432 -U postgres -d cashu_mint \
+     -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+
+   # or URI style
+   psql "postgresql://postgres:postgres@localhost:55432/cashu_mint" \
+     -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+
+   # or stream into the DB container
+   docker compose exec -T cashu-mint-db psql -U postgres -d cashu_mint -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+
+   # run steps individually (same seeding commands as above)
    ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
    ./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java
-   psql -d cashu_mint -f scripts/preload-test-data.sql
    ```
    The profiles load defaults from [`cashu-mint-tools/mint-preload.properties`](../../cashu-mint-tools/mint-preload.properties) so the JSON and SQL destinations stay aligned. Override any property with `-D` flags when you need alternative locations or a specific mint identifier (see [`README.md`](../../README.md)).
+
+   If the schema does not exist yet, the preload script will safely do nothing. To create tables for local development, you can start the mint REST service with Hibernate auto-DDL enabled via the included override file, then re-run the `psql` command:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile dev up -d cashu-mint-rest
+   # after the service initializes the schema, seed again
+   PGPASSWORD=postgres psql -h localhost -p 55432 -U postgres -d cashu_mint -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+   ```
 
 ## Run tests
 
