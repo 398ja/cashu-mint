@@ -20,11 +20,16 @@ import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ConfigurationCommand;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ApplyConfigurationCommand;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ConfigurationPayload;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ConfigurationValueInput;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ManageConfigurationRequest;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ManageConfigurationResponse;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ConfigurationWorkflowResponse;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.NextAction;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.PreviewConfigurationCommand;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ReviewConfigurationCommand;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.ReviewDecision;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.RollbackConfigurationCommand;
+import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase.SubmitConfigurationCommand;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationApprovalRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationNotificationDispatcher;
@@ -106,10 +111,8 @@ class ManageConfigurationInteractorTest {
     @Test
     // Ensures submit command stores a new configuration revision and emits diff artefacts.
     void shouldSubmitConfigurationRevision() {
-        final ManageConfigurationRequest request = request(ConfigurationCommand.SUBMIT, null,
-            Map.of("fee", new ConfigurationValueInput("0.5", null, null, null)));
-
-        final ManageConfigurationResponse response = interactor.handle(request);
+        final ConfigurationWorkflowResponse response = interactor.submit(submitCommand(
+            Map.of("fee", new ConfigurationValueInput("0.5", null, null, null))));
 
         assertThat(configurationSetRepository.latestRevision(MINT_ID).revisionId().value()).isEqualTo(2);
         assertThat(eventPublisher.publishedEvents).hasSize(1);
@@ -121,13 +124,12 @@ class ManageConfigurationInteractorTest {
     @Test
     // Ensures validation failures trigger a domain-specific exception and surface the report.
     void shouldThrowValidationExceptionWhenValidationFails() {
-        final ManageConfigurationResponse submission = interactor.handle(request(ConfigurationCommand.SUBMIT, null,
+        final ConfigurationWorkflowResponse submission = interactor.submit(submitCommand(
             Map.of("fee", new ConfigurationValueInput("0.6", null, null, null))));
         configurationValidator.nextReport = ValidationReport.failure(ConfigurationRevisionId.of(2), List.of("invalid"),
             new AuditMetadata("validator", "Validate", NOW.plusSeconds(5)), NOW.plusSeconds(5), Map.of());
 
-        assertThatThrownBy(() -> interactor.handle(request(ConfigurationCommand.VALIDATE,
-            submission.requestedRevision(), Map.of())))
+        assertThatThrownBy(() -> interactor.preview(previewCommand(submission.requestedRevision(), true)))
             .isInstanceOf(ConfigurationValidationException.class)
             .extracting("report").extracting("valid").isEqualTo(false);
     }
@@ -135,13 +137,13 @@ class ManageConfigurationInteractorTest {
     @Test
     // Ensures an approved revision records approval history and updates state.
     void shouldApproveConfigurationRevision() {
-        interactor.handle(request(ConfigurationCommand.SUBMIT, null,
+        interactor.submit(submitCommand(
             Map.of("fee", new ConfigurationValueInput("0.6", null, null, null))));
         configurationValidator.nextReport = ValidationReport.success(ConfigurationRevisionId.of(2),
             new AuditMetadata("validator", "Validate", NOW.plusSeconds(5)), NOW.plusSeconds(5), Map.of());
-        interactor.handle(request(ConfigurationCommand.VALIDATE, "2", Map.of()));
+        interactor.preview(previewCommand("2", true));
 
-        final ManageConfigurationResponse response = interactor.handle(request(ConfigurationCommand.APPROVE, "2", Map.of()));
+        final ConfigurationWorkflowResponse response = interactor.review(approveCommand("2"));
 
         assertThat(response.approval().approved()).isTrue();
         assertThat(approvalRepository.findApprovals(MINT_ID, ConfigurationRevisionId.of(2))).hasSize(1);
@@ -152,14 +154,14 @@ class ManageConfigurationInteractorTest {
     @Test
     // Ensures applying an approved revision updates the aggregate and emits lifecycle notifications.
     void shouldApplyApprovedConfiguration() {
-        interactor.handle(request(ConfigurationCommand.SUBMIT, null,
+        interactor.submit(submitCommand(
             Map.of("fee", new ConfigurationValueInput("0.7", null, null, null))));
         configurationValidator.nextReport = ValidationReport.success(ConfigurationRevisionId.of(2),
             new AuditMetadata("validator", "Validate", NOW.plusSeconds(5)), NOW.plusSeconds(5), Map.of());
-        interactor.handle(request(ConfigurationCommand.VALIDATE, "2", Map.of()));
-        interactor.handle(request(ConfigurationCommand.APPROVE, "2", Map.of()));
+        interactor.preview(previewCommand("2", true));
+        interactor.review(approveCommand("2"));
 
-        final ManageConfigurationResponse response = interactor.handle(request(ConfigurationCommand.APPLY, "2", Map.of()));
+        final ConfigurationWorkflowResponse response = interactor.apply(applyCommand("2"));
 
         assertThat(response.state()).isEqualTo(ConfigurationRevisionState.APPLIED);
         assertThat(mintRepository.findById(MINT_ID).orElseThrow().configurationSet().revisionId().value()).isEqualTo(2);
@@ -169,10 +171,10 @@ class ManageConfigurationInteractorTest {
     @Test
     // Ensures applying without approval surfaces a MissingApprovalException.
     void shouldRejectApplyWithoutApproval() {
-        interactor.handle(request(ConfigurationCommand.SUBMIT, null,
+        interactor.submit(submitCommand(
             Map.of("fee", new ConfigurationValueInput("0.8", null, null, null))));
 
-        assertThatThrownBy(() -> interactor.handle(request(ConfigurationCommand.APPLY, "2", Map.of())))
+        assertThatThrownBy(() -> interactor.apply(applyCommand("2")))
             .isInstanceOf(MissingApprovalException.class);
     }
 
@@ -183,16 +185,35 @@ class ManageConfigurationInteractorTest {
             Map.of("fee", "0.4"), new AuditMetadata("creator", "Create", NOW));
         configurationSetRepository.save(MINT_ID, draft);
 
-        assertThatThrownBy(() -> interactor.handle(request(ConfigurationCommand.ROLLBACK, "3", Map.of())))
+        assertThatThrownBy(() -> interactor.rollback(rollbackCommand("3")))
             .isInstanceOf(RollbackConflictException.class);
     }
 
-    private ManageConfigurationRequest request(final ConfigurationCommand command,
-                                               final String revision,
-                                               final Map<String, ConfigurationValueInput> parameters) {
+    private SubmitConfigurationCommand submitCommand(final Map<String, ConfigurationValueInput> parameters) {
         final Map<String, ConfigurationValueInput> payload = parameters == null ? Map.of() : parameters;
-        return new ManageConfigurationRequest(MINT_ID.asString(), OPERATOR_ID.toString(), revision, command, "v-next",
-            payload, List.of(), List.of(), List.of(), null, null);
+        return new SubmitConfigurationCommand(MINT_ID.asString(), OPERATOR_ID.toString(),
+            new ConfigurationPayload(payload, Map.of(), "test submission"), "v-next", List.of(), List.of(),
+            List.of(), null, null);
+    }
+
+    private PreviewConfigurationCommand previewCommand(final String revisionId, final boolean includeValidation) {
+        return new PreviewConfigurationCommand(MINT_ID.asString(), OPERATOR_ID.toString(), revisionId,
+            includeValidation, "v-next", List.of(), List.of(), null, null);
+    }
+
+    private ReviewConfigurationCommand approveCommand(final String revisionId) {
+        return new ReviewConfigurationCommand(MINT_ID.asString(), OPERATOR_ID.toString(), revisionId,
+            ReviewDecision.APPROVE, List.of(), List.of(), "v-next", List.of(), List.of(), null, null);
+    }
+
+    private ApplyConfigurationCommand applyCommand(final String revisionId) {
+        return new ApplyConfigurationCommand(MINT_ID.asString(), OPERATOR_ID.toString(), revisionId, null, "v-next",
+            List.of(), List.of(), null, null);
+    }
+
+    private RollbackConfigurationCommand rollbackCommand(final String revisionId) {
+        return new RollbackConfigurationCommand(MINT_ID.asString(), OPERATOR_ID.toString(), revisionId,
+            "Test rollback", null, "v-next", List.of(), List.of(), null, null);
     }
 
     private static final class RecordingConfigurationSetRepository implements ConfigurationSetRepository {
