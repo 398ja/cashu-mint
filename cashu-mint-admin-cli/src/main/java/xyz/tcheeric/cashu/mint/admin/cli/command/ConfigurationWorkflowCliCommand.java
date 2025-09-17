@@ -6,13 +6,22 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
-import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
-import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.service.ConfigurationValidationException;
+import xyz.tcheeric.cashu.mint.admin.application.service.MissingApprovalException;
+import xyz.tcheeric.cashu.mint.admin.application.service.RollbackConflictException;
+import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.configuration.ConfigurationWorkflowCliPresenter;
+import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,7 +37,7 @@ abstract class ConfigurationWorkflowCliCommand<C extends ManageConfigurationUseC
 
     private final ManageConfigurationUseCase configurationUseCase;
     private final CommandPayloadMapper payloadMapper;
-    private final ResponseRenderingService renderingService;
+    private final ConfigurationWorkflowCliPresenter presenter;
 
     @Spec
     private CommandSpec spec;
@@ -69,10 +78,10 @@ abstract class ConfigurationWorkflowCliCommand<C extends ManageConfigurationUseC
 
     protected ConfigurationWorkflowCliCommand(final ManageConfigurationUseCase configurationUseCase,
                                               final CommandPayloadMapper payloadMapper,
-                                              final ResponseRenderingService renderingService) {
+                                              final ConfigurationWorkflowCliPresenter presenter) {
         this.configurationUseCase = Objects.requireNonNull(configurationUseCase, "configurationUseCase");
         this.payloadMapper = Objects.requireNonNull(payloadMapper, "payloadMapper");
-        this.renderingService = Objects.requireNonNull(renderingService, "renderingService");
+        this.presenter = Objects.requireNonNull(presenter, "presenter");
     }
 
     protected ManageConfigurationUseCase configurationUseCase() {
@@ -81,10 +90,6 @@ abstract class ConfigurationWorkflowCliCommand<C extends ManageConfigurationUseC
 
     protected CommandPayloadMapper payloadMapper() {
         return payloadMapper;
-    }
-
-    protected ResponseRenderingService renderingService() {
-        return renderingService;
     }
 
     protected CommandSpec spec() {
@@ -129,9 +134,36 @@ abstract class ConfigurationWorkflowCliCommand<C extends ManageConfigurationUseC
 
     @Override
     public final Integer call() {
-        final ManageConfigurationUseCase.ConfigurationWorkflowResponse response = invoke();
-        spec.commandLine().getOut().println(renderingService.render(response, ioOptions.outputFormat()));
-        return CommandLine.ExitCode.OK;
+        try {
+            final ManageConfigurationUseCase.ConfigurationWorkflowResponse response = invoke();
+            spec.commandLine().getOut().println(presenter.present(response, ioOptions.outputFormat()));
+            return CommandLine.ExitCode.OK;
+        } catch (final AbortedExecutionException ex) {
+            spec.commandLine().getOut().println(ex.getMessage());
+            return CommandLine.ExitCode.SOFTWARE;
+        } catch (final ConfigurationValidationException ex) {
+            spec.commandLine().getErr().println(ex.getMessage());
+            if (ex.response() != null) {
+                spec.commandLine().getOut().println(presenter.present(ex.response(), ioOptions.outputFormat()));
+            }
+            return CommandLine.ExitCode.SOFTWARE;
+        } catch (final MissingApprovalException | RollbackConflictException ex) {
+            spec.commandLine().getErr().println(ex.getMessage());
+            return CommandLine.ExitCode.SOFTWARE;
+        }
+    }
+
+    protected final void requireConfirmation(final boolean autoConfirm,
+                                              final String prompt,
+                                              final String abortMessage) {
+        Objects.requireNonNull(prompt, "prompt");
+        Objects.requireNonNull(abortMessage, "abortMessage");
+        if (autoConfirm) {
+            return;
+        }
+        if (!confirm(prompt)) {
+            throw new AbortedExecutionException(abortMessage);
+        }
     }
 
     protected abstract ManageConfigurationUseCase.ConfigurationWorkflowResponse invoke();
@@ -205,5 +237,36 @@ abstract class ConfigurationWorkflowCliCommand<C extends ManageConfigurationUseC
             return List.of();
         }
         return List.copyOf(cleaned);
+    }
+
+    private boolean confirm(final String prompt) {
+        final PrintWriter out = spec.commandLine().getOut();
+        out.printf("%s [y/N]: ", prompt);
+        out.flush();
+        try {
+            final BufferedReader reader = inputReader();
+            final String line = reader.readLine();
+            if (line == null) {
+                return false;
+            }
+            final String trimmed = line.trim().toLowerCase(Locale.ROOT);
+            return "y".equals(trimmed) || "yes".equals(trimmed);
+        } catch (final IOException ex) {
+            throw new CommandLine.ExecutionException(spec.commandLine(), "Failed to read confirmation input", ex);
+        }
+    }
+
+    private BufferedReader inputReader() {
+        final Reader consoleReader = System.console() != null ? System.console().reader() : null;
+        if (consoleReader != null) {
+            return new BufferedReader(consoleReader);
+        }
+        return new BufferedReader(new InputStreamReader(System.in));
+    }
+
+    private static final class AbortedExecutionException extends RuntimeException {
+        AbortedExecutionException(final String message) {
+            super(message);
+        }
     }
 }

@@ -3,9 +3,9 @@ package xyz.tcheeric.cashu.mint.admin.cli.command;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
-import xyz.tcheeric.cashu.mint.admin.cli.io.ResponseRenderingService;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
+import xyz.tcheeric.cashu.mint.admin.cli.io.CommandPayloadMapper;
+import xyz.tcheeric.cashu.mint.admin.cli.presentation.configuration.ConfigurationWorkflowCliPresenter;
 
 import java.util.List;
 
@@ -27,10 +27,14 @@ public final class MintConfigRollbackCommand
             description = "External audit reference documenting the rollback.")
     private String auditReference;
 
+    @Option(names = {"-y", "--yes"},
+            description = "Automatically confirm rolling back the configuration revision.")
+    private boolean autoConfirm;
+
     public MintConfigRollbackCommand(final ManageConfigurationUseCase configurationUseCase,
                                      final CommandPayloadMapper payloadMapper,
-                                     final ResponseRenderingService renderingService) {
-        super(configurationUseCase, payloadMapper, renderingService);
+                                     final ConfigurationWorkflowCliPresenter presenter) {
+        super(configurationUseCase, payloadMapper, presenter);
     }
 
     @Override
@@ -76,6 +80,9 @@ public final class MintConfigRollbackCommand
                 requestId,
                 correlationId
             );
+        requireConfirmation(autoConfirm,
+            "Roll back mint %s to revision %s".formatted(mintId, revision),
+            "Rollback command aborted by user.");
         return configurationUseCase().rollback(command);
     }
 }
