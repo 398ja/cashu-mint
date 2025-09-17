@@ -112,11 +112,14 @@ public final class MintPreloadSqlRenderer {
     }
 
     public static void main(String[] args) throws IOException {
-        if (args.length == 0) {
-            throw new IllegalArgumentException("Usage: MintPreloadSqlRenderer <input-json> [output-sql]");
-        }
-        Path input = Path.of(args[0]);
-        Path output = args.length > 1 ? Path.of(args[1]) : Path.of("scripts/preload-test-data.sql");
+        String inputArg = args.length > 0 ? args[0] : null;
+        Path input = (inputArg == null || inputArg.isBlank())
+                ? Path.of("scripts/preload-test-data.json")
+                : Path.of(inputArg);
+        String outputArg = args.length > 1 ? args[1] : null;
+        Path output = (outputArg == null || outputArg.isBlank())
+                ? Path.of("scripts/preload-test-data.sql")
+                : Path.of(outputArg);
 
         MintPreloadData data = readJson(input);
         writeSql(data, output);
