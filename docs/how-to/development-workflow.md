@@ -25,13 +25,13 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 1. Ensure the `cashu-vault-jpa` container is running (see above). It initialises its database automatically before advertising readiness, so no extra Flyway/Liquibase command is required for the vault schema (see [`docker-compose.yml`](../../docker-compose.yml)).
 2. Optionally seed the mint database with deterministic test data:
    ```bash
-   ./mvnw -q -pl cashu-mint-protocol compile exec:java@mint-preload-json
-   ./mvnw -q -pl cashu-mint-protocol initialize exec:java@mint-preload-sql
+   ./mvnw -q -pl cashu-mint-protocol exec:java \
+     -Dexec.mainClass=xyz.tcheeric.cashu.mint.tools.MintPreloadDataGenerator \
+     -Dexec.args="scripts/preload-test-data.json"
+   ./scripts/render-preload-sql.sh scripts/preload-test-data.json scripts/preload-test-data.sql
    psql -d cashu_mint -f scripts/preload-test-data.sql
    ```
-   The generator and renderer now ship as Maven executions in the protocol module so you can override arguments via
-   [`mint-preload.properties`](../../cashu-mint-protocol/mint-preload.properties) or command-line `-D` overrides (see
-   [`README.md`](../../README.md) for details).
+   The generator and renderer live in the protocol module; the helper script wraps the renderer invocation, and the README records the full workflow for convenience (see [`README.md`](../../README.md) and [`scripts/render-preload-sql.sh`](../../scripts/render-preload-sql.sh)).
 
 ## Run tests
 
