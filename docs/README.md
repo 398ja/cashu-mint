@@ -13,7 +13,7 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
 - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
   - Admin docs moved to the separate admin project at `../cashu-mint-admin`.
-- [Manage the mint lifecycle from the CLI](how-to/manage-mint-lifecycle-cli.md) - Drive create, update, pause, resume, and retire commands.
+- Admin CLI lifecycle guide moved to the separate admin project at `../cashu-mint-admin`.
 - [Manage the mint lifecycle via the REST API](how-to/manage-mint-lifecycle-api.md) - Exercise lifecycle endpoints with HTTP requests.
 
 ## Reference
