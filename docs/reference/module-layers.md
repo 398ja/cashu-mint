@@ -67,7 +67,7 @@ This Spring Boot module adapts the admin domain to authenticated HTTP endpoints.
 
 - **Application entry point.**
   [`CashuMintAdminRestApplication`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/CashuMintAdminRestApplication.java)
-  scans the admin packages and configures security filters for the `/admin` surface.
+  scans the admin packages and configures security filters for the `/v1/admin` surface.
 - **Controllers.** Classes under `controller` expose lifecycle, configuration,
   user, and alert routes (for example
   [`LifecycleAdminController.java`](../../cashu-mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/controller/LifecycleAdminController.java)).
@@ -101,7 +101,7 @@ The CLI module packages a Picocli launcher that calls the admin domain through p
 ### REST endpoint to protocol
 
 ```java
-@PostMapping("/mint/{mintId}/{method}")
+@PostMapping("/v1/mint/{mintId}/{method}")
 public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
                                              @PathVariable("method") String method,
                                              @PathVariable("mintId") String mintId) throws CashuErrorException {
