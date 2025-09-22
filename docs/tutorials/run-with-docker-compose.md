@@ -51,12 +51,8 @@ Use the following command to stop and remove the containers:
 docker compose down
 ```
 
-## Admin REST (separate project)
+## Admin REST
 
-The admin services were moved to a separate project at `../cashu-mint-admin` with three modules: `mint-admin-core`, `mint-admin-cli`, and `mint-admin-rest`.
+Administrative services live in the separate admin project. See the admin documentation for how to build and run the Admin REST service:
 
-- Docker image: `docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION:-latest}`.
-- This Compose file pulls the published image; to build it locally:
-  1. `cd ../cashu-mint-admin/mint-admin-rest`
-  2. `mvn -q -DskipTests jib:build`
-- Then (re)start the stack: `docker compose --profile dev up -d cashu-mint-admin-rest`.
+- `../cashu-mint-admin/docs/tutorials/run-admin-rest-with-docker.md`
