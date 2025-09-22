@@ -2,7 +2,7 @@
 
 The CLI ships with stub ports so you can rehearse workflows locally, but production
 usage requires calling the administrative REST API. This guide replaces the stub
-implementations with adapters that authenticate against the `/admin` endpoints
+implementations with adapters that authenticate against the `/v1/admin` endpoints
 served by the dedicated `cashu-mint-admin-rest` service (see
 [`MintAdminCliApplication.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/MintAdminCliApplication.java)
 and the [REST API reference](../reference/rest-api.md)).
@@ -13,21 +13,21 @@ Each CLI subcommand depends on port interfaces defined in the `cashu-mint-admin-
 module. Create HTTP-backed implementations that target the
 `cashu-mint-admin-rest` service and translate requests into HTTP calls:
 
-* `MintLifecyclePort` → drive `/admin/lifecycle` transitions and reads (interface
+* `MintLifecyclePort` → drive `/v1/admin/lifecycle` transitions and reads (interface
   defined in
   [`MintLifecyclePort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintLifecyclePort.java)).
 * `MintStatusPort` → `GET`/`POST` an endpoint that returns mint health snapshots
   (interface defined in
   [`MintStatusPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintStatusPort.java)).
-* `MintConfigPort` → call `/admin/configuration/mints/{mintId}/apply` (or
+* `MintConfigPort` → call `/v1/admin/configuration/mints/{mintId}/apply` (or
   preview/rollback) to manage revisions (see
   [`MintConfigPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintConfigPort.java)
   and the [configuration endpoints](../reference/rest-api.md#administrative-endpoints)).
-* `MintUsersPort` → wrap the `/admin/users` family for provisioning and listing
+* `MintUsersPort` → wrap the `/v1/admin/users` family for provisioning and listing
   operator accounts (interface defined in
   [`MintUsersPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintUsersPort.java);
   refer to the [user endpoints](../reference/rest-api.md#administrative-endpoints)).
-* `MintAlertsPort` → integrate with `/admin/alerts` to acknowledge, silence, or
+* `MintAlertsPort` → integrate with `/v1/admin/alerts` to acknowledge, silence, or
   escalate incidents (see
   [`MintAlertsPort.java`](../../cashu-mint-admin-cli/src/main/java/xyz/tcheeric/cashu/mint/admin/cli/port/MintAlertsPort.java)
   and the [alert endpoints](../reference/rest-api.md#administrative-endpoints)).
@@ -51,7 +51,7 @@ public final class RestMintStatusPort implements MintStatusPort {
     @Override
     public MintStatusResponse fetchStatus(MintStatusRequest request) {
         HttpRequest httpRequest = HttpRequest.newBuilder()
-            .uri(baseUri.resolve("/admin/lifecycle/mints/" + request.mintId()))
+            .uri(baseUri.resolve("/v1/admin/lifecycle/mints/" + request.mintId()))
             .header("X-Admin-Token", adminToken)
             .build();
         try {
@@ -94,7 +94,7 @@ Bundle the helper methods (`baseUri()`, `adminToken()`) to read environment vari
 
 Run the CLI against a development `cashu-mint-admin-rest` instance and exercise each command:
 
-1. `mint` should return the real lifecycle state returned by `/admin/lifecycle/mints/{mintId}` (see the [lifecycle endpoints](../reference/rest-api.md#administrative-endpoints)).
+1. `mint` should return the real lifecycle state returned by `/v1/admin/lifecycle/mints/{mintId}` (see the [lifecycle endpoints](../reference/rest-api.md#administrative-endpoints)).
 2. `mint config` should apply or preview revisions using the configuration endpoints (see the [configuration documentation](../reference/rest-api.md#administrative-endpoints)).
 3. `mint users` and `mint alerts` should manipulate operator and alert data via their respective endpoints (see the [user and alert sections](../reference/rest-api.md#administrative-endpoints)).
 
