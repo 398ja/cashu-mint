@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Profile({"!dev", "!test"})
 public class DefaultMintLoadService implements MintLoadService {
     @Override
     public Mint load(UUID mintId, boolean archive) throws CashuErrorException {

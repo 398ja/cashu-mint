@@ -258,9 +258,11 @@ public class CashuControllerTest {
         CashuController<?> controller = new CashuController<>(nut06, new DefaultMintLoadService(), new DefaultSignatureVaultService());
         MintInfo info = new MintInfo();
         Mockito.when(nut06.mintInfo()).thenReturn(info);
-        ResponseEntity<MintInfo> response = controller.info();
+        ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> response = controller.info();
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(info, response.getBody());
+        assertNotNull(response.getBody());
+        // Compatibility fields are included
+        assertNotNull(response.getBody().get("units"));
     }
 
     // Removed default constructor test: controller now requires injected dependencies.

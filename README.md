@@ -141,17 +141,17 @@ Generate deterministic preload data in two steps: emit JSON using the `MintPrelo
 # One-shot (emit JSON, then render SQL)
 ./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
 
-# Seed the Postgres running via docker-compose (host connection)
+# Seed the vault Postgres (host connection)
 PGPASSWORD=postgres psql \
-  -h localhost -p 55432 -U postgres -d cashu_mint \
+  -h localhost -p 55433 -U postgres -d cashu_vault \
   -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
 
 # Alternatively, URI style
-psql "postgresql://postgres:postgres@localhost:55432/cashu_mint" \
+psql "postgresql://postgres:postgres@localhost:55433/cashu_vault" \
   -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
 
-# Or stream from the host into the DB container
-docker compose exec -T cashu-mint-db psql -U postgres -d cashu_mint -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+# Or stream from the host into the vault DB container
+docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
 
 # Run the steps individually (same seeding commands as above)
 ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
@@ -163,9 +163,7 @@ and SQL locations in sync and provide a deterministic mint UUID for reproducible
 command line with `-Dproperty=value` to customise the generation or rendering steps (for example,
 `-Dmint.preload.mint-id=$(uuidgen)` or `-Dmint.preload.json.output=target/preload.json`).
 
-Note: The preload SQL script safely no-ops if the schema hasn’t been created yet. To bootstrap the mint tables for local dev, either:
-- Start the mint service with Hibernate auto-DDL using the provided dev override: `docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile dev up -d cashu-mint-rest`
-- Or manage schema via your own migrations, then run the `psql` command above.
+Note: The preload SQL script safely no-ops if the schema hasn’t been created yet. Ensure the vault service is up so its schema is created before seeding: `docker compose --profile dev up -d cashu-vault-db cashu-vault-jpa`.
 
 The generator keeps the mint, keyset, and key material in memory so tests can reuse the values before the JSON is written to disk. It deterministically derives the database key identifiers from the mint id (supply your own UUID for reproducible output) and computes the keyset identifier from the generated key material. The renderer consumes the generated JSON and injects the values into the SQL template used to seed the database during environment creation.
 
@@ -174,3 +172,18 @@ The generator keeps the mint, keyset, and key material in memory so tests can re
 Documentation following the [Diátaxis](https://diataxis.fr/) framework is available in [docs](docs/README.md).
 
 - Gateway configuration (method/unit mappings): see docs/how-to/configure-gateways.md.
+  - In development, the Docker Compose `dev` profile maps Bolt11 to the Dummy gateway class by default. Override with `GATEWAY_BOLT11_SAT=…` if you want to use a different gateway.
+
+### Admin Project Split
+
+The admin modules have moved to a separate repository located at `../cashu-mint-admin` with three submodules:
+
+- `mint-admin-core` – core admin domain and services
+- `mint-admin-cli` – command-line interface
+- `mint-admin-rest` – REST API for admin operations
+
+Docker
+- The Compose file in this repo references the published admin REST image: `docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION:-latest}`.
+- To build the admin REST image locally, run Jib from the new project:
+  - `cd ../cashu-mint-admin/mint-admin-rest && mvn -q -DskipTests jib:build`
+  - Then `docker compose --profile dev up -d cashu-mint-admin-rest`.
