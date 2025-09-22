@@ -13,12 +13,15 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
 - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
   - Admin docs moved to the separate admin project at `../cashu-mint-admin`.
-- Admin CLI lifecycle guide moved to the separate admin project at `../cashu-mint-admin`.
-- [Manage the mint lifecycle via the REST API](how-to/manage-mint-lifecycle-api.md) - Exercise lifecycle endpoints with HTTP requests.
+  - Manage the mint lifecycle via the admin REST API moved to `../cashu-mint-admin`.
 
 ## Reference
 - [Configuration](reference/configuration.md) - Application properties and defaults.
 - [REST API](reference/rest-api.md) - HTTP endpoints exposed by the mint.
+- Admin references moved to the separate admin project at `../cashu-mint-admin`:
+  - Admin REST API reference
+  - Admin CLI reference
+  - Admin lifecycle audit schema
 - [Tools](reference/tools.md) - Preload profiles and usage for generating test data.
 - [Module layers](reference/module-layers.md) - Module boundaries, package layout, and wiring examples.
 - [Supported NUTs](reference/nuts.md) - Implemented Cashu protocol specs.
