@@ -43,7 +43,7 @@ Host: example.com
 
 
 ### `GET /keysets`
-List active keysets.
+List all keysets (active and inactive) with an `active` flag.
 _No parameters._
 **Sample request**
 ```http
@@ -56,6 +56,7 @@ Host: example.com
   "keysets": ["abc123", "def456"]
 }
 ```
+
 
 
 ### `POST /swap/{mint_id}`

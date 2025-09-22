@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.1.10</version>
+        <version>0.1.11</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.1.10</version>
+    <version>0.1.11</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
@@ -43,12 +43,7 @@
             <artifactId>cashu-mint-protocol</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>${postgresql.version}</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- Dummy gateway implementation comes transitively via the protocol module. -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>

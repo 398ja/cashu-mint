@@ -9,9 +9,9 @@ import org.springframework.context.annotation.Bean;
 import java.io.InputStream;
 import java.util.Properties;
 
-// Limit component scanning to Cashu packages to avoid picking up external gateway beans
+// Limit component scanning to the mint packages to avoid picking up vault JPA controllers/repos
 @Slf4j
-@SpringBootApplication(scanBasePackages = "xyz.tcheeric.cashu")
+@SpringBootApplication(scanBasePackages = "xyz.tcheeric.cashu.mint")
 public class CashuMintRestApplication {
 
     public static void main(String[] args) {

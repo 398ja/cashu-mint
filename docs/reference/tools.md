@@ -12,12 +12,14 @@ This page documents the developer tooling packaged in the `cashu-mint-tools` mod
 
 - One‑shot (emit JSON, then render SQL):
   - `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate`
-  - Load into Postgres (docker-compose dev defaults):
+  - Load into vault Postgres (docker-compose dev defaults):
     - Host connection:
-      - `PGPASSWORD=postgres psql -h localhost -p 55432 -U postgres -d cashu_mint -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
-      - or `psql "postgresql://postgres:postgres@localhost:55432/cashu_mint" -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
+      - `PGPASSWORD=postgres psql -h localhost -p 55433 -U postgres -d cashu_vault -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
+      - or `psql "postgresql://postgres:postgres@localhost:55433/cashu_vault" -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
     - Inside container:
-      - `docker compose exec -T cashu-mint-db psql -U postgres -d cashu_mint -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql`
+      - `docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql`
+
+Note: The `cashu-mint-rest` service in `docker-compose.yml` runs with `SPRING_PROFILES_ACTIVE=dev`, which uses the preload-based loader to expose active keysets from `scripts/preload-test-data.json`. Unset the profile for production to revert to the vault-backed loader.
 
 - Individual steps:
   - JSON: `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java`
