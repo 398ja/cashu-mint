@@ -69,4 +69,4 @@ With the `dev` profile active, the REST app uses the preload-based `MintLoadServ
 
 ## Iterate with clients or admin tools
 
-Use the `CashuClient` helpers or the administrative domain model to script manual tests against the running REST service without duplicating HTTP plumbing or lifecycle rules (see [`CashuClient.java`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/client/CashuClient.java) and [`MintAggregate.java`](../../cashu-mint-admin/src/main/java/xyz/tcheeric/cashu/mint/admin/domain/MintAggregate.java)).
+Use the `CashuClient` helpers to script manual tests against the running REST service without duplicating HTTP plumbing or lifecycle rules (see [`CashuClient.java`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/client/CashuClient.java)). Admin domain references have moved to the separate admin project at `../cashu-mint-admin`.
