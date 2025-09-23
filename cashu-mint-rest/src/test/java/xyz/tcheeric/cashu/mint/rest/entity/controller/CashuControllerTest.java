@@ -81,9 +81,6 @@ public class CashuControllerTest {
     }
 
     @Test
-    // generateKeySetIds removed (admin-only, non-spec)
-
-    @Test
     void keyset() throws CashuErrorException {
         CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
         KeySet keySet = Mockito.mock(KeySet.class);
