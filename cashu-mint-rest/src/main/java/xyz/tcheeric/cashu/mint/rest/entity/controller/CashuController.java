@@ -114,15 +114,17 @@ public class CashuController<T extends Secret> {
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
-/*
-    @PostMapping("/mint/by-mint/{mintId}/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
-                                                 @PathVariable("method") String method,
-                                                 @PathVariable("mintId") String mintId) throws CashuErrorException {
+    /**
+     * Compatibility helper for unit tests in admin project that directly call controller.mint(...).
+     * Not exposed as a REST endpoint.
+     */
+    @Deprecated
+    public ResponseEntity<PostMintResponse> mint(PostMintRequest<T> request,
+                                                 String method,
+                                                 String mintId) throws CashuErrorException {
         PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()), signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
-*/
 
     // NUT-04: POST /mint/{method} with quote and outputs in body
     @PostMapping("/mint/{method}")
@@ -192,6 +194,19 @@ public class CashuController<T extends Secret> {
         UUID mintId = UUID.fromString(active.get(0).getId());
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
         PostMeltResponse response = NUT05.melt(mintId, request, paymentMethod);
+        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+    }
+
+    /**
+     * Compatibility helper for unit tests in admin project that directly call controller.melt(...).
+     * Not exposed as a REST endpoint.
+     */
+    @Deprecated
+    public ResponseEntity<PostMeltResponse> melt(PostMeltRequest<T> request,
+                                                 String method,
+                                                 String mintId) throws CashuErrorException {
+        PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
+        PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, paymentMethod);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
