@@ -69,12 +69,7 @@ public class CashuController<T extends Secret> {
         this.signatureVaultService = signatureVaultService;
     }
 
-    @GetMapping("/keys/{mint_id}/generate")
-    public ResponseEntity<KeySetResponse> generateKeySetIds(@PathVariable("mint_id") String mintId) throws CashuErrorException {
-        log.debug("Getting keys");
-        KeySetResponse response = new KeySetResponse(NUT02.keys(UUID.fromString(mintId)));
-        return ResponseEntity.ok(response);
-    }
+    // Keyset generation is an administrative operation and not part of the public spec.
 
     @GetMapping({"/keys/keyset/{keyset_id}", "/keys/{keyset_id}"})
     public ResponseEntity<KeySetResponse> keyset(@PathVariable("keyset_id") String keysetId) throws CashuErrorException {
@@ -93,10 +88,16 @@ public class CashuController<T extends Secret> {
 
     // Note: No /keys/active route – not part of NUT-02. Use /keysets.
 
-    @PostMapping("/swap/{mint_id}")
-    public ResponseEntity<PostSwapResponse> swap(@PathVariable("mint_id") String mintId, @RequestBody PostSwapRequest<T> request) throws CashuErrorException {
-        PostSwapResponse response = NUT03.swap(UUID.fromString(mintId), request, signatureVaultService);
-        return ResponseEntity.ok(response);
+    // Spec-compliant: infer mint from inputs' keyset id
+    @PostMapping("/swap")
+    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request) throws CashuErrorException {
+        if (request.getInputs() == null || request.getInputs().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        UUID mintId = inferMintIdFromSwapInputs(request);
+        if (mintId == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        PostSwapResponse response = NUT03.swap(mintId, request, signatureVaultService);
+        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
     @PostMapping("/mint/quote/{method}")
@@ -113,6 +114,7 @@ public class CashuController<T extends Secret> {
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
+/*
     @PostMapping("/mint/by-mint/{mintId}/{method}")
     public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
                                                  @PathVariable("method") String method,
@@ -120,6 +122,7 @@ public class CashuController<T extends Secret> {
         PostMintResponse response = NUT04.mint(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()), signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
+*/
 
     // NUT-04: POST /mint/{method} with quote and outputs in body
     @PostMapping("/mint/{method}")
@@ -170,13 +173,7 @@ public class CashuController<T extends Secret> {
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
-    @PostMapping("/melt/by-mint/{mint_id}/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request,
-                                                 @PathVariable("method") String method,
-                                                 @PathVariable("mint_id") String mintId) throws CashuErrorException {
-        PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, PaymentMethod.valueOf(method.toUpperCase()));
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
-    }
+    // Removed non-compliant by-mint variant; use /melt/{method}
 
     // NUT-05: POST /melt/{method} with quote and inputs in body
     @PostMapping("/melt/{method}")
@@ -201,14 +198,45 @@ public class CashuController<T extends Secret> {
     @GetMapping("/info")
     public ResponseEntity<ObjectNode> info() {
         MintInfo info = nut06.mintInfo();
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode node = mapper.valueToTree(info);
+        ObjectNode node = new ObjectMapper().valueToTree(info);
+        addLegacyInfoFields(node, info);
+        return ResponseEntity.ok(node);
+    }
 
-        // Build legacy compatibility fields from NUT-06 structure
+    // Spec-compliant: /v1/checkstate without mint id; infer or merge across mints
+    @PostMapping("/checkstate")
+    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request) throws CashuErrorException {
+        return ResponseEntity.ok(mergeCheckStates(request));
+    }
+
+    @PostMapping("/restore")
+    public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
+        PostRestoreResponse response = NUT09.restore(request, signatureVaultService);
+        return ResponseEntity.ok(response);
+    }
+
+    // ---- Helpers ----
+
+    private UUID inferMintIdFromSwapInputs(PostSwapRequest<T> request) throws CashuErrorException {
+        String keysetId = request.getInputs().get(0).getKeySetId();
+        if (keysetId == null || keysetId.isBlank()) return null;
+        // Search active mints first, then archived if not found
+        for (boolean archive : new boolean[]{false, true}) {
+            java.util.List<xyz.tcheeric.cashu.common.Mint> mints = mintLoadService.load(archive);
+            if (mints == null) continue;
+            for (var m : mints) {
+                if (m.getKeySets() != null && m.getKeySets().stream().anyMatch(ks -> keysetId.equals(ks.getId()))) {
+                    return UUID.fromString(m.getId());
+                }
+            }
+        }
+        return null;
+    }
+
+    private void addLegacyInfoFields(ObjectNode node, MintInfo info) {
         java.util.LinkedHashSet<String> units = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> mintMethods = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> meltMethods = new java.util.LinkedHashSet<>();
-
         try {
             if (info.getNuts() != null) {
                 var nut4 = info.getNuts().get("4");
@@ -227,27 +255,52 @@ public class CashuController<T extends Secret> {
                 }
             }
         } catch (Exception ignore) { }
-
         var unitsArr = node.putArray("units");
         for (String u : units) unitsArr.add(u);
         var mintArr = node.putArray("mint_methods");
         for (String m : mintMethods) mintArr.add(m);
         var meltArr = node.putArray("melt_methods");
         for (String m : meltMethods) meltArr.add(m);
-
-        return ResponseEntity.ok(node);
     }
 
-    @PostMapping("/checkstate/{mint_id}")
-    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request, @PathVariable("mint_id") String mintId) throws CashuErrorException {
-        PostCheckStateResponse response = NUT07.checkState(UUID.fromString(mintId), request);
-        return ResponseEntity.ok(response);
+    private PostCheckStateResponse mergeCheckStates(PostCheckStateRequest request) throws CashuErrorException {
+        java.util.Map<String, String> stateByKey = new java.util.LinkedHashMap<>();
+        java.util.function.BiConsumer<String, String> merge = (k, s) -> {
+            String prev = stateByKey.get(k);
+            if (prev == null) stateByKey.put(k, s);
+            else if (NUT07.SPENT.equals(s) || (NUT07.PENDING.equals(s) && NUT07.UNSPENT.equals(prev))) stateByKey.put(k, s);
+        };
+        // Active mints
+        java.util.List<xyz.tcheeric.cashu.common.Mint> active = mintLoadService.load(false);
+        if (active != null) {
+            for (var m : active) mergeFromMintStates(merge, m, request);
+        }
+        // Archived if nothing
+        if (stateByKey.isEmpty()) {
+            java.util.List<xyz.tcheeric.cashu.common.Mint> archived = mintLoadService.load(true);
+            if (archived != null) for (var m : archived) mergeFromMintStates(merge, m, request);
+        }
+        PostCheckStateResponse out = new PostCheckStateResponse();
+        java.util.List<PostCheckStateResponse.ResponseState> list = new java.util.ArrayList<>();
+        for (var e : stateByKey.entrySet()) {
+            var rs = new PostCheckStateResponse.ResponseState();
+            rs.setHashToCurveSecret(xyz.tcheeric.cashu.common.PublicKey.fromString(e.getKey()));
+            rs.setState(e.getValue());
+            list.add(rs);
+        }
+        out.setStates(list);
+        return out;
     }
 
-    @PostMapping("/restore")
-    public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
-        PostRestoreResponse response = NUT09.restore(request, signatureVaultService);
-        return ResponseEntity.ok(response);
+    private void mergeFromMintStates(java.util.function.BiConsumer<String, String> merge,
+                                     xyz.tcheeric.cashu.common.Mint mint,
+                                     PostCheckStateRequest request) throws CashuErrorException {
+        var resp = NUT07.checkState(UUID.fromString(mint.getId()), request);
+        if (resp == null || resp.getStates() == null) return;
+        for (var st : resp.getStates()) {
+            if (st.getHashToCurveSecret() == null || st.getState() == null) continue;
+            merge.accept(st.getHashToCurveSecret().toString(), st.getState());
+        }
     }
 
     @ExceptionHandler(CashuErrorException.class)

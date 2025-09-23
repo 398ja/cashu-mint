@@ -81,16 +81,7 @@ public class CashuControllerTest {
     }
 
     @Test
-    void generateKeySetIds() throws CashuErrorException {
-        CashuController<?> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
-        KeySet keySet = Mockito.mock(KeySet.class);
-        try (MockedStatic<NUT02> mocked = Mockito.mockStatic(NUT02.class)) {
-            mocked.when(() -> NUT02.keys(Mockito.any(UUID.class))).thenReturn(java.util.List.of(keySet));
-            ResponseEntity<KeySetResponse> response = controller.generateKeySetIds(UUID.randomUUID().toString());
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertEquals(new KeySetResponse(java.util.List.of(keySet)), response.getBody());
-        }
-    }
+    // generateKeySetIds removed (admin-only, non-spec)
 
     @Test
     void keyset() throws CashuErrorException {
@@ -118,12 +109,26 @@ public class CashuControllerTest {
 
     @Test
     void swap() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
+        // Arrange controller with a mocked loader that returns a mint owning the input keyset
+        MintLoadService ml = Mockito.mock(MintLoadService.class);
+        var single = new xyz.tcheeric.cashu.common.Mint(UUID.randomUUID().toString());
+        xyz.tcheeric.cashu.common.KeySet ks = new xyz.tcheeric.cashu.common.KeySet();
+        ks.setId("ks-1"); ks.setUnit("sat"); ks.setKeys(new xyz.tcheeric.cashu.common.Keys());
+        single.addKeySet(ks);
+        Mockito.when(ml.load(Mockito.eq(false))).thenReturn(java.util.List.of(single));
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), ml, new DefaultSignatureVaultService());
+
+        // Mock request with a single input referencing ks-1
         PostSwapRequest<Secret> request = Mockito.mock(PostSwapRequest.class);
+        xyz.tcheeric.cashu.common.Proof<Secret> proof = new xyz.tcheeric.cashu.common.Proof<>();
+        proof.setKeySetId("ks-1");
+        java.util.List<xyz.tcheeric.cashu.common.Proof<Secret>> inputs = java.util.List.of(proof);
+        Mockito.when(request.getInputs()).thenReturn(inputs);
+
         PostSwapResponse expected = Mockito.mock(PostSwapResponse.class);
         try (MockedStatic<NUT03> mocked = Mockito.mockStatic(NUT03.class)) {
             mocked.when(() -> NUT03.swap(Mockito.any(UUID.class), Mockito.any(), Mockito.any(SignatureVaultService.class))).thenReturn(expected);
-            ResponseEntity<PostSwapResponse> response = controller.swap(UUID.randomUUID().toString(), request);
+            ResponseEntity<PostSwapResponse> response = controller.swap(request);
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertEquals(expected, response.getBody());
         }
@@ -269,14 +274,61 @@ public class CashuControllerTest {
 
     @Test
     void checkstate() throws CashuErrorException {
-        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), new DefaultMintLoadService(), new DefaultSignatureVaultService());
+        // Use a loader that returns one mint so controller will call NUT07 once
+        MintLoadService ml = Mockito.mock(MintLoadService.class);
+        var single = new xyz.tcheeric.cashu.common.Mint(UUID.randomUUID().toString());
+        Mockito.when(ml.load(Mockito.eq(false))).thenReturn(java.util.List.of(single));
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), ml, new DefaultSignatureVaultService());
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
-        PostCheckStateResponse expected = Mockito.mock(PostCheckStateResponse.class);
+        PostCheckStateResponse expected = new PostCheckStateResponse();
+        expected.setStates(java.util.List.of());
         try (MockedStatic<NUT07> mocked = Mockito.mockStatic(NUT07.class)) {
             mocked.when(() -> NUT07.checkState(Mockito.any(UUID.class), Mockito.eq(request))).thenReturn(expected);
-            ResponseEntity<PostCheckStateResponse> response = controller.checkstate(request, UUID.randomUUID().toString());
+            ResponseEntity<PostCheckStateResponse> response = controller.checkstate(request);
             assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertEquals(expected, response.getBody());
+            assertNotNull(response.getBody());
+        }
+    }
+
+    @Test
+    void checkstateMergesAcrossMints() throws CashuErrorException {
+        // Arrange two mints and a controller
+        MintLoadService ml = Mockito.mock(MintLoadService.class);
+        var m1 = new xyz.tcheeric.cashu.common.Mint(UUID.randomUUID().toString());
+        var m2 = new xyz.tcheeric.cashu.common.Mint(UUID.randomUUID().toString());
+        Mockito.when(ml.load(Mockito.eq(false))).thenReturn(java.util.List.of(m1, m2));
+        CashuController<Secret> controller = new CashuController<>(Mockito.mock(NUT06.class), ml, new DefaultSignatureVaultService());
+
+        // Build request with two keys
+        var Y1 = xyz.tcheeric.cashu.common.PublicKey.fromString("02" + "0".repeat(64));
+        var Y2 = xyz.tcheeric.cashu.common.PublicKey.fromString("03" + "0".repeat(64));
+        PostCheckStateRequest request = new PostCheckStateRequest(java.util.List.of(Y1, Y2));
+
+        // Mock NUT07 for each mint to return conflicting states to test merge priority (SPENT wins)
+        PostCheckStateResponse r1 = new PostCheckStateResponse();
+        var rs1a = new PostCheckStateResponse.ResponseState(); rs1a.setHashToCurveSecret(Y1); rs1a.setState(NUT07.UNSPENT); r1.addResponseState(rs1a);
+        var rs1b = new PostCheckStateResponse.ResponseState(); rs1b.setHashToCurveSecret(Y2); rs1b.setState(NUT07.SPENT); r1.addResponseState(rs1b);
+
+        PostCheckStateResponse r2 = new PostCheckStateResponse();
+        var rs2a = new PostCheckStateResponse.ResponseState(); rs2a.setHashToCurveSecret(Y1); rs2a.setState(NUT07.SPENT); r2.addResponseState(rs2a);
+        var rs2b = new PostCheckStateResponse.ResponseState(); rs2b.setHashToCurveSecret(Y2); rs2b.setState(NUT07.UNSPENT); r2.addResponseState(rs2b);
+
+        try (MockedStatic<NUT07> mocked = Mockito.mockStatic(NUT07.class)) {
+            mocked.when(() -> NUT07.checkState(Mockito.eq(UUID.fromString(m1.getId())), Mockito.eq(request)))
+                  .thenReturn(r1);
+            mocked.when(() -> NUT07.checkState(Mockito.eq(UUID.fromString(m2.getId())), Mockito.eq(request)))
+                  .thenReturn(r2);
+
+            ResponseEntity<PostCheckStateResponse> response = controller.checkstate(request);
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertNotNull(response.getBody());
+            var states = response.getBody().getStates();
+            // Expect two entries, both SPENT due to merge priority
+            assertEquals(2, states.size());
+            java.util.Map<String, String> map = new java.util.HashMap<>();
+            for (var s : states) map.put(s.getHashToCurveSecret().toString(), s.getState());
+            assertEquals(NUT07.SPENT, map.get(Y1.toString()));
+            assertEquals(NUT07.SPENT, map.get(Y2.toString()));
         }
     }
 
