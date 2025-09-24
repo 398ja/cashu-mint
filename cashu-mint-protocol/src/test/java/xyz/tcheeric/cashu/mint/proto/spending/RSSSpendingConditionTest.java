@@ -73,8 +73,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.doThrow(new CashuErrorException("notfound"))
-                .when(proofVaultService).retrieveProof(anyString());
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(null);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))

@@ -36,12 +36,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         // Check if proof has been used already
         Secret secret = proof.getSecret();
-        ProofEntity proofEntity = null;
-        try {
-            proofEntity = proofVaultService.retrieveProof(secret.toString());
-        } catch (Exception ignored) {
-            // Not found
-        }
+        ProofEntity proofEntity = proofVaultService.retrieveProof(secret.toString());
         if (proofEntity != null) {
             ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
             throw new CashuErrorException(error.toJson());
