@@ -20,7 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -70,10 +70,10 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     @Override
     public PostMeltResponse execute() throws CashuErrorException {
-        ThreadUtil.MINT_MELT_LOCK.lock();
-        try {
-            // TODO - Use java module instead?
-            List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
+        // TODO - Use java module instead?
+        List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
+        try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
+                proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
             for (Proof<T> proof : proofsToMelt) {
                 if (!verify(proof)) {
                     ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
@@ -116,11 +116,9 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             }
 
             // Invalidate the proofsToMelt.
-            new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
+            createInvalidateProofsTask(proofsToMelt).execute();
 
             return new PostMeltResponse(paid, gateway.getPaymentPreimage(quoteId));
-        } finally {
-            ThreadUtil.MINT_MELT_LOCK.unlock();
         }
     }
 
@@ -146,5 +144,9 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             proofEntity.setState(ProofEntity.STATE_PENDING);
             proofVaultService.storePending(proofEntity);
         }
+    }
+
+    protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {
+        return new InvalidateProofsTask<>(mint, proofs, mintVaultService, proofVaultService);
     }
 }
