@@ -42,17 +42,8 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
     public List<Proof<T>> execute() throws CashuErrorException {
         var mintEntity = mintVaultService.retrieveMint(mint.getId());
         for (Proof<T> proof : proofs) {
-            String unblindedSignature = proof.getUnblindedSignature().toString();
-            String secret = proof.getSecret().toString();
 
-            ProofEntity proofEntity = new ProofEntity();
-            proofEntity.setAmount(proof.getAmount());
-            proofEntity.setSecret(secret);
-            if (proof.getWitness() != null) {
-                proofEntity.setWitness(proof.getWitness().toString());
-            }
-            proofEntity.setUnblindedSignature(unblindedSignature);
-            proofEntity.setMint(mintEntity);
+            ProofEntity proofEntity = ProofEntity.fromProof(proof, mintEntity);
 
             proofVaultService.store(proofEntity);
             proofVaultService.invalidate(proofEntity);
