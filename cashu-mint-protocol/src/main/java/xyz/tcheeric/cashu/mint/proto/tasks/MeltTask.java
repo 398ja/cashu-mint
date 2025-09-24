@@ -22,6 +22,8 @@ import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
+import xyz.tcheeric.cashu.vault.db.model.MintEntity;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 
@@ -97,6 +99,14 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
                 throw new CashuErrorException(error.toJson());
             }
 
+            try {
+                persistPendingProofs(proofsToMelt);
+            } catch (CashuErrorException | RuntimeException e) {
+                log.error("Failed to mark proofs as pending for melt quote {}", quoteId, e);
+                ErrorResponse error = new ErrorResponse("melt_proof_pending_error");
+                throw new CashuErrorException(error.toJson());
+            }
+
             gateway.pay(quoteId);
 
             boolean paid = gateway.checkPaymentStatus(quoteId);
@@ -120,5 +130,21 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().getBytes());
         }
         return false;
+    }
+
+    private void persistPendingProofs(List<Proof<T>> proofsToMelt) throws CashuErrorException {
+        MintEntity mintEntity = mintVaultService.retrieveMint(mint.getId());
+        for (Proof<T> proof : proofsToMelt) {
+            ProofEntity proofEntity = new ProofEntity();
+            proofEntity.setAmount(proof.getAmount());
+            proofEntity.setSecret(proof.getSecret().toString());
+            if (proof.getWitness() != null) {
+                proofEntity.setWitness(proof.getWitness().toString());
+            }
+            proofEntity.setUnblindedSignature(proof.getUnblindedSignature().toString());
+            proofEntity.setMint(mintEntity);
+            proofEntity.setState(ProofEntity.STATE_PENDING);
+            proofVaultService.storePending(proofEntity);
+        }
     }
 }
