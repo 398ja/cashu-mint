@@ -9,7 +9,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.P2PKProof;
 import xyz.tcheeric.cashu.common.P2PKSecret;
@@ -18,7 +17,7 @@ import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
 
 import java.util.List;
 
@@ -35,7 +34,7 @@ public class VerifyProofsTaskTest {
         proof.setAmount(amount);
         proof.setKeySetId(VALID_KEYSET_ID);
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        proof.setUnblindedSignature(SignatureTestData.sampleSignature());
         proof.setWitness(new Witness());
         return proof;
     }
@@ -57,11 +56,14 @@ public class VerifyProofsTaskTest {
         secret.setNSigs(1);
         secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_INPUTS);
         proof.setSecret(secret);
-        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        proof.setUnblindedSignature(SignatureTestData.sampleSignature());
         proof.setWitness(new Witness());
         return proof;
     }
 
+    /**
+     * Confirms a valid swap request runs all proof checks without raising errors.
+     */
     @Test
     public void executeSuccess() throws CashuErrorException {
         Mint mint = new Mint();
@@ -82,6 +84,9 @@ public class VerifyProofsTaskTest {
         }
     }
 
+    /**
+     * Ensures mismatched blinded message and proof amounts are rejected.
+     */
     @Test
     public void executeFailAmounts() {
         Mint mint = new Mint();
@@ -98,6 +103,9 @@ public class VerifyProofsTaskTest {
         assertThrows(CashuErrorException.class, task::execute);
     }
 
+    /**
+     * Verifies an error is surfaced when proof verification fails.
+     */
     @Test
     public void executeFailVerification() throws CashuErrorException {
         Mint mint = new Mint();
@@ -117,6 +125,9 @@ public class VerifyProofsTaskTest {
         }
     }
 
+    /**
+     * Confirms P2PK proofs are validated successfully when inputs are sound.
+     */
     @Test
     public void executeP2PKSuccess() throws CashuErrorException {
         Mint mint = new Mint();
