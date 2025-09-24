@@ -3,10 +3,13 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
+import org.mockito.MockedStatic;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.KeysetId;
@@ -45,6 +48,20 @@ import static org.mockito.Mockito.when;
 public class MeltTest {
 
     private static final String VALID_KEYSET_ID = "004cf8cba2f93266";
+
+    private MockedStatic<ProofEntity> proofEntityMock;
+
+    @BeforeEach
+    public void setUpProofEntityMock() {
+        proofEntityMock = Mockito.mockStatic(ProofEntity.class);
+        proofEntityMock.when(() -> ProofEntity.fromProof(Mockito.any(), Mockito.any()))
+                .thenAnswer(invocation -> new ProofEntity());
+    }
+
+    @AfterEach
+    public void tearDownProofEntityMock() {
+        proofEntityMock.close();
+    }
 
     /**
      * Ensures successful melts persist proofs as pending before invoking the gateway.
