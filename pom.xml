@@ -25,7 +25,7 @@
         <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
 
         <cashu-libs.version>0.3.0</cashu-libs.version>
-        <cashu-vaults.version>0.2.0</cashu-vaults.version>
+        <cashu-vaults.version>0.2.1</cashu-vaults.version>
         <cashu-gateway.version>0.3.1</cashu-gateway.version>
 
         <spring.boot.version>3.5.5</spring.boot.version>
