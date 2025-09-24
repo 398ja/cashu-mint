@@ -64,9 +64,9 @@ public class InvalidateProofTest {
      *
      * 1. A `RSSProof` object is created and populated with test data, such as a signature, secret, amount, and key set ID.
      * 2. An `InvalidateProofsTask` is created with the `mint` object and a list containing the `RSSProof`.
-     * 3. The `DBProofVault` constructor is mocked to simulate specific behaviors:
+     * 3. The proof vault is mocked to simulate specific behaviors:
      *    - The `store` method does nothing when called.
-     *    - The `invalidate` method throws a `CashuErrorException` with the message "fail".
+     *    - The `invalidate` method throws a runtime exception with the message "fail".
      * 4. The test asserts that calling the `execute` method of the task results in a `CashuErrorException` being thrown.
      * 5. This ensures that the task handles the failure of the `invalidate` method as expected.
      */
@@ -80,7 +80,7 @@ public class InvalidateProofTest {
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         Mockito.doNothing().when(proofVaultService).store(Mockito.any());
-        Mockito.doThrow(new CashuErrorException("fail")).when(proofVaultService).invalidate(Mockito.any());
+        Mockito.doThrow(new IllegalStateException("fail")).when(proofVaultService).invalidate(Mockito.any());
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
 
@@ -90,7 +90,7 @@ public class InvalidateProofTest {
 
             InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, proofVaultService);
 
-            assertThrows(CashuErrorException.class, task::execute);
+            assertThrows(IllegalStateException.class, task::execute);
         }
     }
 }
