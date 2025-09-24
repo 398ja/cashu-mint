@@ -1,7 +1,8 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 

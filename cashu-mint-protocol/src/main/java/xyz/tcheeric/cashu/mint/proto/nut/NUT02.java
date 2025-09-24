@@ -6,7 +6,6 @@ import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.tasks.ActiveKeySetsTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.LoadKeySetTask;

@@ -1,9 +1,10 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 
 import java.util.List;

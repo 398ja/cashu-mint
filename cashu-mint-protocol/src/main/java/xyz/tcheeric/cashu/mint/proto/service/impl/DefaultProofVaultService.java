@@ -1,6 +1,7 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import org.springframework.stereotype.Service;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
