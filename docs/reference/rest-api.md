@@ -6,22 +6,7 @@ This document provides details about the Cashu Mint REST API endpoints. All path
 ## Endpoint details
 
 
-### `GET /v1/keys/{mint_id}/generate`
-Generate keyset IDs for a mint.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `mint_id` | path | string | Unique mint identifier. |
-**Sample request**
-```http
-GET /v1/keys/123/generate HTTP/1.1
-Host: example.com
-```
-**Sample response**
-```json
-{
-  "keyset_ids": ["abc123"]
-}
-```
+<!-- /v1/keys/{mint_id}/generate removed: non-spec endpoint (use admin or internal tooling) -->
 
 
 ### `GET /v1/keys/keyset/{keyset_id}`
@@ -59,15 +44,14 @@ Host: example.com
 
 
 
-### `POST /v1/swap/{mint_id}`
-Swap tokens within a mint.
+### `POST /v1/swap`
+Swap tokens within a mint. The server infers the target mint from the input proofs' keyset ids (or uses the single active mint when only one is present).
 | Parameter | In | Type | Description |
 | --- | --- | --- | --- |
-| `mint_id` | path | string | Unique mint identifier. |
 | `body` | body | object | Swap request payload. |
 **Sample request**
 ```http
-POST /v1/swap/123 HTTP/1.1
+POST /v1/swap HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
@@ -81,6 +65,8 @@ Content-Type: application/json
   "token": "..."
 }
 ```
+
+Note: The server infers the mint from inputs (keyset ids) or uses the single active mint. There is no need for a mint UUID in the path.
 
 
 ### `POST /v1/mint/quote/{method}`
@@ -234,25 +220,27 @@ Host: example.com
 ```
 
 
-### `POST /v1/checkstate/{mint_id}`
-Check state of tokens against a mint.
+### `POST /v1/checkstate`
+Check state of tokens. The server infers the mint internally (by scanning mints and merging results) and returns consolidated states.
 | Parameter | In | Type | Description |
 | --- | --- | --- | --- |
-| `mint_id` | path | string | Unique mint identifier. |
 | `body` | body | object | State check payload. |
 **Sample request**
 ```http
-POST /v1/checkstate/123 HTTP/1.1
+POST /v1/checkstate HTTP/1.1
 Host: example.com
 Content-Type: application/json
 {
-  "tokens": []
+  "Ys": ["02ab…", "03cd…"]
 }
 ```
 **Sample response**
 ```json
 {
-  "spent": []
+  "states": [
+    { "hash_to_curve_secret": "02ab…", "state": "UNSPENT" },
+    { "hash_to_curve_secret": "03cd…", "state": "SPENT" }
+  ]
 }
 ```
 
