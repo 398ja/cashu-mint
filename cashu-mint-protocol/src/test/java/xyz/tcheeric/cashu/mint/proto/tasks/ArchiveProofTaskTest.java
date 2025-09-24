@@ -7,7 +7,6 @@ import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
@@ -20,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static xyz.tcheeric.cashu.mint.proto.util.SignatureTestData.sampleSignature;
 
 public class ArchiveProofTaskTest {
 
@@ -27,7 +27,7 @@ public class ArchiveProofTaskTest {
         RSSProof proof = new RSSProof();
         proof.setAmount(1);
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        proof.setUnblindedSignature(sampleSignature());
         proof.setWitness(new Witness());
         proof.setKeySetId("ks1");
         return proof;

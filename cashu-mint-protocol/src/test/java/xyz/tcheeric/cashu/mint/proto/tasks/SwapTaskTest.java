@@ -12,7 +12,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
@@ -21,7 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.DefaultSignatureVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,7 +40,7 @@ public class SwapTaskTest {
         proof.setAmount(1);
         proof.setKeySetId(VALID_KEYSET_ID);
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString(MintProtocolUtil.createRandomBytes(33)));
+        proof.setUnblindedSignature(SignatureTestData.sampleSignature());
         return proof;
     }
 
@@ -53,6 +52,9 @@ public class SwapTaskTest {
         return bm;
     }
 
+    /**
+     * Validates that a successful swap orchestrates proof verification, signing, and fee checks in order.
+     */
     @Test
     public void execute() throws CashuErrorException {
         RSSProof proof = createProof();
@@ -75,7 +77,7 @@ public class SwapTaskTest {
              MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
                      (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(proof)));
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
-                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, KeysetId.fromString(VALID_KEYSET_ID), Signature.fromString(MintProtocolUtil.createRandomBytes(33))))
+                     (mock, ctx) -> Mockito.doReturn(new BlindSignature(1, KeysetId.fromString(VALID_KEYSET_ID), SignatureTestData.sampleSignature()))
                              .when(mock).execute());
              MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(VerifyFeesTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute())) {
@@ -93,6 +95,9 @@ public class SwapTaskTest {
         }
     }
 
+    /**
+     * Ensures an informative error is returned when the mint cannot be loaded.
+     */
     @Test
     public void executeMintNotFound() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
