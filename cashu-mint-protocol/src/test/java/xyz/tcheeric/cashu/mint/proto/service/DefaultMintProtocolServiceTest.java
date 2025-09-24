@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.service;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 import xyz.tcheeric.gateway.common.Gateway;
 

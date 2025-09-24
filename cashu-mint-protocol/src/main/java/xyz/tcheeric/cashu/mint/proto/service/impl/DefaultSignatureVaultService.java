@@ -1,13 +1,13 @@
-package xyz.tcheeric.cashu.mint.proto.service;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import org.springframework.stereotype.Service;
-
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DefaultSignatureVaultService implements SignatureVaultService {

@@ -1,7 +1,8 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import xyz.tcheeric.cashu.mint.proto.service.MintInfoService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 @Service
