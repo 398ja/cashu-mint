@@ -10,3 +10,39 @@
 2025-09-22T22:39:32.341+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: PhoenixdGateway present. package=xyz.tcheeric.gateway.phoenixd version=null
 2025-09-22T22:39:33.944+01 DEBUG x.t.c.m.r.e.c.CashuController - keys(kid)
 2025-09-22T22:39:34.780+01 DEBUG x.t.c.m.r.e.c.CashuController - Getting keys
+2025-09-23T00:31:55.183+01 INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests]: CashuMintRestApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-09-23T00:31:55.388+01 INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication for test class xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests
+2025-09-23T00:31:55.995+01 INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.3.Final
+2025-09-23T00:31:56.060+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Starting CashuMintRestApplicationTests using Java 21.0.8 with PID 1463780 (started by eric in /home/eric/IdeaProjects/cashu-mint/cashu-mint-rest)
+2025-09-23T00:31:56.062+01 DEBUG x.t.c.m.r.CashuMintRestApplicationTests - Running with Spring Boot v3.5.5, Spring v6.2.10
+2025-09-23T00:31:56.064+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - The following 1 profile is active: "test"
+2025-09-23T00:32:00.570+01 INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 2 endpoints beneath base path '/actuator'
+2025-09-23T00:32:00.720+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Started CashuMintRestApplicationTests in 5.122 seconds (process running for 7.723)
+2025-09-23T00:32:00.877+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: classpath app.properties gateway.bolt11=null gateway.bolt11.sat=null
+2025-09-23T00:32:00.880+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: PhoenixdGateway present. package=xyz.tcheeric.gateway.phoenixd version=null
+2025-09-23T00:32:02.555+01 DEBUG x.t.c.m.r.e.c.CashuController - keys(kid)
+2025-09-23T00:32:03.563+01 DEBUG x.t.c.m.r.e.c.CashuController - Getting keys
+2025-09-23T00:44:08.005+01 INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests]: CashuMintRestApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-09-23T00:44:08.489+01 INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication for test class xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests
+2025-09-23T00:44:11.393+01 INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.3.Final
+2025-09-23T00:44:11.584+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Starting CashuMintRestApplicationTests using Java 21.0.8 with PID 1476733 (started by eric in /home/eric/IdeaProjects/cashu-mint/cashu-mint-rest)
+2025-09-23T00:44:11.591+01 DEBUG x.t.c.m.r.CashuMintRestApplicationTests - Running with Spring Boot v3.5.5, Spring v6.2.10
+2025-09-23T00:44:11.592+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - The following 1 profile is active: "test"
+2025-09-23T00:44:25.346+01 INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 2 endpoints beneath base path '/actuator'
+2025-09-23T00:44:25.886+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Started CashuMintRestApplicationTests in 16.096 seconds (process running for 23.911)
+2025-09-23T00:44:26.535+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: classpath app.properties gateway.bolt11=null gateway.bolt11.sat=null
+2025-09-23T00:44:26.554+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: PhoenixdGateway present. package=xyz.tcheeric.gateway.phoenixd version=null
+2025-09-23T00:44:32.815+01 DEBUG x.t.c.m.r.e.c.CashuController - keys(kid)
+2025-09-23T00:44:37.265+01 DEBUG x.t.c.m.r.e.c.CashuController - Getting keys
+2025-09-23T18:09:12.140+01 INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests]: CashuMintRestApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-09-23T18:09:12.290+01 INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication for test class xyz.tcheeric.cashu.mint.rest.CashuMintRestApplicationTests
+2025-09-23T18:09:12.865+01 INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.3.Final
+2025-09-23T18:09:12.925+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Starting CashuMintRestApplicationTests using Java 21.0.8 with PID 1966820 (started by eric in /home/eric/IdeaProjects/cashu-mint/cashu-mint-rest)
+2025-09-23T18:09:12.928+01 DEBUG x.t.c.m.r.CashuMintRestApplicationTests - Running with Spring Boot v3.5.5, Spring v6.2.10
+2025-09-23T18:09:12.929+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - The following 1 profile is active: "test"
+2025-09-23T18:09:18.264+01 INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 2 endpoints beneath base path '/actuator'
+2025-09-23T18:09:18.368+01 INFO  x.t.c.m.r.CashuMintRestApplicationTests - Started CashuMintRestApplicationTests in 5.877 seconds (process running for 8.433)
+2025-09-23T18:09:18.521+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: classpath app.properties gateway.bolt11=null gateway.bolt11.sat=null
+2025-09-23T18:09:18.524+01 INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: PhoenixdGateway present. package=xyz.tcheeric.gateway.phoenixd version=null
+2025-09-23T18:09:20.182+01 DEBUG x.t.c.m.r.e.c.CashuController - keys(kid)
+2025-09-23T18:09:20.863+01 DEBUG x.t.c.m.r.e.c.CashuController - Getting keys
