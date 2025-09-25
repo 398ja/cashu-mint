@@ -48,22 +48,28 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         }
 
         // Check if keyset id is valid
-        if (proof.getKeySetId() != null) {
-            boolean found = false;
-            for (KeySet ks : mint.getKeySets()) {
-                if (proof.getKeySetId().equals(ks.getId())) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                log.error("verify_proof_key_set_not_found");
-                ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
-                throw new CashuErrorException(error.toJson());
-            }
-        } else {
+        String proofKeySetId = proof.getKeySetId();
+        if (proofKeySetId == null || proofKeySetId.isBlank()) {
             log.error("verify_proof_key_set_id_error");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
+            throw new CashuErrorException(error.toJson());
+        }
+
+        boolean found = false;
+        for (KeySet ks : mint.getKeySets()) {
+            Object keySetId = ks.getId();
+            if (keySetId == null) {
+                continue;
+            }
+            if (proofKeySetId.equalsIgnoreCase(keySetId.toString())) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            log.error("verify_proof_key_set_not_found");
+            ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
             throw new CashuErrorException(error.toJson());
         }
 

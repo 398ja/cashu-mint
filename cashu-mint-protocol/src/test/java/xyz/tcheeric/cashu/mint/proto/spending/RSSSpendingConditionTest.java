@@ -64,11 +64,12 @@ public class RSSSpendingConditionTest {
     }
 */
 
+    // Ensures verification succeeds even when keyset identifiers differ in letter casing.
     @Test
     public void verifySuccess() throws CashuErrorException {
         String kid = "ks1";
-        Mint mint = createMint(kid);
-        RSSProof proof = createProof(kid);
+        Mint mint = createMint(kid.toUpperCase());
+        RSSProof proof = createProof(kid.toLowerCase());
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
@@ -85,9 +86,7 @@ public class RSSSpendingConditionTest {
         }
     }
 
-    /**
-     * Ensures a proof already stored in the vault triggers a reuse error.
-     */
+    // Ensures a proof already stored in the vault triggers a reuse error.
     @Test
     public void verifyUsedProof() throws CashuErrorException {
         String kid = "ks1";
