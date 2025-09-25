@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -19,6 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 @AllArgsConstructor
+@Slf4j
 public class RSSSpendingCondition implements SpendingCondition<RandomStringSecret> {
 
     @Setter(AccessLevel.NONE)
@@ -34,10 +36,13 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
     @Override
     public void verify(Proof<RandomStringSecret> proof) throws CashuErrorException {
 
+        log.debug("Verify proof {}", proof);
+
         // Check if proof has been used already
         Secret secret = proof.getSecret();
         ProofEntity proofEntity = proofVaultService.retrieveProof(secret.toString());
         if (proofEntity != null) {
+            log.error("verify_proof_already_used_error");
             ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
             throw new CashuErrorException(error.toJson());
         }
@@ -52,10 +57,12 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
                 }
             }
             if (!found) {
+                log.error("verify_proof_key_set_not_found");
                 ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
                 throw new CashuErrorException(error.toJson());
             }
         } else {
+            log.error("verify_proof_key_set_id_error");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
             throw new CashuErrorException(error.toJson());
         }
@@ -63,11 +70,13 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // Verify the proof
         PrivateKey privateKey = getPrivateKey(proof, mint);
         if (privateKey == null) {
+            log.error("Private key not found");
             throw new IllegalStateException("Private key not found");
         }
 
         byte[] C = proof.getUnblindedSignature().getBytes();
         if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
+            log.error("verify_proof_failed_error");
             ErrorResponse error = new ErrorResponse("verify_proof_failed_error");
             throw new CashuErrorException(error.toJson());
         }
