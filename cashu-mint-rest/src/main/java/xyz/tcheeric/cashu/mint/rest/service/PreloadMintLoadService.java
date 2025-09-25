@@ -5,24 +5,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
-import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
+import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
+import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
+import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -33,6 +39,7 @@ public class PreloadMintLoadService implements MintLoadService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final Resource preloadJson;
+    private final AtomicBoolean vaultSeeded = new AtomicBoolean(false);
 
     public PreloadMintLoadService(@Value("${mint.preload.json.input:scripts/preload-test-data.json}") Resource preloadJson) {
         this.preloadJson = preloadJson;
@@ -46,6 +53,7 @@ public class PreloadMintLoadService implements MintLoadService {
             UUID fileMintId = UUID.fromString(root.path("mintId").asText());
             String unit = root.path("unit").asText();
             String externalKeySetId = root.path("keySetId").asText(null);
+            seedVaultIfNeeded(root);
 
             Keys keys = new Keys();
             for (JsonNode k : root.withArray("keys")) {
@@ -86,6 +94,58 @@ public class PreloadMintLoadService implements MintLoadService {
         Mint mint = load(UUID.randomUUID(), archive);
         list.add(mint);
         return list;
+    }
+
+    private void seedVaultIfNeeded(JsonNode root) {
+        if (!vaultSeeded.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            UUID mintUuid = UUID.fromString(root.path("mintId").asText());
+            String unit = root.path("unit").asText();
+            String keySetId = root.path("keySetId").asText();
+            String keySetRowId = root.path("keySetRowId").asText(null);
+
+            var keySetClient = VaultClientFactory.keySetClient();
+            try {
+                if (keySetClient.getByKeySetId(keySetId) != null) {
+                    log.debug("PreloadMintLoadService: vault already contains keyset {}", keySetId);
+                    return;
+                }
+            } catch (Exception ignored) {
+                // fall through to seeding logic
+            }
+
+            MintEntity mintEntity = new MintEntity();
+            mintEntity.setId(mintUuid);
+
+            KeySetEntity keySetEntity = new KeySetEntity();
+            if (keySetRowId != null && !keySetRowId.isBlank()) {
+                keySetEntity.setId(UUID.fromString(keySetRowId));
+            }
+            keySetEntity.setKeySetId(keySetId);
+            keySetEntity.setUnit(unit);
+            keySetEntity.setMint(mintEntity);
+
+            for (JsonNode k : root.withArray("keys")) {
+                KeyEntity keyEntity = new KeyEntity();
+                String keyId = k.path("id").asText(null);
+                if (keyId != null && !keyId.isBlank()) {
+                    keyEntity.setId(UUID.fromString(keyId));
+                }
+                keyEntity.setAmount(BigInteger.valueOf(k.path("amount").asInt()));
+                keyEntity.setPrivateKey(k.path("privateKeyHex").asText());
+                keyEntity.setKeySet(keySetEntity);
+                keySetEntity.getKeys().add(keyEntity);
+            }
+
+            mintEntity.getKeySets().add(keySetEntity);
+
+            VaultClientFactory.getClient(MintEntity.class).store(mintEntity);
+            log.info("PreloadMintLoadService: seeded vault with mint {} keyset {}", mintUuid, keySetId);
+        } catch (Exception e) {
+            log.warn("PreloadMintLoadService: failed to seed vault from preload JSON", e);
+        }
     }
 
     private InputStream resolveInput() throws IOException {
