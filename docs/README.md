@@ -24,6 +24,7 @@ This directory contains documentation organized using the Diátaxis framework.
   - Admin lifecycle audit schema
 - [Tools](reference/tools.md) - Preload profiles and usage for generating test data.
 - [Module layers](reference/module-layers.md) - Module boundaries, package layout, and wiring examples.
+- [Artifact dependencies](reference/artifact-dependencies.md) - How the Cashu modules, vaults, gateways, and libraries relate.
 - [Supported NUTs](reference/nuts.md) - Implemented Cashu protocol specs.
 - [Java version](reference/java-version.md) - Required JDK for building.
 - [License](reference/license.md) - Licensing information.
