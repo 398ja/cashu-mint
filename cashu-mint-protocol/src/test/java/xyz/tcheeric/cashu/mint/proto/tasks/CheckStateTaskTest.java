@@ -2,7 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import xyz.tcheeric.cashu.common.CompressedPublicKey;
+import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
@@ -31,7 +31,7 @@ public class CheckStateTaskTest {
     public void executeSuccess() throws CashuErrorException {
         UUID mintId = UUID.randomUUID();
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
-        CompressedPublicKey secret = CompressedPublicKey.fromString("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
+        PublicKey secret = PublicKey.fromString("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
         when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
 
         MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
@@ -64,7 +64,7 @@ public class CheckStateTaskTest {
         // Setup
         UUID mintId = UUID.randomUUID();
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
-        CompressedPublicKey secret = CompressedPublicKey.fromString("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
+        PublicKey secret = PublicKey.fromString("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
         when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
 
         MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
@@ -90,7 +90,7 @@ public class CheckStateTaskTest {
     public void executeNotFoundNull() throws CashuErrorException {
         UUID mintId = UUID.randomUUID();
         PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
-        CompressedPublicKey secret = CompressedPublicKey.fromString("03599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
+        PublicKey secret = PublicKey.fromString("03599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
         when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
 
         MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);

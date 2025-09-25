@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
@@ -57,7 +58,7 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
         MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));
         mintVaultService.load(mintEntity, false, true);
 
-        for (var hash : request.getHashToCurveSecrets()) {
+        for (PublicKey hash : request.getHashToCurveSecrets()) {
             PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
             state.setHashToCurveSecret(hash);
             ProofEntity proofEntity;
