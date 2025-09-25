@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -70,6 +71,28 @@ public class RSSSpendingConditionTest {
         String kid = "ks1";
         Mint mint = createMint(kid.toUpperCase());
         RSSProof proof = createProof(kid.toLowerCase());
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
+
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(null);
+
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
+                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
+            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
+
+            assertDoesNotThrow(() -> cond.verify(proof));
+        }
+    }
+
+    // Ensures verification tolerates keyset identifiers wrapped in additional metadata.
+    @Test
+    public void verifySuccessWithDecoratedKeysetId() throws CashuErrorException {
+        String kid = "00e3372e61d05605";
+        Mint mint = createMint("KeysetId(value=" + kid.toUpperCase(Locale.ROOT) + ")");
+        RSSProof proof = createProof(kid.toLowerCase(Locale.ROOT));
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);

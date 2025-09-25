@@ -19,6 +19,10 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.Locale;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
 @AllArgsConstructor
 @Slf4j
 public class RSSSpendingCondition implements SpendingCondition<RandomStringSecret> {
@@ -48,26 +52,20 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         }
 
         // Check if keyset id is valid
-        String proofKeySetId = proof.getKeySetId();
+        String proofKeySetId = normalizeKeySetId(proof.getKeySetId());
         if (proofKeySetId == null || proofKeySetId.isBlank()) {
             log.error("verify_proof_key_set_id_error");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
             throw new CashuErrorException(error.toJson());
         }
 
-        boolean found = false;
-        for (KeySet ks : mint.getKeySets()) {
-            Object keySetId = ks.getId();
-            if (keySetId == null) {
-                continue;
-            }
-            if (proofKeySetId.equalsIgnoreCase(keySetId.toString())) {
-                found = true;
-                break;
-            }
-        }
+        boolean keySetKnown = mint.getKeySets().stream()
+                .map(KeySet::getId)
+                .map(RSSSpendingCondition::normalizeKeySetId)
+                .filter(Objects::nonNull)
+                .anyMatch(proofKeySetId::equals);
 
-        if (!found) {
+        if (!keySetKnown) {
             log.error("verify_proof_key_set_not_found");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
             throw new CashuErrorException(error.toJson());
@@ -90,6 +88,36 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
     private PrivateKey getPrivateKey(@NonNull Proof<RandomStringSecret> proof, @NonNull Mint mint) throws CashuErrorException {
         return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
+    }
+
+    private static final Pattern HEX_SEQUENCE = Pattern.compile("[0-9a-fA-F]+");
+
+    private static String normalizeKeySetId(Object rawId) {
+        if (rawId == null) {
+            return null;
+        }
+
+        String candidate = rawId.toString();
+        if (candidate == null) {
+            return null;
+        }
+
+        String trimmed = candidate.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        java.util.regex.Matcher matcher = HEX_SEQUENCE.matcher(trimmed);
+        String bestMatch = null;
+        while (matcher.find()) {
+            String match = matcher.group();
+            if (bestMatch == null || match.length() > bestMatch.length()) {
+                bestMatch = match;
+            }
+        }
+
+        String normalized = bestMatch != null ? bestMatch : trimmed;
+        return normalized.toLowerCase(Locale.ROOT);
     }
 
 }
