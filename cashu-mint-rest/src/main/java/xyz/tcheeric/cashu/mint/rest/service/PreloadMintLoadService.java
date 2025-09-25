@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -33,12 +33,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Service
 @Primary
-@Profile({"dev","test"})
+@ConditionalOnProperty(name = "mint.preload.enabled", havingValue = "true", matchIfMissing = true)
 public class PreloadMintLoadService implements MintLoadService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final Resource preloadJson;
+    private final Object vaultSeedLock = new Object();
     private final AtomicBoolean vaultSeeded = new AtomicBoolean(false);
 
     public PreloadMintLoadService(@Value("${mint.preload.json.input:scripts/preload-test-data.json}") Resource preloadJson) {
@@ -97,10 +98,14 @@ public class PreloadMintLoadService implements MintLoadService {
     }
 
     private void seedVaultIfNeeded(JsonNode root) {
-        if (!vaultSeeded.compareAndSet(false, true)) {
+        if (vaultSeeded.get()) {
             return;
         }
-        try {
+        synchronized (vaultSeedLock) {
+            if (vaultSeeded.get()) {
+                return;
+            }
+            try {
             UUID mintUuid = UUID.fromString(root.path("mintId").asText());
             String unit = root.path("unit").asText();
             String keySetId = root.path("keySetId").asText();
@@ -110,6 +115,7 @@ public class PreloadMintLoadService implements MintLoadService {
             try {
                 if (keySetClient.getByKeySetId(keySetId) != null) {
                     log.debug("PreloadMintLoadService: vault already contains keyset {}", keySetId);
+                    vaultSeeded.set(true);
                     return;
                 }
             } catch (Exception ignored) {
@@ -143,8 +149,11 @@ public class PreloadMintLoadService implements MintLoadService {
 
             VaultClientFactory.getClient(MintEntity.class).store(mintEntity);
             log.info("PreloadMintLoadService: seeded vault with mint {} keyset {}", mintUuid, keySetId);
+            vaultSeeded.set(true);
         } catch (Exception e) {
             log.warn("PreloadMintLoadService: failed to seed vault from preload JSON", e);
+                vaultSeeded.set(false);
+            }
         }
     }
 
