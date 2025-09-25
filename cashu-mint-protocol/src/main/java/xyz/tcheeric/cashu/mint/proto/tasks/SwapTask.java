@@ -52,6 +52,7 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
     public PostSwapResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {
+            log.error("Mint {} not found", mintId);
             ErrorResponse error = new ErrorResponse("swap_mint_not_found");
             throw new CashuErrorException(error.toJson());
         }
