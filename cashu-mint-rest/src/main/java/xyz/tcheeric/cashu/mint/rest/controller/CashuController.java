@@ -95,8 +95,8 @@ public class CashuController<T extends Secret> {
         }
         UUID mintId = inferMintIdFromSwapInputs(request);
         if (mintId == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        log.debug("Fount mint: {}", mintId);
-        PostSwapResponse response = NUT03.swap(mintId, request, signatureVaultService);
+        log.debug("Found mint: {}", mintId);
+        PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -187,7 +187,16 @@ public class CashuController<T extends Secret> {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
-        PostMeltResponse response = NUT05.melt(mintId, request, paymentMethod);
+        PostMeltResponse response = NUT05.melt(
+                mintId,
+                request,
+                paymentMethod,
+                null,
+                MintProtocolServiceFactory.getInstance(),
+                mintLoadService,
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+        );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -200,7 +209,16 @@ public class CashuController<T extends Secret> {
                                                  String method,
                                                  String mintId) throws CashuErrorException {
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
-        PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, paymentMethod);
+        PostMeltResponse response = NUT05.melt(
+                UUID.fromString(mintId),
+                request,
+                paymentMethod,
+                null,
+                MintProtocolServiceFactory.getInstance(),
+                mintLoadService,
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+        );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
