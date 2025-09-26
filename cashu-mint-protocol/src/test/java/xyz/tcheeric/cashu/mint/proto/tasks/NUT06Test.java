@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintInfoService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.Map;

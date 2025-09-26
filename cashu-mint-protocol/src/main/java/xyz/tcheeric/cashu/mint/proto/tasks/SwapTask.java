@@ -11,10 +11,10 @@ import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.ArrayList;
@@ -52,6 +52,7 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
     public PostSwapResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {
+            log.error("Mint {} not found", mintId);
             ErrorResponse error = new ErrorResponse("swap_mint_not_found");
             throw new CashuErrorException(error.toJson());
         }

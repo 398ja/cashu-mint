@@ -270,7 +270,7 @@ public class MeltTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        Mockito.doThrow(new CashuErrorException("fail")).when(proofVaultService).storePending(Mockito.any());
+        Mockito.doThrow(new IllegalStateException("fail")).when(proofVaultService).storePending(Mockito.any());
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
