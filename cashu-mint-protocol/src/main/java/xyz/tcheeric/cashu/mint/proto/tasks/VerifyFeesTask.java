@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
@@ -28,13 +29,18 @@ public class VerifyFeesTask<T extends Secret> implements Task<Void> {
     private void validateFees() throws CashuErrorException {
         var keySetId = request.getInputs().get(0).getKeySetId();
         var keySet = NUT02.keys(keySetId, mintLoadService);
-        var fees = request.getFees(keySet);
-        var sum_inputs = request.getInputs().stream().mapToInt(proof -> proof.getAmount()).sum();
-        var sum_outputs = response.getBlindSignatures().stream().mapToInt(blindSignature -> blindSignature.getAmount()).sum();
+        int declaredFees = request.getFees(keySet);
+        int sumInputs = request.getInputs().stream().mapToInt(proof -> proof.getAmount()).sum();
+        int sumOutputs = response.getBlindSignatures().stream().mapToInt(BlindSignature::getAmount).sum();
+        int haircut = sumInputs - sumOutputs;
 
-        if (sum_inputs - fees != sum_outputs) {
+        if (haircut < 0) {
             ErrorResponse error = new ErrorResponse("validate_fees_error");
             throw new CashuErrorException(error.toJson());
+        }
+
+        if (declaredFees > 0 && haircut != declaredFees) {
+            log.warn("Swap fee mismatch for keyset {}: declared={} actual={}", keySetId, declaredFees, haircut);
         }
     }
 }
