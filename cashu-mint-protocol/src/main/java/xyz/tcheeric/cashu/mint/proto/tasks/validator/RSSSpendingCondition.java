@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -47,21 +46,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
             throw new CashuErrorException(error.toJson());
         }
 
-        // Check if keyset id is valid
-        if (proof.getKeySetId() != null) {
-            boolean found = false;
-            for (KeySet ks : mint.getKeySets()) {
-                if (proof.getKeySetId().equals(ks.getId())) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                log.error("verify_proof_key_set_not_found");
-                ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
-                throw new CashuErrorException(error.toJson());
-            }
-        } else {
+        if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
             throw new CashuErrorException(error.toJson());
@@ -70,8 +55,9 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // Verify the proof
         PrivateKey privateKey = getPrivateKey(proof, mint);
         if (privateKey == null) {
-            log.error("Private key not found");
-            throw new IllegalStateException("Private key not found");
+            log.error("verify_proof_key_set_not_found");
+            ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
+            throw new CashuErrorException(error.toJson());
         }
 
         byte[] C = proof.getUnblindedSignature().getBytes();
