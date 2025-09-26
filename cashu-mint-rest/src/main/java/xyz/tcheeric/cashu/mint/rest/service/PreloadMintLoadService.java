@@ -97,7 +97,7 @@ public class PreloadMintLoadService implements MintLoadService {
         return list;
     }
 
-    private void seedVaultIfNeeded(JsonNode root) {
+    private void seedVaultIfNeeded(JsonNode root) throws CashuErrorException {
         if (vaultSeeded.get()) {
             return;
         }
@@ -209,8 +209,18 @@ public class PreloadMintLoadService implements MintLoadService {
                     vaultSeeded.set(true);
                     return;
                 }
-                log.warn("PreloadMintLoadService: failed to seed vault from preload JSON", e);
                 vaultSeeded.set(false);
+                if (e instanceof CashuErrorException cee) {
+                    throw cee;
+                }
+                log.error("PreloadMintLoadService: failed to seed vault from preload JSON", e);
+                CashuErrorException error = new CashuErrorException("vault_seed_failed");
+                try {
+                    error.initCause(e);
+                } catch (IllegalStateException ignored) {
+                    // Cause already set; ignore while preserving original error message.
+                }
+                throw error;
             }
         }
     }
