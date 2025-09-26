@@ -2,17 +2,18 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -57,24 +58,20 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
         MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));
         mintVaultService.load(mintEntity, false, true);
 
-        for (var hash : request.getHashToCurveSecrets()) {
+        for (PublicKey hash : request.getHashToCurveSecrets()) {
             PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
             state.setHashToCurveSecret(hash);
-            try {
-                ProofEntity proofEntity = proofVaultService.retrieveProof(hash.toString());
+            ProofEntity proofEntity;
+            proofEntity = proofVaultService.retrieveProof(hash.toString());
+            if (proofEntity == null) {
+                state.setState(NUT07.UNSPENT);
+            } else {
                 if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
                     state.setState(NUT07.PENDING);
                 } else {
                     state.setState(NUT07.SPENT);
                 }
                 state.setWitness(proofEntity.getWitness());
-            } catch (CashuErrorException e) {
-                // Only treat as UNSPENT if the error indicates "not found"
-                if (e.getMessage() != null && e.getMessage().toLowerCase().contains("not found")) {
-                    state.setState(NUT07.UNSPENT);
-                } else {
-                    throw e;
-                }
             }
             response.addResponseState(state);
         }

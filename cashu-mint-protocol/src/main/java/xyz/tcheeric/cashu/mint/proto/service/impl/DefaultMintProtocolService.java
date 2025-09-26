@@ -1,4 +1,4 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import lombok.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +8,8 @@ import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.service.MintInfoService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;

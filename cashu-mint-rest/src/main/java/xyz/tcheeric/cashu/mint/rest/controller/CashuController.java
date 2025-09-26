@@ -1,5 +1,7 @@
-package xyz.tcheeric.cashu.mint.rest.entity.controller;
+package xyz.tcheeric.cashu.mint.rest.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,18 +12,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
+import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
-import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
@@ -32,10 +33,10 @@ import xyz.tcheeric.cashu.entities.rest.PostMintQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
-import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
+import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
@@ -43,15 +44,13 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintInfoService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
-import java.util.List;
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -96,7 +95,8 @@ public class CashuController<T extends Secret> {
         }
         UUID mintId = inferMintIdFromSwapInputs(request);
         if (mintId == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        PostSwapResponse response = NUT03.swap(mintId, request, signatureVaultService);
+        log.debug("Found mint: {}", mintId);
+        PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService);
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -128,23 +128,18 @@ public class CashuController<T extends Secret> {
 
     // NUT-04: POST /mint/{method} with quote and outputs in body
     @PostMapping("/mint/{method}")
-    public ResponseEntity<PostMintResponse> mintByMethod(@RequestBody PostMintRequest<T> request,
+    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        java.util.List<xyz.tcheeric.cashu.common.Mint> active = mintLoadService.load(false);
-        if (log.isDebugEnabled()) {
-            log.debug("POST /mint/{} quoteId={} activeMints={}",
-                    method, request.getQuoteId(), active == null ? 0 : active.size());
-        }
-        if (active == null || active.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        if (active.size() > 1) {
+        if (request.getBlindedMessages() == null || request.getBlindedMessages().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        UUID mintId = UUID.fromString(active.get(0).getId());
+        UUID mintId = inferMintIdFromMintOutputs(request);
+        if (mintId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
         if (log.isDebugEnabled()) {
             log.debug("Delegating mint: mintId={} method={} quoteId={}", mintId, paymentMethod, request.getQuoteId());
@@ -179,21 +174,29 @@ public class CashuController<T extends Secret> {
 
     // NUT-05: POST /melt/{method} with quote and inputs in body
     @PostMapping("/melt/{method}")
-    public ResponseEntity<PostMeltResponse> meltByMethod(@RequestBody PostMeltRequest<T> request,
+    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        java.util.List<xyz.tcheeric.cashu.common.Mint> active = mintLoadService.load(false);
-        if (active == null || active.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        if (active.size() > 1) {
+        if (request.getInputs() == null || request.getInputs().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        UUID mintId = UUID.fromString(active.get(0).getId());
+        UUID mintId = inferMintIdFromProofs(request.getInputs());
+        if (mintId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
-        PostMeltResponse response = NUT05.melt(mintId, request, paymentMethod);
+        PostMeltResponse response = NUT05.melt(
+                mintId,
+                request,
+                paymentMethod,
+                null,
+                MintProtocolServiceFactory.getInstance(),
+                mintLoadService,
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+        );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -206,7 +209,16 @@ public class CashuController<T extends Secret> {
                                                  String method,
                                                  String mintId) throws CashuErrorException {
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
-        PostMeltResponse response = NUT05.melt(UUID.fromString(mintId), request, paymentMethod);
+        PostMeltResponse response = NUT05.melt(
+                UUID.fromString(mintId),
+                request,
+                paymentMethod,
+                null,
+                MintProtocolServiceFactory.getInstance(),
+                mintLoadService,
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
+                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+        );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -233,15 +245,50 @@ public class CashuController<T extends Secret> {
     // ---- Helpers ----
 
     private UUID inferMintIdFromSwapInputs(PostSwapRequest<T> request) throws CashuErrorException {
-        String keysetId = request.getInputs().get(0).getKeySetId();
-        if (keysetId == null || keysetId.isBlank()) return null;
-        // Search active mints first, then archived if not found
+        if (request.getInputs() == null || request.getInputs().isEmpty()) {
+            return null;
+        }
+        return inferMintIdFromProofs(request.getInputs());
+    }
+
+    private UUID inferMintIdFromMintOutputs(PostMintRequest<T> request) throws CashuErrorException {
+        for (BlindedMessage output : request.getBlindedMessages()) {
+            if (output == null || output.getKeySetId() == null) {
+                continue;
+            }
+            UUID mintId = findMintIdByKeysetId(output.getKeySetId().toString());
+            if (mintId != null) {
+                return mintId;
+            }
+        }
+        return null;
+    }
+
+    private UUID inferMintIdFromProofs(List<Proof<T>> proofs) throws CashuErrorException {
+        for (Proof<T> proof : proofs) {
+            if (proof == null) {
+                continue;
+            }
+            UUID mintId = findMintIdByKeysetId(proof.getKeySetId());
+            if (mintId != null) {
+                return mintId;
+            }
+        }
+        return null;
+    }
+
+    private UUID findMintIdByKeysetId(String keysetId) throws CashuErrorException {
+        if (keysetId == null || keysetId.isBlank()) {
+            return null;
+        }
         for (boolean archive : new boolean[]{false, true}) {
             java.util.List<xyz.tcheeric.cashu.common.Mint> mints = mintLoadService.load(archive);
-            if (mints == null) continue;
-            for (var m : mints) {
-                if (m.getKeySets() != null && m.getKeySets().stream().anyMatch(ks -> keysetId.equals(ks.getId()))) {
-                    return UUID.fromString(m.getId());
+            if (mints == null) {
+                continue;
+            }
+            for (var mint : mints) {
+                if (mint.getKeySets() != null && mint.getKeySets().stream().anyMatch(ks -> keysetId.equals(ks.getId()))) {
+                    return UUID.fromString(mint.getId());
                 }
             }
         }

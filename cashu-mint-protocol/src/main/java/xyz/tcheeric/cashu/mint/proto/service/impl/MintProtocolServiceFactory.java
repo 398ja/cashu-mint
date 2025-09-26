@@ -1,4 +1,6 @@
-package xyz.tcheeric.cashu.mint.proto.service;
+package xyz.tcheeric.cashu.mint.proto.service.impl;
+
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 public final class MintProtocolServiceFactory {
     private static MintProtocolService instance = new DefaultMintProtocolService();

@@ -13,14 +13,14 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTokensTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteStatusTask;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 
 import java.util.UUID;
 
