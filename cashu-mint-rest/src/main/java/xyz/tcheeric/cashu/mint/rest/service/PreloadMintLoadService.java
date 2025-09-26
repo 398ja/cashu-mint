@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.Mint;
@@ -23,7 +24,6 @@ import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -106,54 +106,147 @@ public class PreloadMintLoadService implements MintLoadService {
                 return;
             }
             try {
-            UUID mintUuid = UUID.fromString(root.path("mintId").asText());
-            String unit = root.path("unit").asText();
-            String keySetId = root.path("keySetId").asText();
-            String keySetRowId = root.path("keySetRowId").asText(null);
+                UUID mintUuid = UUID.fromString(root.path("mintId").asText());
+                String unit = root.path("unit").asText();
+                String keySetId = root.path("keySetId").asText();
+                String keySetRowId = root.path("keySetRowId").asText(null);
 
-            var keySetClient = VaultClientFactory.keySetClient();
-            try {
-                if (keySetClient.getByKeySetId(keySetId) != null) {
-                    log.debug("PreloadMintLoadService: vault already contains keyset {}", keySetId);
+                var mintClient = VaultClientFactory.getClient(MintEntity.class);
+                var keySetClient = VaultClientFactory.keySetClient();
+                MintEntity storedMint = null;
+                try {
+                    MintEntity existingMint = mintClient.retrieve(mintUuid.toString());
+                    if (existingMint != null) {
+                        storedMint = existingMint;
+                        log.debug("PreloadMintLoadService: mint {} already present, verifying keys", mintUuid);
+                        try {
+                            KeySetEntity existingKeySet = keySetClient.getByKeySetId(keySetId);
+                            if (existingKeySet != null) {
+                                ensureVaultKeys(existingKeySet, root);
+                                vaultSeeded.set(true);
+                                return;
+                            }
+                        } catch (Exception ignored) {
+                            // fall through to seeding logic so missing keysets are created below
+                        }
+                    }
+                } catch (HttpClientErrorException.NotFound ignored) {
+                    // mint not there yet
+                } catch (HttpClientErrorException e) {
+                    if (e.getStatusCode() == org.springframework.http.HttpStatus.CONFLICT) {
+                        log.debug("PreloadMintLoadService: mint {} already present (conflict), skipping seed", mintUuid);
+                        vaultSeeded.set(true);
+                        return;
+                    }
+                    throw e;
+                }
+
+                KeySetEntity existing = null;
+                try {
+                    existing = keySetClient.getByKeySetId(keySetId);
+                    if (existing != null) {
+                        log.debug("PreloadMintLoadService: keyset {} already present, verifying keys", keySetId);
+                        ensureVaultKeys(existing, root);
+                        vaultSeeded.set(true);
+                        return;
+                    }
+                } catch (Exception ignored) {
+                    // fall through to full seeding logic
+                }
+
+                MintEntity mintEntity = storedMint;
+                if (mintEntity == null) {
+                    mintEntity = new MintEntity();
+                    mintEntity.setId(mintUuid);
+                    try {
+                        mintEntity = mintClient.store(mintEntity);
+                    } catch (HttpClientErrorException.Conflict conflict) {
+                        mintEntity = mintClient.retrieve(mintUuid.toString());
+                    }
+                }
+
+                KeySetEntity keySetEntity = new KeySetEntity();
+                if (keySetRowId != null && !keySetRowId.isBlank()) {
+                    keySetEntity.setId(UUID.fromString(keySetRowId));
+                }
+                keySetEntity.setKeySetId(keySetId);
+                keySetEntity.setUnit(unit);
+                keySetEntity.setMint(mintEntity);
+
+                java.util.LinkedHashSet<KeyEntity> keysToSeed = new java.util.LinkedHashSet<>();
+                for (JsonNode k : root.withArray("keys")) {
+                    KeyEntity keyEntity = new KeyEntity();
+                    String keyId = k.path("id").asText(null);
+                    if (keyId != null && !keyId.isBlank()) {
+                        keyEntity.setId(UUID.fromString(keyId));
+                    }
+                    keyEntity.setAmount(new BigInteger(k.path("amount").asText()));
+                    keyEntity.setPrivateKey(k.path("privateKeyHex").asText());
+                    keysToSeed.add(keyEntity);
+                }
+
+                KeySetEntity storedKeySet;
+                try {
+                    storedKeySet = keySetClient.store(keySetEntity);
+                } catch (HttpClientErrorException.Conflict conflict) {
+                    storedKeySet = keySetClient.getByKeySetId(keySetId);
+                }
+                for (KeyEntity keyEntity : keysToSeed) {
+                    keyEntity.setKeySet(storedKeySet);
+                    try {
+                        VaultClientFactory.keyClient().store(keyEntity);
+                    } catch (HttpClientErrorException.Conflict conflict) {
+                        // Key already present; nothing to seed for this amount
+                    }
+                }
+
+                log.info("PreloadMintLoadService: seeded vault with mint {} keyset {} ({} keys)",
+                        mintUuid, keySetId, keysToSeed.size());
+                vaultSeeded.set(true);
+            } catch (Exception e) {
+                if (e instanceof HttpClientErrorException.Conflict conflict) {
+                    log.debug("PreloadMintLoadService: mint {} already present, skipping seed", root.path("mintId").asText());
                     vaultSeeded.set(true);
                     return;
                 }
-            } catch (Exception ignored) {
-                // fall through to seeding logic
-            }
-
-            MintEntity mintEntity = new MintEntity();
-            mintEntity.setId(mintUuid);
-
-            KeySetEntity keySetEntity = new KeySetEntity();
-            if (keySetRowId != null && !keySetRowId.isBlank()) {
-                keySetEntity.setId(UUID.fromString(keySetRowId));
-            }
-            keySetEntity.setKeySetId(keySetId);
-            keySetEntity.setUnit(unit);
-            keySetEntity.setMint(mintEntity);
-
-            for (JsonNode k : root.withArray("keys")) {
-                KeyEntity keyEntity = new KeyEntity();
-                String keyId = k.path("id").asText(null);
-                if (keyId != null && !keyId.isBlank()) {
-                    keyEntity.setId(UUID.fromString(keyId));
-                }
-                keyEntity.setAmount(BigInteger.valueOf(k.path("amount").asInt()));
-                keyEntity.setPrivateKey(k.path("privateKeyHex").asText());
-                keyEntity.setKeySet(keySetEntity);
-                keySetEntity.getKeys().add(keyEntity);
-            }
-
-            mintEntity.getKeySets().add(keySetEntity);
-
-            VaultClientFactory.getClient(MintEntity.class).store(mintEntity);
-            log.info("PreloadMintLoadService: seeded vault with mint {} keyset {}", mintUuid, keySetId);
-            vaultSeeded.set(true);
-        } catch (Exception e) {
-            log.warn("PreloadMintLoadService: failed to seed vault from preload JSON", e);
+                log.warn("PreloadMintLoadService: failed to seed vault from preload JSON", e);
                 vaultSeeded.set(false);
             }
+        }
+    }
+
+    private void ensureVaultKeys(KeySetEntity keySetEntity, JsonNode root) {
+        if (keySetEntity == null) {
+            return;
+        }
+        try {
+            var keyClient = VaultClientFactory.keyClient();
+            var existingKeys = keyClient.getKeysByKeySetId(keySetEntity.getId().toString());
+            java.util.Map<java.math.BigInteger, KeyEntity> byAmount = new java.util.HashMap<>();
+            if (existingKeys != null) {
+                for (KeyEntity key : existingKeys) {
+                    byAmount.put(key.getAmount(), key);
+                }
+            }
+
+            for (JsonNode node : root.withArray("keys")) {
+                java.math.BigInteger amount = new java.math.BigInteger(node.path("amount").asText());
+                if (byAmount.containsKey(amount)) {
+                    continue;
+                }
+                KeyEntity newKey = new KeyEntity();
+                String keyId = node.path("id").asText(null);
+                if (keyId != null && !keyId.isBlank()) {
+                    newKey.setId(UUID.fromString(keyId));
+                }
+                newKey.setAmount(amount);
+                newKey.setPrivateKey(node.path("privateKeyHex").asText());
+                newKey.setKeySet(keySetEntity);
+                VaultClientFactory.keyClient().store(newKey);
+                log.info("PreloadMintLoadService: added missing key amount={} for keyset {}", amount, keySetEntity.getKeySetId());
+            }
+        } catch (Exception e) {
+            log.warn("PreloadMintLoadService: failed to ensure vault keys for keyset {}", keySetEntity.getKeySetId(), e);
         }
     }
 
