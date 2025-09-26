@@ -62,16 +62,16 @@ public class VerifyFeesTaskTest {
     }
 
     /**
-     * Ensures the task throws when reported signatures cannot cover the requested amount.
+     * Ensures the task throws when the mint would create value out of thin air.
      */
     @Test
-    public void executeFailure() throws CashuErrorException {
+    public void executeRejectsExcessOutputs() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
         PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
 
         RSSProof proof = createProof(10);
-        BlindSignature sig = createSignature(5);
+        BlindSignature sig = createSignature(15);
 
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
         Mockito.when(request.getFees(any(KeySet.class))).thenReturn(1);
@@ -83,5 +83,27 @@ public class VerifyFeesTaskTest {
         VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
         assertThrows(CashuErrorException.class, task::execute);
     }
-}
 
+    /**
+     * Verifies mismatched declared fees no longer abort the swap when outputs are covered by inputs.
+     */
+    @Test
+    public void executeAllowsFeeMismatch() throws CashuErrorException {
+        PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
+        PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+
+        RSSProof proof = createProof(10);
+        BlindSignature sig = createSignature(10);
+
+        Mockito.when(request.getInputs()).thenReturn(List.of(proof));
+        Mockito.when(request.getFees(any(KeySet.class))).thenReturn(5);
+        Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
+
+        KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
+
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
+        assertDoesNotThrow(task::execute);
+    }
+}
