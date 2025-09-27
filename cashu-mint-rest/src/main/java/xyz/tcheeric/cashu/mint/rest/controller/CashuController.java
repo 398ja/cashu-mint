@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -50,8 +51,12 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -409,10 +414,42 @@ public class CashuController<T extends Secret> {
         return new ResponseEntity<>(error, status);
     }
 
+    private static final Set<String> PAYMENT_METHOD_PATH_SEGMENTS = Arrays.stream(PaymentMethod.values())
+            .map(method -> method.name().toLowerCase(Locale.ROOT))
+            .collect(Collectors.toUnmodifiableSet());
+
     // Map gateway 404 on payment lookup to a structured "invoice not paid" error per NUT-04
     @ExceptionHandler(HttpClientErrorException.NotFound.class)
-    public ResponseEntity<ErrorResponse> handleGatewayNotFound(HttpClientErrorException.NotFound ex) {
-        ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-        return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+    public ResponseEntity<ErrorResponse> handleGatewayNotFound(HttpClientErrorException.NotFound ex,
+                                                              HttpServletRequest request) throws HttpClientErrorException.NotFound {
+        if (request != null && isPaymentGatewayRequest(request.getRequestURI())) {
+            ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
+            return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+        }
+        throw ex;
+    }
+
+    private boolean isPaymentGatewayRequest(String requestUri) {
+        if (requestUri == null) {
+            return false;
+        }
+        int queryIndex = requestUri.indexOf('?');
+        String path = queryIndex >= 0 ? requestUri.substring(0, queryIndex) : requestUri;
+        String normalized = path.toLowerCase(Locale.ROOT);
+        String[] segments = normalized.split("/");
+        for (int i = 0; i < segments.length; i++) {
+            String segment = segments[i];
+            if (segment.isEmpty() || !PAYMENT_METHOD_PATH_SEGMENTS.contains(segment)) {
+                continue;
+            }
+            if (i > 0 && ("mint".equals(segments[i - 1]) || "melt".equals(segments[i - 1]))) {
+                return true;
+            }
+            if (i > 1 && "quote".equals(segments[i - 1])
+                    && ("mint".equals(segments[i - 2]) || "melt".equals(segments[i - 2]))) {
+                return true;
+            }
+        }
+        return false;
     }
 }
