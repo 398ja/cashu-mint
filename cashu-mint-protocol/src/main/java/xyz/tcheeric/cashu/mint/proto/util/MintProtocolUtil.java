@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.Mint;
@@ -12,7 +13,9 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
+import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
+import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
+import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
@@ -55,13 +58,18 @@ public class MintProtocolUtil {
         if (log.isDebugEnabled()) {
             log.debug("Resolve private key: externalKeySetId={} amount={}", keySetId, amount);
         }
-        xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient ksc = xyz.tcheeric.cashu.vault.api.VaultClientFactory.keySetClient();
-        xyz.tcheeric.cashu.vault.db.model.KeySetEntity kse = ksc.getByKeySetId(keySetId);
+        KeySetVaultClient ksc = VaultClientFactory.keySetClient();
+        KeySetEntity kse;
+        try {
+            kse = ksc.getByKeySetId(keySetId);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new CashuErrorException("keyset_not_found");
+        }
         if (kse == null || kse.getId() == null) {
             throw new CashuErrorException("keyset_not_found");
         }
-        xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault keyVault = new xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault();
-        xyz.tcheeric.cashu.vault.db.model.KeyEntity keyEntity = keyVault.retrieveByAmount(java.math.BigInteger.valueOf(amount), kse.getId().toString());
+        DBKeyVault keyVault = new DBKeyVault();
+        KeyEntity keyEntity = keyVault.retrieveByAmount(java.math.BigInteger.valueOf(amount), kse.getId().toString());
         PrivateKey pk = PrivateKey.fromString(keyEntity.getPrivateKey());
         if (log.isDebugEnabled()) {
             log.debug("Resolved private key for amount={} internalKeySetUUID={}", amount, kse.getId());
