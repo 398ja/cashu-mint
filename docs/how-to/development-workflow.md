@@ -5,7 +5,11 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 ## Prerequisites
 
 - Java 21 with `JAVA_HOME` configured so Maven can compile the modules (see [`pom.xml`](../../pom.xml)).
-- Docker and Docker Compose for starting the Postgres databases and companion services defined in [`docker-compose.yml`](../../docker-compose_bck.yml).
+- Docker and Docker Compose for starting the Postgres databases and companion services.  
+  There are separate Compose files for each environment:
+    - [`docker-compose.dev.yml`](../../docker-compose.dev.yml) for development
+    - [`docker-compose.prod.yml`](../../docker-compose.prod.yml) for production
+    - See the relevant Compose file for your workflow in the project root.
 
 ## Start supporting services
 
