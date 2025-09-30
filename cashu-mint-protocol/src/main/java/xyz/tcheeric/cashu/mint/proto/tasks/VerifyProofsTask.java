@@ -51,6 +51,7 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
             ErrorResponse error = new ErrorResponse("validate_amounts_error");
             throw new CashuErrorException(error.toJson());
         }
+        log.info("validate_amounts_ok");
     }
 
     private void verifyProofs(@NonNull PostSwapRequest<T> request) throws CashuErrorException {
@@ -64,6 +65,7 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
             spendingCondition.verify(proof);
         }
 
+        log.info("Verify proofs ok");
     }
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
