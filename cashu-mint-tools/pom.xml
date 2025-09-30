@@ -16,6 +16,11 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Default preload properties - can be overridden via -D or mint-preload.properties -->
+        <mint.preload.json.output>scripts/preload-test-data.json</mint.preload.json.output>
+        <mint.preload.mint-id>11111111-1111-1111-1111-111111111111</mint.preload.mint-id>
+        <mint.preload.sql.input>scripts/preload-test-data.json</mint.preload.sql.input>
+        <mint.preload.sql.output>scripts/preload-test-data.sql</mint.preload.sql.output>
     </properties>
 
     <dependencies>
