@@ -1,0 +1,207 @@
+#version: "3.8"
+services:
+  cashu-vault-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+    ports:
+      - "55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - cashu
+  cashu-gateway-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_gateway
+    ports:
+      - "55434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - cashu
+  vault-db-init:
+    image: postgres:16
+    depends_on:
+      cashu-vault-db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration:/migrations:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /migrations/V1__init_schema.sql"]
+    restart: "no"
+    networks:
+      - cashu
+  vault-db-seed:
+    image: postgres:16
+    depends_on:
+      vault-db-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ./scripts/preload-test-data.sql:/preload-test-data.sql:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /preload-test-data.sql"]
+    restart: "no"
+    networks:
+      - cashu
+  cashu-vault-jpa:
+    image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: true
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-3333}
+      SERVER_PORT: ${CASHU_VAULT_PORT:-3333}
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    depends_on:
+      vault-db-init:
+        condition: service_completed_successfully
+    ports:
+      - "${CASHU_VAULT_PORT:-3333}:${CASHU_VAULT_PORT:-3333}"
+    restart: unless-stopped
+    networks:
+      - cashu
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "URL=http://localhost:${CASHU_VAULT_PORT:-3333}/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+  phoenixd-mock:
+    image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
+    entrypoint: ["java", "-cp", "@/app/jib-classpath-file", "xyz.tcheeric.phoenixd.mock.Main"]
+    environment:
+      PHOENIXD_PORT: ${PHOENIXD_PORT:-9740}
+      SERVER_ADDRESS: 0.0.0.0
+    ports:
+      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
+    restart: unless-stopped
+    networks:
+      cashu:
+        aliases:
+          - phoenixd
+  cashu-gateway-rest:
+    image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
+    environment:
+      CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8080}
+      GATEWAY_API_BASE_URL: ${GATEWAY_API_BASE_URL:-http://cashu-gateway-rest}
+      SERVER_ADDRESS: 0.0.0.0
+      CASHU_GATEWAY_PROVIDER: ${CASHU_GATEWAY_PROVIDER:-mock}
+      PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd}:${PHOENIXD_PORT:-9740}
+      PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-gateway-db:5432/cashu_gateway
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SERVER_PORT: ${CASHU_GATEWAY_PORT:-8080}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    depends_on:
+      cashu-gateway-db:
+        condition: service_healthy
+    ports:
+      - "${CASHU_GATEWAY_PORT:-8080}:${CASHU_GATEWAY_PORT:-8080}"
+    restart: unless-stopped
+    networks:
+      - cashu
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "URL=http://localhost:${CASHU_GATEWAY_PORT:-8080}/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+  cashu-mint-rest-dev:
+    build:
+      context: .
+      dockerfile: cashu-mint-rest/Dockerfile
+      args:
+        CASHU_GATEWAY_VERSION: ${CASHU_GATEWAY_VERSION:-0.3.1}
+    image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
+    ports:
+      - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
+      SERVER_PORT: ${CASHU_MINT_PORT:-7777}
+      SERVER_ADDRESS: 0.0.0.0
+      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
+      GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
+      GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.dummy.DummyGateway}
+      GATEWAY_BOLT11: ${GATEWAY_BOLT11:-xyz.tcheeric.gateway.dummy.DummyGateway}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    depends_on:
+      vault-db-seed:
+        condition: service_completed_successfully
+      cashu-gateway-rest:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cashu
+    volumes:
+      - ./scripts:/app/scripts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+  cashu-mint-admin-rest:
+    image: docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION:-latest}
+    ports:
+      - "${CASHU_MINT_ADMIN_PORT:-7778}:${CASHU_MINT_ADMIN_PORT:-7778}"
+    environment:
+      SERVER_PORT: ${CASHU_MINT_ADMIN_PORT:-7778}
+      SERVER_ADDRESS: 0.0.0.0
+      ADMIN_API_TOKEN: ${CASHU_MINT_ADMIN_API_TOKEN:-local-dev-token}
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    restart: unless-stopped
+    networks:
+      - cashu
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_ADMIN_PORT:-7778}/actuator/health/readiness >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+volumes:
+  gateway-db-data:
+networks:
+  cashu:
+    name: cashu
