@@ -2,15 +2,22 @@
 -- Mint: 1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae
 -- Keyset: 00e3372e61d05605
 
-DO $$ BEGIN IF to_regclass('t_key_a') IS NOT NULL THEN TRUNCATE TABLE t_key_a RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_keyset_a') IS NOT NULL THEN TRUNCATE TABLE t_keyset_a RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_proof_a') IS NOT NULL THEN TRUNCATE TABLE t_proof_a RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_mint_a') IS NOT NULL THEN TRUNCATE TABLE t_mint_a RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_key') IS NOT NULL THEN TRUNCATE TABLE t_key RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_keyset') IS NOT NULL THEN TRUNCATE TABLE t_keyset RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_proof') IS NOT NULL THEN TRUNCATE TABLE t_proof RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('t_mint') IS NOT NULL THEN TRUNCATE TABLE t_mint RESTART IDENTITY CASCADE; END IF; END $$;
-DO $$ BEGIN IF to_regclass('revinfo') IS NOT NULL THEN TRUNCATE TABLE revinfo RESTART IDENTITY CASCADE; END IF; END $$;
+-- Truncate only on first run (check if mint already exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM t_mint WHERE id = '1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae'::uuid) THEN
+        -- Only truncate if the mint doesn't exist (fresh database)
+        IF to_regclass('t_key') IS NOT NULL THEN TRUNCATE TABLE t_key RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_keyset') IS NOT NULL THEN TRUNCATE TABLE t_keyset RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_proof') IS NOT NULL THEN TRUNCATE TABLE t_proof RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_mint') IS NOT NULL THEN TRUNCATE TABLE t_mint RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_key_a') IS NOT NULL THEN TRUNCATE TABLE t_key_a RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_keyset_a') IS NOT NULL THEN TRUNCATE TABLE t_keyset_a RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_proof_a') IS NOT NULL THEN TRUNCATE TABLE t_proof_a RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('t_mint_a') IS NOT NULL THEN TRUNCATE TABLE t_mint_a RESTART IDENTITY CASCADE; END IF;
+        IF to_regclass('revinfo') IS NOT NULL THEN TRUNCATE TABLE revinfo RESTART IDENTITY CASCADE; END IF;
+    END IF;
+END $$;
 
 DO $$ BEGIN IF to_regclass('t_proof') IS NOT NULL THEN ALTER TABLE t_proof ADD COLUMN IF NOT EXISTS unblinded_signature VARCHAR(255); END IF; END $$;
 
