@@ -5,7 +5,7 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 ## Prerequisites
 
 - Java 21 with `JAVA_HOME` configured so Maven can compile the modules (see [`pom.xml`](../../pom.xml)).
-- Docker and Docker Compose for starting the Postgres databases and companion services defined in [`docker-compose.yml`](../../docker-compose.yml).
+- Docker and Docker Compose for starting the Postgres databases and companion services defined in [`docker-compose.yml`](../../docker-compose_bck.yml).
 
 ## Start supporting services
 
@@ -13,16 +13,16 @@ This how-to guide walks through the daily development loop: preparing infrastruc
    ```bash
    docker compose --profile dev up -d cashu-vault-db cashu-gateway-db
    ```
-   These containers expose healthy Postgres instances on ports 55433–55434 for local development (see [`docker-compose.yml`](../../docker-compose.yml)).
+   These containers expose healthy Postgres instances on ports 55433–55434 for local development (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
 2. Bring up the dependent services that manage schema and gateway integrations:
    ```bash
    docker compose --profile dev up -d cashu-vault-jpa cashu-gateway-rest cashu-gateway-webhook
    ```
-   The vault service applies its schema as it starts and exposes the API consumed by the mint; the gateway services wire REST calls to BOLT11 handlers with auto-DDL enabled for local use (see [`docker-compose.yml`](../../docker-compose.yml)).
+   The vault service applies its schema as it starts and exposes the API consumed by the mint; the gateway services wire REST calls to BOLT11 handlers with auto-DDL enabled for local use (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
 
 ## Run database migrations
 
-1. Ensure the `cashu-vault-jpa` container is running (see above). It initialises its database automatically before advertising readiness, so no extra Flyway/Liquibase command is required for the vault schema (see [`docker-compose.yml`](../../docker-compose.yml)).
+1. Ensure the `cashu-vault-jpa` container is running (see above). It initialises its database automatically before advertising readiness, so no extra Flyway/Liquibase command is required for the vault schema (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
 2. Seed the vault database with deterministic test data:
    ```bash
    # one-shot: emit JSON then render SQL
