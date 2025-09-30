@@ -9,42 +9,48 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 
 ## Start supporting services
 
-1. Start the databases used by the vault and gateway components:
+1. Build the vault Docker image (if not already built):
    ```bash
-   docker compose --profile dev up -d cashu-vault-db cashu-gateway-db
+   cd ../cashu-vault
+   mvn clean package -DskipTests
+   cd cashu-vault-jpa
+   docker build -t docker.398ja.xyz/cashu-vault-jpa:latest .
+   cd ../../cashu-mint
    ```
-   These containers expose healthy Postgres instances on ports 55433–55434 for local development (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
-2. Bring up the dependent services that manage schema and gateway integrations:
+
+2. Start the databases and supporting services:
    ```bash
-   docker compose --profile dev up -d cashu-vault-jpa cashu-gateway-rest cashu-gateway-webhook
+   docker compose -f docker-compose.dev.yml up -d
    ```
-   The vault service applies its schema as it starts and exposes the API consumed by the mint; the gateway services wire REST calls to BOLT11 handlers with auto-DDL enabled for local use (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
+   This starts:
+   - `cashu-vault-db` and `cashu-gateway-db`: PostgreSQL databases on ports 55433-55434
+   - `vault-db-init`: Runs the vault schema migration (V1__init_schema.sql)
+   - `vault-db-seed`: Seeds the vault with test data (preload-test-data.sql)
+   - `cashu-vault-jpa`: The vault service with the API consumed by the mint
+   - `cashu-gateway-rest`: Gateway service for BOLT11 handlers
+   - Other supporting services (phoenixd-mock, admin-rest, etc.)
 
 ## Run database migrations
 
-1. Ensure the `cashu-vault-jpa` container is running (see above). It initialises its database automatically before advertising readiness, so no extra Flyway/Liquibase command is required for the vault schema (see [`docker-compose.yml`](../../docker-compose_bck.yml)).
-2. Seed the vault database with deterministic test data:
-   ```bash
-   # one-shot: emit JSON then render SQL
-   ./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
+The `vault-db-init` and `vault-db-seed` services handle database schema and seeding automatically when using `docker-compose.dev.yml`:
 
-   # seed the vault DB using docker-compose credentials/port (host connection)
-   PGPASSWORD=postgres psql \
-     -h localhost -p 55433 -U postgres -d cashu_vault \
-     -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+1. `vault-db-init` runs the schema migration from `cashu-vault-jpa/src/main/resources/db/migration/V1__init_schema.sql`
+2. `vault-db-seed` loads test data from `scripts/preload-test-data.sql`
 
-   # or URI style
-   psql "postgresql://postgres:postgres@localhost:55433/cashu_vault" \
-     -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql
+These run automatically on startup. The seed script is idempotent - it only truncates and reloads data if the mint doesn't already exist.
 
-   # or stream into the DB container
-   docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+### Manual seeding (optional)
 
-   # run steps individually (same seeding commands as above)
-   ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
-   ./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java
-   ```
-   The profiles load defaults from [`cashu-mint-tools/mint-preload.properties`](../../cashu-mint-tools/mint-preload.properties) so the JSON and SQL destinations stay aligned. Override any property with `-D` flags when you need alternative locations or a specific mint identifier (see [`README.md`](../../README.md)). Ensure the vault service is up so its schema exists before seeding: `docker compose --profile dev up -d cashu-vault-db cashu-vault-jpa`.
+If you need to regenerate or manually run the seed data:
+
+```bash
+# Generate new seed data
+./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
+
+# Manually seed (if needed)
+docker compose -f docker-compose.dev.yml exec -T cashu-vault-db \
+  psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+```
 
 ## Run tests
 
