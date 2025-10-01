@@ -93,6 +93,7 @@ public class CashuController<T extends Secret> {
         if (request.getInputs() == null || request.getInputs().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
+        log.debug("Swapping {} inputs", request.getInputs().size());
         UUID mintId = inferMintIdFromSwapInputs(request);
         if (mintId == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         log.debug("Found mint: {}", mintId);
@@ -282,11 +283,14 @@ public class CashuController<T extends Secret> {
             return null;
         }
         for (boolean archive : new boolean[]{false, true}) {
+            log.debug("Searching for mint with keyset id {} in archive {}", keysetId, archive);
+            log.debug("mintLoadService: {}", mintLoadService);
             java.util.List<xyz.tcheeric.cashu.common.Mint> mints = mintLoadService.load(archive);
             if (mints == null) {
                 continue;
             }
             for (var mint : mints) {
+                log.debug("Mint: {} ", mint);
                 if (mint.getKeySets() != null && mint.getKeySets().stream().anyMatch(ks -> keysetId.equals(ks.getId()))) {
                     return UUID.fromString(mint.getId());
                 }
