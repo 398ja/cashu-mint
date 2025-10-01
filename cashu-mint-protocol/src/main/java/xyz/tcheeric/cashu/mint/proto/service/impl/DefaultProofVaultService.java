@@ -2,7 +2,9 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -37,7 +39,8 @@ public class DefaultProofVaultService implements ProofVaultService {
     @Override
     public ProofEntity retrieveProof(String secret) throws CashuErrorException {
         try {
-            return DBProofVault.retrieveProof(secret);
+            Secret normalizedSecret = SecretUtil.toSecret(secret);
+            return DBProofVault.retrieveProof(SecretUtil.toY(normalizedSecret));
         } catch (CashuErrorException e) {
             // Log and return null so callers can treat missing/errored lookups as no-proof-found
             log.warn("DefaultProofVaultService: failed to retrieve proof for secret {}: {}", secret, e.getMessage());
