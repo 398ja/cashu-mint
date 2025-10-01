@@ -1,13 +1,11 @@
+#version: "3.8"
 services:
-
   cashu-vault-db:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_vault
-    volumes:
-      - vault-db-data:/var/lib/postgresql/data
     ports:
       - "55433:5432"
     healthcheck:
@@ -19,16 +17,12 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
-    
   cashu-gateway-db:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_gateway
-    volumes:
-      - gateway-db-data:/var/lib/postgresql/data
     ports:
       - "55434:5432"
     healthcheck:
@@ -40,8 +34,38 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
-
+  vault-db-init:
+    image: postgres:16
+    depends_on:
+      cashu-vault-db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration:/migrations:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /migrations/V1__init_schema.sql"]
+    restart: "no"
+    networks:
+      - cashu
+  vault-db-seed:
+    image: postgres:16
+    depends_on:
+      vault-db-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ./scripts/preload-test-data.sql:/preload-test-data.sql:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /preload-test-data.sql"]
+    restart: "no"
+    networks:
+      - cashu
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
     environment:
@@ -51,32 +75,31 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: true
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
-      cashu-vault-db:
-        condition: service_healthy
+      vault-db-init:
+        condition: service_completed_successfully
     ports:
       - "${CASHU_VAULT_PORT:-3333}:${CASHU_VAULT_PORT:-3333}"
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
     healthcheck:
       test: [
         "CMD-SHELL",
-        "URL=http://localhost:${CASHU_VAULT_PORT:-3333}/actuator/health/readiness; \
-        if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \
-        elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \
-        else echo 'no http client for healthcheck' >&2; exit 1; fi"
+        "URL=http://localhost:${CASHU_VAULT_PORT:-3333}/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"
       ]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 20s
-
   phoenixd-mock:
     image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION:-latest}
     entrypoint: ["java", "-cp", "@/app/jib-classpath-file", "xyz.tcheeric.phoenixd.mock.Main"]
@@ -90,8 +113,6 @@ services:
       cashu:
         aliases:
           - phoenixd
-    profiles: ["dev"]
-
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
     environment:
@@ -105,33 +126,25 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SERVER_PORT: ${CASHU_GATEWAY_PORT:-8080}
-      # Auto-create/update schema for local/dev convenience
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       cashu-gateway-db:
         condition: service_healthy
-    # No hard dependency on Phoenixd in dev; provider can be 'mock'.
     ports:
       - "${CASHU_GATEWAY_PORT:-8080}:${CASHU_GATEWAY_PORT:-8080}"
     restart: unless-stopped
     networks:
       - cashu
-    profiles: ["dev", "prod"]
     healthcheck:
       test: [
         "CMD-SHELL",
-        "URL=http://localhost:${CASHU_GATEWAY_PORT:-8080}/actuator/health/readiness; \
-        if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \
-        elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \
-        else echo 'no http client for healthcheck' >&2; exit 1; fi"
+        "URL=http://localhost:${CASHU_GATEWAY_PORT:-8080}/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"
       ]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 20s
-
-  # Dev-only mint service: includes Dummy gateway override
   cashu-mint-rest-dev:
     build:
       context: .
@@ -148,21 +161,16 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
-      # Gateway REST endpoints are rooted at "/quote" (no /api prefix)
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
       GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
-      # Use Dummy gateway for Bolt11 in dev (requires Dummy to support BOLT11)
       GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.dummy.DummyGateway}
-      # Fallback for any unit if unit resolution is unavailable
       GATEWAY_BOLT11: ${GATEWAY_BOLT11:-xyz.tcheeric.gateway.dummy.DummyGateway}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
-      cashu-vault-jpa:
-        condition: service_started
+      vault-db-seed:
+        condition: service_completed_successfully
       cashu-gateway-rest:
-        condition: service_started
-      cashu-gateway-webhook:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - cashu
@@ -174,47 +182,7 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
-    profiles: ["dev"]
-
-  # Prod mint service: no Dummy gateway override
-  cashu-mint-rest:
-    build:
-      context: .
-      dockerfile: cashu-mint-rest/Dockerfile
-    image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
-    ports:
-      - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
-    environment:
-      SERVER_PORT: ${CASHU_MINT_PORT:-7777}
-      SERVER_ADDRESS: 0.0.0.0
-      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
-      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
-      CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
-      GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
-      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
-    depends_on:
-      cashu-vault-jpa:
-        condition: service_started
-      cashu-gateway-rest:
-        condition: service_started
-      cashu-gateway-webhook:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - cashu
-    volumes:
-      - ./scripts:/app/scripts:ro
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-    profiles: ["prod"]
-
   cashu-mint-admin-rest:
-    # Admin REST is now built in a separate project (cashu-mint-admin).
-    # Compose pulls the published image by default; build there with Jib if needed.
     image: docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION:-latest}
     ports:
       - "${CASHU_MINT_ADMIN_PORT:-7778}:${CASHU_MINT_ADMIN_PORT:-7778}"
@@ -232,59 +200,8 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
-    profiles: ["dev", "prod"]
-
-  cashu-gateway-webhook:
-    image: docker.398ja.xyz/cashu-gateway-webhook:${CASHU_GATEWAY_WEBHOOK_VERSION:-latest}
-    environment:
-      SERVER_ADDRESS: 0.0.0.0
-      SERVER_PORT: ${CASHU_GATEWAY_WEBHOOK_PORT:-9090}
-      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
-    ports:
-      - "${CASHU_GATEWAY_WEBHOOK_PORT:-9090}:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}"
-    restart: unless-stopped
-    networks:
-      - cashu
-    profiles: ["dev", "prod"]
-    healthcheck:
-      test: [
-        "CMD-SHELL",
-        "URL=http://localhost:${CASHU_GATEWAY_WEBHOOK_PORT:-9090}/actuator/health/readiness; \\\n+        if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; \\\n+        elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; \\\n+        else echo 'no http client for healthcheck' >&2; exit 1; fi"
-      ]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-
-  phoenixd:
-    image: acinq/phoenixd:latest
-    ports:
-      - "${PHOENIXD_PORT:-9740}:${PHOENIXD_PORT:-9740}"
-    restart: unless-stopped
-    networks:
-      cashu:
-        aliases:
-          - phoenixd
-    profiles: ["prod"]
-    volumes:
-      - phoenixd-data:/var/lib/phoenixd/data
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost ${PHOENIXD_PORT:-9740}"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-
 volumes:
-  vault-db-data:
   gateway-db-data:
-  phoenixd-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PHOENIXD_DATA_DIR:-${HOME}/.phoenixd}
-
 networks:
   cashu:
     name: cashu

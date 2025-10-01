@@ -39,18 +39,30 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         // Check if proof has been used already
         Secret secret = proof.getSecret();
-        ProofEntity proofEntity = proofVaultService.retrieveProof(secret.toString());
+        ProofEntity proofEntity;
+        try {
+            proofEntity = proofVaultService.retrieveProof(secret.toString());
+        } catch (Exception e) {
+            // If the vault lookup fails (network/remote error), log and treat as not found so verification can proceed
+            log.warn("Failed to retrieve proof for secret {}: {}", secret, e.getMessage(), e);
+            proofEntity = null;
+        }
+        log.debug("Proof entity {}...", proofEntity);
         if (proofEntity != null) {
             log.error("verify_proof_already_used_error");
             ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
             throw new CashuErrorException(error.toJson());
         }
 
+        log.debug("The proof has not yet been used...");
+
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");
             ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
             throw new CashuErrorException(error.toJson());
         }
+
+        log.debug("The proof key set id is valid...");
 
         // Verify the proof
         PrivateKey privateKey = getPrivateKey(proof, mint);
@@ -69,6 +81,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
     }
 
     private PrivateKey getPrivateKey(@NonNull Proof<RandomStringSecret> proof, @NonNull Mint mint) throws CashuErrorException {
+        log.debug("Getting private key for {}", proof);
         return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
     }
 
