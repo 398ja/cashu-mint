@@ -5,7 +5,7 @@ import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.gateway.common.Gateway;
 
 /**
@@ -15,34 +15,23 @@ public class MintQuoteTask implements Task<PostMintQuoteResponse> {
 
     private final int amount;
     private final PaymentMethod method;
-    private final String unit;
     private final MintProtocolService mintProtocolService;
 
     public MintQuoteTask(int amount, @NonNull PaymentMethod method) {
-        this(amount, method, null, MintProtocolServiceFactory.getInstance());
+        this(amount, method, MintProtocolServiceFactory.getInstance());
     }
 
     public MintQuoteTask(int amount,
                          @NonNull PaymentMethod method,
-                         String unit,
                          @NonNull MintProtocolService mintProtocolService) {
         this.amount = amount;
         this.method = method;
-        this.unit = unit;
         this.mintProtocolService = mintProtocolService;
-    }
-
-    // Backward-compatible constructor used by tests: no unit parameter
-    public MintQuoteTask(int amount,
-                         @NonNull PaymentMethod method,
-                         @NonNull MintProtocolService mintProtocolService) {
-        this(amount, method, null, mintProtocolService);
     }
 
     @Override
     public PostMintQuoteResponse execute() {
-        Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                : mintProtocolService.createGateway(method, unit);
+        Gateway gateway = mintProtocolService.createGateway(method);
         String quoteId = gateway.createMintQuote(amount, null);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);

@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.2.2</version>
+        <version>0.1.4</version>
     </parent>
 
     <artifactId>cashu-mint-protocol</artifactId>
     <packaging>jar</packaging>
-    <version>0.2.2</version>
+    <version>0.1.4</version>
 
     <name>cashu-mint-protocol</name>
     <url>http://maven.apache.org</url>
@@ -41,24 +41,8 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-gateway-phoenixd</artifactId>
-            <version>${cashu-gateway.version}</version>
-        </dependency>
-        <!-- Include Dummy gateway on the runtime classpath so it can be selected via env overrides in dev -->
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-gateway-dummy</artifactId>
-            <version>${cashu-gateway.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
             <artifactId>cashu-vault-api</artifactId>
             <version>${cashu-vaults.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>xyz.tcheeric</groupId>
@@ -81,6 +65,12 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-gateway-phoenixd</artifactId>
+            <version>${cashu-gateway.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>

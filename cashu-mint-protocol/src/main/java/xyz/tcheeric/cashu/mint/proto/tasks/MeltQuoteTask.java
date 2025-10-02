@@ -7,7 +7,7 @@ import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 import xyz.tcheeric.gateway.common.Gateway;
 
@@ -18,34 +18,23 @@ public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
 
     private final PostMeltQuoteRequest request;
     private final PaymentMethod method;
-    private final String unit;
     private final MintProtocolService mintProtocolService;
 
     public MeltQuoteTask(@NonNull PostMeltQuoteRequest request, @NonNull PaymentMethod method) {
-        this(request, method, null, MintProtocolServiceFactory.getInstance());
+        this(request, method, MintProtocolServiceFactory.getInstance());
     }
 
     public MeltQuoteTask(@NonNull PostMeltQuoteRequest request,
                          @NonNull PaymentMethod method,
-                         String unit,
                          @NonNull MintProtocolService mintProtocolService) {
         this.request = request;
         this.method = method;
-        this.unit = unit;
         this.mintProtocolService = mintProtocolService;
-    }
-
-    // Backward-compatible constructor used by tests: no unit parameter
-    public MeltQuoteTask(@NonNull PostMeltQuoteRequest request,
-                         @NonNull PaymentMethod method,
-                         @NonNull MintProtocolService mintProtocolService) {
-        this(request, method, null, mintProtocolService);
     }
 
     @Override
     public PostMeltQuoteResponse execute() throws CashuErrorException {
-        Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                : mintProtocolService.createGateway(method, unit);
+        Gateway gateway = mintProtocolService.createGateway(method);
         String quoteId = gateway.createMeltQuote(request.getRequest());
         int feeReserve = gateway.getFeeReserve(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);

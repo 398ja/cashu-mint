@@ -44,7 +44,6 @@ mint:
     8:
       supported: true
     9:
-      # NUT-09 restore signatures
       supported: true
     10:
       supported: true
