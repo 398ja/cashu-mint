@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Proof;
@@ -51,6 +52,7 @@ import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -329,6 +331,23 @@ public class CashuController<T extends Secret> {
         for (String m : meltMethods) meltArr.add(m);
     }
 
+    /**
+     * Merges the check states of secrets across all mints (active and archived).
+     * <p>
+     * For each secret in the {@link PostCheckStateRequest}, this method:
+     * <ul>
+     *   <li>Collects state information from all active mints.</li>
+     *   <li>If no state is found in active mints, checks archived mints.</li>
+     *   <li>Prioritizes "spent" and "pending" states over "unspent".</li>
+     *   <li>Builds a {@link PostCheckStateResponse} listing the most relevant state for each secret.</li>
+     * </ul>
+     * This ensures the response reflects the latest and most authoritative state for each secret,
+     * even if the secret exists in multiple mints.
+     *
+     * @param request the request containing secrets to check
+     * @return a response with the merged state for each secret
+     * @throws CashuErrorException if an error occurs during state retrieval
+     */
     private PostCheckStateResponse mergeCheckStates(PostCheckStateRequest request) throws CashuErrorException {
         java.util.Map<String, String> stateByKey = new java.util.LinkedHashMap<>();
         java.util.function.BiConsumer<String, String> merge = (k, s) -> {
@@ -348,9 +367,9 @@ public class CashuController<T extends Secret> {
         }
         PostCheckStateResponse out = new PostCheckStateResponse();
         java.util.List<PostCheckStateResponse.ResponseState> list = new java.util.ArrayList<>();
-        for (var e : stateByKey.entrySet()) {
-            var rs = new PostCheckStateResponse.ResponseState();
-            rs.setHashToCurveSecret(xyz.tcheeric.cashu.common.PublicKey.fromString(e.getKey()));
+        for (Map.Entry<String, String> e : stateByKey.entrySet()) {
+            PostCheckStateResponse.ResponseState rs = new PostCheckStateResponse.ResponseState();
+            rs.setHashToCurveSecret(HashToCurveSecret.fromString(e.getKey()));
             rs.setState(e.getValue());
             list.add(rs);
         }
@@ -358,6 +377,22 @@ public class CashuController<T extends Secret> {
         return out;
     }
 
+    /**
+     * Merges the check states for secrets from a single mint into the provided state map.
+     * <p>
+     * For each secret in the {@link PostCheckStateRequest}, this method:
+     * <ul>
+     *   <li>Retrieves the state from the given mint using {@link NUT07#checkState}.</li>
+     *   <li>For each returned state, applies the merge logic to update the state map.</li>
+     *   <li>Skips secrets or states that are null.</li>
+     * </ul>
+     * This helper is used by {@link #mergeCheckStates} to aggregate state information across mints.
+     *
+     * @param merge a function to merge a secret's state into the result map
+     * @param mint the mint to query for secret states
+     * @param request the request containing secrets to check
+     * @throws CashuErrorException if an error occurs during state retrieval
+     */
     private void mergeFromMintStates(java.util.function.BiConsumer<String, String> merge,
                                      xyz.tcheeric.cashu.common.Mint mint,
                                      PostCheckStateRequest request) throws CashuErrorException {
