@@ -122,9 +122,17 @@ public class MintProtocolUtil {
     public static <T extends Secret> ProofEntity toProofEntity(@NonNull Proof<T> proof, @NonNull MintEntity mintEntity) {
         ProofEntity proofEntity = new ProofEntity();
         proofEntity.setAmount(proof.getAmount());
-        proofEntity.setSecret(proof.getSecret().toString());
-        proofEntity.setWitness(proof.getWitness().toString());
-        proofEntity.setUnblindedSignature(proof.getUnblindedSignature().toString());
+        proofEntity.setSecret(proof.getSecret() != null ? proof.getSecret().toString() : null);
+        // Witness is optional for RSS proofs; persist only when present
+        if (proof.getWitness() != null) {
+            proofEntity.setWitness(proof.getWitness().toString());
+        } else {
+            proofEntity.setWitness(null);
+        }
+        // Unblinded signature should be present for spent proofs, but be defensive
+        proofEntity.setUnblindedSignature(proof.getUnblindedSignature() != null
+                ? proof.getUnblindedSignature().toString()
+                : null);
         proofEntity.setMint(mintEntity);
         proofEntity.setState(ProofEntity.STATE_SPENT);
         return proofEntity;
