@@ -39,7 +39,7 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
             log.debug("Signing blinded message: amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId());
         }
-        PrivateKey privateKey = getPrivateKey(blindedMessage, mint);
+        PrivateKey privateKey = getPrivateKey(blindedMessage, mint, mintProtocolService);
         if (privateKey == null) {
             ErrorResponse error = new ErrorResponse("sign_private_key_not_found");
             log.warn("Private key not found for amount={} keySetId={}",
@@ -105,8 +105,8 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
         return blindSignature;
     }
 
-    private PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint) throws CashuErrorException {
-        return mintProtocolService.getPrivateKey(blindedMessage.getKeySetId().toString(), blindedMessage.getAmount(), mint);
+    private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint, @NonNull MintProtocolService svc) throws CashuErrorException {
+        return svc.getPrivateKey(blindedMessage.getKeySetId().toString(), blindedMessage.getAmount(), mint);
     }
 
     private static String bytesToHex(byte[] bytes) {
