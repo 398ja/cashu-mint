@@ -38,12 +38,10 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
     private void verifyMultisig(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
 
-        log.debug("verifyMultisig {}", proof);
         P2PKSecret secret = proof.getSecret();
         int n_sigs = secret.getNSigs() > 0 ? secret.getNSigs() : 1;
 
         if (n_sigs < 0) {
-            log.error("Invalid number of signatures");
             throw new IllegalArgumentException("Invalid number of signatures");
         }
 
@@ -64,7 +62,6 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
         // If the number of valid signatures is greater or equal to the number specified in n_sigs, the transaction is valid.
         if (validSignatureCount < n_sigs) {
-            log.error("verify_invalid_number_of_signatures");
             ErrorResponse error = new ErrorResponse("verify_invalid_number_of_signatures");
             throw new CashuErrorException(error.toJson());
         }
@@ -73,7 +70,6 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
     }
 
     private void verifyLockTime(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
-        log.debug("verifyLockTime {}", proof);
         int lockTime = proof.getSecret().getLockTime();
 
         if (lockTime <= 0) {
@@ -87,14 +83,12 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             return;
         }
 
-        log.error("verify_locktime_not_reached");
         ErrorResponse error = new ErrorResponse("verify_locktime_not_reached");
         throw new CashuErrorException(error.toJson());
     }
 
     private void verifyRefundPublicKey(@NonNull Proof<P2PKSecret> proof) throws CashuErrorException {
 
-        log.debug("verifyRefundPublicKey {}", proof);
         int lockTime = proof.getSecret().getLockTime();
 
         // If the locktime is in the past...
@@ -111,27 +105,23 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                 int validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, secretBytes);
 
                     if (validSignatureCount == 0) {
-                        log.error("verify_invalid_refund_signature");
                         ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
                         throw new CashuErrorException(error.toJson());
                     }
 
                 if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1) {
                     if (blindedMessages == null || blindedMessages.isEmpty()) {
-                        log.error("BlindedMessage list is null or empty");
                         throw new IllegalStateException("BlindedMessage list is null or empty");
                     }
 
                     for (BlindedMessage bm : blindedMessages) {
                         if (bm.getWitness() == null) {
-                            log.error("BlindedMessage witness is null");
                             throw new IllegalStateException("BlindedMessage witness is null");
                         }
                         List<String> outSigs = bm.getWitness().getSignatures();
                         byte[] outData = bm.getBlindedMessage().toBytes();
                         validSignatureCount = getValidSignatureCount(refundPublicKeys, outSigs, outData);
                         if (validSignatureCount == 0) {
-                            log.error("verify_invalid_refund_signature");
                             ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
                             throw new CashuErrorException(error.toJson());
                         }

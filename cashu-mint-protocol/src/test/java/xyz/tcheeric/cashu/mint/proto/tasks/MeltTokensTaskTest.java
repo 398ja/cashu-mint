@@ -21,8 +21,6 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.gateway.common.Gateway;
-import xyz.tcheeric.cashu.vault.db.model.MintEntity;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -33,11 +31,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-    public class MeltTokensTaskTest {
+public class MeltTokensTaskTest {
 
-    /**
-     * Ensures the melt task wires together the protocol, gateway, and vault services when melting tokens.
-     */
     @Test
     public void execute() throws CashuErrorException {
         Proof<RandomStringSecret> proof = new RSSProof();
@@ -60,21 +55,17 @@ import static org.mockito.Mockito.when;
         when(protocolService.getPrivateKey(anyString(), anyInt(), any())).thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         MintLoadService loadService = Mockito.mock(MintLoadService.class);
-        Mint mint = new Mint(UUID.randomUUID().toString());
+        Mint mint = new Mint();
         when(loadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         when(loadService.keySet(anyString())).thenReturn(KeySet.builder().id("ks1").unit("sat").build());
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
-        when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
 
         MeltTokensTask<RandomStringSecret> task = new MeltTokensTask<>(UUID.randomUUID(), request, PaymentMethod.MOCK,
                 protocolService, loadService, mintVaultService, proofVaultService);
 
-        try (MockedStatic<ProofEntity> proofEntityMock = Mockito.mockStatic(ProofEntity.class);
-             MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            proofEntityMock.when(() -> ProofEntity.fromProof(Mockito.any(), Mockito.any()))
-                    .thenAnswer(invocation -> new ProofEntity());
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
                     .thenReturn(true);
 

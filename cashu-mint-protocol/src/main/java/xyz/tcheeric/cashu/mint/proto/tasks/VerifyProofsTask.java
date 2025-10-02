@@ -31,7 +31,6 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
     @Override
     public Void execute() throws CashuErrorException {
 
-        log.info("Verifying proofs....");
         validateAmounts();
         verifyProofs(request);
 
@@ -39,7 +38,6 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
     }
 
     private void validateAmounts() throws CashuErrorException {
-        log.debug("Validate Amounts...");
         var proofs = request.getInputs();
         var blindedMessages = request.getBlindedMessages();
 
@@ -47,15 +45,12 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         int blindedMessagesAmount = blindedMessages.stream().mapToInt(BlindedMessage::getAmount).sum();
 
         if (proofsAmount != blindedMessagesAmount) {
-            log.error("validate_amounts_error");
             ErrorResponse error = new ErrorResponse("validate_amounts_error");
             throw new CashuErrorException(error.toJson());
         }
-        log.info("validate_amounts_ok");
     }
 
     private void verifyProofs(@NonNull PostSwapRequest<T> request) throws CashuErrorException {
-        log.debug("Verify proofs: {}", request.getInputs());
         List<Proof<T>> proofs = request.getInputs();
         List<BlindedMessage> blindedMessages = request.getBlindedMessages();
 
@@ -65,7 +60,6 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
             spendingCondition.verify(proof);
         }
 
-        log.info("Verify proofs ok");
     }
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {

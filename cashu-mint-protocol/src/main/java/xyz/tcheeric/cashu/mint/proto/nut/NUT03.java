@@ -8,9 +8,8 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.SwapTask;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.UUID;
 
@@ -19,17 +18,14 @@ import java.util.UUID;
 @Nut(3)
 public class NUT03 {
 
-    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
-                                                           @NonNull PostSwapRequest<T> postSwapRequest,
-                                                           @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
-        return swap(mintId, postSwapRequest, new DefaultMintLoadService(), signatureVaultService);
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId, @NonNull PostSwapRequest<T> postSwapRequest) throws CashuErrorException {
+        return swap(mintId, postSwapRequest, new DefaultMintLoadService());
     }
 
     public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
                                                            @NonNull PostSwapRequest<T> postSwapRequest,
-                                                           @NonNull MintLoadService mintLoadService,
-                                                           @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
-        return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService).execute();
+                                                           @NonNull MintLoadService mintLoadService) throws CashuErrorException {
+        return new SwapTask<>(mintId, postSwapRequest, mintLoadService).execute();
     }
 
 }
