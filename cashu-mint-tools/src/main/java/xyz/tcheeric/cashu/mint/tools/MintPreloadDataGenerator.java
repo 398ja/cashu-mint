@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
@@ -26,6 +27,7 @@ import java.util.function.Function;
  * Generates deterministic mint preload data and emits it as JSON so that other tooling can
  * translate it into SQL fixtures.
  */
+@Slf4j
 public final class MintPreloadDataGenerator {
 
     public static final List<Integer> DEFAULT_DENOMINATIONS = List.of(1, 2, 4, 8, 16, 32, 64, 128);
@@ -94,7 +96,7 @@ public final class MintPreloadDataGenerator {
         generator.writeJson(output);
 
         MintPreloadData data = generator.data();
-        System.out.printf("Generated preload JSON for mint %s and keyset %s at %s%n", data.mintId(), data.keySetId(),
+        log.info("Generated preload JSON for mint {} and keyset {} at {}", data.mintId(), data.keySetId(),
                 output.toAbsolutePath());
     }
 
