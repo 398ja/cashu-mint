@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -13,6 +14,7 @@ import java.util.Objects;
  * Utility that reads {@link MintPreloadData} from JSON and renders the SQL preload script that was
  * previously emitted by {@link MintPreloadDataGenerator}.
  */
+@Slf4j
 public final class MintPreloadSqlRenderer {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -133,7 +135,7 @@ public final class MintPreloadSqlRenderer {
         MintPreloadData data = readJson(input);
         writeSql(data, output);
 
-        System.out.printf("Wrote preload SQL for mint %s and keyset %s to %s%n", data.mintId(), data.keySetId(),
+        log.info("Wrote preload SQL for mint {} and keyset {} to {}", data.mintId(), data.keySetId(),
                 output.toAbsolutePath());
     }
 }
