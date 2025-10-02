@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
 
@@ -42,9 +43,9 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
     public List<Proof<T>> execute() throws CashuErrorException {
         var mintEntity = mintVaultService.retrieveMint(mint.getId());
         for (Proof<T> proof : proofs) {
-
-            ProofEntity proofEntity = ProofEntity.fromProof(proof, mintEntity);
-
+            // Build a minimal, database-ready ProofEntity without invoking heavy cryptographic conversions
+            // that expect specific key encodings. This avoids errors when secrets are 32-byte values.
+            ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, mintEntity);
             proofVaultService.store(proofEntity);
             proofVaultService.invalidate(proofEntity);
         }
