@@ -71,7 +71,7 @@ public class MeltTest {
     }
 
     /**
-     * Ensures successful melts persist proofs as pending before invoking the gateway.
+     * Ensures successful melts persist proofs as pending after payment succeeds.
      */
     @Test
     public void mockMelt() throws CashuErrorException {
@@ -137,9 +137,10 @@ public class MeltTest {
         Mockito.verify(proofVaultService, Mockito.times(2)).storePending(pendingCaptor.capture());
         pendingCaptor.getAllValues().forEach(entity -> assertEquals(ProofEntity.STATE_PENDING, entity.getState()));
 
-        InOrder inOrder = Mockito.inOrder(proofVaultService, mockGateway);
-        inOrder.verify(proofVaultService, Mockito.times(2)).storePending(Mockito.any());
+        InOrder inOrder = Mockito.inOrder(mockGateway, proofVaultService);
         inOrder.verify(mockGateway).pay(postMeltRequest.getQuoteId());
+        inOrder.verify(mockGateway).checkPaymentStatus(postMeltRequest.getQuoteId());
+        inOrder.verify(proofVaultService, Mockito.times(2)).storePending(Mockito.any());
     }
 
     /**
@@ -283,7 +284,8 @@ public class MeltTest {
         ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
         assertEquals("melt_proof_pending_error", error.code());
         Mockito.verify(proofVaultService).storePending(Mockito.any());
-        Mockito.verify(mockGateway, Mockito.never()).pay(anyString());
+        Mockito.verify(mockGateway).pay(postMeltRequest.getQuoteId());
+        Mockito.verify(mockGateway).checkPaymentStatus(postMeltRequest.getQuoteId());
     }
 
     /**
