@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.util.Properties;
 
 /**
- * Simple error response carrying a machine-readable code and a human-readable message.
+ * Simple error response carrying a machine readable code and a human readable message.
  */
 public record ErrorResponse(String code, String message) {
 

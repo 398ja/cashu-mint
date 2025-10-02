@@ -11,7 +11,6 @@ import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -41,7 +40,7 @@ public class SignBlindedMessage33ByteTest {
         }
 
         Mint mint = new Mint();
-        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service);
 
         try (MockedStatic<BDHKEUtils> mocked = Mockito.mockStatic(BDHKEUtils.class)) {
             mocked.when(() -> BDHKEUtils.signBlindedMessage(

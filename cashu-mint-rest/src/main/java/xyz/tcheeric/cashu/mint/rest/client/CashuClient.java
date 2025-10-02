@@ -11,8 +11,6 @@ import java.util.Objects;
 
 public class CashuClient extends BaseClient {
 
-    private static final String API_VERSION_PREFIX = "/v1";
-
     public CashuClient() {
         super();
     }
@@ -45,7 +43,7 @@ public class CashuClient extends BaseClient {
     protected String getBaseUrl() {
         String address = System.getProperty("server.address") != null ? System.getProperty("server.address") : serverAddress;
         String port = System.getProperty("cashu_mint_port") != null ? System.getProperty("cashu_mint_port") : (serverPort != null ? serverPort : "7777");
-        return "http://" + address + ":" + port + API_VERSION_PREFIX;
+        return "http://" + address + ":" + port + "/";
     }
 
 }

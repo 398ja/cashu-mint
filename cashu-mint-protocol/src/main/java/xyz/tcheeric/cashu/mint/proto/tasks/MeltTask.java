@@ -13,17 +13,15 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
+import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
-import xyz.tcheeric.cashu.vault.db.model.MintEntity;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 
@@ -32,7 +30,6 @@ import java.util.List;
 public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
-    private final String unit;
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
     private final MintLoadService mintLoadService;
@@ -41,17 +38,16 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
-        this(postMeltRequest, method, null, mint, mintProtocolService, new DefaultMintLoadService(), new DefaultMintVaultService(), new DefaultProofVaultService());
+        this(postMeltRequest, method, mint, mintProtocolService, new DefaultMintLoadService(), new DefaultMintVaultService(), new DefaultProofVaultService());
     }
 
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, String unit, @NonNull Mint mint,
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull MintLoadService mintLoadService,
                     @NonNull MintVaultService mintVaultService,
                     @NonNull ProofVaultService proofVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
-        this.unit = unit;
         this.mint = mint;
         this.mintLoadService = mintLoadService;
         this.mintProtocolService = mintProtocolService;
@@ -59,21 +55,12 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
         this.proofVaultService = proofVaultService;
     }
 
-    // Backward-compatible constructor used by tests: no unit parameter
-    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
-                    @NonNull MintProtocolService mintProtocolService,
-                    @NonNull MintLoadService mintLoadService,
-                    @NonNull MintVaultService mintVaultService,
-                    @NonNull ProofVaultService proofVaultService) {
-        this(postMeltRequest, method, null, mint, mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
-    }
-
     @Override
     public PostMeltResponse execute() throws CashuErrorException {
-        // TODO - Use java module instead?
-        List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
-        try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
-                proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
+        ThreadUtil.MINT_MELT_LOCK.lock();
+        try {
+            // TODO - Use java module instead?
+            List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
             for (Proof<T> proof : proofsToMelt) {
                 if (!verify(proof)) {
                     ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
@@ -84,8 +71,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             var keySetId = proofsToMelt.get(0).getKeySetId();
             var keyset = mintLoadService.keySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
-            var gateway = unit == null ? mintProtocolService.createGateway(method)
-                    : mintProtocolService.createGateway(method, unit);
+            var gateway = mintProtocolService.createGateway(method);
             var amount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
             var fee_reserve = gateway.getFeeReserve(quoteId);
@@ -107,18 +93,12 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
                 throw new CashuErrorException(error.toJson());
             }
 
-            try {
-                persistPendingProofs(proofsToMelt);
-            } catch (CashuErrorException | RuntimeException e) {
-                log.error("Failed to mark proofs as pending for melt quote {}", quoteId, e);
-                ErrorResponse error = new ErrorResponse("melt_proof_pending_error");
-                throw new CashuErrorException(error.toJson());
-            }
-
             // Invalidate the proofsToMelt.
-            createInvalidateProofsTask(proofsToMelt).execute();
+            new InvalidateProofsTask(mint, proofsToMelt, mintVaultService, proofVaultService).execute();
 
             return new PostMeltResponse(paid, gateway.getPaymentPreimage(quoteId));
+        } finally {
+            ThreadUtil.MINT_MELT_LOCK.unlock();
         }
     }
 
@@ -128,25 +108,5 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
             return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().getBytes());
         }
         return false;
-    }
-
-    private void persistPendingProofs(List<Proof<T>> proofsToMelt) throws CashuErrorException {
-        MintEntity mintEntity = mintVaultService.retrieveMint(mint.getId());
-        for (Proof<T> proof : proofsToMelt) {
-            ProofEntity proofEntity = new ProofEntity();
-            proofEntity.setAmount(proof.getAmount());
-            proofEntity.setSecret(proof.getSecret().toString());
-            if (proof.getWitness() != null) {
-                proofEntity.setWitness(proof.getWitness().toString());
-            }
-            proofEntity.setUnblindedSignature(proof.getUnblindedSignature().toString());
-            proofEntity.setMint(mintEntity);
-            proofEntity.setState(ProofEntity.STATE_PENDING);
-            proofVaultService.storePending(proofEntity);
-        }
-    }
-
-    protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {
-        return new InvalidateProofsTask<>(mint, proofs, mintVaultService, proofVaultService);
     }
 }

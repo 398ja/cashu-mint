@@ -7,12 +7,11 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
-import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 
 import java.util.List;
 
@@ -43,9 +42,18 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
     public List<Proof<T>> execute() throws CashuErrorException {
         var mintEntity = mintVaultService.retrieveMint(mint.getId());
         for (Proof<T> proof : proofs) {
-            // Build a minimal, database-ready ProofEntity without invoking heavy cryptographic conversions
-            // that expect specific key encodings. This avoids errors when secrets are 32-byte values.
-            ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, mintEntity);
+            String unblindedSignature = proof.getUnblindedSignature().toString();
+            String secret = proof.getSecret().toString();
+
+            ProofEntity proofEntity = new ProofEntity();
+            proofEntity.setAmount(proof.getAmount());
+            proofEntity.setSecret(secret);
+            if (proof.getWitness() != null) {
+                proofEntity.setWitness(proof.getWitness().toString());
+            }
+            proofEntity.setUnblindedSignature(unblindedSignature);
+            proofEntity.setMint(mintEntity);
+
             proofVaultService.store(proofEntity);
             proofVaultService.invalidate(proofEntity);
         }
