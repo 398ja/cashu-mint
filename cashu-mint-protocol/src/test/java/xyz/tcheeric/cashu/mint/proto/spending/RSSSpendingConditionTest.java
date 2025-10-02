@@ -9,7 +9,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -24,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil.createRandomBytes;
+import static xyz.tcheeric.cashu.mint.proto.util.SignatureTestData.sampleSignature;
 
 public class RSSSpendingConditionTest {
 
@@ -39,7 +38,7 @@ public class RSSSpendingConditionTest {
         proof.setAmount(1);
         proof.setKeySetId(keysetId);
         proof.setSecret(RandomStringSecret.create());
-        proof.setUnblindedSignature(Signature.fromString(createRandomBytes(33)));
+        proof.setUnblindedSignature(sampleSignature());
         return proof;
     }
 
@@ -74,8 +73,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.doThrow(new CashuErrorException("notfound"))
-                .when(proofVaultService).retrieveProof(anyString());
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(null);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -87,6 +85,9 @@ public class RSSSpendingConditionTest {
         }
     }
 
+    /**
+     * Ensures a proof already stored in the vault triggers a reuse error.
+     */
     @Test
     public void verifyUsedProof() throws CashuErrorException {
         String kid = "ks1";

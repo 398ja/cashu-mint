@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.gateway.common.Gateway;
 
 import java.util.List;
@@ -60,7 +61,7 @@ public class MintTest {
         Mint mint = new Mint();
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
 
-        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService, service);
+        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService, service, new DefaultSignatureVaultService());
 
         PostMintResponse response = task.execute();
 
@@ -108,7 +109,7 @@ public class MintTest {
         MintLoadService mintLoadService2 = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
         when(mintLoadService2.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
-        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service);
+        MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service, new DefaultSignatureVaultService());
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         ErrorResponse error;

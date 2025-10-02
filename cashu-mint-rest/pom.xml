@@ -5,16 +5,22 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.1.4</version>
+        <version>0.2.3</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.1.4</version>
+    <version>0.2.3</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
         <java.version>21</java.version>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>${spring.boot.version}</version>
+        </dependency>
+        <!-- Phoenixd gateway is used unconditionally via protocol module -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
@@ -37,16 +43,11 @@
             <artifactId>cashu-mint-protocol</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>${postgresql.version}</version>
-            <scope>runtime</scope>
-        </dependency>
+        <!-- Dummy gateway implementation comes transitively via the protocol module. -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <version>2.2.224</version>
+            <version>2.3.232</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -102,6 +103,13 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>

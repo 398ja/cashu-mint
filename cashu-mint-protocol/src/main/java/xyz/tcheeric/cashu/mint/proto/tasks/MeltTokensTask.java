@@ -27,10 +27,12 @@ public class MeltTokensTask<T extends Secret> implements Task<PostMeltResponse> 
     private final MintLoadService mintLoadService;
     private final MintVaultService mintVaultService;
     private final ProofVaultService proofVaultService;
+    private final String unit;
 
     public MeltTokensTask(@NonNull UUID mintId,
                           @NonNull PostMeltRequest<T> request,
                           @NonNull PaymentMethod method,
+                          String unit,
                           @NonNull MintProtocolService mintProtocolService,
                           @NonNull MintLoadService mintLoadService,
                           @NonNull MintVaultService mintVaultService,
@@ -42,12 +44,24 @@ public class MeltTokensTask<T extends Secret> implements Task<PostMeltResponse> 
         this.mintLoadService = mintLoadService;
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
+        this.unit = unit;
+    }
+
+    // Backward-compatible constructor used by tests: no unit parameter
+    public MeltTokensTask(@NonNull UUID mintId,
+                          @NonNull PostMeltRequest<T> request,
+                          @NonNull PaymentMethod method,
+                          @NonNull MintProtocolService mintProtocolService,
+                          @NonNull MintLoadService mintLoadService,
+                          @NonNull MintVaultService mintVaultService,
+                          @NonNull ProofVaultService proofVaultService) {
+        this(mintId, request, method, null, mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
     }
 
     @Override
     public PostMeltResponse execute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, true);
-        MeltTask<T> meltTask = new MeltTask<>(request, method, mint,
+        MeltTask<T> meltTask = new MeltTask<>(request, method, unit, mint,
                 mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
         return meltTask.execute();
     }

@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,7 +35,7 @@ public class SignBlindedMessageTest {
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         Mint mint = new Mint();
-        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service);
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());
 
         BlindSignature signature = task.execute();
 
@@ -55,7 +56,7 @@ public class SignBlindedMessageTest {
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
 
         Mint mint = new Mint();
-        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service);
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());
 
         assertThrows(CashuErrorException.class, task::execute);
     }

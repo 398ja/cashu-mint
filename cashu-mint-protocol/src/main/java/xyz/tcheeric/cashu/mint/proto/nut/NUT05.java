@@ -13,14 +13,14 @@ import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltTokensTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MeltQuoteStatusTask;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 
 import java.util.UUID;
 
@@ -30,28 +30,30 @@ import java.util.UUID;
 public class NUT05 {
 
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest postMeltQuoteRequest, @NonNull PaymentMethod method) {
-        return quote(postMeltQuoteRequest, method, MintProtocolServiceFactory.getInstance());
+        return quote(postMeltQuoteRequest, method, null, MintProtocolServiceFactory.getInstance());
     }
 
     public static PostMeltQuoteResponse quote(@NonNull PostMeltQuoteRequest postMeltQuoteRequest,
                                               @NonNull PaymentMethod method,
+                                              String unit,
                                               @NonNull MintProtocolService mintProtocolService) {
         try {
-            return new MeltQuoteTask(postMeltQuoteRequest, method, mintProtocolService).execute();
+            return new MeltQuoteTask(postMeltQuoteRequest, method, unit, mintProtocolService).execute();
         } catch (CashuErrorException e) {
             throw new RuntimeException(e);
         }
     }
 
     public static PostMeltQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
-        return quotePaymentStatus(quoteId, method, MintProtocolServiceFactory.getInstance());
+        return quotePaymentStatus(quoteId, method, null, MintProtocolServiceFactory.getInstance());
     }
 
     public static PostMeltQuoteResponse quotePaymentStatus(@NonNull String quoteId,
                                                            @NonNull PaymentMethod method,
+                                                           String unit,
                                                            @NonNull MintProtocolService mintProtocolService) {
         try {
-            return new MeltQuoteStatusTask(quoteId, method, mintProtocolService).execute();
+            return new MeltQuoteStatusTask(quoteId, method, unit, mintProtocolService).execute();
         } catch (CashuErrorException e) {
             throw new RuntimeException(e);
         }
@@ -60,7 +62,7 @@ public class NUT05 {
     public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId,
                                                            @NonNull PostMeltRequest<T> request,
                                                            @NonNull PaymentMethod method) throws CashuErrorException {
-        return melt(mintId, request, method,
+        return melt(mintId, request, method, null,
                 MintProtocolServiceFactory.getInstance(),
                 new DefaultMintLoadService(),
                 new DefaultMintVaultService(),
@@ -70,6 +72,18 @@ public class NUT05 {
     public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId,
                                                            @NonNull PostMeltRequest<T> request,
                                                            @NonNull PaymentMethod method,
+                                                           String unit) throws CashuErrorException {
+        return melt(mintId, request, method, unit,
+                MintProtocolServiceFactory.getInstance(),
+                new DefaultMintLoadService(),
+                new DefaultMintVaultService(),
+                new DefaultProofVaultService());
+    }
+
+    public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId,
+                                                           @NonNull PostMeltRequest<T> request,
+                                                           @NonNull PaymentMethod method,
+                                                           String unit,
                                                            @NonNull MintProtocolService mintProtocolService,
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull MintVaultService mintVaultService,
@@ -78,6 +92,7 @@ public class NUT05 {
                 mintId,
                 request,
                 method,
+                unit,
                 mintProtocolService,
                 mintLoadService,
                 mintVaultService,
@@ -90,7 +105,7 @@ public class NUT05 {
                                                            @NonNull PaymentMethod method,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
-        return melt(mintId, request, method,
+        return melt(mintId, request, method, null,
                 MintProtocolServiceFactory.getInstance(),
                 new DefaultMintLoadService(),
                 mintVaultService,

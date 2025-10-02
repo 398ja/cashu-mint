@@ -4,14 +4,16 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.1.4</version>
+    <version>0.2.3</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
     <url>http://maven.apache.org</url>
     <modules>
+        <module>cashu-mint-tools</module>
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
+        <!-- Admin modules moved to separate project: cashu-mint-admin -->
     </modules>
 
     <properties>
@@ -22,40 +24,50 @@
 
         <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
 
-        <cashu-libs.version>0.2.0</cashu-libs.version>
-        <cashu-vaults.version>0.2.0</cashu-vaults.version>
-        <cashu-gateway.version>0.1.3</cashu-gateway.version>
+        <cashu-libs.version>0.4.0</cashu-libs.version>
+        <cashu-vaults.version>0.2.4</cashu-vaults.version>
+        <cashu-gateway.version>0.3.1</cashu-gateway.version>
 
         <spring.boot.version>3.5.5</spring.boot.version>
         <postgresql.version>42.7.7</postgresql.version>
 
-        <jackson-datatype-jsr310.version>2.20.0</jackson-datatype-jsr310.version>
+        <jackson.version>2.20.0</jackson.version>
+        <jackson-datatype-jsr310.version>${jackson.version}</jackson-datatype-jsr310.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <picocli.version>4.7.6</picocli.version>
+        <flyway.version>10.19.0</flyway.version>
+        <h2.version>2.2.224</h2.version>
 
-        <!-- Test Dependency Versions -->
-        <junit.version>5.12.2</junit.version>
+        <!-- External tool versions -->
+        <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
+
+        <!-- Test Dependency Versions (managed by Spring Boot BOM) -->
         <assertj.version>3.27.4</assertj.version>
         <mockito.version>5.19.0</mockito.version>
 
         <slf4j.version>2.0.17</slf4j.version>
 
         <!-- Maven Plugin Versions -->
-        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.2.5</maven-failsafe-plugin.version>
-        <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
+        <maven-failsafe-plugin.version>3.5.3</maven-failsafe-plugin.version>
+        <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
         <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+        <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Import Spring Boot BOM to manage dependency versions consistently -->
             <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-engine</artifactId>
-                <version>${junit.version}</version>
-                <scope>test</scope>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
+            <!-- JUnit versions are managed by Spring Boot BOM -->
             <dependency>
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
@@ -190,6 +202,29 @@
         </pluginManagement>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                    <message>Java 21 is required to build and test this project.</message>
+                                </requireJavaVersion>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco-maven-plugin.version}</version>
@@ -213,8 +248,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <!-- Allow reflective access needed by tests and error handling on Java 21+ -->
-                    <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED</argLine>
+                    <!-- Allow reflective access and enable agent self-attach when on 21 -->
+                    <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED -Djdk.attach.allowAttachSelf=true</argLine>
                 </configuration>
             </plugin>
         </plugins>
