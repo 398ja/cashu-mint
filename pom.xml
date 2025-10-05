@@ -26,7 +26,7 @@
 
         <cashu-libs.version>0.4.1</cashu-libs.version>
         <cashu-vaults.version>0.2.4</cashu-vaults.version>
-        <cashu-gateway.version>0.3.1</cashu-gateway.version>
+        <cashu-gateway.version>0.3.2</cashu-gateway.version>
 
         <spring.boot.version>3.5.5</spring.boot.version>
         <postgresql.version>42.7.7</postgresql.version>
