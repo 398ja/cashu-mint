@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.2.3</version>
+        <version>0.2.4</version>
     </parent>
 
     <artifactId>cashu-mint-protocol</artifactId>
     <packaging>jar</packaging>
-    <version>0.2.3</version>
+    <version>0.2.4</version>
 
     <name>cashu-mint-protocol</name>
     <url>http://maven.apache.org</url>
@@ -22,48 +22,39 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-common</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-gateway-common</artifactId>
-            <version>${cashu-gateway.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-gateway-phoenixd</artifactId>
-            <version>${cashu-gateway.version}</version>
         </dependency>
         <!-- Include Dummy gateway on the runtime classpath so it can be selected via env overrides in dev -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-gateway-dummy</artifactId>
-            <version>${cashu-gateway.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-vault-api</artifactId>
-            <version>${cashu-vaults.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>xyz.tcheeric</groupId>
             <artifactId>cashu-vault-jpa</artifactId>
-            <version>${cashu-vaults.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -85,25 +76,21 @@
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>${jackson-datatype-jsr310.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
-            <version>${spring.boot.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>${commons-lang3.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
-            <version>${commons-beanutils.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
