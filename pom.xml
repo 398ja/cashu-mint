@@ -43,7 +43,7 @@
         <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
 
         <!-- Test Dependency Versions (managed by Spring Boot BOM) -->
-        <assertj.version>3.27.4</assertj.version>
+        <assertj.version>3.27.6</assertj.version>
         <mockito.version>5.19.0</mockito.version>
 
         <slf4j.version>2.0.17</slf4j.version>
