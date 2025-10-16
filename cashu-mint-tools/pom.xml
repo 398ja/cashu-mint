@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.2.3</version>
+        <version>0.2.4</version>
     </parent>
 
     <artifactId>cashu-mint-tools</artifactId>
     <packaging>jar</packaging>
-    <version>0.2.3</version>
+    <version>0.2.4</version>
 
     <name>cashu-mint-tools</name>
     <url>http://maven.apache.org</url>
@@ -31,22 +31,18 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-common</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
-            <version>${cashu-libs.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

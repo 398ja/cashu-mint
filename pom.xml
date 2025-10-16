@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.2.3</version>
+    <version>0.2.4</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -20,76 +20,20 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        <lombok.version>1.18.36</lombok.version>
 
-        <bcprov-jdk18on.version>1.72</bcprov-jdk18on.version>
-
-        <cashu-libs.version>0.4.0</cashu-libs.version>
-        <cashu-vaults.version>0.2.4</cashu-vaults.version>
-        <cashu-gateway.version>0.3.1</cashu-gateway.version>
-
-        <spring.boot.version>3.5.5</spring.boot.version>
-        <postgresql.version>42.7.7</postgresql.version>
-
-        <jackson.version>2.20.0</jackson.version>
-        <jackson-datatype-jsr310.version>${jackson.version}</jackson-datatype-jsr310.version>
-        <commons-lang3.version>3.18.0</commons-lang3.version>
-        <commons-beanutils.version>1.11.0</commons-beanutils.version>
-        <picocli.version>4.7.6</picocli.version>
-        <flyway.version>10.19.0</flyway.version>
-        <h2.version>2.2.224</h2.version>
-
-        <!-- External tool versions -->
-        <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
-
-        <!-- Test Dependency Versions (managed by Spring Boot BOM) -->
-        <assertj.version>3.27.4</assertj.version>
-        <mockito.version>5.19.0</mockito.version>
-
-        <slf4j.version>2.0.17</slf4j.version>
-
-        <!-- Maven Plugin Versions -->
-        <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
-        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.5.3</maven-failsafe-plugin.version>
-        <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
-        <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
-        <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
+        <!-- All versions now managed by cashu-platform-bom -->
+        <cashu-platform-bom.version>1.0.0</cashu-platform-bom.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Import Spring Boot BOM to manage dependency versions consistently -->
+            <!-- Import Cashu Platform BOM - manages all dependency versions -->
             <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring.boot.version}</version>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-platform-bom</artifactId>
+                <version>${cashu-platform-bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <!-- JUnit versions are managed by Spring Boot BOM -->
-            <dependency>
-                <groupId>org.assertj</groupId>
-                <artifactId>assertj-core</artifactId>
-                <version>${assertj.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.mockito</groupId>
-                <artifactId>mockito-core</artifactId>
-                <version>${mockito.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.mockito</groupId>
-                <artifactId>mockito-junit-jupiter</artifactId>
-                <version>${mockito.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-                <version>${slf4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -144,59 +88,22 @@
                         </execution>
                     </executions>
                 </plugin>
+                <!-- Plugin versions and configurations inherited from cashu-platform-bom -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>${maven-compiler-plugin.version}</version>
-                    <configuration>
-                        <showDeprecation>true</showDeprecation>
-                        <source>21</source>
-                        <target>21</target>
-                        <annotationProcessorPaths>
-                            <annotationProcessorPath>
-                                <groupId>org.projectlombok</groupId>
-                                <artifactId>lombok</artifactId>
-                                <version>${lombok.version}</version>
-                            </annotationProcessorPath>
-                        </annotationProcessorPaths>
-                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>${maven-surefire-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>${maven-failsafe-plugin.version}</version>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>integration-test</goal>
-                                <goal>verify</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>${jacoco-maven-plugin.version}</version>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>prepare-agent</goal>
-                            </goals>
-                        </execution>
-                        <execution>
-                            <id>report</id>
-                            <phase>prepare-package</phase>
-                            <goals>
-                                <goal>report</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -227,30 +134,10 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>${maven-surefire-plugin.version}</version>
-                <configuration>
-                    <!-- Allow reflective access and enable agent self-attach when on 21 -->
-                    <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED -Djdk.attach.allowAttachSelf=true</argLine>
-                </configuration>
             </plugin>
         </plugins>
     </build>
