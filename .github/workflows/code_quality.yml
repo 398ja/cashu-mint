@@ -6,7 +6,6 @@ on:
     branches: # Specify your branches here
       - master # The 'main' branch
       - develop
-      - 'releases/*' # The release branches
 
 jobs:
   qodana:
