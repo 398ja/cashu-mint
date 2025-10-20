@@ -22,7 +22,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- All versions now managed by cashu-platform-bom -->
-        <cashu-platform-bom.version>1.0.0</cashu-platform-bom.version>
+        <cashu-platform-bom.version>1.1.2</cashu-platform-bom.version>
     </properties>
 
     <dependencyManagement>
