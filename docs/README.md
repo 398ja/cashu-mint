@@ -35,3 +35,4 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
+- [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
