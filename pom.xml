@@ -22,8 +22,8 @@
         <maven.compiler.target>21</maven.compiler.target>
         <java.version>21</java.version>
 
-        <!-- Import version from nostr-java-bom -->
-        <nostr-java-bom.version>1.1.8</nostr-java-bom.version>
+        <!-- Nostr Java Ecosystem Versions -->
+        <nostr-java.version>1.0.1</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions -->
         <cashu-lib.version>0.5.0</cashu-lib.version>
@@ -37,6 +37,24 @@
 
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.5</spring-boot.version>
+
+        <!-- Shared Dependency Versions (from nostr-java-bom) -->
+        <bcprov-jdk18on.version>1.81</bcprov-jdk18on.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
+        <commons-text.version>1.12.0</commons-text.version>
+        <jackson.version>2.18.1</jackson.version>
+        <jackson-module-blackbird.version>2.19.2</jackson-module-blackbird.version>
+        <slf4j.version>2.0.17</slf4j.version>
+
+        <!-- Test Dependency Versions (from nostr-java-bom) -->
+        <junit.version>5.12.2</junit.version>
+        <junit.platform.version>1.12.2</junit.platform.version>
+        <assertj.version>3.27.4</assertj.version>
+        <mockito.version>5.19.0</mockito.version>
+        <byte-buddy.version>1.15.4</byte-buddy.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
+        <guava.version>33.4.8-jre</guava.version>
+        <awaitility.version>4.3.0</awaitility.version>
 
         <!-- Cashu-specific Dependency Versions -->
         <postgresql.version>42.7.7</postgresql.version>
@@ -59,10 +77,6 @@
         <phoenixd-java.version>0.1.4</phoenixd-java.version>
         <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
 
-        <!-- JUnit version alignment (override Spring Boot BOM mismatch) -->
-        <junit-jupiter.version>5.13.4</junit-jupiter.version>
-        <junit-platform.version>1.13.4</junit-platform.version>
-
         <!-- Annotation Processors -->
         <lombok.version>1.18.40</lombok.version>
 
@@ -84,15 +98,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Import Nostr Java BOM for shared dependencies -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>nostr-java-bom</artifactId>
-                <version>${nostr-java-bom.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
             <!-- Import Spring Boot BOM -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -102,30 +107,202 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- JUnit BOM - imported AFTER Spring Boot to override mismatched versions -->
+            <!-- Import JUnit BOM -->
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>${junit-jupiter.version}</version>
+                <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
 
-            <!-- Explicit JUnit Platform overrides (nostr-java-bom only defines Jupiter, causing Spring Boot BOM to provide mismatched Platform versions) -->
+            <!-- Nostr Java Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-base</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-crypto</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-event</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-id</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-util</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-client</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-api</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-java-encryption</artifactId>
+                <version>${nostr-java.version}</version>
+            </dependency>
+
+            <!-- Shared Dependencies (from nostr-java-bom) -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bcprov-jdk18on.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-text</artifactId>
+                <version>${commons-text.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-cbor</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.module</groupId>
+                <artifactId>jackson-module-blackbird</artifactId>
+                <version>${jackson-module-blackbird.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+
+            <!-- Test Dependencies (from nostr-java-bom) -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
             <dependency>
                 <groupId>org.junit.platform</groupId>
                 <artifactId>junit-platform-commons</artifactId>
-                <version>${junit-platform.version}</version>
+                <version>${junit.platform.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.platform</groupId>
                 <artifactId>junit-platform-engine</artifactId>
-                <version>${junit-platform.version}</version>
+                <version>${junit.platform.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.platform</groupId>
                 <artifactId>junit-platform-launcher</artifactId>
-                <version>${junit-platform.version}</version>
+                <version>${junit.platform.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-inline</artifactId>
+                <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy</artifactId>
+                <version>${byte-buddy.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy-agent</artifactId>
+                <version>${byte-buddy.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testcontainers.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${testcontainers.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+                <scope>test</scope>
             </dependency>
 
             <!-- Cashu Library Modules -->
