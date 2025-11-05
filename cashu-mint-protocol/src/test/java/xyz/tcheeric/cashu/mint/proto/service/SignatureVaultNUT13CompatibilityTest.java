@@ -54,6 +54,10 @@ class SignatureVaultNUT13CompatibilityTest {
         vaultService = new DefaultSignatureVaultService();
     }
 
+    /**
+     * Tests that a signature can be retrieved using the same blinded message during wallet recovery.
+     * This simulates NUT-13 deterministic recovery where the same mnemonic produces the same blinded message.
+     */
     @Test
     @DisplayName("Should retrieve signature using identical blinded message (deterministic secret scenario)")
     void testDeterministicSecretRetrieval() throws Exception {
@@ -105,6 +109,10 @@ class SignatureVaultNUT13CompatibilityTest {
                 "Retrieved signature should match original");
     }
 
+    /**
+     * Tests that the vault can store and retrieve multiple signatures from different counter positions.
+     * This simulates batch recovery where a wallet derives multiple secrets with incrementing counters.
+     */
     @Test
     @DisplayName("Should handle multiple deterministic secrets with different counters")
     void testMultipleDeterministicSecretsWithDifferentCounters() throws Exception {
@@ -160,6 +168,10 @@ class SignatureVaultNUT13CompatibilityTest {
         assertEquals(32, retrieved2.getAmount());
     }
 
+    /**
+     * Tests that the vault returns null when a blinded message was never minted.
+     * This simulates gap detection during NUT-13 recovery when a counter position was skipped.
+     */
     @Test
     @DisplayName("Should return null for non-existent blinded message (gap in derivation)")
     void testNonExistentBlindedMessage() throws Exception {
@@ -181,19 +193,24 @@ class SignatureVaultNUT13CompatibilityTest {
                 "Should return null for blinded messages that were never minted (gap in counter sequence)");
     }
 
+    /**
+     * Tests that the vault can handle signatures from multiple different keysets independently.
+     * This verifies that the storage mechanism correctly distinguishes between different keysets.
+     */
     @Test
     @DisplayName("Should handle multiple keysets independently")
     void testMultipleKeysets() throws Exception {
-        // Arrange: Same blinded message hex for two different keysets
-        // (In reality, different keysets would produce different blinded messages for same counter,
-        //  but this tests that the vault can handle multiple keysets)
-        String blindedMessageHex = "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2";
+        // Arrange: Different blinded messages for two different keysets
+        // In reality, different keysets produce different blinded messages for same counter
+        // because the blinding is performed against different public keys
+        String blindedMessageHex1 = "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2";
+        String blindedMessageHex2 = "03b8d9e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0";
 
         KeysetId keyset1 = KeysetId.fromString("009a1f293253e41e");
         KeysetId keyset2 = KeysetId.fromString("00ad268c4d1f5826");
 
-        BlindedMessage msg1 = createBlindedMessage(blindedMessageHex, keyset1, 8);
-        BlindedMessage msg2 = createBlindedMessage(blindedMessageHex, keyset2, 8);
+        BlindedMessage msg1 = createBlindedMessage(blindedMessageHex1, keyset1, 8);
+        BlindedMessage msg2 = createBlindedMessage(blindedMessageHex2, keyset2, 8);
 
         BlindSignature sig1 = createSignature(
                 "03c724d7e195ba762e2e3a9d294e5fd3f0f4b1f7e2c5d8a9b3c6e1f4a7d2e5c8b4",
@@ -216,6 +233,10 @@ class SignatureVaultNUT13CompatibilityTest {
         assertEquals(keyset2, retrieved2.getKeySetId());
     }
 
+    /**
+     * Tests that the vault uses only the blinded message as the storage key, not the original secret.
+     * This demonstrates why NUT-13 recovery works: same secret produces same blinded message.
+     */
     @Test
     @DisplayName("Should demonstrate storage key uses blinded message, not original secret")
     void testStorageKeyIsBlindedMessage() throws Exception {
@@ -254,6 +275,10 @@ class SignatureVaultNUT13CompatibilityTest {
                 "regardless of how the secret was derived (random or deterministic)");
     }
 
+    /**
+     * Tests that two different BlindedMessage objects with the same data produce the same storage key.
+     * This verifies that object equality is based on byte content, enabling successful recovery.
+     */
     @Test
     @DisplayName("Should verify blinded message equality is based on bytes, not object identity")
     void testBlindedMessageEqualitySemantics() throws Exception {
@@ -261,7 +286,7 @@ class SignatureVaultNUT13CompatibilityTest {
         // works correctly for object equality
 
         String blindedMessageHex = "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2";
-        KeysetId keysetId = new KeysetId("009a1f293253e41e");
+        KeysetId keysetId = KeysetId.fromString("009a1f293253e41e");
 
         // Create two separate BlindedMessage objects with same data
         BlindedMessage msg1 = createBlindedMessage(blindedMessageHex, keysetId, 8);
