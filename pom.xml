@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.2.4</version>
+    <version>0.2.5</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -20,20 +20,347 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <java.version>21</java.version>
 
-        <!-- All versions now managed by cashu-platform-bom -->
-        <cashu-platform-bom.version>1.0.0</cashu-platform-bom.version>
+        <!-- Import version from nostr-java-bom -->
+        <nostr-java-bom.version>1.1.8</nostr-java-bom.version>
+
+        <!-- Cashu Ecosystem Versions -->
+        <cashu-lib.version>0.5.0</cashu-lib.version>
+        <cashu-gateway.version>0.3.2</cashu-gateway.version>
+        <cashu-vault.version>0.2.4</cashu-vault.version>
+        <cashu-mint.version>0.2.5</cashu-mint.version>
+        <cashu-wallet.version>0.1.2</cashu-wallet.version>
+        <cashu-client.version>1.1.0</cashu-client.version>
+        <cashu-mint-admin.version>0.2.4</cashu-mint-admin.version>
+        <nostr-cashu.version>0.2.1</nostr-cashu.version>
+
+        <!-- Spring Boot (imported as BOM) -->
+        <spring-boot.version>3.5.5</spring-boot.version>
+
+        <!-- Cashu-specific Dependency Versions -->
+        <postgresql.version>42.7.7</postgresql.version>
+        <h2.version>2.2.224</h2.version>
+        <flyway.version>11.2.0</flyway.version>
+        <hibernate-envers.version>6.6.1.Final</hibernate-envers.version>
+        <picocli.version>4.7.6</picocli.version>
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <argon2-jvm.version>2.11</argon2-jvm.version>
+        <jakarta-validation.version>3.1.0</jakarta-validation.version>
+        <hibernate-validator.version>8.0.1.Final</hibernate-validator.version>
+        <jakarta-el.version>4.0.2</jakarta-el.version>
+        <resilience4j.version>2.1.0</resilience4j.version>
+        <logback.version>1.5.18</logback.version>
+        <wiremock.version>3.9.1</wiremock.version>
+        <jakarta-servlet-api.version>6.0.0</jakarta-servlet-api.version>
+        <jqwik.version>1.8.0</jqwik.version>
+
+        <!-- External tool versions -->
+        <phoenixd-java.version>0.1.4</phoenixd-java.version>
+        <phoenixd-mock.version>0.1.0</phoenixd-mock.version>
+
+        <!-- JUnit version alignment (override Spring Boot BOM mismatch) -->
+        <junit-jupiter.version>5.13.4</junit-jupiter.version>
+        <junit-platform.version>1.13.4</junit-platform.version>
+
+        <!-- Annotation Processors -->
+        <lombok.version>1.18.40</lombok.version>
+
+        <!-- Maven Plugin Versions -->
+        <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
+        <maven-surefire-plugin.version>3.5.4</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.4</maven-failsafe-plugin.version>
+        <maven-war-plugin.version>3.4.0</maven-war-plugin.version>
+        <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
+        <maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
+        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+        <jib-maven-plugin.version>3.4.1</jib-maven-plugin.version>
+        <properties-maven-plugin.version>1.0.0</properties-maven-plugin.version>
+        <spring-boot-maven-plugin.version>3.5.5</spring-boot-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Import Cashu Platform BOM - manages all dependency versions -->
+            <!-- Import Nostr Java BOM for shared dependencies -->
             <dependency>
                 <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-platform-bom</artifactId>
-                <version>${cashu-platform-bom.version}</version>
+                <artifactId>nostr-java-bom</artifactId>
+                <version>${nostr-java-bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Import Spring Boot BOM -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- JUnit BOM - imported AFTER Spring Boot to override mismatched versions -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit-jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Explicit JUnit Platform overrides (nostr-java-bom only defines Jupiter, causing Spring Boot BOM to provide mismatched Platform versions) -->
+            <dependency>
+                <groupId>org.junit.platform</groupId>
+                <artifactId>junit-platform-commons</artifactId>
+                <version>${junit-platform.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.platform</groupId>
+                <artifactId>junit-platform-engine</artifactId>
+                <version>${junit-platform.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.platform</groupId>
+                <artifactId>junit-platform-launcher</artifactId>
+                <version>${junit-platform.version}</version>
+            </dependency>
+
+            <!-- Cashu Library Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-entities</artifactId>
+                <version>${cashu-lib.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-crypto</artifactId>
+                <version>${cashu-lib.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-common</artifactId>
+                <version>${cashu-lib.version}</version>
+            </dependency>
+
+            <!-- Cashu Gateway Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-model</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-rest</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-client</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-phoenixd</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-webhook</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-dummy</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-gateway-common</artifactId>
+                <version>${cashu-gateway.version}</version>
+            </dependency>
+
+            <!-- Cashu Vault Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-vault-jpa</artifactId>
+                <version>${cashu-vault.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-vault-api</artifactId>
+                <version>${cashu-vault.version}</version>
+            </dependency>
+
+            <!-- Cashu Mint Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-mint-tools</artifactId>
+                <version>${cashu-mint.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-mint-protocol</artifactId>
+                <version>${cashu-mint.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-mint-rest</artifactId>
+                <version>${cashu-mint.version}</version>
+            </dependency>
+
+            <!-- Cashu Wallet Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-wallet-protocol</artifactId>
+                <version>${cashu-wallet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-wallet-client</artifactId>
+                <version>${cashu-wallet.version}</version>
+            </dependency>
+
+            <!-- Cashu Client Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>wallet-core</artifactId>
+                <version>${cashu-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>wallet-storage-file</artifactId>
+                <version>${cashu-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>wallet-storage-h2</artifactId>
+                <version>${cashu-client.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>wallet-cli</artifactId>
+                <version>${cashu-client.version}</version>
+            </dependency>
+
+            <!-- Nostr-Cashu Bridge Modules -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nostr-cashu-nips</artifactId>
+                <version>${nostr-cashu.version}</version>
+            </dependency>
+
+            <!-- Database Dependencies -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hibernate</groupId>
+                <artifactId>hibernate-envers</artifactId>
+                <version>${hibernate-envers.version}</version>
+            </dependency>
+
+            <!-- CLI Dependencies -->
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <!-- Utility Dependencies -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>de.mkammerer</groupId>
+                <artifactId>argon2-jvm</artifactId>
+                <version>${argon2-jvm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.validation</groupId>
+                <artifactId>jakarta.validation-api</artifactId>
+                <version>${jakarta-validation.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hibernate.validator</groupId>
+                <artifactId>hibernate-validator</artifactId>
+                <version>${hibernate-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.glassfish</groupId>
+                <artifactId>jakarta.el</artifactId>
+                <version>${jakarta-el.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-retry</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-circuitbreaker</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+
+            <!-- Logging Dependencies -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+
+            <!-- External Tool Dependencies -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>phoenixd-java</artifactId>
+                <version>${phoenixd-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>phoenixd-mock</artifactId>
+                <version>${phoenixd-mock.version}</version>
+            </dependency>
+
+            <!-- Test Dependencies (additional to nostr-java-bom) -->
+            <dependency>
+                <groupId>org.wiremock</groupId>
+                <artifactId>wiremock</artifactId>
+                <version>${wiremock.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.servlet</groupId>
+                <artifactId>jakarta.servlet-api</artifactId>
+                <version>${jakarta-servlet-api.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.jqwik</groupId>
+                <artifactId>jqwik</artifactId>
+                <version>${jqwik.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -64,6 +391,74 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                        <showDeprecation>true</showDeprecation>
+                        <annotationProcessorPaths>
+                            <annotationProcessorPath>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </annotationProcessorPath>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${maven-surefire-plugin.version}</version>
+                    <configuration>
+                        <argLine>--add-opens=java.base/java.lang=ALL-UNNAMED -Djdk.attach.allowAttachSelf=true</argLine>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${maven-failsafe-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-war-plugin</artifactId>
+                    <version>${maven-war-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>${maven-shade-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>${maven-jar-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>${maven-enforcer-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>${maven-gpg-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>flatten-maven-plugin</artifactId>
                     <version>${flatten-maven-plugin.version}</version>
@@ -88,22 +483,34 @@
                         </execution>
                     </executions>
                 </plugin>
-                <!-- Plugin versions and configurations inherited from cashu-platform-bom -->
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-failsafe-plugin</artifactId>
-                </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-maven-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>report</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>${jib-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>properties-maven-plugin</artifactId>
+                    <version>${properties-maven-plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
