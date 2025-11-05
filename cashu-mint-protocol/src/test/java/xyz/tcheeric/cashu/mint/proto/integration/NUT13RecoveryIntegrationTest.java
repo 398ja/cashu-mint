@@ -1,11 +1,14 @@
 package xyz.tcheeric.cashu.mint.proto.integration;
 
+import org.bitcoinj.crypto.ChildNumber;
+import org.bitcoinj.crypto.DeterministicKey;
+import org.bitcoinj.crypto.HDKeyDerivation;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import xyz.tcheeric.bips.bip39.Bip39;
 import xyz.tcheeric.bips.bip32.nut.Nut13Derivation;
+import xyz.tcheeric.bips.bip39.Bip39;
 import xyz.tcheeric.cashu.common.*;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
@@ -19,10 +22,10 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.gateway.common.Gateway;
-import org.bitcoinj.crypto.DeterministicKey;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,13 +52,21 @@ public class NUT13RecoveryIntegrationTest {
     private static final String TEST_MNEMONIC = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     private static final String TEST_PASSPHRASE = "";
 
+    private static final int SECONDARY_KEY_OFFSET = 2;
+
     private SignatureVaultService vault;
     private MintProtocolService protocolService;
     private MintLoadService mintLoadService;
     private Gateway gateway;
 
+    private static PublicKey deriveTestPublicKey(DeterministicKey masterKey, int counter) {
+        DeterministicKey childKey = HDKeyDerivation.deriveChildKey(masterKey, new ChildNumber(counter, false));
+        String compressedHex = childKey.getPublicKeyAsHex().toLowerCase(Locale.ROOT);
+        return PublicKey.fromString(compressedHex);
+    }
+
     @BeforeEach
-    void setUp() {
+    void setUp() throws CashuErrorException {
         vault = new DefaultSignatureVaultService();
 
         // Mock gateway
@@ -109,11 +120,11 @@ public class NUT13RecoveryIntegrationTest {
 
             // Create blinded message from deterministic values
             // Note: In real scenario, would use proper BDHKE blinding
+            // Using valid SECP256K1 public keys for testing
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter))) // Simplified for test
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter))
                     .build();
             blindedMessages.add(bm);
         }
@@ -158,8 +169,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter))) // Same as original
+                    .blindedMessage(deriveTestPublicKey(recoveredMasterKey, counter))
                     .build();
             recoveredBlindedMessages.add(bm);
         }
@@ -214,8 +224,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter)))
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter))
                     .build();
 
             // Mint this token
@@ -238,8 +247,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter)))
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter))
                     .build();
             allMessages.add(bm);
         }
@@ -294,8 +302,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId1)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter * 10))) // Different blinding
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter))
                     .build();
 
             PostMintRequest<Secret> mintRequest = new PostMintRequest<>(
@@ -329,8 +336,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(16)
                     .keySetId(keysetId2)
-                    .blindedMessage(PublicKey.fromString(
-                            "03" + String.format("%062x", counter * 20))) // Different blinding
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter + SECONDARY_KEY_OFFSET)) // Different keys
                     .build();
 
             PostMintRequest<Secret> mintRequest = new PostMintRequest<>(
@@ -399,8 +405,7 @@ public class NUT13RecoveryIntegrationTest {
             BlindedMessage bm = BlindedMessage.builder()
                     .amount(8)
                     .keySetId(keysetId)
-                    .blindedMessage(PublicKey.fromString(
-                            "02" + String.format("%062x", counter)))
+                    .blindedMessage(deriveTestPublicKey(masterKey, counter))
                     .build();
 
             PostMintRequest<Secret> mintRequest = new PostMintRequest<>(
