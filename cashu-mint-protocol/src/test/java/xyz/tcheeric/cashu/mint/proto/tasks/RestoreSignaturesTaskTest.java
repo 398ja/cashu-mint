@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
@@ -16,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class RestoreSignaturesTaskTest {
 
     /**
-     * Ensures that previously stored signatures are returned during restore.
+     * Tests that previously stored signatures are correctly returned during a restore operation.
+     * Verifies the basic restore flow: store a signature, then retrieve it via RestoreSignaturesTask.
      */
     @Test
     void restoresStoredSignatures() throws CashuErrorException {
@@ -25,7 +27,12 @@ public class RestoreSignaturesTaskTest {
         PublicKey pk = Mockito.mock(PublicKey.class);
         Mockito.when(message.getBlindedMessage()).thenReturn(pk);
         Mockito.when(pk.toString()).thenReturn("pk1");
+
         BlindSignature signature = Mockito.mock(BlindSignature.class);
+        KeysetId keysetId = KeysetId.fromString("009a1f293253e41e");
+        Mockito.when(signature.getKeySetId()).thenReturn(keysetId);
+        Mockito.when(signature.getAmount()).thenReturn(8);
+
         service.store(message, signature);
 
         PostRestoreRequest request = new PostRestoreRequest(List.of(message));
