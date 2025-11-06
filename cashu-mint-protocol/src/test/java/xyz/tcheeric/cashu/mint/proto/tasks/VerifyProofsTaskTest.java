@@ -147,5 +147,37 @@ public class VerifyProofsTaskTest {
             Mockito.verify(cons.constructed().get(0)).verify(proof);
         }
     }
+
+    /**
+     * Tests VoucherSecretDetector with null secret.
+     */
+    @Test
+    public void voucherSecretDetector_NullSecret() {
+        boolean result = VoucherSecretDetector.isVoucherSecret(null);
+        org.junit.jupiter.api.Assertions.assertFalse(result,
+                "VoucherSecretDetector should return false for null secret");
+    }
+
+    /**
+     * Tests VoucherSecretDetector with non-voucher secret.
+     */
+    @Test
+    public void voucherSecretDetector_NonVoucherSecret() {
+        RandomStringSecret secret = RandomStringSecret.create();
+        boolean result = VoucherSecretDetector.isVoucherSecret(secret);
+        org.junit.jupiter.api.Assertions.assertFalse(result,
+                "VoucherSecretDetector should return false for RandomStringSecret");
+    }
+
+    /**
+     * Tests VoucherSecretDetector with P2PKSecret.
+     */
+    @Test
+    public void voucherSecretDetector_P2PKSecret() {
+        P2PKSecret secret = new P2PKSecret(new byte[32]);
+        boolean result = VoucherSecretDetector.isVoucherSecret(secret);
+        org.junit.jupiter.api.Assertions.assertFalse(result,
+                "VoucherSecretDetector should return false for P2PKSecret");
+    }
 }
 
