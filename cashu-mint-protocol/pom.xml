@@ -37,6 +37,12 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
         </dependency>
+        <!-- Voucher domain for Model B rejection -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-voucher-domain</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-gateway-common</artifactId>
