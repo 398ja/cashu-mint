@@ -3,12 +3,13 @@ package xyz.tcheeric.cashu.mint.rest.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
@@ -33,25 +34,35 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * - Voucher status queries (GET /v1/vouchers/{id}/status)
  * - Input validation
  * - Error handling
+ *
+ * <p>Note: This test uses standalone MockMvc setup with Mockito to test
+ * the controller in isolation without requiring a full Spring context.
+ * This avoids the need for Nostr infrastructure and provides fast test execution.
  */
-@WebMvcTest(VoucherController.class)
-@ActiveProfiles("test")
+@ExtendWith(MockitoExtension.class)
 class VoucherControllerTest {
 
-    @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @Mock
     private VoucherService voucherService;
+
+    @InjectMocks
+    private VoucherController voucherController;
 
     private IssueVoucherRequest validRequest;
     private IssueVoucherResponse mockResponse;
 
     @BeforeEach
     void setUp() {
+        // Initialize MockMvc in standalone mode
+        mockMvc = MockMvcBuilders.standaloneSetup(voucherController).build();
+
+        // Initialize ObjectMapper
+        objectMapper = new ObjectMapper();
+
         // Create valid request
         validRequest = IssueVoucherRequest.builder()
                 .issuerId("merchant123")
