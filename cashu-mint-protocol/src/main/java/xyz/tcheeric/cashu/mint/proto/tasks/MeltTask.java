@@ -75,6 +75,17 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
             for (Proof<T> proof : proofsToMelt) {
+                // Model B enforcement: Reject voucher secrets in melt operations
+                if (isVoucherSecret(proof.getSecret())) {
+                    log.warn("Voucher secret rejected in melt operation (Model B enforcement)");
+                    ErrorResponse error = new ErrorResponse(
+                        "voucher_not_accepted",
+                        "Vouchers cannot be melted at mint (Model B). " +
+                        "Please redeem with issuing merchant."
+                    );
+                    throw new CashuErrorException(error.toJson());
+                }
+
                 if (!verify(proof)) {
                     ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
                     throw new CashuErrorException(error.toJson());
@@ -148,5 +159,19 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {
         return new InvalidateProofsTask<>(mint, proofs, mintVaultService, proofVaultService);
+    }
+
+    /**
+     * Checks if a secret is a VoucherSecret (Model B enforcement).
+     *
+     * @param secret the secret to check
+     * @return true if the secret is a VoucherSecret
+     */
+    private boolean isVoucherSecret(Secret secret) {
+        if (secret == null) {
+            return false;
+        }
+        // Check using class name to avoid hard dependency
+        return "xyz.tcheeric.cashu.voucher.domain.VoucherSecret".equals(secret.getClass().getName());
     }
 }

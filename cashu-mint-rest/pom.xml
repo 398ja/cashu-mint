@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.2.5</version>
+        <version>0.3.0</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.2.5</version>
+    <version>0.3.0</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
@@ -33,11 +33,49 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-mint-protocol</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <!-- Cashu Voucher Dependencies -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-voucher-domain</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-voucher-app</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-voucher-nostr</artifactId>
+            <!-- Compile scope needed for Spring configuration -->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- Dummy gateway implementation comes transitively via the protocol module. -->
         <dependency>

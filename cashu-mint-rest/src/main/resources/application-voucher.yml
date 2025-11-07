@@ -1,0 +1,122 @@
+# ===================================================================
+# Cashu Mint Voucher Configuration
+# ===================================================================
+#
+# This configuration enables gift card voucher functionality in the mint.
+#
+# IMPORTANT: This file should be activated by setting the Spring profile:
+#   spring.profiles.active=voucher
+#   OR
+#   SPRING_PROFILES_ACTIVE=voucher (environment variable)
+#
+# ===================================================================
+
+# Enable voucher functionality
+voucher:
+  enabled: true
+
+  # Mint issuer configuration
+  # SECURITY: These keys must be kept secure and never committed to version control
+  mint:
+    # Private key for signing vouchers (ED25519, 64-character hex string)
+    # Generate with: openssl rand -hex 32
+    # REQUIRED: Must be set via environment variable
+    issuerPrivateKey: ${MINT_VOUCHER_ISSUER_PRIVKEY:}
+
+    # Public key corresponding to the private key (ED25519, 64-character hex string)
+    # This key is published and used by merchants to verify vouchers
+    # REQUIRED: Must be set via environment variable
+    issuerPublicKey: ${MINT_VOUCHER_ISSUER_PUBKEY:}
+
+  # Nostr relay configuration
+  nostr:
+    # List of Nostr relay URLs for voucher ledger (NIP-33) and backup (NIP-17)
+    # Default: Cashu-specific relays
+    relays:
+      - wss://relay.damus.io
+      - wss://relay.cashu.xyz
+
+    # Connection timeout in milliseconds
+    # Default: 5000ms (5 seconds)
+    connectionTimeoutMs: 5000
+
+    # Publish timeout in milliseconds (for voucher issuance)
+    # Default: 5000ms (5 seconds)
+    publishTimeoutMs: 5000
+
+    # Query timeout in milliseconds (for status checks)
+    # Default: 10000ms (10 seconds)
+    queryTimeoutMs: 10000
+
+    # Maximum retry attempts for failed operations
+    # Default: 3
+    maxRetries: 3
+
+    # Enable exponential backoff for retries
+    # Default: true
+    exponentialBackoff: true
+
+    # Batch size for bulk operations
+    # Default: 100
+    batchSize: 100
+
+    # Enable relay health checks
+    # Default: true
+    healthCheckEnabled: true
+
+    # Health check interval in milliseconds
+    # Default: 60000ms (1 minute)
+    healthCheckIntervalMs: 60000
+
+    # Maximum consecutive failures before marking relay as unhealthy
+    # Default: 3
+    maxConsecutiveFailures: 3
+
+    # Auto-reconnect to relays on connection loss
+    # Default: true
+    autoReconnect: true
+
+    # Require a minimum number of relays
+    # Default: true
+    requireMinimumRelays: true
+
+    # Minimum number of relays required
+    # Default: 1
+    minimumRelays: 1
+
+# ===================================================================
+# Example Environment Variables (for Docker/Kubernetes deployments)
+# ===================================================================
+#
+# MINT_VOUCHER_ISSUER_PRIVKEY=your-64-char-hex-private-key
+# MINT_VOUCHER_ISSUER_PUBKEY=your-64-char-hex-public-key
+# SPRING_PROFILES_ACTIVE=voucher
+#
+# ===================================================================
+# Example Docker Compose Configuration
+# ===================================================================
+#
+# services:
+#   cashu-mint:
+#     image: cashu-mint-rest:latest
+#     environment:
+#       - SPRING_PROFILES_ACTIVE=voucher
+#       - MINT_VOUCHER_ISSUER_PRIVKEY=${MINT_VOUCHER_ISSUER_PRIVKEY}
+#       - MINT_VOUCHER_ISSUER_PUBKEY=${MINT_VOUCHER_ISSUER_PUBKEY}
+#     ports:
+#       - "7777:7777"
+#
+# ===================================================================
+# Model B Enforcement
+# ===================================================================
+#
+# This mint implements Model B vouchers:
+# - Vouchers are issued by the mint but signed with separate issuer keys
+# - Vouchers can ONLY be redeemed at the issuing merchant
+# - Vouchers CANNOT be swapped or melted at the mint
+# - Attempting to swap/melt vouchers will result in rejection
+#
+# This ensures vouchers remain store credit and cannot be converted
+# back to bitcoin at the mint.
+#
+# ===================================================================

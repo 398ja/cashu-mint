@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.2.5</version>
+        <version>0.3.0</version>
     </parent>
 
     <artifactId>cashu-mint-protocol</artifactId>
     <packaging>jar</packaging>
-    <version>0.2.5</version>
+    <version>0.3.0</version>
 
     <name>cashu-mint-protocol</name>
     <url>http://maven.apache.org</url>
@@ -36,6 +36,12 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
+        </dependency>
+        <!-- Voucher domain for Model B rejection -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-voucher-domain</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
