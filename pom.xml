@@ -13,6 +13,7 @@
         <module>cashu-mint-tools</module>
         <module>cashu-mint-protocol</module>
         <module>cashu-mint-rest</module>
+        <module>cashu-mint-rest-it</module>
         <!-- Admin modules moved to separate project: cashu-mint-admin -->
     </modules>
 
@@ -755,7 +756,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-failsafe-plugin</artifactId>
-                        <version>3.5.4</version>
+                        <version>3.3.1</version>
                         <executions>
                             <execution>
                                 <goals>
