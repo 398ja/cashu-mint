@@ -132,6 +132,8 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <!-- Create both executable jar and classifier jar for use as dependency -->
+                    <classifier>exec</classifier>
                 </configuration>
                 <executions>
                     <execution>

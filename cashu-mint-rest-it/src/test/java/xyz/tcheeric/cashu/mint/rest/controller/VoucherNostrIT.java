@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
@@ -62,40 +64,10 @@ import static org.mockito.Mockito.*;
  * VOUCHER_TEST_NOSTR_RELAY=ws://localhost:7777
  * </pre>
  */
-@SpringBootTest
+@SpringBootTest(classes = xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication.class)
+@org.springframework.context.annotation.Import(VoucherNostrITConfig.class)
 @ActiveProfiles("test")
 class VoucherNostrIT {
-
-    /**
-     * Test configuration that manually creates VoucherService with mock dependencies.
-     * This approach avoids Spring context issues and provides full control over mocking.
-     */
-    @TestConfiguration
-    static class TestConfig {
-        @Bean
-        public VoucherLedgerPort voucherLedgerPort() {
-            return mock(VoucherLedgerPort.class);
-        }
-
-        @Bean
-        public VoucherBackupPort voucherBackupPort() {
-            return mock(VoucherBackupPort.class);
-        }
-
-        @Bean
-        public VoucherService voucherService(VoucherLedgerPort ledgerPort, VoucherBackupPort backupPort) {
-            // Use test keys for voucher signing
-            String issuerPrivateKey = "0000000000000000000000000000000000000000000000000000000000000001";
-            String issuerPublicKey = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-
-            return new VoucherService(
-                ledgerPort,
-                backupPort,
-                issuerPrivateKey,
-                issuerPublicKey
-            );
-        }
-    }
 
     @Autowired
     private VoucherLedgerPort voucherLedgerPort;
@@ -105,6 +77,14 @@ class VoucherNostrIT {
 
     @Autowired
     private VoucherService voucherService;
+
+    /**
+     * Reset mocks before each test to ensure test isolation.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void resetMocks() {
+        reset(voucherLedgerPort, voucherBackupPort);
+    }
 
     /**
      * Tests that voucher issuance triggers Nostr ledger publish.
@@ -444,7 +424,9 @@ class VoucherNostrIT {
         List<SignedVoucher>[] capturedBackup = new List[1];
 
         doAnswer(invocation -> {
-            capturedBackup[0] = invocation.getArgument(0);
+            // Make a copy of the list to avoid issues when the original is cleared
+            List<SignedVoucher> vouchersToBackup = invocation.getArgument(0);
+            capturedBackup[0] = new ArrayList<>(vouchersToBackup);
             return null;
         }).when(voucherBackupPort).backup(anyList(), anyString());
 
@@ -692,7 +674,9 @@ class VoucherNostrIT {
         List<SignedVoucher>[] backupCapture = new List[1];
 
         doAnswer(invocation -> {
-            backupCapture[0] = invocation.getArgument(0);
+            // Make a copy of the list to avoid issues when the original is cleared
+            List<SignedVoucher> vouchersToBackup = invocation.getArgument(0);
+            backupCapture[0] = new ArrayList<>(vouchersToBackup);
             return null;
         }).when(voucherBackupPort).backup(anyList(), anyString());
 
