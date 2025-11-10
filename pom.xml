@@ -64,7 +64,7 @@
         <hibernate-envers.version>6.6.1.Final</hibernate-envers.version>
         <picocli.version>4.7.6</picocli.version>
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
-        <argon2-jvm.version>2.11</argon2-jvm.version>
+        <argon2-jvm.version>2.12</argon2-jvm.version>
         <jakarta-validation.version>3.1.0</jakarta-validation.version>
         <hibernate-validator.version>8.0.1.Final</hibernate-validator.version>
         <jakarta-el.version>4.0.2</jakarta-el.version>
