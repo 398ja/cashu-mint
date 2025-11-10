@@ -49,6 +49,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
+import xyz.tcheeric.gateway.common.InvoiceNotPaidException;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -451,6 +452,12 @@ public class CashuController<T extends Secret> {
     // Map gateway 404 on payment lookup to a structured "invoice not paid" error per NUT-04
     @ExceptionHandler(HttpClientErrorException.NotFound.class)
     public ResponseEntity<ErrorResponse> handleGatewayNotFound(HttpClientErrorException.NotFound ex) {
+        ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
+        return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+    }
+
+    @ExceptionHandler(InvoiceNotPaidException.class)
+    public ResponseEntity<ErrorResponse> handleInvoiceNotPaid(InvoiceNotPaidException ex) {
         ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
         return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
     }
