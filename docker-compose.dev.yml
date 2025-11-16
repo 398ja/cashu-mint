@@ -150,7 +150,7 @@ services:
       context: .
       dockerfile: cashu-mint-rest/Dockerfile
       args:
-        CASHU_GATEWAY_VERSION: ${CASHU_GATEWAY_VERSION:-0.3.1}
+        CASHU_GATEWAY_VERSION: ${CASHU_GATEWAY_VERSION:-0.4.1}
     image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
@@ -163,14 +163,19 @@ services:
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       CASHU_GATEWAY_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
       GATEWAY_API_BASE_URL: http://cashu-gateway-rest:${CASHU_GATEWAY_PORT:-8080}
-      GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.dummy.DummyGateway}
-      GATEWAY_BOLT11: ${GATEWAY_BOLT11:-xyz.tcheeric.gateway.dummy.DummyGateway}
+      GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.phoenixd.PhoenixdGateway}
+      GATEWAY_BOLT11: ${GATEWAY_BOLT11:-xyz.tcheeric.gateway.phoenixd.PhoenixdGateway}
+      PHOENIXD_BASE_URL: http://phoenixd-mock:${PHOENIXD_PORT:-9740}
+      PHOENIXD_API_TOKEN: ${PHOENIXD_API_TOKEN:-local-token}
+      PHOENIXD_LNADDRESS: off
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     depends_on:
       vault-db-seed:
         condition: service_completed_successfully
       cashu-gateway-rest:
         condition: service_healthy
+      phoenixd-mock:
+        condition: service_started
     restart: unless-stopped
     networks:
       - cashu
