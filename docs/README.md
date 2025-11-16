@@ -12,6 +12,7 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Publish a Docker image](how-to/publish-docker-image.md) - Build and push the REST image.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
 - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
+- [Install a staging mint with Docker](how-to/install-staging-docker.md) - Deploy the production stack on a staging host.
   - Admin docs moved to the separate admin project at `../cashu-mint-admin`.
   - Manage the mint lifecycle via the admin REST API moved to `../cashu-mint-admin`.
 
