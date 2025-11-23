@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.gateway.common.Gateway;
 
 import java.math.BigInteger;
@@ -85,6 +86,27 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
             }
 
             List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
+
+            // Check if this is a voucher quote and validate against face value
+            String quoteId = postMintRequest.getQuoteId();
+            Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
+            if (voucherFaceValue != null) {
+                // This is a voucher quote - validate total amount matches face value
+                long totalBlindedAmount = blindedMessages.stream()
+                        .mapToLong(BlindedMessage::getAmount)
+                        .sum();
+
+                if (totalBlindedAmount != voucherFaceValue) {
+                    log.error("Voucher mint amount mismatch: quoteId={} expected={} actual={}",
+                            quoteId, voucherFaceValue, totalBlindedAmount);
+                    VoucherQuoteRegistry.removeFaceValue(quoteId); // Clean up on error
+                    ErrorResponse error = new ErrorResponse("mint_amount_mismatch");
+                    throw new CashuErrorException(error.toJson());
+                }
+
+                log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
+            }
+
             validateDenominations(blindedMessages, mint);
             if (log.isDebugEnabled()) {
                 log.debug("Signing {} blinded messages...", blindedMessages == null ? 0 : blindedMessages.size());
@@ -97,6 +119,12 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
                 if (log.isDebugEnabled()) {
                     log.debug("Signed blinded message amount={} keySetId={}", bm.getAmount(), bm.getKeySetId());
                 }
+            }
+
+            // Clean up voucher quote registry after successful minting
+            if (voucherFaceValue != null) {
+                VoucherQuoteRegistry.removeFaceValue(quoteId);
+                log.debug("Cleaned up voucher quote from registry: quoteId={}", quoteId);
             }
 
             return result;

@@ -119,6 +119,40 @@ public class CashuController<T extends Secret> {
     }
 
     /**
+     * Create a voucher mint quote with percentage-based fee.
+     *
+     * <p>Unlike regular mint quotes that charge the full face value, voucher quotes
+     * charge only a percentage (configured via voucher.quote.fee-percent, default 10%).
+     *
+     * <p>Example: With 10% fee, a 1000 sat voucher creates a 100 sat invoice.
+     * After payment, the user can mint 1000 sat worth of tokens.
+     *
+     * @param request the mint quote request with voucher face value
+     * @param method  the payment method (e.g., "bolt11")
+     * @return the mint quote response with fee-based invoice
+     */
+    @PostMapping("/mint/quote/voucher/{method}")
+    public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@RequestBody PostMintQuoteRequest request,
+                                                                  @PathVariable("method") String method) {
+        var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Check payment status for a voucher mint quote.
+     *
+     * @param method  the payment method (e.g., "bolt11")
+     * @param quoteId the quote identifier
+     * @return the quote status response
+     */
+    @GetMapping("/mint/quote/voucher/{method}/{quote_id}")
+    public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@PathVariable("method") String method,
+                                                                  @PathVariable("quote_id") String quoteId) {
+        PostMintQuoteResponse response = NUT04.voucherQuotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
+        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+    }
+
+    /**
      * Compatibility helper for unit tests in admin project that directly call controller.mint(...).
      * Not exposed as a REST endpoint.
      */
