@@ -43,4 +43,5 @@ build/
 /.qodana/
 /cashu-mint-rest/logs/
 /cashu-mint-rest/logs/
+/cashu-mint-rest-it/logs/
 /.claude/
