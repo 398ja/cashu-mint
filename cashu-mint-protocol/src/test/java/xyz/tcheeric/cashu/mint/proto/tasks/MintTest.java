@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
@@ -23,7 +25,9 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.gateway.common.Gateway;
 
+import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,10 +47,13 @@ public class MintTest {
     public void mockMint() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
-        BlindedMessage blindedMessage = new BlindedMessage(100, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        // Split 100 into proper denominations: 64 + 32 + 4 = 100
+        BlindedMessage blindedMessage1 = new BlindedMessage(64, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
-        PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage), List.of(secret, secret), List.of(r));
+        PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage1, blindedMessage2, blindedMessage3), List.of(secret, secret), List.of(r));
 
         Gateway mockGateway = Mockito.mock(Gateway.class);
         when(mockGateway.getAmount(anyString())).thenReturn(100);
@@ -59,17 +66,30 @@ public class MintTest {
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
+        // Create keys with standard Cashu denominations (powers of 2)
+        Keys keys = new Keys();
+        keys.put(BigInteger.valueOf(1), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000001")));
+        keys.put(BigInteger.valueOf(2), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000002")));
+        keys.put(BigInteger.valueOf(4), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000004")));
+        keys.put(BigInteger.valueOf(8), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000008")));
+        keys.put(BigInteger.valueOf(16), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000010")));
+        keys.put(BigInteger.valueOf(32), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000020")));
+        keys.put(BigInteger.valueOf(64), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000040")));
+        keys.put(BigInteger.valueOf(128), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000080")));
+        mint.addKeySet(KeySet.builder().id(VALID_KEYSET_ID).unit("sat").keys(keys).build());
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
 
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService, service, new DefaultSignatureVaultService());
 
         PostMintResponse response = task.execute();
 
-        assertEquals(1, response.getBlindSignatures().size());
+        assertEquals(3, response.getBlindSignatures().size());
 
-        BlindSignature blindSignature = response.getBlindSignatures().get(0);
-        assertEquals(100, blindSignature.getAmount());
-        assertEquals("004cf8cba2f93266", blindSignature.getKeySetId().toString());
+        // Verify the signatures are returned in descending order by amount
+        assertEquals(64, response.getBlindSignatures().get(0).getAmount());
+        assertEquals(32, response.getBlindSignatures().get(1).getAmount());
+        assertEquals(4, response.getBlindSignatures().get(2).getAmount());
+        assertEquals("004cf8cba2f93266", response.getBlindSignatures().get(0).getKeySetId().toString());
     }
 
     @Test
@@ -92,10 +112,13 @@ public class MintTest {
     public void mockMintNotPaid() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
-        BlindedMessage blindedMessage = new BlindedMessage(100, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        // Split 100 into proper denominations: 64 + 32 + 4 = 100
+        BlindedMessage blindedMessage1 = new BlindedMessage(64, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
-        PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage), List.of(secret, secret), List.of(r));
+        PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage1, blindedMessage2, blindedMessage3), List.of(secret, secret), List.of(r));
 
         Gateway mockGateway = Mockito.mock(Gateway.class);
         when(mockGateway.getAmount(anyString())).thenReturn(100);
@@ -108,6 +131,17 @@ public class MintTest {
 
         MintLoadService mintLoadService2 = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint();
+        // Create keys with standard Cashu denominations (powers of 2)
+        Keys keys = new Keys();
+        keys.put(BigInteger.valueOf(1), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000001")));
+        keys.put(BigInteger.valueOf(2), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000002")));
+        keys.put(BigInteger.valueOf(4), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000004")));
+        keys.put(BigInteger.valueOf(8), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000008")));
+        keys.put(BigInteger.valueOf(16), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000010")));
+        keys.put(BigInteger.valueOf(32), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000020")));
+        keys.put(BigInteger.valueOf(64), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000040")));
+        keys.put(BigInteger.valueOf(128), PrivateKey.derivePublicKey(PrivateKey.fromString("0000000000000000000000000000000000000000000000000000000000000080")));
+        mint.addKeySet(KeySet.builder().id(VALID_KEYSET_ID).unit("sat").keys(keys).build());
         when(mintLoadService2.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service, new DefaultSignatureVaultService());
 
