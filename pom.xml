@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -12,6 +12,7 @@
     <modules>
         <module>cashu-mint-tools</module>
         <module>cashu-mint-protocol</module>
+        <module>cashu-mint-observability</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-rest-it</module>
         <!-- Admin modules moved to separate project: cashu-mint-admin -->
@@ -30,7 +31,7 @@
         <cashu-lib.version>0.6.2</cashu-lib.version>
         <cashu-gateway.version>0.4.2</cashu-gateway.version>
         <cashu-vault.version>0.4.0</cashu-vault.version>
-        <cashu-mint.version>0.4.0</cashu-mint.version>
+        <cashu-mint.version>0.4.1</cashu-mint.version>
         <cashu-wallet.version>0.2.1</cashu-wallet.version>
         <cashu-client.version>1.2.0</cashu-client.version>
         <cashu-mint-admin.version>0.2.4</cashu-mint-admin.version>
@@ -398,6 +399,11 @@
             <dependency>
                 <groupId>xyz.tcheeric</groupId>
                 <artifactId>cashu-mint-protocol</artifactId>
+                <version>${cashu-mint.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-mint-observability</artifactId>
                 <version>${cashu-mint.version}</version>
             </dependency>
             <dependency>

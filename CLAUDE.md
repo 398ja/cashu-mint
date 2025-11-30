@@ -11,6 +11,7 @@ This is a Java implementation of the Cashu ecash protocol, organized as a multi-
 - `cashu-mint-rest` - Public REST API (port 7777)
 - `cashu-mint-rest-it` - Integration tests
 - `cashu-mint-tools` - Test data generation utilities
+- `cashu-mint-observability` - Prometheus metrics, Grafana dashboards, health indicators
 
 **External modules** (separate repository at `../cashu-mint-admin`):
 - Admin functionality has been split to a separate project
@@ -306,6 +307,60 @@ cashu-mint-rest-it
 - Check compatibility with protocol implementation
 - Update all modules consistently
 - Run full test suite including integration tests
+
+## Observability
+
+The `cashu-mint-observability` module provides Prometheus metrics, health indicators, and Grafana dashboards.
+
+### Quick Start
+
+```bash
+# Start mint with observability stack
+docker compose -f docker-compose.dev.yml up -d
+docker compose -f cashu-mint-observability/docker/docker-compose.observability.yml up -d
+
+# Access dashboards
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000 (admin/admin)
+```
+
+### Key Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `cashu_mint_requests_total` | HTTP requests by endpoint/status |
+| `cashu_mint_requests_duration_seconds` | Request latency histogram |
+| `cashu_mint_proofs_issued_total` | Proofs issued |
+| `cashu_mint_sats_outstanding` | Current liability (gauge) |
+| `cashu_mint_task_duration_seconds` | Task execution time |
+| `cashu_mint_quotes_active` | Active quotes by type |
+| `cashu_mint_vouchers_fees_collected_total` | Voucher fees |
+
+### Configuration
+
+```properties
+# Enable observability (default: true)
+cashu.observability.enabled=true
+
+# Enable task instrumentation
+cashu.observability.tasks.enabled=true
+
+# Enable voucher metrics
+cashu.observability.vouchers.enabled=true
+
+# Health indicators
+cashu.observability.health.gateway.enabled=true
+cashu.observability.health.vault.enabled=true
+```
+
+### Grafana Dashboards
+
+Three pre-built dashboards in `cashu-mint-observability/docker/grafana/dashboards/`:
+- **Cashu Mint Overview** - Health, request rate, outstanding sats
+- **Cashu Mint Operations** - Task metrics, proof operations, HTTP details
+- **Cashu Mint Business** - Quotes, vouchers, financial overview
+
+See `cashu-mint-observability/docs/metrics-reference.md` for complete metrics documentation.
 
 ## SignatureVaultService
 
