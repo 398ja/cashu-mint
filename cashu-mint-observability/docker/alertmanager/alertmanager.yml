@@ -1,0 +1,161 @@
+# Alertmanager configuration for Cashu Mint
+# Configure receivers and routes for alert notifications
+
+global:
+  # Global SMTP settings (uncomment and configure for email alerts)
+  # smtp_smarthost: 'smtp.example.com:587'
+  # smtp_from: 'alertmanager@cashu-mint.local'
+  # smtp_auth_username: 'alertmanager@example.com'
+  # smtp_auth_password: 'password'
+
+  # Global Slack settings (uncomment and configure for Slack alerts)
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+
+  # Resolve timeout - time after which an alert is considered resolved
+  resolve_timeout: 5m
+
+# Inhibition rules - prevent certain alerts when others are firing
+inhibit_rules:
+  # Don't alert on high latency if the service is down
+  - source_match:
+      alertname: 'CashuMintDown'
+    target_match:
+      severity: 'warning'
+    equal: ['instance']
+
+  # Don't alert on task failures if gateway is unhealthy
+  - source_match:
+      alertname: 'CashuMintGatewayUnhealthy'
+    target_match:
+      alertname: 'CashuMintTaskFailureRate'
+    equal: ['instance']
+
+  # Don't alert on task failures if vault is unhealthy
+  - source_match:
+      alertname: 'CashuMintVaultUnhealthy'
+    target_match:
+      alertname: 'CashuMintTaskFailureRate'
+    equal: ['instance']
+
+# Route tree - how alerts are routed to receivers
+route:
+  # Default receiver
+  receiver: 'default-receiver'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'severity', 'instance']
+
+  # Wait time before sending first notification
+  group_wait: 30s
+
+  # Wait time before sending new alerts in same group
+  group_interval: 5m
+
+  # Wait time before resending notification
+  repeat_interval: 4h
+
+  # Child routes for specific alert handling
+  routes:
+    # Critical alerts - send immediately
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: false
+
+    # SLO breach alerts - route to SRE team
+    - match:
+        slo: ''
+      receiver: 'slo-receiver'
+      group_by: ['slo']
+      repeat_interval: 2h
+
+    # Warning alerts - can batch more aggressively
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+      group_wait: 1m
+      repeat_interval: 6h
+
+    # Info alerts - for capacity planning
+    - match:
+        severity: info
+      receiver: 'info-receiver'
+      group_wait: 5m
+      repeat_interval: 24h
+
+# Receivers - notification channels
+receivers:
+  - name: 'default-receiver'
+    # Default: log to stdout (visible in alertmanager logs)
+    # Add webhook, email, or Slack config below
+
+  - name: 'critical-receiver'
+    # Critical alerts: Uncomment and configure one or more notification methods
+
+    # Slack integration
+    # slack_configs:
+    #   - channel: '#cashu-mint-critical'
+    #     title: '{{ .Status | toUpper }} | {{ .CommonLabels.alertname }}'
+    #     text: |
+    #       *Alert:* {{ .CommonLabels.alertname }}
+    #       *Severity:* {{ .CommonLabels.severity }}
+    #       *Description:* {{ .CommonAnnotations.description }}
+    #       *Runbook:* {{ .CommonAnnotations.runbook_url }}
+    #     send_resolved: true
+    #     color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+
+    # PagerDuty integration
+    # pagerduty_configs:
+    #   - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+    #     severity: critical
+
+    # Email integration
+    # email_configs:
+    #   - to: 'oncall@example.com'
+    #     send_resolved: true
+    #     headers:
+    #       Subject: '[CRITICAL] Cashu Mint Alert: {{ .CommonLabels.alertname }}'
+
+    # Webhook for custom integrations
+    webhook_configs:
+      - url: 'http://localhost:9999/webhook/critical'
+        send_resolved: true
+
+  - name: 'slo-receiver'
+    # SLO breach alerts
+    # slack_configs:
+    #   - channel: '#cashu-mint-slo'
+    #     title: 'SLO Breach: {{ .CommonLabels.slo }}'
+    #     text: |
+    #       *SLO Type:* {{ .CommonLabels.slo }}
+    #       *Alert:* {{ .CommonLabels.alertname }}
+    #       *Description:* {{ .CommonAnnotations.description }}
+    #     send_resolved: true
+    webhook_configs:
+      - url: 'http://localhost:9999/webhook/slo'
+        send_resolved: true
+
+  - name: 'warning-receiver'
+    # Warning alerts
+    # slack_configs:
+    #   - channel: '#cashu-mint-alerts'
+    #     title: '{{ .Status | toUpper }} | {{ .CommonLabels.alertname }}'
+    #     text: '{{ .CommonAnnotations.description }}'
+    #     send_resolved: true
+    webhook_configs:
+      - url: 'http://localhost:9999/webhook/warning'
+        send_resolved: true
+
+  - name: 'info-receiver'
+    # Info alerts (capacity planning, etc.)
+    # These typically don't need immediate notification
+    # Consider routing to a dashboard or weekly report instead
+    webhook_configs:
+      - url: 'http://localhost:9999/webhook/info'
+        send_resolved: false
+
+# Templates for custom notification formats
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

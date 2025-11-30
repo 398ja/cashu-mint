@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.4.0</version>
+        <version>0.4.1</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
@@ -95,6 +95,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Observability (Prometheus metrics) -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-mint-observability</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 

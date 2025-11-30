@@ -1,0 +1,44 @@
+# Prometheus configuration for Cashu Mint observability
+# Scrapes metrics from the mint's actuator endpoint
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+  # Attach these labels to any time series or alerts when communicating with
+  # external systems (federation, remote storage, Alertmanager)
+  external_labels:
+    monitor: 'cashu-mint'
+
+# Rule files (for alerting rules)
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  # Cashu Mint metrics
+  - job_name: 'cashu-mint'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['cashu-mint-rest-dev:7777']
+        labels:
+          env: 'development'
+          service: 'cashu-mint'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093

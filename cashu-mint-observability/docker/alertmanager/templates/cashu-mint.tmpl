@@ -1,0 +1,89 @@
+{{ define "cashu.title" }}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+{{ end }}
+
+{{ define "cashu.text" }}
+{{ range .Alerts }}
+*Alert:* {{ .Labels.alertname }}
+*Severity:* {{ .Labels.severity }}
+*Instance:* {{ .Labels.instance }}
+*Status:* {{ .Status }}
+
+*Summary:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+
+{{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+
+*Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ if eq .Status "resolved" }}*Resolved:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}{{ end }}
+
+---
+{{ end }}
+{{ end }}
+
+{{ define "cashu.slack.title" }}
+{{ if eq .Status "firing" }}:fire:{{ else }}:white_check_mark:{{ end }} {{ .CommonLabels.alertname }}
+{{ end }}
+
+{{ define "cashu.slack.text" }}
+{{ range .Alerts }}
+{{ if eq .Status "firing" }}:rotating_light:{{ else }}:white_check_mark:{{ end }} *{{ .Labels.alertname }}*
+> *Severity:* `{{ .Labels.severity }}`
+> *Instance:* `{{ .Labels.instance }}`
+> {{ .Annotations.description }}
+{{ if .Annotations.runbook_url }}> <{{ .Annotations.runbook_url }}|View Runbook>{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "cashu.slack.color" }}
+{{ if eq .Status "firing" }}
+{{ if eq .CommonLabels.severity "critical" }}#FF0000{{ else if eq .CommonLabels.severity "warning" }}#FFA500{{ else }}#0000FF{{ end }}
+{{ else }}#00FF00{{ end }}
+{{ end }}
+
+{{ define "cashu.email.subject" }}
+[{{ .Status | toUpper }}] Cashu Mint: {{ .CommonLabels.alertname }}
+{{ end }}
+
+{{ define "cashu.email.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .alert { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; }
+    .critical { border-left: 4px solid #FF0000; background-color: #FFF5F5; }
+    .warning { border-left: 4px solid #FFA500; background-color: #FFFAF0; }
+    .info { border-left: 4px solid #0000FF; background-color: #F0F8FF; }
+    .resolved { border-left: 4px solid #00FF00; background-color: #F0FFF0; }
+    .label { font-weight: bold; color: #333; }
+    .value { color: #666; }
+    .runbook { margin-top: 10px; }
+    .runbook a { color: #0066CC; }
+  </style>
+</head>
+<body>
+  <h2>Cashu Mint Alert: {{ .CommonLabels.alertname }}</h2>
+  <p>Status: <strong>{{ .Status | toUpper }}</strong></p>
+
+  {{ range .Alerts }}
+  <div class="alert {{ if eq .Status "resolved" }}resolved{{ else }}{{ .Labels.severity }}{{ end }}">
+    <p><span class="label">Alert:</span> <span class="value">{{ .Labels.alertname }}</span></p>
+    <p><span class="label">Severity:</span> <span class="value">{{ .Labels.severity }}</span></p>
+    <p><span class="label">Instance:</span> <span class="value">{{ .Labels.instance }}</span></p>
+    <p><span class="label">Summary:</span> <span class="value">{{ .Annotations.summary }}</span></p>
+    <p><span class="label">Description:</span> <span class="value">{{ .Annotations.description }}</span></p>
+    <p><span class="label">Started:</span> <span class="value">{{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</span></p>
+    {{ if eq .Status "resolved" }}
+    <p><span class="label">Resolved:</span> <span class="value">{{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}</span></p>
+    {{ end }}
+    {{ if .Annotations.runbook_url }}
+    <div class="runbook">
+      <a href="{{ .Annotations.runbook_url }}">View Runbook</a>
+    </div>
+    {{ end }}
+  </div>
+  {{ end }}
+</body>
+</html>
+{{ end }}
