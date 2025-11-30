@@ -45,3 +45,4 @@ build/
 /cashu-mint-rest/logs/
 /cashu-mint-rest-it/logs/
 /.claude/
+/cashu-mint-observability/logs/
