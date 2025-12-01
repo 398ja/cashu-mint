@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.4.1</version>
+    <version>0.4.2</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -29,7 +29,7 @@
 
         <!-- Cashu Ecosystem Versions -->
         <cashu-lib.version>0.6.2</cashu-lib.version>
-        <cashu-gateway.version>0.4.2</cashu-gateway.version>
+        <cashu-gateway.version>0.4.3</cashu-gateway.version>
         <cashu-vault.version>0.4.0</cashu-vault.version>
         <cashu-mint.version>0.4.1</cashu-mint.version>
         <cashu-wallet.version>0.2.1</cashu-wallet.version>
