@@ -1,6 +1,6 @@
 # Install a staging Cashu Mint with Docker
 
-This how-to describes installing the Cashu Mint stack onto a staging host that only has Docker installed (no source code checkout). You will download the dev Docker Compose file (includes seed data and mock services), fetch the required helper files that the dev compose mounts, set environment values, pull images, and start the containers without building from source.
+This how-to describes installing the Cashu Mint stack onto a staging host with only Docker installed. You will download the release archive (to supply Dockerfiles and scripts referenced by Compose), set environment values, pull images, and start the containers without building from source.
 
 ## Prerequisites
 - Docker with the Compose plugin.
@@ -14,30 +14,20 @@ This how-to describes installing the Cashu Mint stack onto a staging host that o
 mkdir -p ~/cashu-mint-staging && cd ~/cashu-mint-staging
 ```
 
-2) Download the dev Docker Compose file from the release tag that matches the version you want to run (avoid the `main` branch):
+2) Download the release archive for the version you want to run (provides the Compose file, Dockerfiles, and helper scripts required by the build contexts):
 
 ```bash
-COMPOSE_VERSION=0.3.2
-curl -L -o docker-compose.dev.yml \
-  "https://raw.githubusercontent.com/cashubtc/cashu-mint/v${COMPOSE_VERSION}/docker-compose.dev.yml"
+COMPOSE_VERSION=0.4.1
+curl -L "https://github.com/cashubtc/cashu-mint/archive/refs/tags/v${COMPOSE_VERSION}.tar.gz" -o cashu-mint.tar.gz
+tar -xzf cashu-mint.tar.gz --strip-components=1
 ```
 
-> If outbound network access is restricted, copy the `docker-compose.dev.yml` file into this directory via your approved channel (scp, config management, etc.).
-
-3) Fetch the helper files that the dev compose mounts from the matching repository tags so the volume paths exist even without the source tree:
+3) Fetch the vault migration expected by the dev Compose file (relative path `../cashu-vault/...`):
 
 ```bash
-# Seed scripts expected by the compose file
-mkdir -p scripts
-curl -L -o scripts/preload-test-data.json \
-  "https://raw.githubusercontent.com/cashubtc/cashu-mint/v${COMPOSE_VERSION}/scripts/preload-test-data.json"
-curl -L -o scripts/preload-test-data.sql \
-  "https://raw.githubusercontent.com/cashubtc/cashu-mint/v${COMPOSE_VERSION}/scripts/preload-test-data.sql"
-
-# Vault migration expected at ../cashu-vault/... relative to the compose file location
 mkdir -p ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration
 curl -L -o ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration/V1__init_schema.sql \
-  "https://raw.githubusercontent.com/cashubtc/cashu-vault/v${CASHU_VAULT_VERSION:-0.3.0}/cashu-vault-jpa/src/main/resources/db/migration/V1__init_schema.sql"
+  "https://raw.githubusercontent.com/cashubtc/cashu-vault/v0.4.0/cashu-vault-jpa/src/main/resources/db/migration/V1__init_schema.sql"
 ```
 
 ## Prepare a staging env file
@@ -46,13 +36,13 @@ Create `.env.staging` in the same directory with the versions and secrets you wa
 ```bash
 cat > .env.staging <<'EOF'
 # Versions (align with pom.xml)
-CASHU_MINT_VERSION=0.3.2
-CASHU_GATEWAY_VERSION=0.4.1
+CASHU_MINT_VERSION=0.4.1
+CASHU_GATEWAY_VERSION=0.4.2
 CASHU_GATEWAY_WEBHOOK_VERSION=latest
-CASHU_VAULT_VERSION=0.3.0
+CASHU_VAULT_VERSION=0.4.0
 CASHU_MINT_ADMIN_VERSION=0.2.4
-COMPOSE_VERSION=0.3.2
-PHOENIXD_VERSION=latest
+COMPOSE_VERSION=0.4.1
+PHOENIXD_VERSION=0.1.4
 
 # Ports and bindings
 CASHU_MINT_PORT=7777
@@ -75,7 +65,7 @@ Fetch the images ahead of time so `up` does not build locally and to confirm reg
 
 ```bash
 docker compose -f docker-compose.dev.yml --env-file .env.staging pull \
-  cashu-vault-jpa cashu-gateway-rest cashu-gateway-webhook cashu-mint-rest-dev cashu-mint-admin-rest
+  cashu-vault-jpa cashu-gateway-rest cashu-gateway-webhook cashu-mint-rest-dev cashu-mint-admin-rest phoenixd-mock
 ```
 
 ## Start the staging stack

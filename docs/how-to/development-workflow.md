@@ -13,8 +13,12 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 
 ## Start supporting services
 
-1. Build the vault Docker image (if not already built):
+1. Use the published vault image (default) or build it locally if you are changing vault code:
    ```bash
+   # Default: pull the published image used by docker-compose.dev.yml
+   docker pull docker.398ja.xyz/cashu-vault-jpa:0.4.0
+
+   # Or build from a sibling checkout
    cd ../cashu-vault
    mvn clean package -DskipTests
    cd cashu-vault-jpa
