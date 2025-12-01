@@ -59,12 +59,12 @@ cashu.observability.vouchers.enabled=true
 
 # Health indicators
 cashu.observability.health.gateway.enabled=true
-cashu.observability.health.gateway.timeoutMs=5000
+cashu.observability.health.gateway.timeout-ms=5000
 cashu.observability.health.vault.enabled=true
-cashu.observability.health.vault.timeoutMs=5000
+cashu.observability.health.vault.timeout-ms=5000
 
 # Track metrics per keyset (may increase cardinality)
-cashu.observability.metrics.trackKeysets=true
+cashu.observability.metrics.track-keysets=true
 ```
 
 ### Prometheus Endpoint
@@ -203,7 +203,7 @@ To prevent metric explosion in production:
 
 1. **Disable keyset tracking** if you have many keysets:
    ```properties
-   cashu.observability.metrics.trackKeysets=false
+   cashu.observability.metrics.track-keysets=false
    ```
 
 2. **Use bounded label values**: The module automatically normalizes endpoints to prevent high cardinality.
@@ -291,9 +291,9 @@ Add to `application.properties`:
 # Enable OpenTelemetry tracing
 cashu.observability.tracing.enabled=true
 cashu.observability.tracing.endpoint=http://jaeger:4317
-cashu.observability.tracing.serviceName=cashu-mint
+cashu.observability.tracing.service-name=cashu-mint
 cashu.observability.tracing.environment=development
-cashu.observability.tracing.samplingRatio=1.0
+cashu.observability.tracing.sampling-ratio=1.0
 ```
 
 ### Viewing Traces

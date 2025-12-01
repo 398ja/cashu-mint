@@ -1,275 +1,139 @@
 # REST API Reference
-This document provides details about the Cashu Mint REST API endpoints. All paths are rooted at `/v1`.
+This reference lists the public endpoints exposed by `cashu-mint-rest`. All routes are rooted at `/v1`. Administrative APIs are published from the separate `cashu-mint-admin` project.
 
-## Endpoints
-
-## Endpoint details
-
-
-<!-- /v1/keys/{mint_id}/generate removed: non-spec endpoint (use admin or internal tooling) -->
-
+## Keys
 
 ### `GET /v1/keys/keyset/{keyset_id}`
-Retrieve keys for a specific keyset.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `keyset_id` | path | string | Identifier of the keyset. |
-**Sample request**
+Return the public keys for a specific keyset id.
+- `keyset_id` (path) – keyset identifier.
+
+Example:
 ```http
 GET /v1/keys/keyset/abc123 HTTP/1.1
-Host: example.com
 ```
-**Sample response**
+Sample response:
 ```json
 {
-  "keys": ["-----BEGIN PUBLIC KEY-----\n..."]
+  "keysets": [
+    {
+      "id": "abc123",
+      "unit": "sat",
+      "keys": { "1": "0275…", "2": "03ab…" }
+    }
+  ]
 }
 ```
-
 
 ### `GET /v1/keysets`
-List all keysets (active and inactive) with an `active` flag.
-_No parameters._
-**Sample request**
+List active keysets (with their `active` flag). No parameters.
+
+Example:
 ```http
 GET /v1/keysets HTTP/1.1
-Host: example.com
 ```
-**Sample response**
+Sample response:
 ```json
 {
-  "keysets": ["abc123", "def456"]
+  "keysets": [
+    { "id": "abc123", "unit": "sat", "active": true }
+  ]
 }
 ```
 
-
+## Swap
 
 ### `POST /v1/swap`
-Swap tokens within a mint. The server infers the target mint from the input proofs' keyset ids (or uses the single active mint when only one is present).
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `body` | body | object | Swap request payload. |
-**Sample request**
-```http
-POST /v1/swap HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "inputs": [],
-  "outputs": []
-}
-```
-**Sample response**
+Swap tokens within a mint. The mint id is inferred from the input proofs' keyset ids.
+
+Body (abridged):
 ```json
 {
-  "token": "..."
+  "inputs": [ { /* proof */ } ],
+  "outputs": [ { /* blinded message */ } ]
 }
 ```
 
-Note: The server infers the mint from inputs (keyset ids) or uses the single active mint. There is no need for a mint UUID in the path.
+Returns a standard NUT-03 swap response or `400` when inputs are missing/empty.
 
+## Mint quotes
 
 ### `POST /v1/mint/quote/{method}`
-Request a mint quote for a payment method.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `method` | path | string | Payment method (e.g., `bolt11`). |
-| `body` | body | object | Quote request payload. |
-**Sample request**
-```http
-POST /v1/mint/quote/bolt11 HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "amount": 100
-}
-```
-**Sample response**
-```json
-{
-  "quote_id": "q123",
-  "request": "lnbc1..."
-}
-```
-
+Create a mint quote for a payment method (for example `bolt11`).
+- `method` (path) – payment method name (case-insensitive).
+- Body: `{ "amount": 1000 }`.
 
 ### `GET /v1/mint/quote/{method}/{quote_id}`
-Check status of a mint quote.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `method` | path | string | Payment method. |
-| `quote_id` | path | string | Identifier returned from quote request. |
-**Sample request**
-```http
-GET /v1/mint/quote/bolt11/q123 HTTP/1.1
-Host: example.com
-```
-**Sample response**
-```json
-{
-  "paid": true
-}
-```
+Check mint quote status.
+- `method` (path) – payment method.
+- `quote_id` (path) – quote identifier returned from the POST.
 
+### `POST /v1/mint/quote/voucher/{method}`
+Create a voucher mint quote that charges a percentage fee (see `voucher.quote.fee-percent`).
 
-### `POST /v1/mint/{mintId}/{method}`
-Mint tokens using a payment method.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `mintId` | path | string | Unique mint identifier. |
-| `method` | path | string | Payment method. |
-| `body` | body | object | Mint request payload. |
-**Sample request**
-```http
-POST /v1/mint/123/bolt11 HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "quote_id": "q123"
-}
-```
-**Sample response**
-```json
-{
-  "token": "..."
-}
-```
+### `GET /v1/mint/quote/voucher/{method}/{quote_id}`
+Check voucher mint quote status.
 
+## Mint tokens
+
+### `POST /v1/mint/{method}`
+Mint tokens after paying a quote.
+- `method` (path) – payment method.
+- Body fields:
+  - `quote_id` – required.
+  - `blinded_messages` – required; each output must include `keyset_id` so the controller can infer the mint id.
+
+Returns `400` when the quote id or outputs are missing; `404` when the mint or quote cannot be resolved.
+
+## Melt quotes
 
 ### `POST /v1/melt/quote/{method}`
 Request a melt quote for a payment method.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `method` | path | string | Payment method (e.g., `bolt11`). |
-| `body` | body | object | Quote request payload. |
-**Sample request**
-```http
-POST /v1/melt/quote/bolt11 HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "amount": 100
-}
-```
-**Sample response**
-```json
-{
-  "quote_id": "m123",
-  "request": "lnbc1..."
-}
-```
-
+- `method` (path) – payment method.
+- Body: `{ "amount": 1000, "unit": "sat" }`.
 
 ### `GET /v1/melt/quote/{method}/{quote_id}`
-Check status of a melt quote.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `method` | path | string | Payment method. |
-| `quote_id` | path | string | Identifier returned from melt quote request. |
-**Sample request**
-```http
-GET /v1/melt/quote/bolt11/m123 HTTP/1.1
-Host: example.com
-```
-**Sample response**
-```json
-{
-  "paid": true
-}
-```
+Check melt quote status.
 
+## Melt tokens
 
-### `POST /v1/melt/{mint_id}/{method}`
-Melt tokens using a payment method.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `mint_id` | path | string | Unique mint identifier. |
-| `method` | path | string | Payment method. |
-| `body` | body | object | Melt request payload. |
-**Sample request**
-```http
-POST /v1/melt/123/bolt11 HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "quote_id": "m123",
-  "token": "..."
-}
-```
-**Sample response**
-```json
-{
-  "paid": true
-}
-```
+### `POST /v1/melt/{method}`
+Melt tokens using a paid quote. The mint id is inferred from the input proofs.
+- `method` (path) – payment method.
+- Body fields:
+  - `quote_id` – required.
+  - `inputs` – required list of proofs that includes `keyset_id`.
 
+Returns `400` for missing fields; `404` when the mint or quote cannot be resolved.
+
+## Mint info
 
 ### `GET /v1/info`
-Retrieve mint information.
-_No parameters._
-**Sample request**
-```http
-GET /v1/info HTTP/1.1
-Host: example.com
-```
-**Sample response**
-```json
-{
-  "name": "Cashu Mint"
-}
-```
+Return NUT-06 mint information plus legacy helper fields (`units`, `mint_methods`, `melt_methods`). No parameters.
 
+## Token state checks
 
 ### `POST /v1/checkstate`
-Check state of tokens. The server infers the mint internally (by scanning mints and merging results) and returns consolidated states.
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `body` | body | object | State check payload. |
-**Sample request**
-```http
-POST /v1/checkstate HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "Ys": ["02ab…", "03cd…"]
-}
-```
-**Sample response**
-```json
-{
-  "states": [
-    { "hash_to_curve_secret": "02ab…", "state": "UNSPENT" },
-    { "hash_to_curve_secret": "03cd…", "state": "SPENT" }
-  ]
-}
-```
+Return the token state (UNSPENT/PENDING/SPENT) for each secret, merging results across active and archived mints.
+- Body: `{ "hash_to_curve_secrets": [ "02ab…" ] }`.
 
+## Restore signatures
 
 ### `POST /v1/restore`
-Restore blind signatures for previously signed messages (NUT-09).
-| Parameter | In | Type | Description |
-| --- | --- | --- | --- |
-| `body` | body | object | Restore request payload containing blinded messages. |
-**Sample request**
-```http
-POST /v1/restore HTTP/1.1
-Host: example.com
-Content-Type: application/json
-{
-  "blinded_messages": [
-    { "B_": "..." }
-  ]
-}
-```
-**Sample response**
-```json
-{
-  "outputs": [ { "B_": "..." } ],
-  "signatures": [ "..." ]
-}
-```
+Restore previously generated blind signatures (NUT-09) using the shared `SignatureVaultService`.
+- Body: `{ "blinded_messages": [ { "B_": "…" } ] }`.
 
-## Administrative API
+## Vouchers (voucher profile)
 
-Administrative endpoints are provided by the separate admin module and are not versioned (no `/v1` prefix).
-See the admin project documentation at `../cashu-mint-admin/docs/reference/admin-rest-api.md`.
+Voucher endpoints are available when the `voucher` Spring profile is active and `voucher.enabled=true`.
+
+### `POST /v1/vouchers`
+Issue a voucher (gift card) signed by the mint's issuer key.
+- Body: `issuerId`, `unit`, `amount`, optional `expiresInDays`, `memo`.
+
+### `GET /v1/vouchers/{voucherId}/status`
+Return the status of a voucher from the Nostr ledger (`ISSUED`, `REDEEMED`, `REVOKED`, `EXPIRED`).
+
+## Errors
+
+- Unpaid Lightning invoices return `402 Payment Required` with error code `mint_invoice_not_paid_error`.
+- Validation errors return `400 Bad Request`; not-found resources return `404 Not Found`.
