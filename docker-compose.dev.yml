@@ -116,6 +116,7 @@ services:
   cashu-gateway-rest:
     image: docker.398ja.xyz/cashu-gateway-rest:${CASHU_GATEWAY_VERSION:-latest}
     environment:
+      SPRING_PROFILES_ACTIVE: staging
       CASHU_GATEWAY_PORT: ${CASHU_GATEWAY_PORT:-8080}
       GATEWAY_API_BASE_URL: ${GATEWAY_API_BASE_URL:-http://cashu-gateway-rest}
       SERVER_ADDRESS: 0.0.0.0
@@ -128,6 +129,8 @@ services:
       SERVER_PORT: ${CASHU_GATEWAY_PORT:-8080}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      GATEWAY_WALLET_MOCK_PAYMENT_ENABLED: "true"
+      GATEWAY_WALLET_MOCK_PAYMENT_PHOENIXD_URL: http://phoenixd-mock:9740
     depends_on:
       cashu-gateway-db:
         condition: service_healthy
