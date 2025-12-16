@@ -178,6 +178,7 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
                         .description("HTTP request duration")
                         .tag("endpoint", endpoint)
                         .tag("method", method)
+                        .minimumExpectedValue(java.time.Duration.ofMillis(1))
                         .register(registry));
     }
 

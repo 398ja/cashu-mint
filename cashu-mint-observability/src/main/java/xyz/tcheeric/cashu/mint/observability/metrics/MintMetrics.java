@@ -112,13 +112,15 @@ public class MintMetrics {
                 .tag("unit", "sat")
                 .register(registry);
 
-        // Timers
+        // Timers - minimumExpectedValue must be > 0 when percentiles-histogram is enabled
         this.proofVerificationTimer = Timer.builder(METRIC_PREFIX + "proof_verification_duration_seconds")
                 .description("Time to verify proofs")
+                .minimumExpectedValue(java.time.Duration.ofMillis(1))
                 .register(registry);
 
         this.signatureGenerationTimer = Timer.builder(METRIC_PREFIX + "signature_generation_duration_seconds")
                 .description("Time to generate blind signatures")
+                .minimumExpectedValue(java.time.Duration.ofMillis(1))
                 .register(registry);
 
         log.debug("MintMetrics initialized with trackKeysets={}", trackKeysets);

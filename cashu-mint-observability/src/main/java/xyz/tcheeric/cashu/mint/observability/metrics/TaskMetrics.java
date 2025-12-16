@@ -66,6 +66,7 @@ public class TaskMetrics {
                 Timer.builder(METRIC_PREFIX + "duration_seconds")
                         .description("Task execution duration")
                         .tag("task", name)
+                        .minimumExpectedValue(java.time.Duration.ofMillis(1))
                         .register(registry));
     }
 
