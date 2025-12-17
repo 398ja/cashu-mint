@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
@@ -122,7 +123,9 @@ public class MintProtocolUtil {
     public static <T extends Secret> ProofEntity toProofEntity(@NonNull Proof<T> proof, @NonNull MintEntity mintEntity) {
         ProofEntity proofEntity = new ProofEntity();
         proofEntity.setAmount(proof.getAmount());
-        proofEntity.setSecret(proof.getSecret() != null ? proof.getSecret().toString() : null);
+        // Store Y coordinate (hash_to_curve result) not raw secret string
+        // This ensures consistent length (66 hex chars) regardless of secret type (RSS, P2PK, VOUCHER, etc.)
+        proofEntity.setSecret(proof.getSecret() != null ? SecretUtil.toY(proof.getSecret()) : null);
         // Witness is optional for RSS proofs; persist only when present
         if (proof.getWitness() != null) {
             proofEntity.setWitness(proof.getWitness().toString());
