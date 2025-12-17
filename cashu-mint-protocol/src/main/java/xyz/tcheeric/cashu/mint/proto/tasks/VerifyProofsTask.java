@@ -113,19 +113,6 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
 
         for (Proof<T> proof : proofs) {
             Secret secret = proof.getSecret();
-
-            // Model B enforcement: Reject voucher secrets
-            // Vouchers can only be redeemed at the issuing merchant, not at the mint
-            if (VoucherSecretDetector.isVoucherSecret(secret)) {
-                log.warn("Voucher secret rejected in swap operation (Model B enforcement)");
-                ErrorResponse error = new ErrorResponse(
-                    "voucher_not_accepted",
-                    "Vouchers cannot be redeemed at mint (Model B). " +
-                    "Please redeem with issuing merchant."
-                );
-                throw new CashuErrorException(error.toJson());
-            }
-
             SpendingCondition<T> spendingCondition = getSpendingCondition(secret, blindedMessages);
             spendingCondition.verify(proof);
         }
@@ -137,7 +124,9 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
         }
-        if (secret instanceof RandomStringSecret) {
+        // VoucherWellKnownSecret uses same BDHKE verification as RandomStringSecret
+        // Vouchers are valid for swapping - redemption control is at the merchant layer
+        if (secret instanceof RandomStringSecret || secret instanceof VoucherWellKnownSecret) {
             return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
         throw new IllegalArgumentException("Unsupported proof type");
