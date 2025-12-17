@@ -9,6 +9,8 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.P2PKSecret;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.VoucherWellKnownSecret;
+import xyz.tcheeric.cashu.common.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
@@ -42,6 +44,13 @@ final class VoucherSecretDetector {
     /**
      * Checks if a secret is a VoucherSecret instance.
      *
+     * <p>This method detects voucher secrets in multiple forms:
+     * <ul>
+     *   <li>VoucherSecret from cashu-voucher-domain (optional dependency)</li>
+     *   <li>VoucherWellKnownSecret from cashu-lib-common (NUT-10 format)</li>
+     *   <li>Any WellKnownSecret with VOUCHER kind</li>
+     * </ul>
+     *
      * @param secret the secret to check
      * @return true if the secret is a VoucherSecret, false otherwise
      */
@@ -49,7 +58,15 @@ final class VoucherSecretDetector {
         if (secret == null) {
             return false;
         }
-        // Check if the secret is an instance of VoucherSecret
+        // Check for VoucherWellKnownSecret (NUT-10 format from cashu-lib-common)
+        if (secret instanceof VoucherWellKnownSecret) {
+            return true;
+        }
+        // Check for WellKnownSecret with VOUCHER kind
+        if (secret instanceof WellKnownSecret wks && wks.getKind() == WellKnownSecret.Kind.VOUCHER) {
+            return true;
+        }
+        // Check for VoucherSecret from cashu-voucher-domain (optional dependency)
         // This works even if the class is loaded optionally
         return VOUCHER_SECRET_CLASS.equals(secret.getClass().getName());
     }
