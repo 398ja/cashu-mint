@@ -134,9 +134,21 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     }
 
     public boolean verify(@NonNull Proof proof) throws CashuErrorException {
+        if (proof.getSecret() == null || proof.getUnblindedSignature() == null) {
+            log.error("melt_verify_missing_data secretPresent={} signaturePresent={}",
+                    proof.getSecret() != null, proof.getUnblindedSignature() != null);
+            return false;
+        }
         PrivateKey privateKey = mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {
-            return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().getBytes());
+            try {
+                return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(),
+                        proof.getUnblindedSignature().getBytes());
+            } catch (IllegalArgumentException | NullPointerException e) {
+                log.error("melt_verify_crypto_error", e);
+                ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
+                throw new CashuErrorException(error.toJson());
+            }
         }
         return false;
     }
@@ -163,15 +175,8 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     /**
      * Checks if a secret is a VoucherSecret (Model B enforcement).
-     *
-     * @param secret the secret to check
-     * @return true if the secret is a VoucherSecret
      */
     private boolean isVoucherSecret(Secret secret) {
-        if (secret == null) {
-            return false;
-        }
-        // Check using class name to avoid hard dependency
-        return "xyz.tcheeric.cashu.voucher.domain.VoucherSecret".equals(secret.getClass().getName());
+        return VoucherSecretDetector.isVoucherSecret(secret);
     }
 }

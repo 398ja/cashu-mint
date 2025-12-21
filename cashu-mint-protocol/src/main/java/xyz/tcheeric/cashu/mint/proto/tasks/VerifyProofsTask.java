@@ -120,15 +120,27 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         log.info("Verify proofs ok");
     }
 
-    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
+    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
+            throws CashuErrorException {
+        if (VoucherSecretDetector.isVoucherSecret(secret)) {
+            log.warn("Voucher secret detected in swap request - rejecting per Model B");
+            ErrorResponse error = new ErrorResponse(
+                    "voucher_swap_rejected",
+                    "Voucher proofs cannot be swapped at the mint (Model B - redeem with merchant)."
+            );
+            throw new CashuErrorException(error.toJson());
+        }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
         }
-        // VoucherWellKnownSecret uses same BDHKE verification as RandomStringSecret
-        // Vouchers are valid for swapping - redemption control is at the merchant layer
         if (secret instanceof RandomStringSecret || secret instanceof VoucherWellKnownSecret) {
             return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
-        throw new IllegalArgumentException("Unsupported proof type");
+        log.error("Unsupported proof type in swap request: {}", secret.getClass().getName());
+        ErrorResponse error = new ErrorResponse(
+                "unsupported_proof_type",
+                "Unsupported proof type for swap: " + secret.getClass().getSimpleName()
+        );
+        throw new CashuErrorException(error.toJson());
     }
 }

@@ -47,7 +47,10 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
             throw new CashuErrorException(error.toJson());
         }
 
-        byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
+        byte[] signature = BDHKEUtils.signBlindedMessage(
+                blindedMessage.getBlindedMessage().getBytes(),
+                privateKey.getBytes()
+        );
         if (log.isDebugEnabled()) {
             int len = signature == null ? -1 : signature.length;
             int first = (signature != null && signature.length > 0) ? (signature[0] & 0xFF) : -1;
@@ -96,7 +99,12 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
             log.debug("Normalized blind signature hex={}", hex);
         }
 
-        BlindSignature blindSignature = new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), sigObj);
+        BlindSignature blindSignature = new BlindSignature(
+                blindedMessage.getAmount(),
+                blindedMessage.getKeySetId(),
+                sigObj,
+                null
+        );
         signatureVaultService.store(blindedMessage, blindSignature);
         if (log.isDebugEnabled()) {
             log.debug("Stored blind signature for amount={} keySetId={}",
