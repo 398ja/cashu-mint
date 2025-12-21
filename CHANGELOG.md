@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.7] - 2025-12-21
+
+### Added
+
+- New explanation page for voucher mint percentage fees overview (`docs/explanations/voucher-mint-quote-overview.md`).
+
+### Changed
+
+- Upgraded project version to 0.4.7 across all modules.
+- Moved voucher percentage fee implementation plan to `project/` to keep user-facing docs concise.
+
+### Fixed
+
+- Voucher Nostr integration tests now use a matching BIP-340 public key for the configured private key.
+- Mockito inline/agent wiring stabilized to allow static and constructor mocks in tests.
+
+---
+
 ## [0.4.3] - 2025-12-17
 
 ### Fixed
