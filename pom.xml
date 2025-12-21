@@ -28,7 +28,7 @@
         <nostr-java.version>1.0.1</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions -->
-        <cashu-lib.version>0.8.1</cashu-lib.version>
+        <cashu-lib.version>0.9.1</cashu-lib.version>
         <cashu-gateway.version>0.4.8</cashu-gateway.version>
         <cashu-vault.version>0.4.5</cashu-vault.version>
         <cashu-mint.version>0.4.6</cashu-mint.version>
