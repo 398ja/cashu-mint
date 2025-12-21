@@ -32,4 +32,4 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
 - [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
-- [Voucher mint quote percentage fee implementation plan](explanations/voucher-mint-quote-percentage-implementation-plan.md) - Detailed implementation plan with phases and tasks for the percentage fee feature.
+- [Voucher mint quote percentage fees (overview)](explanations/voucher-mint-quote-overview.md) - Quick reference for how percentage-based voucher pricing works.

@@ -31,7 +31,8 @@ public class VoucherNostrITConfig {
     public VoucherService voucherService(VoucherLedgerPort ledgerPort, VoucherBackupPort backupPort) {
         // Use test keys for voucher signing (ED25519 format)
         String issuerPrivateKey = "0000000000000000000000000000000000000000000000000000000000000001";
-        String issuerPublicKey = "4cb5abf6ad79fbf5abbccafcc269d85cd2651ed4b885b5869f241aedf0a5ba29";
+        // Matching BIP-340 x-only public key for the above private key (G * 1)
+        String issuerPublicKey = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
         return new VoucherService(
             ledgerPort,
