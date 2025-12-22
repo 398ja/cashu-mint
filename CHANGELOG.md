@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2025-12-22
+
+### Added
+
+- NUT-12 support enabled across the mint, aligning protocol and REST handling with the updated specification.
+- Mint now generates and attaches DLEQ proofs to blind signatures with tests covering proof generation and attachment.
+
+### Changed
+
+- Bumped project version to 0.5.0 across all modules.
+
+---
+
 ## [0.4.7] - 2025-12-21
 
 ### Added
