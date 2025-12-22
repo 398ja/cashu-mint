@@ -142,8 +142,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                 blindedMessage.getAmount(),
                 blindedMessage.getKeySetId(),
                 sigObj,
-                dleqProof,
-                null
+                dleqProof
         );
         signatureVaultService.store(blindedMessage, blindSignature);
         if (log.isDebugEnabled()) {
