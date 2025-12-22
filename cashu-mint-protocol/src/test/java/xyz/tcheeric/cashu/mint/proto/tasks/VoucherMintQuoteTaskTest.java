@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
@@ -26,7 +27,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testExecuteWithDefaultPercentage() {
+    public void testExecuteWithDefaultPercentage() throws CashuErrorException {
         // Test voucher quote creation with default 10% fee
         // Given: 1000 sat voucher face value
         Gateway gateway = Mockito.mock(Gateway.class);
@@ -55,7 +56,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testExecuteWithSmallAmount() {
+    public void testExecuteWithSmallAmount() throws CashuErrorException {
         // Test voucher quote with small amount: 10 sats @ 10% = 1 sat
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid2");
@@ -76,7 +77,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testExecuteWithVerySmallAmount() {
+    public void testExecuteWithVerySmallAmount() throws CashuErrorException {
         // Test voucher quote with amount resulting in zero fee: 5 sats @ 10% = floor(0.5) = 0 sats
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid3");
@@ -97,7 +98,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testExecuteWithLargeAmount() {
+    public void testExecuteWithLargeAmount() throws CashuErrorException {
         // Test voucher quote with large amount: 1,000,000 sats @ 10% = 100,000 sats
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid4");
@@ -118,7 +119,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testMultipleVoucherQuotes() {
+    public void testMultipleVoucherQuotes() throws CashuErrorException {
         // Test creating multiple voucher quotes
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull()))
@@ -164,7 +165,7 @@ public class VoucherMintQuoteTaskTest {
     }
 
     @Test
-    public void testResponseStructure() {
+    public void testResponseStructure() throws CashuErrorException {
         // Test that the response structure matches PostMintQuoteResponse
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("test-qid");

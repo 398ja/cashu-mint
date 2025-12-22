@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBKeySetVault;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
@@ -14,13 +13,13 @@ import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 
 @Slf4j
 @RequiredArgsConstructor
-public class KeysetGeneratorTask implements Task<KeySet> {
+public class KeysetGeneratorTask extends InstrumentedTask<KeySet> {
 
     private final String mintId;
     private final String unit;
 
     @Override
-    public KeySet execute() throws CashuErrorException {
+    protected KeySet doExecute() throws CashuErrorException {
         log.info("execute()");
 
         Keys keys = getKeys();

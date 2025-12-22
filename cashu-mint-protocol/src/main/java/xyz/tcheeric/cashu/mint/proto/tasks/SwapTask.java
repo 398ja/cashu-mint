@@ -7,15 +7,14 @@ import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +24,7 @@ import java.util.UUID;
  * Task executing a swap of proofs for new blinded signatures.
  */
 @Slf4j
-public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
+public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapResponse> {
 
     private final UUID mintId;
     private final PostSwapRequest<T> request;
@@ -49,7 +48,7 @@ public class SwapTask<T extends Secret> implements Task<PostSwapResponse> {
     }
 
     @Override
-    public PostSwapResponse execute() throws CashuErrorException {
+    protected PostSwapResponse doExecute() throws CashuErrorException {
         log.debug("Executing SwapTask for mint {}", mintId);
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {

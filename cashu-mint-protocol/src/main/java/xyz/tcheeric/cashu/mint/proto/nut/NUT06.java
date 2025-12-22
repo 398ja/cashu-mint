@@ -6,6 +6,7 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.mint.proto.service.MintInfoService;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintInfoTask;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 
 @Nut(6)
 @Component
@@ -18,7 +19,7 @@ public class NUT06 {
         this.mintInfoService = mintInfoService;
     }
 
-    public MintInfo mintInfo() {
+    public MintInfo mintInfo() throws CashuErrorException {
         return new MintInfoTask(mintInfoService).execute();
     }
 }

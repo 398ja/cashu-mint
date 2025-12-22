@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
@@ -46,7 +45,7 @@ import java.util.List;
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/13.md">NUT-13 Deterministic Secrets</a>
  */
 @Slf4j
-public class RestoreSignaturesTask implements Task<PostRestoreResponse> {
+public class RestoreSignaturesTask extends InstrumentedTask<PostRestoreResponse> {
 
     private final PostRestoreRequest request;
     private final SignatureVaultService signatureVaultService;
@@ -81,7 +80,7 @@ public class RestoreSignaturesTask implements Task<PostRestoreResponse> {
      * @throws CashuErrorException if signature retrieval fails
      */
     @Override
-    public PostRestoreResponse execute() throws CashuErrorException {
+    protected PostRestoreResponse doExecute() throws CashuErrorException {
         int requestedCount = request.getBlindedMessages().size();
         log.debug("NUT-09 restore request received: {} blinded messages", requestedCount);
 

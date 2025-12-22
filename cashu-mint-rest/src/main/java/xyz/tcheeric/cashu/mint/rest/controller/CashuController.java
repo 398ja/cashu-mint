@@ -106,14 +106,14 @@ public class CashuController<T extends Secret> {
 
     @PostMapping("/mint/quote/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request,
-                                                           @PathVariable("method") String method) {
+                                                           @PathVariable("method") String method) throws CashuErrorException {
         var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/mint/quote/{method}/{quote_id}")
     public ResponseEntity<PostMintQuoteResponse> quoteMint(@PathVariable("method") String method,
-                                                           @PathVariable("quote_id") String quoteId) {
+                                                           @PathVariable("quote_id") String quoteId) throws CashuErrorException {
         PostMintQuoteResponse response = NUT04.quotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
@@ -133,7 +133,7 @@ public class CashuController<T extends Secret> {
      */
     @PostMapping("/mint/quote/voucher/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@RequestBody PostMintQuoteRequest request,
-                                                                  @PathVariable("method") String method) {
+                                                                  @PathVariable("method") String method) throws CashuErrorException {
         var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
         return ResponseEntity.ok(response);
     }
@@ -147,7 +147,7 @@ public class CashuController<T extends Secret> {
      */
     @GetMapping("/mint/quote/voucher/{method}/{quote_id}")
     public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@PathVariable("method") String method,
-                                                                  @PathVariable("quote_id") String quoteId) {
+                                                                  @PathVariable("quote_id") String quoteId) throws CashuErrorException {
         PostMintQuoteResponse response = NUT04.voucherQuotePaymentStatus(quoteId, PaymentMethod.valueOf(method.toUpperCase()));
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
@@ -261,7 +261,7 @@ public class CashuController<T extends Secret> {
     }
 
     @GetMapping("/info")
-    public ResponseEntity<ObjectNode> info() {
+    public ResponseEntity<ObjectNode> info() throws CashuErrorException {
         MintInfo info = nut06.mintInfo();
         ObjectNode node = new ObjectMapper().valueToTree(info);
         addLegacyInfoFields(node, info);

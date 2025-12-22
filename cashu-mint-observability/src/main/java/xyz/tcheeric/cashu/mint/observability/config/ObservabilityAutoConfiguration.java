@@ -18,8 +18,11 @@ import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerIntercept
 import xyz.tcheeric.cashu.mint.observability.metrics.GatewayMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MintMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.QuoteMetrics;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.VoucherMetrics;
+import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 
 /**
  * Auto-configuration for Cashu Mint observability features.
@@ -82,6 +85,20 @@ public class ObservabilityAutoConfiguration {
     public TaskTimingAspect taskTimingAspect(TaskMetrics taskMetrics) {
         log.info("Initializing Cashu Mint task timing aspect");
         return new TaskTimingAspect(taskMetrics);
+    }
+
+    /**
+     * Registers a Micrometer-backed adapter so protocol tasks created with {@code new}
+     * still emit timing and outcome metrics (without relying on proxy-based AOP).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(name = "cashu.observability.tasks.enabled", havingValue = "true", matchIfMissing = true)
+    public TaskMetricsAdapter taskMetricsAdapter(TaskMetrics taskMetrics) {
+        log.info("Registering task metrics adapter for protocol task instrumentation");
+        TaskMetricsAdapter adapter = new MicrometerTaskMetricsAdapter(taskMetrics);
+        TaskExecutionRecorder.register(adapter);
+        return adapter;
     }
 
     /**

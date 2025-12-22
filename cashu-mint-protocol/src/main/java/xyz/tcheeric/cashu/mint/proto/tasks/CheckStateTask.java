@@ -5,7 +5,6 @@ import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.PostCheckStateResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
@@ -23,7 +22,7 @@ import java.util.UUID;
 /**
  * Task that checks the state of a list of proofs for a given mint.
  */
-public class CheckStateTask implements Task<PostCheckStateResponse> {
+public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
 
     private final UUID mintId;
     private final PostCheckStateRequest request;
@@ -53,7 +52,7 @@ public class CheckStateTask implements Task<PostCheckStateResponse> {
     }
 
     @Override
-    public PostCheckStateResponse execute() throws CashuErrorException {
+    protected PostCheckStateResponse doExecute() throws CashuErrorException {
         PostCheckStateResponse response = new PostCheckStateResponse();
 
         MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));

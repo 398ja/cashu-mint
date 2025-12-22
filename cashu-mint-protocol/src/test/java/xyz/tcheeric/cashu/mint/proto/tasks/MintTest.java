@@ -43,6 +43,7 @@ public class MintTest {
 
     private static final String VALID_KEYSET_ID = "004cf8cba2f93266";
 
+    // Ensures minting succeeds and returns signatures when invoice is paid
     @Test
     public void mockMint() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
@@ -92,8 +93,9 @@ public class MintTest {
         assertEquals("004cf8cba2f93266", response.getBlindSignatures().get(0).getKeySetId().toString());
     }
 
+    // Ensures mint quote can be created through the mocked gateway
     @Test
-    public void mockMintQuote() {
+    public void mockMintQuote() throws CashuErrorException {
         Gateway mockGatewayQuote = Mockito.mock(Gateway.class);
         Mockito.when(mockGatewayQuote.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
         Mockito.when(mockGatewayQuote.getRequest("qid")).thenReturn("req");
@@ -108,6 +110,7 @@ public class MintTest {
         assertFalse(postMintQuoteResponse.isPaid());
     }
 
+    // Ensures minting fails cleanly when the invoice is not paid
     @Test
     public void mockMintNotPaid() throws CashuErrorException {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");

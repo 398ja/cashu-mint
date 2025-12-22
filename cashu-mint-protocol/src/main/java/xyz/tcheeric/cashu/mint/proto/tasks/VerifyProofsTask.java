@@ -5,20 +5,19 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
-import xyz.tcheeric.cashu.common.Proof;
-import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.VoucherWellKnownSecret;
 import xyz.tcheeric.cashu.common.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 import java.util.List;
 
@@ -74,14 +73,14 @@ final class VoucherSecretDetector {
 
 @Slf4j
 @AllArgsConstructor
-public class VerifyProofsTask<T extends Secret> implements Task<Void> {
+public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private final Mint mint;
     private final PostSwapRequest<T> request;
     private final MintProtocolService mintProtocolService;
 
     @Override
-    public Void execute() throws CashuErrorException {
+    protected Void doExecute() throws CashuErrorException {
 
         log.info("Verifying proofs....");
         validateAmounts();
