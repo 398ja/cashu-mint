@@ -46,3 +46,4 @@ build/
 /cashu-mint-rest-it/logs/
 /.claude/
 /cashu-mint-observability/logs/
+/project/
