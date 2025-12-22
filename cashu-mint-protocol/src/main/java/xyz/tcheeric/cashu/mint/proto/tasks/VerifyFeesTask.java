@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
@@ -13,14 +12,14 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 
 @Slf4j
 @AllArgsConstructor
-public class VerifyFeesTask<T extends Secret> implements Task<Void> {
+public class VerifyFeesTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private final PostSwapRequest<T> request;
     private final PostSwapResponse response;
     private final MintLoadService mintLoadService;
 
     @Override
-    public Void execute() throws CashuErrorException {
+    protected Void doExecute() throws CashuErrorException {
         validateFees();
         return null;
     }

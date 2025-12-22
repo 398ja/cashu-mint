@@ -8,7 +8,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -16,7 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 
 @Slf4j
-public class SignBlindedMessageTask implements Task<BlindSignature> {
+public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
 
     private final Mint mint;
     private final BlindedMessage blindedMessage;
@@ -34,7 +33,7 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     }
 
     @Override
-    public BlindSignature execute() throws CashuErrorException {
+    protected BlindSignature doExecute() throws CashuErrorException {
         if (log.isDebugEnabled()) {
             log.debug("Signing blinded message: amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId());

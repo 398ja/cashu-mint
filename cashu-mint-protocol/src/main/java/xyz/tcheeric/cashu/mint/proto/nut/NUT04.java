@@ -25,19 +25,19 @@ import java.util.UUID;
 @Slf4j
 public class NUT04 {
 
-    public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) {
+    public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) throws CashuErrorException {
         return new MintQuoteTask(amount, method).execute();
     }
 
-    public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method, String unit) {
+    public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
         return new MintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance()).execute();
     }
 
-    public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
+    public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {
         return new MintQuoteStatusTask(quoteId, method).execute();
     }
 
-    public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) {
+    public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
         return new MintQuoteStatusTask(quoteId, method, unit, MintProtocolServiceFactory.getInstance()).execute();
     }
 
@@ -71,7 +71,7 @@ public class NUT04 {
      * @param method the payment method
      * @return the mint quote response with fee-based invoice
      */
-    public static PostMintQuoteResponse quoteVoucher(int amount, @NonNull PaymentMethod method) {
+    public static PostMintQuoteResponse quoteVoucher(int amount, @NonNull PaymentMethod method) throws CashuErrorException {
         return new VoucherMintQuoteTask(amount, method).execute();
     }
 
@@ -83,7 +83,7 @@ public class NUT04 {
      * @param unit   the unit (e.g., "sat", "usd")
      * @return the mint quote response with fee-based invoice
      */
-    public static PostMintQuoteResponse quoteVoucher(int amount, @NonNull PaymentMethod method, String unit) {
+    public static PostMintQuoteResponse quoteVoucher(int amount, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
         return new VoucherMintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance()).execute();
     }
 
@@ -96,7 +96,7 @@ public class NUT04 {
      * @param method  the payment method
      * @return the quote status response
      */
-    public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) {
+    public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {
         return new MintQuoteStatusTask(quoteId, method).execute();
     }
 
@@ -108,7 +108,7 @@ public class NUT04 {
      * @param unit    the unit (e.g., "sat", "usd")
      * @return the quote status response
      */
-    public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) {
+    public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
         return new MintQuoteStatusTask(quoteId, method, unit, MintProtocolServiceFactory.getInstance()).execute();
     }
 

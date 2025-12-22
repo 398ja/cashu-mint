@@ -4,16 +4,15 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
-public class ActiveKeySetsTask implements Task<List<ActiveKeySet>> {
+public class ActiveKeySetsTask extends InstrumentedTask<List<ActiveKeySet>> {
 
     private final MintLoadService mintLoadService;
 
@@ -26,7 +25,7 @@ public class ActiveKeySetsTask implements Task<List<ActiveKeySet>> {
     }
 
     @Override
-    public List<ActiveKeySet> execute() throws CashuErrorException {
+    protected List<ActiveKeySet> doExecute() throws CashuErrorException {
         log.debug("execute()");
         // Deduplicate by keyset id. If a keyset appears in both sources, prefer active=true.
         java.util.Map<String, ActiveKeySet> byId = new java.util.HashMap<>();

@@ -6,14 +6,13 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 
 import java.util.UUID;
 
@@ -21,7 +20,7 @@ import java.util.UUID;
  * Task that loads the mint and delegates to {@link MintTask} for signing.
  */
 @Slf4j
-public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> {
+public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintResponse> {
 
     private final UUID mintId;
     private final PostMintRequest<T> postMintRequest;
@@ -68,7 +67,7 @@ public class MintTokensTask<T extends Secret> implements Task<PostMintResponse> 
     }
 
     @Override
-    public PostMintResponse execute() throws CashuErrorException {
+    protected PostMintResponse doExecute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
         return new MintTask<>(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService).execute();
     }

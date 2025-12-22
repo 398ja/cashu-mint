@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.gateway.common.Gateway;
@@ -14,8 +15,9 @@ import static org.mockito.Mockito.when;
 
 public class MintQuoteTaskTest {
 
+    // Ensures mint quote creation returns the gateway-generated identifiers
     @Test
-    public void quote() {
+    public void quote() throws CashuErrorException {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
         when(gateway.getRequest("qid")).thenReturn("req");
@@ -33,8 +35,9 @@ public class MintQuoteTaskTest {
         assertFalse(response.isPaid());
     }
 
+    // Ensures mint quote status reflects current gateway state
     @Test
-    public void quoteStatus() {
+    public void quoteStatus() throws CashuErrorException {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.getRequest("qid")).thenReturn("req");
         when(gateway.getPaymentExpiry("qid")).thenReturn(123);

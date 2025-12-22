@@ -9,7 +9,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.common.util.SplittingService;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
@@ -31,7 +30,7 @@ import java.util.stream.Collectors;
 
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
 @Slf4j
-public class MintTask<T extends Secret> implements Task<PostMintResponse> {
+public class MintTask<T extends Secret> extends InstrumentedTask<PostMintResponse> {
     private final PostMintRequest<T> postMintRequest;
     private final PaymentMethod method;
     private final String unit;
@@ -64,7 +63,7 @@ public class MintTask<T extends Secret> implements Task<PostMintResponse> {
     }
 
     @Override
-    public PostMintResponse execute() throws CashuErrorException {
+    protected PostMintResponse doExecute() throws CashuErrorException {
         ThreadUtil.MINT_MELT_LOCK.lock();
         try {
             PostMintResponse result = new PostMintResponse();
