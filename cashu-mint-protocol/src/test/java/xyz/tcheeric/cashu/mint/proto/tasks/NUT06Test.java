@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintInfoService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
@@ -24,7 +25,7 @@ class NUT06Test {
 
     @Test
     // Ensures mint info YAML is parsed and provides NUT-04 and NUT-05 details
-    void testInfo() {
+    void testInfo() throws CashuErrorException {
         MintInfo mintInfo = nut06.mintInfo();
         assertNotNull(mintInfo);
 
@@ -44,7 +45,7 @@ class NUT06Test {
 
     @Test
     // Ensures the mint advertises support for NUT-09 restore signatures
-    void nut9Supported() {
+    void nut9Supported() throws CashuErrorException {
         MintInfo mintInfo = nut06.mintInfo();
         Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
 

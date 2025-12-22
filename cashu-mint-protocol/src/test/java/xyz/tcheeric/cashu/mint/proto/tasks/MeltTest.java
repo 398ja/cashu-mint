@@ -371,7 +371,7 @@ public class MeltTest {
                 List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
                 return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
                     @Override
-                    public List<Proof<RandomStringSecret>> execute() {
+                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
                         return typedProofs;
                     }
                 };
@@ -390,7 +390,7 @@ public class MeltTest {
                 List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
                 return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
                     @Override
-                    public List<Proof<RandomStringSecret>> execute() {
+                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
                         return typedProofs;
                     }
                 };
@@ -501,7 +501,7 @@ public class MeltTest {
                 List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
                 return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
                     @Override
-                    public List<Proof<RandomStringSecret>> execute() {
+                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
                         return typedProofs;
                     }
                 };
@@ -520,7 +520,7 @@ public class MeltTest {
                 List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
                 return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
                     @Override
-                    public List<Proof<RandomStringSecret>> execute() {
+                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
                         return typedProofs;
                     }
                 };

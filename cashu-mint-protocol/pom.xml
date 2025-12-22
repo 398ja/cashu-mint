@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.4.0</version>
+        <version>0.4.7</version>
     </parent>
 
     <artifactId>cashu-mint-protocol</artifactId>
     <packaging>jar</packaging>
-    <version>0.4.0</version>
+    <version>0.4.7</version>
 
     <name>cashu-mint-protocol</name>
     <url>http://maven.apache.org</url>
@@ -22,6 +22,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-common</artifactId>
+            <version>${cashu-lib.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -32,10 +33,12 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
+            <version>${cashu-lib.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
+            <version>${cashu-lib.version}</version>
         </dependency>
         <!-- Voucher domain for Model B rejection -->
         <dependency>
@@ -84,6 +87,11 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-inline</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>

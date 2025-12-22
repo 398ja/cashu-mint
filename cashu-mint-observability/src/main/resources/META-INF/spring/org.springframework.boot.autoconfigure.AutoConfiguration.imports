@@ -1,0 +1,2 @@
+xyz.tcheeric.cashu.mint.observability.config.ObservabilityAutoConfiguration
+xyz.tcheeric.cashu.mint.observability.tracing.TracingAutoConfiguration

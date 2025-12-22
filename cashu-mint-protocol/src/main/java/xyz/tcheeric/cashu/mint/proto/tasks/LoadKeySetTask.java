@@ -4,14 +4,13 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 
 import java.util.List;
 
 @Slf4j
-public class LoadKeySetTask implements Task<KeySet> {
+public class LoadKeySetTask extends InstrumentedTask<KeySet> {
 
     private final String keysetId;
     private final MintLoadService mintLoadService;
@@ -26,7 +25,7 @@ public class LoadKeySetTask implements Task<KeySet> {
     }
 
     @Override
-    public KeySet execute() throws CashuErrorException {
+    protected KeySet doExecute() throws CashuErrorException {
         List<KeySet> keySets = mintLoadService.keySets();
         log.debug("keysets: {}", keySets);
         return keySets

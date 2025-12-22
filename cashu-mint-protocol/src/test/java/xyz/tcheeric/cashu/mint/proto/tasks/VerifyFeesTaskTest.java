@@ -35,7 +35,12 @@ public class VerifyFeesTaskTest {
     }
 
     private BlindSignature createSignature(int amount) {
-        return new BlindSignature(amount, KeysetId.fromString(VALID_KEYSET_ID), SignatureTestData.sampleSignature());
+        return new BlindSignature(
+                amount,
+                KeysetId.fromString(VALID_KEYSET_ID),
+                SignatureTestData.sampleSignature(),
+                null
+        );
     }
 
     /**
@@ -84,4 +89,3 @@ public class VerifyFeesTaskTest {
         assertThrows(CashuErrorException.class, task::execute);
     }
 }
-

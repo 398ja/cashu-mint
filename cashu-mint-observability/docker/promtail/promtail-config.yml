@@ -1,0 +1,166 @@
+# Promtail configuration for Cashu Mint log collection
+# Collects logs from Docker containers and sends to Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576  # 1MB
+    timeout: 10s
+
+scrape_configs:
+  # Docker container logs
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project"]
+    relabel_configs:
+      # Keep only cashu-related containers
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(cashu-.*)'
+        action: keep
+      # Extract container name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Extract compose service name
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      # Extract compose project
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: project
+      # Add job label
+      - replacement: 'docker'
+        target_label: job
+    pipeline_stages:
+      # Parse JSON logs from Spring Boot
+      - json:
+          expressions:
+            timestamp: '@timestamp'
+            level: level
+            logger: logger_name
+            message: message
+            thread: thread_name
+            trace_id: trace_id
+            span_id: span_id
+            exception: stack_trace
+      # Set timestamp from log
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02T15:04:05.000Z07:00'
+          fallback_formats:
+            - '2006-01-02T15:04:05.000Z'
+            - '2006-01-02 15:04:05.000'
+      # Extract log level
+      - labels:
+          level:
+          logger:
+          thread:
+          trace_id:
+          span_id:
+      # Output format
+      - output:
+          source: message
+      # Handle multiline stack traces
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}|^\{'
+          max_wait_time: 3s
+          max_lines: 128
+
+  # Alternative: File-based log collection (for mounted log volumes)
+  - job_name: cashu-mint-files
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cashu-mint-logs
+          __path__: /var/log/cashu-mint/*.log
+    pipeline_stages:
+      # Parse standard log format
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)\s+\[(?P<thread>[^\]]+)\]\s+(?P<logger>[^\s]+)\s+:\s+(?P<message>.*)$'
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05.000'
+      - labels:
+          level:
+          logger:
+          thread:
+      - output:
+          source: message
+
+# Cashu Mint specific log patterns
+  - job_name: cashu-mint-structured
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: name
+            values: ["cashu-mint-rest-dev"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      - replacement: 'cashu-mint'
+        target_label: service
+      - replacement: 'cashu-mint-structured'
+        target_label: job
+    pipeline_stages:
+      # Try to parse as JSON first
+      - match:
+          selector: '{job="cashu-mint-structured"}'
+          stages:
+            - json:
+                expressions:
+                  timestamp: '@timestamp'
+                  level: level
+                  logger: logger_name
+                  message: message
+                  method: http_method
+                  path: http_path
+                  status: http_status
+                  duration: duration_ms
+                  request_id: request_id
+                  trace_id: trace_id
+                  task_name: task_name
+                  error_type: error_type
+            - labels:
+                level:
+                logger:
+                method:
+                path:
+                status:
+                task_name:
+                error_type:
+                trace_id:
+            - timestamp:
+                source: timestamp
+                format: '2006-01-02T15:04:05.000Z07:00'
+                fallback_formats:
+                  - RFC3339
+                  - '2006-01-02T15:04:05.000Z'
+      # Extract metrics from logs
+      - metrics:
+          log_lines_total:
+            type: Counter
+            description: "Total log lines processed"
+            source: message
+            config:
+              action: inc
+          log_errors_total:
+            type: Counter
+            description: "Total error logs"
+            source: level
+            config:
+              match_all: true
+              action: inc
+              match:
+                level: "ERROR"
