@@ -2,34 +2,52 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.DLEQProof;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultDLEQProofGenerator;
 
 
 @Slf4j
 public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
 
+    private static final ECNamedCurveParameterSpec CURVE = ECNamedCurveTable.getParameterSpec("secp256k1");
+
     private final Mint mint;
     private final BlindedMessage blindedMessage;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
+    private final DLEQProofGenerator dleqProofGenerator;
 
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService) {
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator());
+    }
+
+    public SignBlindedMessageTask(@NonNull Mint mint,
+                                  @NonNull BlindedMessage blindedMessage,
+                                  @NonNull MintProtocolService mintProtocolService,
+                                  @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull DLEQProofGenerator dleqProofGenerator) {
         this.mint = mint;
         this.blindedMessage = blindedMessage;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
+        this.dleqProofGenerator = dleqProofGenerator;
     }
 
     @Override
@@ -98,10 +116,33 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
             log.debug("Normalized blind signature hex={}", hex);
         }
 
+        DLEQProof dleqProof = null;
+        try {
+            ECPoint blindedMessagePoint = CURVE.getCurve()
+                    .decodePoint(blindedMessage.getBlindedMessage().getBytes())
+                    .normalize();
+            ECPoint blindSignaturePoint = CURVE.getCurve()
+                    .decodePoint(sigObj.getCompressedBytes())
+                    .normalize();
+            dleqProof = dleqProofGenerator.generateProof(
+                    new java.math.BigInteger(1, privateKey.getBytes()),
+                    blindedMessagePoint,
+                    blindSignaturePoint
+            );
+            if (log.isDebugEnabled()) {
+                log.debug("Generated DLEQ proof for amount={} keySetId={}",
+                        blindedMessage.getAmount(), blindedMessage.getKeySetId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to generate DLEQ proof for blinded message amount={} keySetId={}: {}",
+                    blindedMessage.getAmount(), blindedMessage.getKeySetId(), e.getMessage());
+        }
+
         BlindSignature blindSignature = new BlindSignature(
                 blindedMessage.getAmount(),
                 blindedMessage.getKeySetId(),
                 sigObj,
+                dleqProof,
                 null
         );
         signatureVaultService.store(blindedMessage, blindSignature);
