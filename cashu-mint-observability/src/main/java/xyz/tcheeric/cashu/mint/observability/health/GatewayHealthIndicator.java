@@ -58,6 +58,7 @@ public class GatewayHealthIndicator implements HealthIndicator {
         long timeSinceLastError = now - lastErrorTime.get();
 
         Health.Builder builder;
+        boolean hasObservedSuccess = successCount.get() > 0;
 
         if (!healthy.get()) {
             builder = Health.down();
@@ -65,7 +66,8 @@ public class GatewayHealthIndicator implements HealthIndicator {
         } else if (timeSinceLastSuccess > STALE_THRESHOLD_MS && lastErrorTime.get() > lastSuccessTime.get()) {
             builder = Health.down();
             builder.withDetail("status", "no_recent_success");
-        } else if (timeSinceLastSuccess > timeoutMs) {
+        } else if (hasObservedSuccess && timeSinceLastSuccess > timeoutMs) {
+            // Avoid flipping to stale when we have never seen a gateway response; wait for real data first.
             builder = Health.unknown();
             builder.withDetail("status", "stale");
         } else {
