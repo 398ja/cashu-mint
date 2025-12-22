@@ -5,7 +5,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -18,7 +17,7 @@ import java.util.UUID;
 /**
  * Task responsible for loading a mint by id and executing the melting of tokens.
  */
-public class MeltTokensTask<T extends Secret> implements Task<PostMeltResponse> {
+public class MeltTokensTask<T extends Secret> extends InstrumentedTask<PostMeltResponse> {
 
     private final UUID mintId;
     private final PostMeltRequest<T> request;
@@ -59,7 +58,7 @@ public class MeltTokensTask<T extends Secret> implements Task<PostMeltResponse> 
     }
 
     @Override
-    public PostMeltResponse execute() throws CashuErrorException {
+    protected PostMeltResponse doExecute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, true);
         MeltTask<T> meltTask = new MeltTask<>(request, method, unit, mint,
                 mintProtocolService, mintLoadService, mintVaultService, proofVaultService);

@@ -6,18 +6,17 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.List;
 
 @Slf4j
-public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T>>> {
+public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<List<Proof<T>>> {
 
     private final Mint mint;
     private final List<Proof<T>> proofs;
@@ -40,7 +39,7 @@ public class InvalidateProofsTask<T extends Secret> implements Task<List<Proof<T
     }
 
     @Override
-    public List<Proof<T>> execute() throws CashuErrorException {
+    protected List<Proof<T>> doExecute() throws CashuErrorException {
         var mintEntity = mintVaultService.retrieveMint(mint.getId());
         for (Proof<T> proof : proofs) {
             // Build a minimal, database-ready ProofEntity without invoking heavy cryptographic conversions

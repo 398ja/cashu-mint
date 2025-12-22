@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
+import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import xyz.tcheeric.cashu.voucher.domain.SignedVoucher;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.VoucherStatus;
@@ -79,7 +80,11 @@ class VoucherControllerTest {
                 "sat",
                 10000L,
                 null,
-                "Test voucher"
+                "Test voucher",
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
+                null
         );
 
         SignedVoucher signedVoucher = new SignedVoucher(

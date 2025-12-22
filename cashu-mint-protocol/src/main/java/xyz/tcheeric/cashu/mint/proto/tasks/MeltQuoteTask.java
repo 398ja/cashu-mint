@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -14,7 +13,7 @@ import xyz.tcheeric.gateway.common.Gateway;
 /**
  * Task used for generating melt quotes via the configured payment gateway.
  */
-public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
+public class MeltQuoteTask extends InstrumentedTask<PostMeltQuoteResponse> {
 
     private final PostMeltQuoteRequest request;
     private final PaymentMethod method;
@@ -43,7 +42,7 @@ public class MeltQuoteTask implements Task<PostMeltQuoteResponse> {
     }
 
     @Override
-    public PostMeltQuoteResponse execute() throws CashuErrorException {
+    protected PostMeltQuoteResponse doExecute() throws CashuErrorException {
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, unit);
         String quoteId = gateway.createMeltQuote(request.getRequest());

@@ -20,7 +20,7 @@ java -jar cashu-mint-rest.jar
 #### Using a system property
 
 ```bash
-java -Dcashu_mint_port=8888 -jar cashu-mint-rest.jar
+java -Dserver.port=8888 -jar cashu-mint-rest.jar
 ```
 
-Both methods override the `cashu_mint_port` property defined in the configuration reference.
+Both methods override the HTTP port for the REST API.

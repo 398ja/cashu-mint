@@ -8,20 +8,19 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
-import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
+import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -29,7 +28,7 @@ import java.util.List;
 
 // TEST -
 @Slf4j
-public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
+public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltResponse> {
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
     private final String unit;
@@ -69,7 +68,7 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     }
 
     @Override
-    public PostMeltResponse execute() throws CashuErrorException {
+    protected PostMeltResponse doExecute() throws CashuErrorException {
         // TODO - Use java module instead?
         List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
@@ -134,9 +133,21 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
     }
 
     public boolean verify(@NonNull Proof proof) throws CashuErrorException {
+        if (proof.getSecret() == null || proof.getUnblindedSignature() == null) {
+            log.error("melt_verify_missing_data secretPresent={} signaturePresent={}",
+                    proof.getSecret() != null, proof.getUnblindedSignature() != null);
+            return false;
+        }
         PrivateKey privateKey = mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
         if (privateKey != null) {
-            return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(), proof.getUnblindedSignature().getBytes());
+            try {
+                return BDHKEUtils.verify(proof.getSecret().toString(), privateKey.toBytes(),
+                        proof.getUnblindedSignature().getBytes());
+            } catch (IllegalArgumentException | NullPointerException e) {
+                log.error("melt_verify_crypto_error", e);
+                ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
+                throw new CashuErrorException(error.toJson());
+            }
         }
         return false;
     }
@@ -163,15 +174,8 @@ public class MeltTask<T extends Secret> implements Task<PostMeltResponse> {
 
     /**
      * Checks if a secret is a VoucherSecret (Model B enforcement).
-     *
-     * @param secret the secret to check
-     * @return true if the secret is a VoucherSecret
      */
     private boolean isVoucherSecret(Secret secret) {
-        if (secret == null) {
-            return false;
-        }
-        // Check using class name to avoid hard dependency
-        return "xyz.tcheeric.cashu.voucher.domain.VoucherSecret".equals(secret.getClass().getName());
+        return VoucherSecretDetector.isVoucherSecret(secret);
     }
 }

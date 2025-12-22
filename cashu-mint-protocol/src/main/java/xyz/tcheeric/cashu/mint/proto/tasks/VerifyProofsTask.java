@@ -5,18 +5,19 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
-import xyz.tcheeric.cashu.common.Proof;
-import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.VoucherWellKnownSecret;
+import xyz.tcheeric.cashu.common.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 
 import java.util.List;
 
@@ -42,6 +43,13 @@ final class VoucherSecretDetector {
     /**
      * Checks if a secret is a VoucherSecret instance.
      *
+     * <p>This method detects voucher secrets in multiple forms:
+     * <ul>
+     *   <li>VoucherSecret from cashu-voucher-domain (optional dependency)</li>
+     *   <li>VoucherWellKnownSecret from cashu-lib-common (NUT-10 format)</li>
+     *   <li>Any WellKnownSecret with VOUCHER kind</li>
+     * </ul>
+     *
      * @param secret the secret to check
      * @return true if the secret is a VoucherSecret, false otherwise
      */
@@ -49,7 +57,15 @@ final class VoucherSecretDetector {
         if (secret == null) {
             return false;
         }
-        // Check if the secret is an instance of VoucherSecret
+        // Check for VoucherWellKnownSecret (NUT-10 format from cashu-lib-common)
+        if (secret instanceof VoucherWellKnownSecret) {
+            return true;
+        }
+        // Check for WellKnownSecret with VOUCHER kind
+        if (secret instanceof WellKnownSecret wks && wks.getKind() == WellKnownSecret.Kind.VOUCHER) {
+            return true;
+        }
+        // Check for VoucherSecret from cashu-voucher-domain (optional dependency)
         // This works even if the class is loaded optionally
         return VOUCHER_SECRET_CLASS.equals(secret.getClass().getName());
     }
@@ -57,14 +73,14 @@ final class VoucherSecretDetector {
 
 @Slf4j
 @AllArgsConstructor
-public class VerifyProofsTask<T extends Secret> implements Task<Void> {
+public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private final Mint mint;
     private final PostSwapRequest<T> request;
     private final MintProtocolService mintProtocolService;
 
     @Override
-    public Void execute() throws CashuErrorException {
+    protected Void doExecute() throws CashuErrorException {
 
         log.info("Verifying proofs....");
         validateAmounts();
@@ -96,19 +112,6 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
 
         for (Proof<T> proof : proofs) {
             Secret secret = proof.getSecret();
-
-            // Model B enforcement: Reject voucher secrets
-            // Vouchers can only be redeemed at the issuing merchant, not at the mint
-            if (VoucherSecretDetector.isVoucherSecret(secret)) {
-                log.warn("Voucher secret rejected in swap operation (Model B enforcement)");
-                ErrorResponse error = new ErrorResponse(
-                    "voucher_not_accepted",
-                    "Vouchers cannot be redeemed at mint (Model B). " +
-                    "Please redeem with issuing merchant."
-                );
-                throw new CashuErrorException(error.toJson());
-            }
-
             SpendingCondition<T> spendingCondition = getSpendingCondition(secret, blindedMessages);
             spendingCondition.verify(proof);
         }
@@ -116,13 +119,27 @@ public class VerifyProofsTask<T extends Secret> implements Task<Void> {
         log.info("Verify proofs ok");
     }
 
-    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages) {
+    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
+            throws CashuErrorException {
+        if (VoucherSecretDetector.isVoucherSecret(secret)) {
+            log.warn("Voucher secret detected in swap request - rejecting per Model B");
+            ErrorResponse error = new ErrorResponse(
+                    "voucher_swap_rejected",
+                    "Voucher proofs cannot be swapped at the mint (Model B - redeem with merchant)."
+            );
+            throw new CashuErrorException(error.toJson());
+        }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
         }
-        if (secret instanceof RandomStringSecret) {
+        if (secret instanceof RandomStringSecret || secret instanceof VoucherWellKnownSecret) {
             return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
-        throw new IllegalArgumentException("Unsupported proof type");
+        log.error("Unsupported proof type in swap request: {}", secret.getClass().getName());
+        ErrorResponse error = new ErrorResponse(
+                "unsupported_proof_type",
+                "Unsupported proof type for swap: " + secret.getClass().getSimpleName()
+        );
+        throw new CashuErrorException(error.toJson());
     }
 }

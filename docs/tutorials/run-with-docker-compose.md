@@ -23,23 +23,20 @@ You should receive a JSON response with details about the mint.
 
 ### Gateway mapping in dev
 
-The dev profile maps Bolt11 to the Dummy gateway class by default. Ensure your `cashu-gateway` Dummy implementation supports `BOLT11`.
-
-- Default (no action needed): dev sets `GATEWAY_BOLT11_SAT` and `GATEWAY_BOLT11` to `xyz.tcheeric.gateway.dummy.DummyGateway`.
-- Override in dev: point to a different gateway by exporting `GATEWAY_BOLT11_SAT` when starting compose, e.g.:
+The dev profile maps Bolt11 to the Phoenixd gateway, backed by the `phoenixd-mock` service. Override the mapping by exporting `GATEWAY_BOLT11_SAT` when starting compose, e.g.:
 
 ```bash
-GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway \
+GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.dummy.DummyGateway \
   docker compose --profile dev up
 ```
 
-Note: If your current Dummy gateway does not support Bolt11 yet, update `cashu-gateway` accordingly (see how-to: Configure gateways). This only affects the dev stack. Production continues to use Phoenixd via properties unless you override.
+Use the Dummy gateway for fully offline demos or leave the default Phoenixd mapping to exercise invoice flows against the mock service.
 
 ## Start the production profile
-Set the Phoenixd service to the real backend and start the production profile:
+Point the gateway at a real Phoenixd backend and start the production profile:
 
 ```bash
-PHOENIXD_SERVICE=phoenixd-rest PHOENIXD_API_KEY=<your-key> docker compose --profile prod up
+PHOENIXD_SERVICE=phoenixd PHOENIXD_API_KEY=<your-key> docker compose --profile prod up
 ```
 
 Once the containers are healthy, the mint API is again accessible at `http://localhost:7777/v1`, now backed by a real Phoenixd instance.

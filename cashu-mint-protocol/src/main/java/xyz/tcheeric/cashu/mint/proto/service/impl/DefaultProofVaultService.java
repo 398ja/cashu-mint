@@ -38,7 +38,10 @@ public class DefaultProofVaultService implements ProofVaultService {
     @Override
     public ProofEntity retrieveProof(String secret) throws CashuErrorException {
         try {
-            String normalizedSecret = SecretUtil.toY(SecretUtil.toSecret(secret));
+            // Use toYFromString to compute Y directly from the secret string.
+            // Per Cashu spec, Y = hash_to_curve(secret_string) where secret_string
+            // is the UTF-8 encoding of the secret (e.g., "64hexchars" or "["VOUCHER",...]")
+            String normalizedSecret = SecretUtil.toYFromString(secret);
             return DBProofVault.retrieveProof(normalizedSecret);
         } catch (CashuErrorException e) {
             // Log and return null so callers can treat missing/errored lookups as no-proof-found

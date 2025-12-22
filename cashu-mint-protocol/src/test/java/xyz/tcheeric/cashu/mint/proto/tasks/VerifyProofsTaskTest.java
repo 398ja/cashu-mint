@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
+import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSecret;
 import xyz.tcheeric.cashu.common.Proof;
 
@@ -195,7 +196,11 @@ public class VerifyProofsTaskTest {
                 "sat",
                 5000L,
                 null,
-                "Test voucher"
+                "Test voucher",
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
+                null
         );
 
         boolean result = VoucherSecretDetector.isVoucherSecret(voucherSecret);
@@ -228,7 +233,11 @@ public class VerifyProofsTaskTest {
                 "sat",
                 10000L,
                 System.currentTimeMillis() / 1000 + 86400 * 30, // Expires in 30 days
-                "Coffee shop gift card - $10"
+                "Coffee shop gift card - $10",
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
+                null
         );
 
         // Verify the voucher secret is valid
@@ -289,7 +298,11 @@ public class VerifyProofsTaskTest {
                 "sat",
                 5000L,
                 null,
-                "Restaurant voucher"
+                "Restaurant voucher",
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
+                null
         );
 
         VoucherSecret voucher2 = VoucherSecret.create(
@@ -297,7 +310,11 @@ public class VerifyProofsTaskTest {
                 "sat",
                 3000L,
                 null,
-                "Cafe voucher"
+                "Cafe voucher",
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
+                null
         );
 
         Proof<VoucherSecret> voucherProof1 = new Proof<>();
@@ -360,6 +377,10 @@ public class VerifyProofsTaskTest {
                 "sat",
                 1000L,
                 null,
+                null,
+                BackingStrategy.MINIMAL,
+                1.0,
+                0,
                 null
         );
 

@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.PaymentMethod;
-import xyz.tcheeric.cashu.common.util.Task;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
@@ -33,7 +33,7 @@ import xyz.tcheeric.gateway.common.Gateway;
  * @see VoucherQuoteRegistry
  */
 @Slf4j
-public class VoucherMintQuoteTask implements Task<PostMintQuoteResponse> {
+public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
 
     private final int faceValue;
     private final PaymentMethod method;
@@ -62,7 +62,7 @@ public class VoucherMintQuoteTask implements Task<PostMintQuoteResponse> {
     }
 
     @Override
-    public PostMintQuoteResponse execute() {
+    protected PostMintQuoteResponse doExecute() throws CashuErrorException {
         log.info("Creating voucher mint quote: faceValue={}, method={}", faceValue, method);
 
         // Load fee percentage from configuration

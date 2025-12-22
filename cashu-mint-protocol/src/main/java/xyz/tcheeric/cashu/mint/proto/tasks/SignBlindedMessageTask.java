@@ -8,7 +8,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.Task;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -16,7 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 
 @Slf4j
-public class SignBlindedMessageTask implements Task<BlindSignature> {
+public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
 
     private final Mint mint;
     private final BlindedMessage blindedMessage;
@@ -34,7 +33,7 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
     }
 
     @Override
-    public BlindSignature execute() throws CashuErrorException {
+    protected BlindSignature doExecute() throws CashuErrorException {
         if (log.isDebugEnabled()) {
             log.debug("Signing blinded message: amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId());
@@ -47,7 +46,10 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
             throw new CashuErrorException(error.toJson());
         }
 
-        byte[] signature = BDHKEUtils.signBlindedMessage(blindedMessage.getBlindedMessage().toBytes(), privateKey.toBytes());
+        byte[] signature = BDHKEUtils.signBlindedMessage(
+                blindedMessage.getBlindedMessage().getBytes(),
+                privateKey.getBytes()
+        );
         if (log.isDebugEnabled()) {
             int len = signature == null ? -1 : signature.length;
             int first = (signature != null && signature.length > 0) ? (signature[0] & 0xFF) : -1;
@@ -96,7 +98,12 @@ public class SignBlindedMessageTask implements Task<BlindSignature> {
             log.debug("Normalized blind signature hex={}", hex);
         }
 
-        BlindSignature blindSignature = new BlindSignature(blindedMessage.getAmount(), blindedMessage.getKeySetId(), sigObj);
+        BlindSignature blindSignature = new BlindSignature(
+                blindedMessage.getAmount(),
+                blindedMessage.getKeySetId(),
+                sigObj,
+                null
+        );
         signatureVaultService.store(blindedMessage, blindSignature);
         if (log.isDebugEnabled()) {
             log.debug("Stored blind signature for amount={} keySetId={}",
