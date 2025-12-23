@@ -107,16 +107,23 @@ voucher:
 #       - "7777:7777"
 #
 # ===================================================================
-# Model B Enforcement
+# Model B Vouchers
 # ===================================================================
 #
 # This mint implements Model B vouchers:
 # - Vouchers are issued by the mint but signed with separate issuer keys
-# - Vouchers can ONLY be redeemed at the issuing merchant
-# - Vouchers CANNOT be swapped or melted at the mint
-# - Attempting to swap/melt vouchers will result in rejection
+# - Vouchers can ONLY be REDEEMED (for goods/services) at the issuing merchant
+# - Vouchers CAN be swapped at the mint (essential for P2P transfers and double-spend prevention)
+# - Model B enforcement (merchant-only redemption) happens at the APPLICATION layer, not here
 #
-# This ensures vouchers remain store credit and cannot be converted
-# back to bitcoin at the mint.
+# Why swaps must be allowed:
+# - Double-spend prevention: Receivers must swap to get fresh proofs
+# - P2P transfers: Alice sends to Carol, Carol swaps to prevent Alice double-spending
+# - Splitting: Re-partitioning proofs for partial sends requires swap
+#
+# Model B vs Model A:
+# - Model A: Anyone can redeem vouchers at the mint (convert to bitcoin)
+# - Model B: Only the merchant can redeem vouchers (merchant validates at application layer)
+# - Both models allow swaps at the mint protocol layer
 #
 # ===================================================================
