@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.5.1] - 2025-12-23
+
 ### Added
 
 - Built-in task instrumentation via `TaskExecutionRecorder`/`InstrumentedTask`, enabling task-level metrics even when protocol tasks are instantiated directly.
@@ -20,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Test infrastructure: enable Mockito inline mock maker with ByteBuddy agent to support static/constructor mocks in CI-friendly environments.
+- Updated cashu-voucher dependency from 0.3.5 to 0.3.6
+- Updated cashu-client dependency from 1.2.5 to 1.2.6
+- Updated nostr-java dependency from 1.0.1 to 1.1.0
 
 ---
 
