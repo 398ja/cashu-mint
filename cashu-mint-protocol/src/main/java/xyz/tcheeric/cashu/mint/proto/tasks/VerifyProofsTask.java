@@ -121,13 +121,12 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
             throws CashuErrorException {
+        // Voucher proofs use standard BDHKE verification (same as RandomStringSecret)
+        // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
+        // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
         if (VoucherSecretDetector.isVoucherSecret(secret)) {
-            log.warn("Voucher secret detected in swap request - rejecting per Model B");
-            ErrorResponse error = new ErrorResponse(
-                    "voucher_swap_rejected",
-                    "Voucher proofs cannot be swapped at the mint (Model B - redeem with merchant)."
-            );
-            throw new CashuErrorException(error.toJson());
+            log.debug("Voucher secret detected in swap - processing with standard BDHKE verification");
+            return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
