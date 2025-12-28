@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.2] - 2025-12-28
+
+### Changed
+
+- Updated cashu-voucher dependency from 0.3.6 to 0.3.7
+- Updated cashu-wallet dependency from 0.4.0 to 0.4.2
+- Updated cashu-client dependency from 1.2.6 to 1.2.7
+
+---
+
 ## [0.5.1] - 2025-12-23
 
 ### Added
