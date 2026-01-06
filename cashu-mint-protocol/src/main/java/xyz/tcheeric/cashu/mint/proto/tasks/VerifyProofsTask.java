@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
 
 import java.util.List;
 
@@ -121,13 +122,12 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
             throws CashuErrorException {
+        // Voucher proofs use dynamic key derivation for arbitrary denominations
+        // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
+        // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
         if (VoucherSecretDetector.isVoucherSecret(secret)) {
-            log.warn("Voucher secret detected in swap request - rejecting per Model B");
-            ErrorResponse error = new ErrorResponse(
-                    "voucher_swap_rejected",
-                    "Voucher proofs cannot be swapped at the mint (Model B - redeem with merchant)."
-            );
-            throw new CashuErrorException(error.toJson());
+            log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with dynamic key derivation");
+            return (SpendingCondition<T>) new VoucherSpendingCondition<>();
         }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);

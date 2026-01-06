@@ -110,9 +110,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             }
 
             gateway.pay(quoteId);
-
-            boolean paid = gateway.checkPaymentStatus(quoteId);
-            if (!paid) {
+            if (!gateway.checkPaymentStatus(quoteId)) {
                 ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error");
                 throw new CashuErrorException(error.toJson());
             }
@@ -128,7 +126,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // Invalidate the proofsToMelt.
             createInvalidateProofsTask(proofsToMelt).execute();
 
-            return new PostMeltResponse(paid, gateway.getPaymentPreimage(quoteId));
+            return new PostMeltResponse(true, gateway.getPaymentPreimage(quoteId));
         }
     }
 

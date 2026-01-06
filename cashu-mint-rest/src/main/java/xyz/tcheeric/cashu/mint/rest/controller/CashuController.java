@@ -449,7 +449,7 @@ public class CashuController<T extends Secret> {
             Field detailMessageField = Throwable.class.getDeclaredField("detailMessage");
             detailMessageField.setAccessible(true);
             Object value = detailMessageField.get(ex);
-            if (value instanceof String s && s != null) {
+            if (value instanceof String s) {
                 rawMessage = s;
             }
         } catch (Exception ignore) {

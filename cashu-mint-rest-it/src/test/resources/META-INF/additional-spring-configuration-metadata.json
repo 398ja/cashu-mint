@@ -1,0 +1,79 @@
+{
+  "properties": [
+    {
+      "name": "phoenixd.payee",
+      "type": "java.lang.String",
+      "description": "Default payee for Phoenixd gateway integration."
+    },
+    {
+      "name": "phoenixd.expiry",
+      "type": "java.lang.Integer",
+      "description": "Invoice expiry in seconds for Phoenixd gateway requests."
+    },
+    {
+      "name": "phoenixd.currency",
+      "type": "java.lang.String",
+      "description": "Currency unit used by Phoenixd (for example sat)."
+    },
+    {
+      "name": "phoenixd.expiration",
+      "type": "java.lang.Integer",
+      "description": "Time-to-live in seconds for Phoenixd quotes."
+    },
+    {
+      "name": "phoenixd.fee.percent",
+      "type": "java.lang.Double",
+      "description": "Percentage-based fee charged by Phoenixd."
+    },
+    {
+      "name": "phoenixd.fee.fixed",
+      "type": "java.lang.Integer",
+      "description": "Fixed fee in millisats charged by Phoenixd."
+    },
+    {
+      "name": "phoenixd.lnaddress",
+      "type": "java.lang.String",
+      "description": "Lightning address used for Phoenixd settlement."
+    },
+    {
+      "name": "A1b2C3d4.wid",
+      "type": "java.lang.String",
+      "description": "Phoenixd webhook identifier used in tests."
+    },
+    {
+      "name": "phoenixd.username",
+      "type": "java.lang.String",
+      "description": "Phoenixd basic auth username."
+    },
+    {
+      "name": "phoenixd.password",
+      "type": "java.lang.String",
+      "description": "Phoenixd basic auth password."
+    },
+    {
+      "name": "phoenixd.base_url",
+      "type": "java.lang.String",
+      "description": "Base URL for Phoenixd API."
+    },
+    {
+      "name": "phoenixd.timeout",
+      "type": "java.lang.Integer",
+      "description": "HTTP timeout for Phoenixd calls in milliseconds."
+    },
+    {
+      "name": "phoenixd.webhook_secret",
+      "type": "java.lang.String",
+      "description": "Shared secret used to validate Phoenixd webhooks."
+    },
+    {
+      "name": "voucher.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enables voucher profile for voucher-backed mints."
+    },
+    {
+      "name": "webhook.wid",
+      "type": "java.lang.String",
+      "description": "Webhook identifier consumed by gateway callbacks."
+    }
+  ]
+}

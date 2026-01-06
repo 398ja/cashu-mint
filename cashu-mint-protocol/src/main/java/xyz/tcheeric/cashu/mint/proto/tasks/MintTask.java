@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherMasterSecretConfig;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.gateway.common.Gateway;
 
@@ -25,6 +26,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -67,27 +69,39 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         ThreadUtil.MINT_MELT_LOCK.lock();
         try {
             PostMintResponse result = new PostMintResponse();
+            List<BlindedMessage> blindedMessages = Objects.requireNonNull(
+                    postMintRequest.getBlindedMessages(),
+                    "Blinded messages must not be null");
 
             // If the invoice was not paid yet, Bob responds with a structured error.
             if (log.isDebugEnabled()) {
                 log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
-                        postMintRequest.getBlindedMessages() == null ? 0 : postMintRequest.getBlindedMessages().size());
-            }
-            Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                    : mintProtocolService.createGateway(method, unit);
-            boolean paid = gateway.checkPaymentStatus(postMintRequest.getQuoteId());
-            if (log.isDebugEnabled()) {
-                log.debug("Payment status for quoteId={} paid={}", postMintRequest.getQuoteId(), paid);
-            }
-            if (!paid) {
-                ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-                throw new CashuErrorException(error.toJson());
+                        blindedMessages.size());
             }
 
-            List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
+            String quoteId = postMintRequest.getQuoteId();
+
+            // Voucher tokens use mock payment - no real bitcoin backing needed
+            boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
+
+            if (isVoucherQuote) {
+                // Vouchers are merchant IOUs - skip payment verification
+                log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true", quoteId);
+            } else {
+                // Regular tokens require real Lightning payment per NUT-04
+                Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                        : mintProtocolService.createGateway(method, unit);
+                boolean paid = gateway.checkPaymentStatus(quoteId);
+                if (log.isDebugEnabled()) {
+                    log.debug("Payment status for quoteId={} paid={}", quoteId, paid);
+                }
+                if (!paid) {
+                    ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
+                    throw new CashuErrorException(error.toJson());
+                }
+            }
 
             // Check if this is a voucher quote and validate against face value
-            String quoteId = postMintRequest.getQuoteId();
             Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
             if (voucherFaceValue != null) {
                 // This is a voucher quote - validate total amount matches face value
@@ -106,17 +120,29 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
             }
 
-            validateDenominations(blindedMessages, mint);
-            if (log.isDebugEnabled()) {
-                log.debug("Signing {} blinded messages...", blindedMessages == null ? 0 : blindedMessages.size());
+            // Vouchers allow arbitrary denominations (free splitting)
+            // Regular tokens require power-of-2 denominations per NUT-00
+            if (isVoucherQuote) {
+                log.info("mint_task voucher_quote amount={} arbitrary_denomination=true",
+                        blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
+                validateVoucherDenominations(blindedMessages);
+            } else {
+                validateDenominations(blindedMessages, mint);
             }
+
+            log.debug("Signing {} blinded messages...", blindedMessages.size());
+
+            // Get voucher master secret if in voucher mode
+            String voucherSecret = isVoucherQuote ? VoucherMasterSecretConfig.getMasterSecret() : null;
+
             for (BlindedMessage bm : blindedMessages) {
-                SignBlindedMessageTask signBlindedMessageTask =
-                        new SignBlindedMessageTask(mint, bm, mintProtocolService, signatureVaultService);
+                SignBlindedMessageTask signBlindedMessageTask = isVoucherQuote
+                        ? new SignBlindedMessageTask(mint, bm, mintProtocolService, signatureVaultService, true, voucherSecret)
+                        : new SignBlindedMessageTask(mint, bm, mintProtocolService, signatureVaultService);
                 BlindSignature bSignature = signBlindedMessageTask.execute();
                 result.addBlindSignature(bSignature);
                 if (log.isDebugEnabled()) {
-                    log.debug("Signed blinded message amount={} keySetId={}", bm.getAmount(), bm.getKeySetId());
+                    log.debug("Signed blinded message amount={} keySetId={} voucherMode={}", bm.getAmount(), bm.getKeySetId(), isVoucherQuote);
                 }
             }
 
@@ -129,6 +155,31 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             return result;
         } finally {
             ThreadUtil.MINT_MELT_LOCK.unlock();
+        }
+    }
+
+    /**
+     * Validates blinded messages for voucher quotes.
+     * Vouchers allow arbitrary amounts (no power-of-2 constraint).
+     * Only basic validation is performed: non-null, non-empty, positive amounts.
+     */
+    private void validateVoucherDenominations(List<BlindedMessage> blindedMessages) throws CashuErrorException {
+        if (blindedMessages == null || blindedMessages.isEmpty()) {
+            throw new CashuErrorException("mint_request_missing_outputs");
+        }
+
+        for (BlindedMessage message : blindedMessages) {
+            if (message == null) {
+                throw new CashuErrorException("mint_request_contains_null_output");
+            }
+            if (message.getKeySetId() == null) {
+                throw new CashuErrorException("missing_keyset_id");
+            }
+            int amount = message.getAmount();
+            if (amount <= 0) {
+                throw new CashuErrorException("invalid_output_amount");
+            }
+            // No power-of-2 validation for vouchers - any positive amount is valid
         }
     }
 
