@@ -73,21 +73,32 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
                         postMintRequest.getBlindedMessages() == null ? 0 : postMintRequest.getBlindedMessages().size());
             }
-            Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                    : mintProtocolService.createGateway(method, unit);
-            boolean paid = gateway.checkPaymentStatus(postMintRequest.getQuoteId());
-            if (log.isDebugEnabled()) {
-                log.debug("Payment status for quoteId={} paid={}", postMintRequest.getQuoteId(), paid);
-            }
-            if (!paid) {
-                ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-                throw new CashuErrorException(error.toJson());
+
+            String quoteId = postMintRequest.getQuoteId();
+
+            // Voucher tokens use mock payment - no real bitcoin backing needed
+            boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
+
+            if (isVoucherQuote) {
+                // Vouchers are merchant IOUs - skip payment verification
+                log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true", quoteId);
+            } else {
+                // Regular tokens require real Lightning payment per NUT-04
+                Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                        : mintProtocolService.createGateway(method, unit);
+                boolean paid = gateway.checkPaymentStatus(quoteId);
+                if (log.isDebugEnabled()) {
+                    log.debug("Payment status for quoteId={} paid={}", quoteId, paid);
+                }
+                if (!paid) {
+                    ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
+                    throw new CashuErrorException(error.toJson());
+                }
             }
 
             List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
 
             // Check if this is a voucher quote and validate against face value
-            String quoteId = postMintRequest.getQuoteId();
             Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
             if (voucherFaceValue != null) {
                 // This is a voucher quote - validate total amount matches face value
