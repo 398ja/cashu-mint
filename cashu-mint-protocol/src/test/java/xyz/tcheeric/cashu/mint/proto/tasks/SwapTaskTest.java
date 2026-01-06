@@ -294,4 +294,103 @@ public class SwapTaskTest {
             assertEquals(2, response.getBlindSignatures().size());
         }
     }
+
+    /**
+     * P4-07: Verifies that voucher swaps allow non-power-of-2 split amounts.
+     * A 100-unit voucher can be split into 33 + 67 (free splitting).
+     */
+    @Test
+    public void execute_VoucherSwap_NonPowerOf2Split_Accepted() throws CashuErrorException {
+        // Create voucher proof with 100 units
+        Proof<VoucherSecret> voucherProof = createVoucherProof();
+
+        // Create outputs with non-power-of-2 amounts: 33 + 67 = 100
+        BlindedMessage bm1 = createBlindedMessage();
+        bm1.setAmount(33);  // Not a power of 2
+        BlindedMessage bm2 = createBlindedMessage();
+        bm2.setAmount(67);  // Not a power of 2
+
+        @SuppressWarnings("unchecked")
+        PostSwapRequest<VoucherSecret> request = new PostSwapRequest<>();
+        request.setInputs(List.of(voucherProof));
+        request.setBlindedMessages(List.of(bm1, bm2));
+
+        Mint mint = new Mint();
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+
+        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
+             MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute());
+             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
+                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of()));
+             MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
+                     (mock, ctx) -> {
+                         BlindedMessage bm = (BlindedMessage) ctx.arguments().get(1);
+                         Mockito.doReturn(new BlindSignature(
+                                 bm.getAmount(),
+                                 KeysetId.fromString(VALID_KEYSET_ID),
+                                 SignatureTestData.sampleSignature(),
+                                 null)).when(mock).execute();
+                     })) {
+
+            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
+
+            SwapTask<VoucherSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
+
+            // Should succeed - voucher swaps allow arbitrary split amounts
+            PostSwapResponse response = assertDoesNotThrow(task::execute);
+            assertEquals(2, response.getBlindSignatures().size());
+            assertEquals(33, response.getBlindSignatures().get(0).getAmount());
+            assertEquals(67, response.getBlindSignatures().get(1).getAmount());
+        }
+    }
+
+    /**
+     * Verifies that voucher swaps reject mismatched total amounts.
+     * Even with free splitting, input total must equal output total.
+     */
+    @Test
+    public void execute_VoucherSwap_AmountMismatch_Rejected() throws CashuErrorException {
+        // Create voucher proof with 100 units
+        Proof<VoucherSecret> voucherProof = createVoucherProof();
+
+        // Create outputs totaling 90 (not 100) - MISMATCH
+        BlindedMessage bm1 = createBlindedMessage();
+        bm1.setAmount(50);
+        BlindedMessage bm2 = createBlindedMessage();
+        bm2.setAmount(40);
+
+        @SuppressWarnings("unchecked")
+        PostSwapRequest<VoucherSecret> request = new PostSwapRequest<>();
+        request.setInputs(List.of(voucherProof));
+        request.setBlindedMessages(List.of(bm1, bm2));
+
+        Mint mint = new Mint();
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+
+        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
+             MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
+                     (mock, ctx) -> Mockito.doNothing().when(mock).execute())) {
+
+            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
+
+            SwapTask<VoucherSecret> task = new SwapTask<>(UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
+
+            CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+
+            try {
+                ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+                assertEquals("voucher_split_amount_mismatch", error.code());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }

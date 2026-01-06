@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherMasterSecretConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,20 +62,34 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
         // Validate no mixed voucher/regular proofs before verification
-        validateNoMixedProofTypes(request.getInputs());
+        boolean isVoucherSwap = validateNoMixedProofTypes(request.getInputs());
 
         new VerifyProofsTask<>(mint, request, service).execute();
 
+        // Voucher swaps allow arbitrary output amounts (free splitting)
+        if (isVoucherSwap) {
+            validateVoucherSwapAmounts(request.getInputs(), request.getBlindedMessages());
+        }
+
+        // Get voucher master secret if in voucher mode
+        String voucherSecret = isVoucherSwap ? VoucherMasterSecretConfig.getMasterSecret() : null;
+
         List<BlindSignature> blindSignatures = new ArrayList<>();
         for (BlindedMessage bm : request.getBlindedMessages()) {
-            BlindSignature sig = new SignBlindedMessageTask(mint, bm, service, signatureVaultService).execute();
+            SignBlindedMessageTask signTask = isVoucherSwap
+                    ? new SignBlindedMessageTask(mint, bm, service, signatureVaultService, true, voucherSecret)
+                    : new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
+            BlindSignature sig = signTask.execute();
             blindSignatures.add(sig);
         }
 
         PostSwapResponse response = new PostSwapResponse(blindSignatures);
 
         try {
-            new VerifyFeesTask<>(request, response, mintLoadService).execute();
+            // Skip fee verification for voucher swaps (no fees apply)
+            if (!isVoucherSwap) {
+                new VerifyFeesTask<>(request, response, mintLoadService).execute();
+            }
             new InvalidateProofsTask<>(mint, request.getInputs()).execute();
         } catch (CashuErrorException e) {
             throw e;
@@ -88,11 +103,12 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      * Mixing proof types in the same swap operation is not allowed.
      *
      * @param proofs the list of proofs to validate
+     * @return true if all proofs are voucher proofs (voucher swap), false otherwise
      * @throws CashuErrorException if mixed proof types are detected
      */
-    private void validateNoMixedProofTypes(List<Proof<T>> proofs) throws CashuErrorException {
+    private boolean validateNoMixedProofTypes(List<Proof<T>> proofs) throws CashuErrorException {
         if (proofs == null || proofs.isEmpty()) {
-            return;
+            return false;
         }
 
         boolean hasVoucherProofs = proofs.stream().anyMatch(this::isVoucherProof);
@@ -110,6 +126,40 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (hasVoucherProofs) {
             log.debug("swap_task voucher_only_swap proof_count={}", proofs.size());
         }
+
+        return hasVoucherProofs;
+    }
+
+    /**
+     * Validates voucher swap amounts.
+     * Vouchers allow arbitrary output amounts (free splitting), but total must match.
+     *
+     * @param inputs the input proofs
+     * @param outputs the output blinded messages
+     * @throws CashuErrorException if amounts don't match
+     */
+    private void validateVoucherSwapAmounts(List<Proof<T>> inputs, List<BlindedMessage> outputs) throws CashuErrorException {
+        long totalInput = inputs.stream().mapToLong(Proof::getAmount).sum();
+        long totalOutput = outputs.stream().mapToLong(BlindedMessage::getAmount).sum();
+
+        if (totalOutput != totalInput) {
+            log.warn("swap_task voucher_amount_mismatch input={} output={}", totalInput, totalOutput);
+            ErrorResponse error = new ErrorResponse("voucher_split_amount_mismatch",
+                    String.format("Voucher split amounts must match: input=%d output=%d", totalInput, totalOutput));
+            throw new CashuErrorException(error.toJson());
+        }
+
+        // Validate all outputs have positive amounts
+        for (BlindedMessage output : outputs) {
+            if (output.getAmount() <= 0) {
+                ErrorResponse error = new ErrorResponse("invalid_output_amount",
+                        "Output amounts must be positive");
+                throw new CashuErrorException(error.toJson());
+            }
+        }
+
+        log.info("swap_task voucher_split_validated input={} outputs={}", totalInput,
+                outputs.stream().map(BlindedMessage::getAmount).toList());
     }
 
     /**
