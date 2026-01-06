@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,11 +69,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         ThreadUtil.MINT_MELT_LOCK.lock();
         try {
             PostMintResponse result = new PostMintResponse();
+            List<BlindedMessage> blindedMessages = Objects.requireNonNull(
+                    postMintRequest.getBlindedMessages(),
+                    "Blinded messages must not be null");
 
             // If the invoice was not paid yet, Bob responds with a structured error.
             if (log.isDebugEnabled()) {
                 log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
-                        postMintRequest.getBlindedMessages() == null ? 0 : postMintRequest.getBlindedMessages().size());
+                        blindedMessages.size());
             }
 
             String quoteId = postMintRequest.getQuoteId();
@@ -96,8 +100,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     throw new CashuErrorException(error.toJson());
                 }
             }
-
-            List<BlindedMessage> blindedMessages = postMintRequest.getBlindedMessages();
 
             // Check if this is a voucher quote and validate against face value
             Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
@@ -128,9 +130,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 validateDenominations(blindedMessages, mint);
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug("Signing {} blinded messages...", blindedMessages == null ? 0 : blindedMessages.size());
-            }
+            log.debug("Signing {} blinded messages...", blindedMessages.size());
 
             // Get voucher master secret if in voucher mode
             String voucherSecret = isVoucherQuote ? VoucherMasterSecretConfig.getMasterSecret() : null;

@@ -70,7 +70,7 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 
 Actuator exposure defaults:
 - `management.endpoints.web.exposure.include=health,info,prometheus,metrics`
-- `management.endpoint.prometheus.enabled=true`
+- `management.prometheus.metrics.export.enabled=true`
 - `management.endpoint.health.probes.enabled=true`
 - Histogram buckets for request/task/crypto latency are pre-configured under `management.metrics.distribution.slo.*`.
 

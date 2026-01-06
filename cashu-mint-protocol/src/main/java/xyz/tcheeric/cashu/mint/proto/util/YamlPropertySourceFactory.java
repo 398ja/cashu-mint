@@ -18,8 +18,14 @@ public class YamlPropertySourceFactory implements PropertySourceFactory {
         factoryBean.afterPropertiesSet();
 
         Properties properties = factoryBean.getObject();
+        if (properties == null) {
+            properties = new Properties();
+        }
 
         String sourceName = (name != null) ? name : resource.getResource().getFilename();
+        if (sourceName == null || sourceName.isBlank()) {
+            sourceName = resource.getResource().getDescription();
+        }
         return new PropertiesPropertySource(sourceName, properties);
     }
 }

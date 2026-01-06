@@ -299,7 +299,7 @@ cashu.observability.health.vault.enabled=true
 
 ```properties
 management.endpoints.web.exposure.include=health,info,prometheus,metrics
-management.endpoint.prometheus.enabled=true
+management.prometheus.metrics.export.enabled=true
 ```
 
 ### Histogram Buckets

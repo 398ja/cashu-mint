@@ -85,15 +85,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
         PostSwapResponse response = new PostSwapResponse(blindSignatures);
 
-        try {
-            // Skip fee verification for voucher swaps (no fees apply)
-            if (!isVoucherSwap) {
-                new VerifyFeesTask<>(request, response, mintLoadService).execute();
-            }
-            new InvalidateProofsTask<>(mint, request.getInputs()).execute();
-        } catch (CashuErrorException e) {
-            throw e;
+        // Skip fee verification for voucher swaps (no fees apply)
+        if (!isVoucherSwap) {
+            new VerifyFeesTask<>(request, response, mintLoadService).execute();
         }
+        new InvalidateProofsTask<>(mint, request.getInputs()).execute();
 
         return response;
     }
