@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] - 2026-01-06
+
 ### Added
 
 - **Voucher Mock Payment**: Voucher tokens now skip Lightning payment verification during minting
@@ -26,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New unit tests for voucher mock payment behavior:
   - `MintTaskTest`: voucher quote skip payment, regular quote requires payment, arbitrary denominations
   - `SwapTaskTest`: mixed proof rejection, voucher-only swaps, non-power-of-2 splits
+- New documentation: `docs/explanations/voucher-mock-payment.md`
 
 ### Changed
 
