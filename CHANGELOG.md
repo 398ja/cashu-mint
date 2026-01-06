@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VoucherSpendingCondition**: New spending condition for voucher proof verification
+  - Uses dynamic key derivation (same as minting) for arbitrary voucher amounts
+  - Enables voucher proofs with non-power-of-2 amounts to be verified and swapped
 - **Voucher Mock Payment**: Voucher tokens now skip Lightning payment verification during minting
   - Vouchers are merchant IOUs with no real bitcoin backing
   - `VoucherQuoteRegistry.isVoucherQuote()` detects voucher quotes in `MintTask`
@@ -37,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MintTask` now branches on `isVoucherQuote` for payment verification and denomination validation
 - `SwapTask` validates proof types before processing and allows arbitrary output amounts for voucher swaps
 - `SignBlindedMessageTask` supports voucher mode with dynamic key derivation
+- `VerifyProofsTask` routes voucher proofs to `VoucherSpendingCondition` for dynamic key verification
+
+### Fixed
+
+- Voucher proof verification now uses dynamic key derivation matching minting
+  - Previously, voucher proofs with arbitrary amounts (e.g., 33 sats) failed verification
+  - The vault had no stored key for non-power-of-2 amounts, causing `verify_proof_key_set_not_found`
+  - Now uses `VoucherKeyDerivation` to derive keys on-the-fly during verification
 
 ---
 
