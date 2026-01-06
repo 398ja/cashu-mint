@@ -113,43 +113,24 @@ public final class VoucherFeeConfig {
      * @return the configured percentage
      */
     private static double loadPercentage() {
-        // 1. Try system property
-        String systemProp = System.getProperty(SYSTEM_PROP_KEY);
-        if (systemProp != null) {
-            try {
-                double value = Double.parseDouble(systemProp);
-                log.debug("Loaded voucher fee percentage from system property: {}%", value);
-                return value;
-            } catch (NumberFormatException e) {
-                log.warn("Invalid system property value for {}: {}", SYSTEM_PROP_KEY, systemProp);
-            }
+        Double value = parseDoubleValue("system property", SYSTEM_PROP_KEY, System.getProperty(SYSTEM_PROP_KEY));
+        if (value != null) {
+            log.debug("Loaded voucher fee percentage from system property: {}%", value);
+            return value;
         }
 
-        // 2. Try environment variable
-        String envVar = System.getenv(ENV_KEY);
-        if (envVar != null) {
-            try {
-                double value = Double.parseDouble(envVar);
-                log.debug("Loaded voucher fee percentage from environment variable: {}%", value);
-                return value;
-            } catch (NumberFormatException e) {
-                log.warn("Invalid environment variable value for {}: {}", ENV_KEY, envVar);
-            }
+        value = parseDoubleValue("environment variable", ENV_KEY, System.getenv(ENV_KEY));
+        if (value != null) {
+            log.debug("Loaded voucher fee percentage from environment variable: {}%", value);
+            return value;
         }
 
-        // 3. Try property file
-        String propertyValue = PROPERTIES.getProperty(PROPERTY_KEY);
-        if (propertyValue != null) {
-            try {
-                double value = Double.parseDouble(propertyValue);
-                log.debug("Loaded voucher fee percentage from property file: {}%", value);
-                return value;
-            } catch (NumberFormatException e) {
-                log.warn("Invalid property file value for {}: {}", PROPERTY_KEY, propertyValue);
-            }
+        value = parseDoubleValue("property file", PROPERTY_KEY, PROPERTIES.getProperty(PROPERTY_KEY));
+        if (value != null) {
+            log.debug("Loaded voucher fee percentage from property file: {}%", value);
+            return value;
         }
 
-        // 4. Use default
         log.debug("Using default voucher fee percentage: {}%", DEFAULT_PERCENTAGE);
         return DEFAULT_PERCENTAGE;
     }
@@ -160,37 +141,33 @@ public final class VoucherFeeConfig {
      * @return the configured maximum percentage
      */
     private static double loadMaxPercentage() {
-        // 1. Try system property
-        String systemProp = System.getProperty(SYSTEM_PROP_MAX_KEY);
-        if (systemProp != null) {
-            try {
-                return Double.parseDouble(systemProp);
-            } catch (NumberFormatException e) {
-                log.warn("Invalid system property value for {}: {}", SYSTEM_PROP_MAX_KEY, systemProp);
-            }
+        Double value = parseDoubleValue("system property", SYSTEM_PROP_MAX_KEY, System.getProperty(SYSTEM_PROP_MAX_KEY));
+        if (value != null) {
+            return value;
         }
 
-        // 2. Try environment variable
-        String envVar = System.getenv(ENV_MAX_KEY);
-        if (envVar != null) {
-            try {
-                return Double.parseDouble(envVar);
-            } catch (NumberFormatException e) {
-                log.warn("Invalid environment variable value for {}: {}", ENV_MAX_KEY, envVar);
-            }
+        value = parseDoubleValue("environment variable", ENV_MAX_KEY, System.getenv(ENV_MAX_KEY));
+        if (value != null) {
+            return value;
         }
 
-        // 3. Try property file
-        String propertyValue = PROPERTIES.getProperty(PROPERTY_MAX_KEY);
-        if (propertyValue != null) {
-            try {
-                return Double.parseDouble(propertyValue);
-            } catch (NumberFormatException e) {
-                log.warn("Invalid property file value for {}: {}", PROPERTY_MAX_KEY, propertyValue);
-            }
+        value = parseDoubleValue("property file", PROPERTY_MAX_KEY, PROPERTIES.getProperty(PROPERTY_MAX_KEY));
+        if (value != null) {
+            return value;
         }
 
-        // 4. Use default
         return DEFAULT_MAX_PERCENTAGE;
+    }
+
+    private static Double parseDoubleValue(String source, String key, String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(rawValue);
+        } catch (NumberFormatException e) {
+            log.warn("voucher_fee_config invalid {} value '{}' for key {}", source, rawValue, key);
+            return null;
+        }
     }
 }

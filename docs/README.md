@@ -31,5 +31,6 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
 - [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
+- [Voucher mock payment and free splitting](explanations/voucher-mock-payment.md) - How voucher tokens skip payment verification and support arbitrary denominations.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
 - [Voucher mint quote percentage fees (overview)](explanations/voucher-mint-quote-overview.md) - Quick reference for how percentage-based voucher pricing works.
