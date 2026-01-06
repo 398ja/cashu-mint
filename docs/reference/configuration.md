@@ -46,6 +46,7 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | `voucher.nostr.relays` | `wss://relay.damus.io`, `wss://relay.cashu.xyz` | Default relay list for voucher ledger operations. |
 | `voucher.quote.fee-percent` | `10` | Percentage fee charged when creating voucher mint quotes. Override with `VOUCHER_QUOTE_FEE_PERCENT`. |
 | `voucher.quote.fee-percent.max` | `100` | Maximum allowed fee percentage. |
+| `voucher.master.secret` | _(auto-generated)_ | Hex-encoded master secret for voucher key derivation. If unset, a secure random secret is generated at startup. Override with `VOUCHER_MASTER_SECRET`. |
 
 ## Observability
 

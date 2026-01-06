@@ -24,6 +24,8 @@ Unit tests focus on testing individual components in isolation with minimal depe
 
 **Examples:**
 - `VerifyProofsTaskTest.java` - Tests proof validation logic
+- `MintTaskTest.java` - Tests mint task including voucher mock payment behavior
+- `SwapTaskTest.java` - Tests swap task including mixed proof type validation
 - Domain model tests
 
 ### 2. Integration Tests
@@ -148,6 +150,46 @@ public void testVoucherValidation() {
     SignedVoucher voucher = new SignedVoucher(secret, signature, pubkey);
 
     assertTrue(voucher.isValid());
+}
+```
+
+### Voucher Mock Payment Test Example
+
+```java
+/**
+ * Verifies that voucher quotes skip payment verification.
+ * When a quote is registered in VoucherQuoteRegistry, MintTask should NOT
+ * call gateway.checkPaymentStatus() and should proceed with minting.
+ */
+@Test
+public void execute_VoucherQuote_SkipsPaymentCheck() throws CashuErrorException {
+    String quoteId = "voucher-quote-123";
+    long faceValue = 100L;
+
+    // Register as voucher quote
+    VoucherQuoteRegistry.storeFaceValue(quoteId, faceValue);
+
+    // Create blinded messages totaling face value
+    BlindedMessage bm1 = createBlindedMessage(64);
+    BlindedMessage bm2 = createBlindedMessage(32);
+    BlindedMessage bm3 = createBlindedMessage(4);
+
+    PostMintRequest<Secret> request = new PostMintRequest<>();
+    request.setQuoteId(quoteId);
+    request.setBlindedMessages(List.of(bm1, bm2, bm3));
+
+    Gateway mockGateway = Mockito.mock(Gateway.class);
+    // ... setup mocks ...
+
+    MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service, signatureVaultService);
+    PostMintResponse response = task.execute();
+
+    // Verify gateway.checkPaymentStatus was NEVER called (mock payment for voucher)
+    verify(mockGateway, never()).checkPaymentStatus(anyString());
+
+    // Verify signatures were generated
+    assertNotNull(response);
+    assertEquals(3, response.getBlindSignatures().size());
 }
 ```
 
