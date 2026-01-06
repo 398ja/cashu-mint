@@ -18,13 +18,14 @@ import java.util.Objects;
 public final class MintPreloadSqlRenderer {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Path WORKING_DIR = Path.of("").toAbsolutePath().normalize();
 
     private MintPreloadSqlRenderer() {
     }
 
     public static MintPreloadData readJson(Path input) throws IOException {
-        Objects.requireNonNull(input, "input");
-        return OBJECT_MAPPER.readValue(Files.readString(input, StandardCharsets.UTF_8), MintPreloadData.class);
+        Path sanitizedInput = sanitizePath(Objects.requireNonNull(input, "input"));
+        return OBJECT_MAPPER.readValue(Files.readString(sanitizedInput, StandardCharsets.UTF_8), MintPreloadData.class);
     }
 
     public static String renderSql(MintPreloadData data) {
@@ -114,28 +115,39 @@ public final class MintPreloadSqlRenderer {
     }
 
     public static void writeSql(MintPreloadData data, Path output) throws IOException {
-        Objects.requireNonNull(output, "output");
-        Path parent = output.toAbsolutePath().getParent();
+        Path sanitizedOutput = sanitizePath(Objects.requireNonNull(output, "output"));
+        Path parent = sanitizedOutput.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        Files.writeString(output, renderSql(data), StandardCharsets.UTF_8);
+        Files.writeString(sanitizedOutput, renderSql(data), StandardCharsets.UTF_8);
+    }
+
+    private static Path sanitizePath(Path candidate) {
+        Path resolved = candidate.isAbsolute()
+                ? candidate.normalize()
+                : WORKING_DIR.resolve(candidate).normalize();
+        if (!candidate.isAbsolute() && !resolved.startsWith(WORKING_DIR)) {
+            throw new IllegalArgumentException("Refusing to access path outside working directory: " + candidate);
+        }
+        return resolved;
     }
 
     public static void main(String[] args) throws IOException {
         String inputArg = args.length > 0 ? args[0] : null;
-        Path input = (inputArg == null || inputArg.isBlank())
-                ? Path.of("scripts/preload-test-data.json")
-                : Path.of(inputArg);
+        Path input = resolveFromArgument(inputArg, "scripts/preload-test-data.json");
         String outputArg = args.length > 1 ? args[1] : null;
-        Path output = (outputArg == null || outputArg.isBlank())
-                ? Path.of("scripts/preload-test-data.sql")
-                : Path.of(outputArg);
+        Path output = resolveFromArgument(outputArg, "scripts/preload-test-data.sql");
 
         MintPreloadData data = readJson(input);
         writeSql(data, output);
 
         log.info("Wrote preload SQL for mint {} and keyset {} to {}", data.mintId(), data.keySetId(),
                 output.toAbsolutePath());
+    }
+
+    private static Path resolveFromArgument(String argument, String defaultRelativePath) {
+        String rawPath = (argument == null || argument.isBlank()) ? defaultRelativePath : argument;
+        return sanitizePath(Path.of(rawPath));
     }
 }

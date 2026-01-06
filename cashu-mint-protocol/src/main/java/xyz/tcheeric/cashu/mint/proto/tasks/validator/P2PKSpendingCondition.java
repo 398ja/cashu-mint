@@ -110,11 +110,9 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
 
                 int validSignatureCount = getValidSignatureCount(refundPublicKeys, signatures, secretBytes);
 
-                    if (validSignatureCount == 0) {
-                        log.error("verify_invalid_refund_signature");
-                        ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
-                        throw new CashuErrorException(error.toJson());
-                    }
+                if (validSignatureCount == 0) {
+                    rejectInvalidRefundSignature("proof_refund_signature");
+                }
 
                 if (P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1) {
                     if (blindedMessages == null || blindedMessages.isEmpty()) {
@@ -131,9 +129,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                         byte[] outData = bm.getBlindedMessage().toBytes();
                         validSignatureCount = getValidSignatureCount(refundPublicKeys, outSigs, outData);
                         if (validSignatureCount == 0) {
-                            log.error("verify_invalid_refund_signature");
-                            ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
-                            throw new CashuErrorException(error.toJson());
+                            rejectInvalidRefundSignature("output_witness_signature");
                         }
                     }
                 }
@@ -146,6 +142,12 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         } else {
             log.info("Locktime is in the future. Skipping refund verification. {}", proof);
         }
+    }
+
+    private void rejectInvalidRefundSignature(String context) throws CashuErrorException {
+        log.error("verify_invalid_refund_signature context={}", context);
+        ErrorResponse error = new ErrorResponse("verify_invalid_refund_signature");
+        throw new CashuErrorException(error.toJson());
     }
 
     private int getValidSignatureCount(List<String> publicKeyList, List<String> signatures, byte[] data) {

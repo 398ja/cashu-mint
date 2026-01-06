@@ -141,7 +141,7 @@ public class PreloadMintLoadService implements MintLoadService {
                     throw e;
                 }
 
-                KeySetEntity existing = null;
+                KeySetEntity existing;
                 try {
                     existing = keySetClient.getByKeySetId(keySetId);
                     if (existing != null) {
