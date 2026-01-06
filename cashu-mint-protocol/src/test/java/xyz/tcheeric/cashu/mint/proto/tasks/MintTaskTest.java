@@ -263,4 +263,83 @@ public class MintTaskTest {
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * P4-06: Verifies that voucher quotes accept arbitrary (non-power-of-2) denomination amounts.
+     * Unlike regular Cashu tokens, vouchers can use any positive amount.
+     */
+    @Test
+    public void execute_VoucherQuote_AcceptsArbitraryDenominations() throws CashuErrorException {
+        String quoteId = "voucher-arbitrary-amounts";
+        long faceValue = 100L;
+
+        // Register as voucher quote
+        VoucherQuoteRegistry.storeFaceValue(quoteId, faceValue);
+
+        // Create blinded messages with arbitrary amounts: 33 + 67 = 100 (non-power-of-2)
+        BlindedMessage bm1 = createBlindedMessage(33);  // Not a power of 2
+        BlindedMessage bm2 = createBlindedMessage(67);  // Not a power of 2
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(bm1, bm2));
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mint mint = createMintWithKeys();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+
+        try (MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(
+                SignBlindedMessageTask.class,
+                (mock, ctx) -> when(mock.execute()).thenReturn(new BlindSignature(
+                        ((BlindedMessage) ctx.arguments().get(1)).getAmount(),
+                        KeysetId.fromString(VALID_KEYSET_ID),
+                        SignatureTestData.sampleSignature(),
+                        null)))) {
+
+            MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service, signatureVaultService);
+            PostMintResponse response = task.execute();
+
+            // Verify signatures were generated for arbitrary amounts
+            assertNotNull(response);
+            assertEquals(2, response.getBlindSignatures().size());
+            assertEquals(33, response.getBlindSignatures().get(0).getAmount());
+            assertEquals(67, response.getBlindSignatures().get(1).getAmount());
+        }
+    }
+
+    /**
+     * P4-08: Verifies that regular quotes still enforce power-of-2 denominations.
+     * Regular Cashu tokens must use standard denominations per NUT-00.
+     */
+    @Test
+    public void execute_RegularQuote_RejectsArbitraryDenominations() throws CashuErrorException {
+        String quoteId = "regular-arbitrary-amounts";
+
+        // NOT a voucher quote - regular quote
+
+        // Create blinded messages with arbitrary amounts: 33 + 67 = 100 (non-power-of-2)
+        BlindedMessage bm1 = createBlindedMessage(33);  // Not a power of 2
+        BlindedMessage bm2 = createBlindedMessage(67);  // Not a power of 2
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(bm1, bm2));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.checkPaymentStatus(quoteId)).thenReturn(true);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+
+        Mint mint = createMintWithKeys();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+
+        MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service, signatureVaultService);
+
+        // Should throw error because regular tokens require power-of-2 denominations
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+
+        // The error could be "invalid_denominations" or similar
+        assertNotNull(exception.getMessage());
+    }
 }

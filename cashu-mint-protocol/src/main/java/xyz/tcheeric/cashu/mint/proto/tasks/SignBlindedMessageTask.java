@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultDLEQProofGenerator;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherKeyDerivation;
 
 
 @Slf4j
@@ -30,12 +31,14 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
     private final DLEQProofGenerator dleqProofGenerator;
+    private final boolean voucherMode;
+    private final String voucherMasterSecret;
 
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService) {
-        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator());
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator(), false, null);
     }
 
     public SignBlindedMessageTask(@NonNull Mint mint,
@@ -43,20 +46,68 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService,
                                   @NonNull DLEQProofGenerator dleqProofGenerator) {
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, dleqProofGenerator, false, null);
+    }
+
+    /**
+     * Constructor for voucher mode with arbitrary denomination support.
+     *
+     * @param mint the mint instance
+     * @param blindedMessage the blinded message to sign
+     * @param mintProtocolService protocol service for key lookup
+     * @param signatureVaultService vault service for storing signatures
+     * @param voucherMode if true, derive keys dynamically for arbitrary amounts
+     * @param voucherMasterSecret the master secret for voucher key derivation (required if voucherMode is true)
+     */
+    public SignBlindedMessageTask(@NonNull Mint mint,
+                                  @NonNull BlindedMessage blindedMessage,
+                                  @NonNull MintProtocolService mintProtocolService,
+                                  @NonNull SignatureVaultService signatureVaultService,
+                                  boolean voucherMode,
+                                  String voucherMasterSecret) {
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator(), voucherMode, voucherMasterSecret);
+    }
+
+    public SignBlindedMessageTask(@NonNull Mint mint,
+                                  @NonNull BlindedMessage blindedMessage,
+                                  @NonNull MintProtocolService mintProtocolService,
+                                  @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull DLEQProofGenerator dleqProofGenerator,
+                                  boolean voucherMode,
+                                  String voucherMasterSecret) {
         this.mint = mint;
         this.blindedMessage = blindedMessage;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
         this.dleqProofGenerator = dleqProofGenerator;
+        this.voucherMode = voucherMode;
+        this.voucherMasterSecret = voucherMasterSecret;
     }
 
     @Override
     protected BlindSignature doExecute() throws CashuErrorException {
         if (log.isDebugEnabled()) {
-            log.debug("Signing blinded message: amount={} keySetId={}",
-                    blindedMessage.getAmount(), blindedMessage.getKeySetId());
+            log.debug("Signing blinded message: amount={} keySetId={} voucherMode={}",
+                    blindedMessage.getAmount(), blindedMessage.getKeySetId(), voucherMode);
         }
-        PrivateKey privateKey = getPrivateKey(blindedMessage, mint, mintProtocolService);
+
+        PrivateKey privateKey;
+        if (voucherMode) {
+            // Voucher mode: derive key dynamically for arbitrary amounts
+            if (voucherMasterSecret == null || voucherMasterSecret.isEmpty()) {
+                ErrorResponse error = new ErrorResponse("voucher_master_secret_missing",
+                        "Voucher mode requires a master secret for key derivation");
+                throw new CashuErrorException(error.toJson());
+            }
+            privateKey = VoucherKeyDerivation.deriveKeyForAmount(voucherMasterSecret, blindedMessage.getAmount());
+            if (log.isDebugEnabled()) {
+                log.debug("Derived voucher key for amount={}", blindedMessage.getAmount());
+            }
+        } else {
+            // Regular mode: lookup key from keyset
+            privateKey = getPrivateKey(blindedMessage, mint, mintProtocolService);
+        }
+
         if (privateKey == null) {
             ErrorResponse error = new ErrorResponse("sign_private_key_not_found");
             log.warn("Private key not found for amount={} keySetId={}",
