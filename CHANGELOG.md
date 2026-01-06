@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Voucher Mock Payment**: Voucher tokens now skip Lightning payment verification during minting
+  - Vouchers are merchant IOUs with no real bitcoin backing
+  - `VoucherQuoteRegistry.isVoucherQuote()` detects voucher quotes in `MintTask`
+  - Audit logging tracks when mock payment is used
+- **Mixed Proof Type Validation**: `SwapTask` rejects operations mixing voucher and regular proofs
+  - `VoucherSecretDetector.isVoucherSecret()` identifies voucher proofs
+  - Clear error message: `mixed_proof_types_error`
+- **Arbitrary Voucher Denominations (Free Splitting)**: Vouchers can use any positive amount
+  - No power-of-2 denomination constraint for voucher tokens
+  - Enables free splitting (e.g., 100 → 33 + 67) without swap overhead
+  - `VoucherKeyDerivation` provides HMAC-SHA256 based key derivation for arbitrary amounts
+  - `VoucherMasterSecretConfig` configures the voucher master secret
+- New unit tests for voucher mock payment behavior:
+  - `MintTaskTest`: voucher quote skip payment, regular quote requires payment, arbitrary denominations
+  - `SwapTaskTest`: mixed proof rejection, voucher-only swaps, non-power-of-2 splits
+
+### Changed
+
+- `MintTask` now branches on `isVoucherQuote` for payment verification and denomination validation
+- `SwapTask` validates proof types before processing and allows arbitrary output amounts for voucher swaps
+- `SignBlindedMessageTask` supports voucher mode with dynamic key derivation
+
 ---
 
 ## [0.5.2] - 2025-12-28
