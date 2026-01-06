@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
@@ -59,6 +60,9 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
+        // Validate no mixed voucher/regular proofs before verification
+        validateNoMixedProofTypes(request.getInputs());
+
         new VerifyProofsTask<>(mint, request, service).execute();
 
         List<BlindSignature> blindSignatures = new ArrayList<>();
@@ -77,5 +81,47 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         }
 
         return response;
+    }
+
+    /**
+     * Validates that the swap request does not mix voucher and regular proofs.
+     * Mixing proof types in the same swap operation is not allowed.
+     *
+     * @param proofs the list of proofs to validate
+     * @throws CashuErrorException if mixed proof types are detected
+     */
+    private void validateNoMixedProofTypes(List<Proof<T>> proofs) throws CashuErrorException {
+        if (proofs == null || proofs.isEmpty()) {
+            return;
+        }
+
+        boolean hasVoucherProofs = proofs.stream().anyMatch(this::isVoucherProof);
+        boolean hasRegularProofs = proofs.stream().anyMatch(proof -> !isVoucherProof(proof));
+
+        if (hasVoucherProofs && hasRegularProofs) {
+            log.warn("swap_task mixed_proof_types_rejected voucher_count={} regular_count={}",
+                    proofs.stream().filter(this::isVoucherProof).count(),
+                    proofs.stream().filter(proof -> !isVoucherProof(proof)).count());
+            ErrorResponse error = new ErrorResponse("mixed_proof_types_error",
+                    "Cannot mix voucher and regular proofs in same operation");
+            throw new CashuErrorException(error.toJson());
+        }
+
+        if (hasVoucherProofs) {
+            log.debug("swap_task voucher_only_swap proof_count={}", proofs.size());
+        }
+    }
+
+    /**
+     * Checks if a proof contains a voucher secret.
+     *
+     * @param proof the proof to check
+     * @return true if the proof has a voucher secret, false otherwise
+     */
+    private boolean isVoucherProof(Proof<T> proof) {
+        if (proof == null || proof.getSecret() == null) {
+            return false;
+        }
+        return VoucherSecretDetector.isVoucherSecret(proof.getSecret());
     }
 }
