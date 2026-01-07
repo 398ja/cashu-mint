@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.common.P2PKSecret;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
-import xyz.tcheeric.cashu.common.VoucherWellKnownSecret;
+import xyz.tcheeric.cashu.common.VoucherSecret;
 import xyz.tcheeric.cashu.common.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
@@ -35,8 +35,6 @@ import java.util.List;
  * This detector is used by both swap and melt operations to reject voucher proofs.
  */
 final class VoucherSecretDetector {
-    private static final String VOUCHER_SECRET_CLASS = "xyz.tcheeric.cashu.voucher.domain.VoucherSecret";
-
     private VoucherSecretDetector() {
         // Utility class - prevent instantiation
     }
@@ -46,8 +44,7 @@ final class VoucherSecretDetector {
      *
      * <p>This method detects voucher secrets in multiple forms:
      * <ul>
-     *   <li>VoucherSecret from cashu-voucher-domain (optional dependency)</li>
-     *   <li>VoucherWellKnownSecret from cashu-lib-common (NUT-10 format)</li>
+     *   <li>VoucherSecret from cashu-lib-common (NUT-10 tag-based format)</li>
      *   <li>Any WellKnownSecret with VOUCHER kind</li>
      * </ul>
      *
@@ -58,17 +55,16 @@ final class VoucherSecretDetector {
         if (secret == null) {
             return false;
         }
-        // Check for VoucherWellKnownSecret (NUT-10 format from cashu-lib-common)
-        if (secret instanceof VoucherWellKnownSecret) {
+        // Check for VoucherSecret (NUT-10 tag-based format from cashu-lib-common)
+        // This also catches VoucherWellKnownSecret which extends VoucherSecret
+        if (secret instanceof VoucherSecret) {
             return true;
         }
-        // Check for WellKnownSecret with VOUCHER kind
+        // Check for WellKnownSecret with VOUCHER kind (fallback for deserialized secrets)
         if (secret instanceof WellKnownSecret wks && wks.getKind() == WellKnownSecret.Kind.VOUCHER) {
             return true;
         }
-        // Check for VoucherSecret from cashu-voucher-domain (optional dependency)
-        // This works even if the class is loaded optionally
-        return VOUCHER_SECRET_CLASS.equals(secret.getClass().getName());
+        return false;
     }
 }
 
@@ -122,17 +118,17 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
             throws CashuErrorException {
-        // Voucher proofs use dynamic key derivation for arbitrary denominations
+        // Voucher proofs use standard keyset-based verification (same as regular proofs)
         // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
         // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
         if (VoucherSecretDetector.isVoucherSecret(secret)) {
-            log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with dynamic key derivation");
-            return (SpendingCondition<T>) new VoucherSpendingCondition<>();
+            log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with keyset verification");
+            return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService);
         }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
         }
-        if (secret instanceof RandomStringSecret || secret instanceof VoucherWellKnownSecret) {
+        if (secret instanceof RandomStringSecret || secret instanceof VoucherSecret) {
             return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
         log.error("Unsupported proof type in swap request: {}", secret.getClass().getName());
