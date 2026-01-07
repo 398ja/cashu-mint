@@ -6,10 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -26,13 +29,17 @@ import static xyz.tcheeric.cashu.mint.proto.util.SignatureTestData.sampleSignatu
  */
 class VoucherSpendingConditionTest {
 
+    private Mint mockMint;
+    private MintProtocolService mockMintProtocolService;
     private ProofVaultService mockProofVaultService;
     private VoucherSpendingCondition<RandomStringSecret> condition;
 
     @BeforeEach
     void setUp() {
+        mockMint = Mockito.mock(Mint.class);
+        mockMintProtocolService = Mockito.mock(MintProtocolService.class);
         mockProofVaultService = Mockito.mock(ProofVaultService.class);
-        condition = new VoucherSpendingCondition<>(mockProofVaultService);
+        condition = new VoucherSpendingCondition<>(mockMint, mockMintProtocolService, mockProofVaultService);
 
         // Ensure master secret is set for tests
         System.setProperty("voucher.master.secret",
@@ -70,6 +77,12 @@ class VoucherSpendingConditionTest {
         // Mock: proof not yet used
         Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
 
+        // Mock: return a valid private key
+        PrivateKey mockPrivateKey = Mockito.mock(PrivateKey.class);
+        Mockito.when(mockPrivateKey.toBytes()).thenReturn(new byte[32]);
+        Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), ArgumentMatchers.anyInt(), ArgumentMatchers.any()))
+                .thenReturn(mockPrivateKey);
+
         // Mock BDHKEUtils to return true for verification
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
@@ -93,6 +106,12 @@ class VoucherSpendingConditionTest {
 
         // Mock: proof not yet used
         Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+
+        // Mock: return a valid private key
+        PrivateKey mockPrivateKey = Mockito.mock(PrivateKey.class);
+        Mockito.when(mockPrivateKey.toBytes()).thenReturn(new byte[32]);
+        Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), ArgumentMatchers.anyInt(), ArgumentMatchers.any()))
+                .thenReturn(mockPrivateKey);
 
         // Mock BDHKEUtils to return true for verification
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {

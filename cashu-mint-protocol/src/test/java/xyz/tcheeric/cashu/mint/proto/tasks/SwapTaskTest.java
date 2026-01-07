@@ -23,8 +23,8 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
+import xyz.tcheeric.cashu.common.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
-import xyz.tcheeric.cashu.voucher.domain.VoucherSecret;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -130,17 +130,14 @@ public class SwapTaskTest {
 
     // Helper method to create a voucher proof
     private Proof<VoucherSecret> createVoucherProof() {
-        VoucherSecret secret = VoucherSecret.create(
-                "test-merchant",
-                "sat",
-                100L,
-                null,
-                null,
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        VoucherSecret secret = VoucherSecret.builder()
+                .issuerId("test-merchant")
+                .unit("sat")
+                .faceValue(100L)
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         Proof<VoucherSecret> proof = new Proof<>();
         proof.setAmount(100);
