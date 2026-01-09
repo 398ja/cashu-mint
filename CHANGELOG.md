@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] - 2026-01-07
+
+### Added
+
+- **Voucher Tag Support**: Enhanced voucher proof verification with tag-based identification
+  - Enables voucher proofs to be identified and processed using NUT-10 tags
+  - Supports flexible voucher detection across swap and verification operations
+
 ### Changed
 
 - Bumped Spring Boot to 3.5.6, Tomcat to 10.1.48, and Logback to 1.5.19 to pick up upstream security fixes.

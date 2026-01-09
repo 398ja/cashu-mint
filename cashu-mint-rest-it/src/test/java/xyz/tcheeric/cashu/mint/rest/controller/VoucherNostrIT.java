@@ -267,7 +267,7 @@ class VoucherNostrIT {
                 "Issuer ID should match");
 
         // ========== STEP 5: Simulate Querying from Nostr ==========
-        String voucherId = issuedVoucher.getSecret().getVoucherId();
+        String voucherId = issuedVoucher.getSecret().getVoucherId().toString();
 
         // Mock ledger returning the published voucher
         when(voucherLedgerPort.queryStatus(voucherId))
@@ -503,12 +503,12 @@ class VoucherNostrIT {
         // ========== STEP 6: Verify Voucher IDs Match ==========
         // Extract voucher IDs from original and restored sets
         List<String> originalIds = capturedBackup[0].stream()
-                .map(v -> v.getSecret().getVoucherId())
+                .map(v -> v.getSecret().getVoucherId().toString())
                 .sorted()
                 .toList();
 
         List<String> restoredIds = restoredVouchers.stream()
-                .map(v -> v.getSecret().getVoucherId())
+                .map(v -> v.getSecret().getVoucherId().toString())
                 .sorted()
                 .toList();
 
@@ -557,8 +557,8 @@ class VoucherNostrIT {
         assertEquals(3, restored.size(), "Current implementation returns all duplicates");
 
         // All should have the same voucher ID
-        String voucherId = voucher.getSecret().getVoucherId();
-        assertTrue(restored.stream().allMatch(v -> v.getSecret().getVoucherId().equals(voucherId)),
+        String voucherId = voucher.getSecret().getVoucherId().toString();
+        assertTrue(restored.stream().allMatch(v -> v.getSecret().getVoucherId().toString().equals(voucherId)),
                 "All restored vouchers should have the same ID");
     }
 
@@ -767,12 +767,12 @@ class VoucherNostrIT {
 
         // ========== STEP 9: Verify voucher IDs match (no data loss) ==========
         List<String> originalIds = backupCapture[0].stream()
-                .map(v -> v.getSecret().getVoucherId())
+                .map(v -> v.getSecret().getVoucherId().toString())
                 .sorted()
                 .toList();
 
         List<String> restoredIds = restoredVouchers.stream()
-                .map(v -> v.getSecret().getVoucherId())
+                .map(v -> v.getSecret().getVoucherId().toString())
                 .sorted()
                 .toList();
 
