@@ -18,8 +18,8 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
+import xyz.tcheeric.cashu.common.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
-import xyz.tcheeric.cashu.voucher.domain.VoucherSecret;
 import xyz.tcheeric.cashu.common.Proof;
 
 import java.util.List;
@@ -191,18 +191,16 @@ public class VerifyProofsTaskTest {
      */
     @Test
     public void voucherSecretDetector_ActualVoucherSecret() {
-        // Create a real VoucherSecret
-        VoucherSecret voucherSecret = VoucherSecret.create(
-                "test-merchant",
-                "sat",
-                5000L,
-                null,
-                "Test voucher",
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        // Create a real VoucherSecret using the builder pattern
+        VoucherSecret voucherSecret = VoucherSecret.builder()
+                .issuerId("test-merchant")
+                .unit("sat")
+                .faceValue(5000L)
+                .memo("Test voucher")
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         boolean result = VoucherSecretDetector.isVoucherSecret(voucherSecret);
         assertTrue(result,
@@ -230,17 +228,16 @@ public class VerifyProofsTaskTest {
     @Test
     public void voucherSecretsAllowedInSwap() {
         // ========== STEP 1: Create VoucherSecret ==========
-        VoucherSecret voucherSecret = VoucherSecret.create(
-                "coffee-shop-123",
-                "sat",
-                10000L,
-                System.currentTimeMillis() / 1000 + 86400 * 30, // Expires in 30 days
-                "Coffee shop gift card - $10",
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        VoucherSecret voucherSecret = VoucherSecret.builder()
+                .issuerId("coffee-shop-123")
+                .unit("sat")
+                .faceValue(10000L)
+                .expiresAt(System.currentTimeMillis() / 1000 + 86400 * 30) // Expires in 30 days
+                .memo("Coffee shop gift card - $10")
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         // Verify the voucher secret is valid
         org.junit.jupiter.api.Assertions.assertNotNull(voucherSecret.getVoucherId());
@@ -297,29 +294,25 @@ public class VerifyProofsTaskTest {
     @Test
     public void multipleVoucherProofsAllowedInSwap() {
         // Create two voucher proofs
-        VoucherSecret voucher1 = VoucherSecret.create(
-                "restaurant-xyz",
-                "sat",
-                5000L,
-                null,
-                "Restaurant voucher",
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        VoucherSecret voucher1 = VoucherSecret.builder()
+                .issuerId("restaurant-xyz")
+                .unit("sat")
+                .faceValue(5000L)
+                .memo("Restaurant voucher")
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
-        VoucherSecret voucher2 = VoucherSecret.create(
-                "cafe-abc",
-                "sat",
-                3000L,
-                null,
-                "Cafe voucher",
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        VoucherSecret voucher2 = VoucherSecret.builder()
+                .issuerId("cafe-abc")
+                .unit("sat")
+                .faceValue(3000L)
+                .memo("Cafe voucher")
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         Proof<VoucherSecret> voucherProof1 = new Proof<>();
         voucherProof1.setAmount(5000);
@@ -374,21 +367,18 @@ public class VerifyProofsTaskTest {
     @Test
     public void e2eTest_VoucherDetection_ClassNameMatching() {
         // Create voucher secret
-        VoucherSecret voucherSecret = VoucherSecret.create(
-                "test-merchant",
-                "sat",
-                1000L,
-                null,
-                null,
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        VoucherSecret voucherSecret = VoucherSecret.builder()
+                .issuerId("test-merchant")
+                .unit("sat")
+                .faceValue(1000L)
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         // Verify class name detection
         String className = voucherSecret.getClass().getName();
-        assertEquals("xyz.tcheeric.cashu.voucher.domain.VoucherSecret", className,
+        assertEquals("xyz.tcheeric.cashu.common.VoucherSecret", className,
                 "VoucherSecret should have expected fully qualified class name");
 
         // Verify detector identifies it

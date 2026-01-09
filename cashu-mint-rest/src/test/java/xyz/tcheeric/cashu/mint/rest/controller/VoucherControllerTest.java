@@ -10,15 +10,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import xyz.tcheeric.cashu.common.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import xyz.tcheeric.cashu.voucher.domain.SignedVoucher;
-import xyz.tcheeric.cashu.voucher.domain.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.VoucherStatus;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -73,19 +74,18 @@ class VoucherControllerTest {
                 .memo("Test voucher")
                 .build();
 
-        // Create mock response
-        VoucherSecret secret = VoucherSecret.create(
-                "test-voucher-id",
-                "merchant123",
-                "sat",
-                10000L,
-                null,
-                "Test voucher",
-                BackingStrategy.MINIMAL,
-                1.0,
-                0,
-                null
-        );
+        // Create mock response with deterministic UUID
+        UUID testVoucherId = UUID.nameUUIDFromBytes("test-voucher-id".getBytes());
+        VoucherSecret secret = VoucherSecret.builder()
+                .voucherId(testVoucherId)
+                .issuerId("merchant123")
+                .unit("sat")
+                .faceValue(10000L)
+                .memo("Test voucher")
+                .backingStrategy(BackingStrategy.MINIMAL.name())
+                .issuanceRatio(1.0)
+                .faceDecimals(0)
+                .build();
 
         SignedVoucher signedVoucher = new SignedVoucher(
                 secret,
@@ -106,12 +106,15 @@ class VoucherControllerTest {
         when(voucherService.issue(any(IssueVoucherRequest.class)))
                 .thenReturn(mockResponse);
 
+        // Expected UUID from deterministic UUID generation
+        String expectedVoucherId = UUID.nameUUIDFromBytes("test-voucher-id".getBytes()).toString();
+
         mockMvc.perform(post("/v1/vouchers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("cashuAtest123"))
-                .andExpect(jsonPath("$.voucherId").value("test-voucher-id"))
+                .andExpect(jsonPath("$.voucherId").value(expectedVoucherId))
                 .andExpect(jsonPath("$.amount").value(10000))
                 .andExpect(jsonPath("$.unit").value("sat"));
 
