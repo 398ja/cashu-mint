@@ -1,55 +1,40 @@
 package xyz.tcheeric.cashu.mint.proto.tasks.validator;
 
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
-import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherKeyDerivation;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherMasterSecretConfig;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 /**
- * Spending condition for voucher proofs.
+ * Spending condition for voucher proofs with arbitrary denominations.
  *
- * <p>Voucher proofs use the same keyset-based verification as regular proofs.
- * The voucher secret (NUT-10 format) is used for hash_to_curve computation,
- * but the signature is verified using the standard keyset private key.
+ * <p>Unlike regular Cashu tokens that use power-of-2 denominations with pre-stored keys,
+ * voucher proofs can have any positive amount. This condition derives the verification
+ * key on-the-fly using the same HMAC-SHA256 derivation used during minting.
  *
- * <p>This ensures compatibility with the standard swap flow where:
- * <ol>
- *   <li>Issuer swaps regular proofs for proofs with voucher secrets</li>
- *   <li>Mint signs new proofs using keyset keys (not derived keys)</li>
- *   <li>Redeemer swaps voucher proofs, verified with same keyset keys</li>
- * </ol>
+ * <p>This ensures that vouchers minted with arbitrary amounts (e.g., 33 sats) can be
+ * verified and swapped, even though no pre-stored key exists for that amount.
  *
  * @param <T> the secret type
  */
+@AllArgsConstructor
 @Slf4j
 public class VoucherSpendingCondition<T extends Secret> implements SpendingCondition<T> {
 
-    private final Mint mint;
-    private final MintProtocolService mintProtocolService;
     private final ProofVaultService proofVaultService;
 
     public VoucherSpendingCondition() {
-        this(null, null, new DefaultProofVaultService());
-    }
-
-    public VoucherSpendingCondition(@NonNull Mint mint, @NonNull MintProtocolService mintProtocolService) {
-        this(mint, mintProtocolService, new DefaultProofVaultService());
-    }
-
-    public VoucherSpendingCondition(Mint mint, MintProtocolService mintProtocolService,
-                                    ProofVaultService proofVaultService) {
-        this.mint = mint;
-        this.mintProtocolService = mintProtocolService;
-        this.proofVaultService = proofVaultService;
+        this(new DefaultProofVaultService());
     }
 
     @Override
@@ -80,12 +65,11 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             throw new CashuErrorException(error.toJson());
         }
 
-        // Get the private key from keyset (same as RSSSpendingCondition)
-        PrivateKey privateKey = getPrivateKey(proof);
+        // Derive the private key dynamically for voucher amounts
+        PrivateKey privateKey = deriveVoucherKey(proof.getAmount());
         if (privateKey == null) {
-            log.error("verify_proof_key_set_not_found voucher_proof amount={} keysetId={}",
-                    proof.getAmount(), proof.getKeySetId());
-            ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
+            log.error("voucher_key_derivation_failed amount={}", proof.getAmount());
+            ErrorResponse error = new ErrorResponse("voucher_key_derivation_failed");
             throw new CashuErrorException(error.toJson());
         }
 
@@ -101,18 +85,23 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     }
 
     /**
-     * Gets the private key for verification from the keyset.
+     * Derives the private key for a voucher amount using the same derivation
+     * as used during minting in SignBlindedMessageTask.
      *
-     * @param proof the proof to verify
-     * @return the private key, or null if not found
+     * @param amount the voucher amount
+     * @return the derived private key, or null if derivation fails
      */
-    private PrivateKey getPrivateKey(@NonNull Proof<T> proof) throws CashuErrorException {
-        if (mint == null || mintProtocolService == null) {
-            log.error("VoucherSpendingCondition requires mint and mintProtocolService for keyset lookup");
+    private PrivateKey deriveVoucherKey(int amount) {
+        try {
+            String masterSecret = VoucherMasterSecretConfig.getMasterSecret();
+            if (masterSecret == null || masterSecret.isEmpty()) {
+                log.error("Voucher master secret not configured");
+                return null;
+            }
+            return VoucherKeyDerivation.deriveKeyForAmount(masterSecret, amount);
+        } catch (Exception e) {
+            log.error("Failed to derive voucher key for amount {}: {}", amount, e.getMessage(), e);
             return null;
         }
-        log.debug("Getting private key for voucher proof: keysetId={} amount={}",
-                proof.getKeySetId(), proof.getAmount());
-        return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
     }
 }
