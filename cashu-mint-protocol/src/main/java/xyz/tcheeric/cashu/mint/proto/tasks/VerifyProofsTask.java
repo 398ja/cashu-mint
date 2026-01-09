@@ -118,12 +118,12 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
             throws CashuErrorException {
-        // Voucher proofs use standard keyset-based verification (same as regular proofs)
+        // Voucher proofs use dynamic key derivation (same as during minting)
         // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
         // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
         if (VoucherSecretDetector.isVoucherSecret(secret)) {
-            log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with keyset verification");
-            return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService);
+            log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with dynamic key derivation");
+            return (SpendingCondition<T>) new VoucherSpendingCondition<>();
         }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
