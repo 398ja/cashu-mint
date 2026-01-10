@@ -371,7 +371,6 @@ The mint exposes a shared `SignatureVaultService` bean to persist signatures acr
 - `scripts/` - Build automation and SQL rendering helpers
 - `docs/` - Diátaxis-organized documentation (21 files)
 - `.github/workflows/` - CI/CD: tests, formatting, releases, conventional commits
-- `overrides/` - Local configuration overrides (gitignored)
 
 ## Docker
 
