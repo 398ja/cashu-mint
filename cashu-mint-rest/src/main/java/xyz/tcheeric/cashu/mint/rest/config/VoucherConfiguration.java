@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
 import xyz.tcheeric.cashu.voucher.app.MerchantVerificationService;
 import xyz.tcheeric.cashu.voucher.app.VoucherBackupService;
 import xyz.tcheeric.cashu.voucher.app.VoucherIssuanceService;
@@ -203,7 +204,7 @@ public class VoucherConfiguration {
                     "voucher.mint.issuerPublicKey must be configured when voucher.enabled=true");
         }
 
-        VoucherService service = new VoucherService(
+        VoucherService service = new MintVoucherService(
                 ledgerPort,
                 backupPort,
                 issuerPrivateKey,
