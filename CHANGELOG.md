@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Voucher issuance responses now include a generated `cashuA` token so REST clients and Nostr integration tests receive non-null voucher tokens.
+- Integration test configuration now uses the token-enriching voucher service to keep Nostr voucher flows aligned with the REST behavior.
+
+---
+
+## [0.7.1] - 2026-01-10
+
+### Changed
+
+- Updated cashu-lib dependency from 0.10.0 to 0.11.1
+- Updated cashu-gateway dependency from 0.4.8 to 0.5.0
+- Updated cashu-voucher dependency from 0.4.0 to 0.5.0
+- Updated cashu-wallet dependency from 0.4.2 to 0.4.4
+- Updated cashu-client dependency from 1.2.7 to 1.2.8
+
 ---
 
 ## [0.7.0] - 2026-01-07
