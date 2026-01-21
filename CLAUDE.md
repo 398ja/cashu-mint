@@ -92,7 +92,7 @@ Services (cashu-mint-protocol/service/)
     ↓
 Vault/Gateway SPIs (interfaces)
     ↓
-Infrastructure Adapters (cashu-vault-jpa, cashu-gateway-*)
+Infrastructure Adapters (cashu-vault-jpa, payment-adapter-*)
 ```
 
 ### NUT Implementation Pattern
@@ -258,7 +258,7 @@ docs/
 ### Working with Gateway Adapters
 
 Gateways abstract payment methods (Lightning, etc.):
-- Interface: `cashu-gateway` module (external dependency)
+- Interface: `payment-adapter` module (external dependency)
 - Implementation: `PhoenixdGateway` for Lightning BOLT11
 - Test implementation: `DummyGateway` returns mock responses
 - Configuration: `GATEWAY_{METHOD}_{UNIT}` environment variables
@@ -289,7 +289,7 @@ cashu-mint-rest
   ├── cashu-mint-protocol
   │     ├── cashu-lib (0.6.0)
   │     ├── cashu-vault (0.3.0)
-  │     ├── cashu-gateway (0.4.1)
+  │     ├── payment-adapter (0.6.0)
   │     └── cashu-voucher (0.2.0)
   └── Spring Boot 3.5.5
 

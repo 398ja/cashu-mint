@@ -1,7 +1,6 @@
 # Build stage
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /build
-ARG CASHU_GATEWAY_VERSION=0.4.3
 COPY . /build
 RUN mvn -B -pl cashu-mint-rest -am -Dmaven.test.skip=true package
 
