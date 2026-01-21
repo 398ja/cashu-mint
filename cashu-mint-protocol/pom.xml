@@ -48,16 +48,16 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>payment-gateway-common</artifactId>
+            <artifactId>payment-adapter-common</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>payment-gateway-phoenixd</artifactId>
+            <artifactId>payment-adapter-phoenixd</artifactId>
         </dependency>
-        <!-- Include Dummy gateway on the runtime classpath so it can be selected via env overrides in dev -->
+        <!-- Include Dummy adapter on the runtime classpath so it can be selected via env overrides in dev -->
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>payment-gateway-dummy</artifactId>
+            <artifactId>payment-adapter-dummy</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
