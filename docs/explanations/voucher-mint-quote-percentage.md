@@ -20,7 +20,7 @@ This document describes the planned change to calculate voucher mint quotes as a
 | --- | --- | --- | --- | --- |
 | `voucher_quote_fee_percent` | `10` | `VOUCHER_QUOTE_FEE_PERCENT` | `-Dvoucher_quote_fee_percent=…` | Percent value applied to voucher mint quotes. |
 
-- Defaults can live in the existing configuration file (e.g., `proto.properties` or the profile override in `overrides/`).
+- Defaults can live in the existing configuration file (e.g., `proto.properties`).
 - Environment variables take precedence over property files; system properties can be used for per-process overrides.
 - Validation should occur at startup: reject missing/invalid values and log the effective percent.
 

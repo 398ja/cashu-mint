@@ -1,0 +1,169 @@
+2026-01-07T22:56:50.101Z INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.1.Final
+2026-01-07T22:56:50.190Z INFO  x.t.c.m.r.CashuMintRestApplication - Starting CashuMintRestApplication using Java 21.0.9 with PID 2833640 (/home/eric/IdeaProjects/cashu-mint/cashu-mint-rest/target/cashu-mint-rest-0.7.0-exec.jar started by eric in /home/eric/IdeaProjects/cashu-mint)
+2026-01-07T22:56:50.190Z DEBUG x.t.c.m.r.CashuMintRestApplication - Running with Spring Boot v3.5.6, Spring v6.2.11
+2026-01-07T22:56:50.191Z INFO  x.t.c.m.r.CashuMintRestApplication - No active profile set, falling back to 1 default profile: "default"
+2026-01-07T22:56:51.866Z INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat initialized with port 34009 (http)
+2026-01-07T22:56:51.876Z INFO  o.a.coyote.http11.Http11NioProtocol - Initializing ProtocolHandler ["http-nio-0.0.0.0-34009"]
+2026-01-07T22:56:51.878Z INFO  o.a.catalina.core.StandardService - Starting service [Tomcat]
+2026-01-07T22:56:51.878Z INFO  o.a.catalina.core.StandardEngine - Starting Servlet engine: [Apache Tomcat/10.1.48]
+2026-01-07T22:56:51.905Z INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring embedded WebApplicationContext
+2026-01-07T22:56:51.906Z INFO  o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 1667 ms
+2026-01-07T22:56:52.195Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint HTTP request metrics interceptor
+2026-01-07T22:56:52.196Z DEBUG x.t.c.m.o.i.MetricsHandlerInterceptor - MetricsHandlerInterceptor initialized
+2026-01-07T22:56:52.197Z INFO  x.t.c.m.o.c.MetricsWebMvcConfiguration - MetricsWebMvcConfiguration initialized
+2026-01-07T22:56:52.433Z DEBUG x.t.c.m.o.c.MetricsWebMvcConfiguration - Metrics interceptor registered for /v1/** endpoints
+2026-01-07T22:56:52.854Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint gateway health indicator
+2026-01-07T22:56:52.854Z DEBUG x.t.c.m.o.h.GatewayHealthIndicator - GatewayHealthIndicator initialized with timeout=5000ms
+2026-01-07T22:56:52.857Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint vault health indicator
+2026-01-07T22:56:52.857Z DEBUG x.t.c.m.o.h.VaultHealthIndicator - VaultHealthIndicator initialized with timeout=5000ms
+2026-01-07T22:56:53.246Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint observability metrics
+2026-01-07T22:56:53.259Z DEBUG x.t.c.m.o.metrics.MintMetrics - MintMetrics initialized with trackKeysets=true
+2026-01-07T22:56:53.261Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint task metrics
+2026-01-07T22:56:53.262Z DEBUG x.t.c.m.o.metrics.TaskMetrics - TaskMetrics initialized
+2026-01-07T22:56:53.263Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint task timing aspect
+2026-01-07T22:56:53.263Z INFO  x.t.c.m.o.aspect.TaskTimingAspect - TaskTimingAspect initialized - task instrumentation enabled
+2026-01-07T22:56:53.264Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Registering task metrics adapter for protocol task instrumentation
+2026-01-07T22:56:53.266Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint quote metrics
+2026-01-07T22:56:53.268Z DEBUG x.t.c.m.o.metrics.QuoteMetrics - QuoteMetrics initialized
+2026-01-07T22:56:53.269Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint voucher metrics
+2026-01-07T22:56:53.271Z DEBUG x.t.c.m.o.metrics.VoucherMetrics - VoucherMetrics initialized
+2026-01-07T22:56:53.272Z INFO  x.t.c.m.o.c.ObservabilityAutoConfiguration - Initializing Cashu Mint gateway metrics
+2026-01-07T22:56:53.274Z DEBUG x.t.c.m.o.metrics.GatewayMetrics - GatewayMetrics initialized
+2026-01-07T22:56:53.287Z INFO  o.s.b.a.e.web.EndpointLinksResolver - Exposing 4 endpoints beneath base path '/actuator'
+2026-01-07T22:56:53.343Z INFO  o.a.coyote.http11.Http11NioProtocol - Starting ProtocolHandler ["http-nio-0.0.0.0-34009"]
+2026-01-07T22:56:53.357Z INFO  o.s.b.w.e.tomcat.TomcatWebServer - Tomcat started on port 34009 (http) with context path '/'
+2026-01-07T22:56:53.370Z INFO  x.t.c.m.r.CashuMintRestApplication - Started CashuMintRestApplication in 3.601 seconds (process running for 4.855)
+2026-01-07T22:56:53.478Z INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: classpath app.properties gateway.bolt11=null gateway.bolt11.sat=null
+2026-01-07T22:56:53.480Z INFO  x.t.c.m.r.CashuMintRestApplication - Diagnostics: PhoenixdGateway present. package=xyz.tcheeric.gateway.phoenixd version=null
+2026-01-07T22:57:11.156Z INFO  o.a.c.c.C.[Tomcat].[localhost].[/] - Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-01-07T22:57:11.156Z INFO  o.s.web.servlet.DispatcherServlet - Initializing Servlet 'dispatcherServlet'
+2026-01-07T22:57:11.157Z INFO  o.s.web.servlet.DispatcherServlet - Completed initialization in 1 ms
+2026-01-07T23:00:07.562Z INFO  x.t.gateway.phoenixd.PhoenixdGateway - Creating mint quote: amount=10000, description=null
+2026-01-07T23:00:07.570Z INFO  x.t.p.common.rest.util.Configuration - Loaded configuration from 'jar:nested:/home/eric/IdeaProjects/cashu-mint/cashu-mint-rest/target/cashu-mint-rest-0.7.0-exec.jar/!BOOT-INF/lib/phoenixd-rest-0.2.0.jar!/app.properties'
+2026-01-07T23:00:07.571Z DEBUG x.t.p.common.rest.util.Configuration - Config 'username' resolved from app.properties
+2026-01-07T23:00:07.571Z DEBUG x.t.p.common.rest.util.Configuration - Config 'password' resolved from app.properties
+2026-01-07T23:00:07.571Z DEBUG x.t.p.common.rest.util.Configuration - Config 'base_url' resolved from system properties
+2026-01-07T23:00:07.571Z DEBUG x.t.p.common.rest.util.Configuration - Config 'timeout' resolved from app.properties
+2026-01-07T23:00:07.580Z DEBUG x.t.p.operation.AbstractOperation - Prepared HTTP request: method=POST, uri=http://phoenixd:9740/createinvoice, timeoutMs=5000
+2026-01-07T23:00:07.583Z DEBUG x.t.p.operation.AbstractOperation - Updated header: Content-Type=application/x-www-form-urlencoded for POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:07.583Z DEBUG x.t.p.operation.impl.PostOperation - Initialized POST operation for path=/createinvoice with body size=143
+2026-01-07T23:00:07.583Z DEBUG x.t.phoenixd.request.AbstractRequest - Executing request: path=/createinvoice, paramClass=CreateInvoiceParam, responseType=CreateInvoiceResponse
+2026-01-07T23:00:07.584Z DEBUG x.t.p.operation.AbstractOperation - Sending HTTP request: POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:07.720Z ERROR o.a.c.c.C.[.[.[.[dispatcherServlet] - Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: java.lang.RuntimeException: java.util.concurrent.ExecutionException: java.net.ConnectException] with root cause
+java.nio.channels.UnresolvedAddressException: null
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:137)
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:145)
+	at java.base/sun.nio.ch.SocketChannelImpl.checkRemote(SocketChannelImpl.java:842)
+	at java.base/sun.nio.ch.SocketChannelImpl.connect(SocketChannelImpl.java:865)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.lambda$connectAsync$1(PlainHttpConnection.java:210)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:571)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.connectAsync(PlainHttpConnection.java:212)
+	at java.net.http/jdk.internal.net.http.Http1Exchange.sendHeadersAsync(Http1Exchange.java:312)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$8(Exchange.java:581)
+	at java.net.http/jdk.internal.net.http.Exchange.checkFor407(Exchange.java:452)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$9(Exchange.java:585)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl0(Exchange.java:585)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl(Exchange.java:428)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsync(Exchange.java:420)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:435)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsyncImpl$7(MultiExchange.java:477)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:467)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsync0$2(MultiExchange.java:355)
+	at java.base/java.util.concurrent.CompletableFuture$UniCompose.tryFire(CompletableFuture.java:1150)
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1773)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+2026-01-07T23:00:08.178Z INFO  x.t.gateway.phoenixd.PhoenixdGateway - Creating mint quote: amount=10000, description=null
+2026-01-07T23:00:08.179Z DEBUG x.t.p.common.rest.util.Configuration - Config 'username' resolved from app.properties
+2026-01-07T23:00:08.179Z DEBUG x.t.p.common.rest.util.Configuration - Config 'password' resolved from app.properties
+2026-01-07T23:00:08.179Z DEBUG x.t.p.common.rest.util.Configuration - Config 'base_url' resolved from system properties
+2026-01-07T23:00:08.179Z DEBUG x.t.p.common.rest.util.Configuration - Config 'timeout' resolved from app.properties
+2026-01-07T23:00:08.179Z DEBUG x.t.p.operation.AbstractOperation - Prepared HTTP request: method=POST, uri=http://phoenixd:9740/createinvoice, timeoutMs=5000
+2026-01-07T23:00:08.179Z DEBUG x.t.p.operation.AbstractOperation - Updated header: Content-Type=application/x-www-form-urlencoded for POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:08.179Z DEBUG x.t.p.operation.impl.PostOperation - Initialized POST operation for path=/createinvoice with body size=143
+2026-01-07T23:00:08.179Z DEBUG x.t.phoenixd.request.AbstractRequest - Executing request: path=/createinvoice, paramClass=CreateInvoiceParam, responseType=CreateInvoiceResponse
+2026-01-07T23:00:08.179Z DEBUG x.t.p.operation.AbstractOperation - Sending HTTP request: POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:08.182Z ERROR o.a.c.c.C.[.[.[.[dispatcherServlet] - Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: java.lang.RuntimeException: java.util.concurrent.ExecutionException: java.net.ConnectException] with root cause
+java.nio.channels.UnresolvedAddressException: null
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:137)
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:145)
+	at java.base/sun.nio.ch.SocketChannelImpl.checkRemote(SocketChannelImpl.java:842)
+	at java.base/sun.nio.ch.SocketChannelImpl.connect(SocketChannelImpl.java:865)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.lambda$connectAsync$1(PlainHttpConnection.java:210)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:571)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.connectAsync(PlainHttpConnection.java:212)
+	at java.net.http/jdk.internal.net.http.Http1Exchange.sendHeadersAsync(Http1Exchange.java:312)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$8(Exchange.java:581)
+	at java.net.http/jdk.internal.net.http.Exchange.checkFor407(Exchange.java:452)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$9(Exchange.java:585)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl0(Exchange.java:585)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl(Exchange.java:428)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsync(Exchange.java:420)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:435)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsyncImpl$7(MultiExchange.java:477)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:467)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsync0$2(MultiExchange.java:355)
+	at java.base/java.util.concurrent.CompletableFuture$UniCompose.tryFire(CompletableFuture.java:1150)
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1773)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+2026-01-07T23:00:09.028Z INFO  x.t.gateway.phoenixd.PhoenixdGateway - Creating mint quote: amount=10000, description=null
+2026-01-07T23:00:09.029Z DEBUG x.t.p.common.rest.util.Configuration - Config 'username' resolved from app.properties
+2026-01-07T23:00:09.029Z DEBUG x.t.p.common.rest.util.Configuration - Config 'password' resolved from app.properties
+2026-01-07T23:00:09.029Z DEBUG x.t.p.common.rest.util.Configuration - Config 'base_url' resolved from system properties
+2026-01-07T23:00:09.029Z DEBUG x.t.p.common.rest.util.Configuration - Config 'timeout' resolved from app.properties
+2026-01-07T23:00:09.029Z DEBUG x.t.p.operation.AbstractOperation - Prepared HTTP request: method=POST, uri=http://phoenixd:9740/createinvoice, timeoutMs=5000
+2026-01-07T23:00:09.029Z DEBUG x.t.p.operation.AbstractOperation - Updated header: Content-Type=application/x-www-form-urlencoded for POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:09.029Z DEBUG x.t.p.operation.impl.PostOperation - Initialized POST operation for path=/createinvoice with body size=143
+2026-01-07T23:00:09.029Z DEBUG x.t.phoenixd.request.AbstractRequest - Executing request: path=/createinvoice, paramClass=CreateInvoiceParam, responseType=CreateInvoiceResponse
+2026-01-07T23:00:09.029Z DEBUG x.t.p.operation.AbstractOperation - Sending HTTP request: POST http://phoenixd:9740/createinvoice
+2026-01-07T23:00:09.033Z ERROR o.a.c.c.C.[.[.[.[dispatcherServlet] - Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed: java.lang.RuntimeException: java.util.concurrent.ExecutionException: java.net.ConnectException] with root cause
+java.nio.channels.UnresolvedAddressException: null
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:137)
+	at java.base/sun.nio.ch.Net.checkAddress(Net.java:145)
+	at java.base/sun.nio.ch.SocketChannelImpl.checkRemote(SocketChannelImpl.java:842)
+	at java.base/sun.nio.ch.SocketChannelImpl.connect(SocketChannelImpl.java:865)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.lambda$connectAsync$1(PlainHttpConnection.java:210)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:571)
+	at java.net.http/jdk.internal.net.http.PlainHttpConnection.connectAsync(PlainHttpConnection.java:212)
+	at java.net.http/jdk.internal.net.http.Http1Exchange.sendHeadersAsync(Http1Exchange.java:312)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$8(Exchange.java:581)
+	at java.net.http/jdk.internal.net.http.Exchange.checkFor407(Exchange.java:452)
+	at java.net.http/jdk.internal.net.http.Exchange.lambda$responseAsyncImpl0$9(Exchange.java:585)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl0(Exchange.java:585)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsyncImpl(Exchange.java:428)
+	at java.net.http/jdk.internal.net.http.Exchange.responseAsync(Exchange.java:420)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:435)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsyncImpl$7(MultiExchange.java:477)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandle(CompletableFuture.java:934)
+	at java.base/java.util.concurrent.CompletableFuture.uniHandleStage(CompletableFuture.java:950)
+	at java.base/java.util.concurrent.CompletableFuture.handle(CompletableFuture.java:2372)
+	at java.net.http/jdk.internal.net.http.MultiExchange.responseAsyncImpl(MultiExchange.java:467)
+	at java.net.http/jdk.internal.net.http.MultiExchange.lambda$responseAsync0$2(MultiExchange.java:355)
+	at java.base/java.util.concurrent.CompletableFuture$UniCompose.tryFire(CompletableFuture.java:1150)
+	at java.base/java.util.concurrent.CompletableFuture.postComplete(CompletableFuture.java:510)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1773)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+2026-01-07T23:02:23.737Z INFO  o.s.b.w.e.tomcat.GracefulShutdown - Commencing graceful shutdown. Waiting for active requests to complete
+2026-01-07T23:02:23.741Z INFO  o.s.b.w.e.tomcat.GracefulShutdown - Graceful shutdown complete

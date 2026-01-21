@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.7.0</version>
+        <version>0.7.3</version>
     </parent>
 
     <artifactId>cashu-mint-protocol</artifactId>
     <packaging>jar</packaging>
-    <version>0.7.0</version>
+    <version>0.7.3</version>
 
     <name>cashu-mint-protocol</name>
     <url>http://maven.apache.org</url>
@@ -48,16 +48,16 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-gateway-common</artifactId>
+            <artifactId>payment-adapter-common</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-gateway-phoenixd</artifactId>
+            <artifactId>payment-adapter-phoenixd</artifactId>
         </dependency>
-        <!-- Include Dummy gateway on the runtime classpath so it can be selected via env overrides in dev -->
+        <!-- Include Dummy adapter on the runtime classpath so it can be selected via env overrides in dev -->
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>cashu-gateway-dummy</artifactId>
+            <artifactId>payment-adapter-dummy</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

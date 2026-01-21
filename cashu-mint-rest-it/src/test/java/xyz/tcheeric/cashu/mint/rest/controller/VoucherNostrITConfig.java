@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.rest.controller;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherBackupPort;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherLedgerPort;
@@ -34,7 +35,7 @@ public class VoucherNostrITConfig {
         // Matching BIP-340 x-only public key for the above private key (G * 1)
         String issuerPublicKey = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
-        return new VoucherService(
+        return new MintVoucherService(
             ledgerPort,
             backupPort,
             issuerPrivateKey,
