@@ -63,6 +63,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         // Validate no mixed voucher/regular proofs before verification
         boolean isVoucherSwap = validateNoMixedProofTypes(request.getInputs());
 
+        // Validate voucher swap amounts before signing (free splitting, but totals must match)
+        if (isVoucherSwap) {
+            validateVoucherSwapAmounts(request.getInputs(), request.getBlindedMessages());
+        }
+
         new VerifyProofsTask<>(mint, request, service).execute();
 
         // Voucher swaps use standard keyset keys (power-of-2 amounts)
