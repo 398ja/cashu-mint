@@ -119,14 +119,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
             }
 
-            // Both vouchers and regular tokens require power-of-2 denominations per NUT-00
-            // Voucher metadata (face value, expiry, etc.) is stored in the secret's NUT-10 tags
-            // and doesn't affect the cryptographic keys used
+            // Vouchers allow arbitrary denominations (free splitting)
+            // Regular tokens require power-of-2 denominations per NUT-00
             if (isVoucherQuote) {
-                log.info("mint_task voucher_quote amount={}",
+                log.info("mint_task voucher_quote amount={} arbitrary_denominations=true",
                         blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
+            } else {
+                validateDenominations(blindedMessages, mint);
             }
-            validateDenominations(blindedMessages, mint);
 
             log.debug("Signing {} blinded messages...", blindedMessages.size());
 
