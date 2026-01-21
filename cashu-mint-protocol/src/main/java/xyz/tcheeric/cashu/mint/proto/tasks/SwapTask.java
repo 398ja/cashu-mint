@@ -16,7 +16,6 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
-import xyz.tcheeric.cashu.mint.proto.util.VoucherMasterSecretConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,21 +63,18 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         // Validate no mixed voucher/regular proofs before verification
         boolean isVoucherSwap = validateNoMixedProofTypes(request.getInputs());
 
-        new VerifyProofsTask<>(mint, request, service).execute();
-
-        // Voucher swaps allow arbitrary output amounts (free splitting)
+        // Validate voucher swap amounts before signing (free splitting, but totals must match)
         if (isVoucherSwap) {
             validateVoucherSwapAmounts(request.getInputs(), request.getBlindedMessages());
         }
 
-        // Get voucher master secret if in voucher mode
-        String voucherSecret = isVoucherSwap ? VoucherMasterSecretConfig.getMasterSecret() : null;
+        new VerifyProofsTask<>(mint, request, service).execute();
 
+        // Voucher swaps use standard keyset keys (power-of-2 amounts)
+        // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
         List<BlindSignature> blindSignatures = new ArrayList<>();
         for (BlindedMessage bm : request.getBlindedMessages()) {
-            SignBlindedMessageTask signTask = isVoucherSwap
-                    ? new SignBlindedMessageTask(mint, bm, service, signatureVaultService, true, voucherSecret)
-                    : new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
+            SignBlindedMessageTask signTask = new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
             BlindSignature sig = signTask.execute();
             blindSignatures.add(sig);
         }
