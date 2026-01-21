@@ -9,10 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.7.3] - 2026-01-21
+
+### Changed
+
+- Renamed payment-gateway dependencies to payment-adapter (0.6.0)
+- Updated docker-compose service names from gateway to adapter
+
 ### Fixed
 
 - Voucher issuance responses now include a generated `cashuA` token so REST clients and Nostr integration tests receive non-null voucher tokens.
 - Integration test configuration now uses the token-enriching voucher service to keep Nostr voucher flows aligned with the REST behavior.
+
+---
+
+## [0.7.2] - 2026-01-15
+
+### Changed
+
+- Updated payment-gateway dependency to 0.5.0
 
 ---
 
