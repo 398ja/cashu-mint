@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -130,7 +131,8 @@ class VoucherSpendingConditionTest {
 
         // Act & Assert: Should throw due to expiry
         CashuErrorException exception = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
-        // The exception should indicate voucher_expired
+        assertTrue(exception.getMessage().contains("voucher_expired"),
+                "Exception should indicate voucher_expired");
     }
 
     /**
