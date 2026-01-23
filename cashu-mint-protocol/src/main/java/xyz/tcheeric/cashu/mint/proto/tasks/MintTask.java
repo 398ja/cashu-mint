@@ -15,7 +15,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.gateway.common.Gateway;
 
@@ -65,20 +65,22 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
     @Override
     protected PostMintResponse doExecute() throws CashuErrorException {
-        ThreadUtil.MINT_MELT_LOCK.lock();
-        try {
-            PostMintResponse result = new PostMintResponse();
-            List<BlindedMessage> blindedMessages = Objects.requireNonNull(
-                    postMintRequest.getBlindedMessages(),
-                    "Blinded messages must not be null");
+        PostMintResponse result = new PostMintResponse();
+        List<BlindedMessage> blindedMessages = Objects.requireNonNull(
+                postMintRequest.getBlindedMessages(),
+                "Blinded messages must not be null");
 
-            // If the invoice was not paid yet, Bob responds with a structured error.
-            if (log.isDebugEnabled()) {
-                log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
-                        blindedMessages.size());
-            }
+        // If the invoice was not paid yet, Bob responds with a structured error.
+        if (log.isDebugEnabled()) {
+            log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
+                    blindedMessages.size());
+        }
 
-            String quoteId = postMintRequest.getQuoteId();
+        String quoteId = postMintRequest.getQuoteId();
+
+        // Per-quote lock: serializes concurrent requests for the same quote
+        // to prevent double-mint attacks while allowing parallel minting of different quotes
+        try (QuoteLockManager.QuoteLock quoteLock = QuoteLockManager.lockQuote(quoteId)) {
 
             // Voucher tokens use mock payment - no real bitcoin backing needed
             boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
@@ -148,9 +150,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
 
             return result;
-        } finally {
-            ThreadUtil.MINT_MELT_LOCK.unlock();
-        }
+        } // QuoteLock auto-released here
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
