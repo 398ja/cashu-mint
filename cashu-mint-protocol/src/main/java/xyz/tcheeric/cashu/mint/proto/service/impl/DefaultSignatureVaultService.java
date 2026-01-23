@@ -37,7 +37,27 @@ public class DefaultSignatureVaultService implements SignatureVaultService {
         }
 
         String key = message.getBlindedMessage().toString();
-        store.put(key, signature);
+
+        // Double-mint detection: check if signature already exists for this blinded message
+        BlindSignature existing = store.putIfAbsent(key, signature);
+        if (existing != null) {
+            // Signature already exists - this could indicate a double-mint attempt
+            // or an idempotent retry. Log for monitoring but allow operation to continue
+            // since the same blinded message should produce the same signature.
+            log.warn("Duplicate signature storage detected: blinded_message_key={} " +
+                            "existing_keyset={} existing_amount={} new_keyset={} new_amount={}",
+                    key.substring(0, Math.min(key.length(), 16)) + "...",
+                    existing.getKeySetId(), existing.getAmount(),
+                    signature.getKeySetId(), signature.getAmount());
+
+            // If the signatures differ, this is a serious issue that should be investigated
+            if (!existing.equals(signature)) {
+                log.error("CRITICAL: Different signatures for same blinded message! " +
+                                "This indicates a potential double-mint or cryptographic issue. " +
+                                "key={}", key);
+            }
+            return; // Keep the original signature
+        }
 
         log.debug("Signature stored: keyset={}, amount={}, vault_size={}",
                 signature.getKeySetId(), signature.getAmount(), store.size());
