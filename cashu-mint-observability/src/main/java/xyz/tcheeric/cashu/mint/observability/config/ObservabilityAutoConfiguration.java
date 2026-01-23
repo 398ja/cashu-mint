@@ -21,6 +21,10 @@ import xyz.tcheeric.cashu.mint.observability.metrics.QuoteMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.VoucherMetrics;
+import xyz.tcheeric.cashu.mint.observability.metrics.LockMetrics;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerLockMetricsAdapter;
+import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsAdapter;
+import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 
@@ -98,6 +102,40 @@ public class ObservabilityAutoConfiguration {
         log.info("Registering task metrics adapter for protocol task instrumentation");
         TaskMetricsAdapter adapter = new MicrometerTaskMetricsAdapter(taskMetrics);
         TaskExecutionRecorder.register(adapter);
+        return adapter;
+    }
+
+    /**
+     * Creates the LockMetrics bean for tracking lock wait and hold times.
+     *
+     * <p>Monitors per-quote and per-proof locks used to prevent double-mint attacks.
+     * Essential for virtual thread performance monitoring.
+     *
+     * @param registry the Micrometer registry
+     * @return the LockMetrics instance
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public LockMetrics lockMetrics(MeterRegistry registry) {
+        log.info("Initializing Cashu Mint lock metrics");
+        return new LockMetrics(registry);
+    }
+
+    /**
+     * Registers a Micrometer-backed adapter so lock managers emit metrics to Prometheus.
+     *
+     * <p>Can be disabled by setting {@code cashu.observability.locks.enabled=false}.
+     *
+     * @param lockMetrics the lock metrics instance
+     * @return the lock metrics adapter
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(name = "cashu.observability.locks.enabled", havingValue = "true", matchIfMissing = true)
+    public LockMetricsAdapter lockMetricsAdapter(LockMetrics lockMetrics) {
+        log.info("Registering lock metrics adapter for protocol lock instrumentation");
+        LockMetricsAdapter adapter = new MicrometerLockMetricsAdapter(lockMetrics);
+        LockMetricsRecorder.register(adapter);
         return adapter;
     }
 
