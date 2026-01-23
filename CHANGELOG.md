@@ -11,6 +11,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-01-23
+
+### Added
+
+- **Virtual Thread Support (Project Loom)**: Full implementation for Java 21+ runtime optimization
+  - Enable via `spring.threads.virtual.enabled=true` (default) or `SPRING_THREADS_VIRTUAL_ENABLED` env var
+  - Virtual threads handle all request processing and async tasks
+  - Per-quote locking with `QuoteLockManager` for parallel quote processing
+  - Per-proof locking with `ProofLockManager` for parallel melt operations
+  - Double-mint detection in `DefaultSignatureVaultService` as safety net
+
+- **Lock Observability**: Prometheus metrics for lock contention monitoring
+  - `cashu_mint_lock_wait_seconds` - time spent waiting to acquire locks
+  - `cashu_mint_lock_hold_seconds` - time spent holding locks
+  - `cashu_mint_lock_active` - current number of held locks
+  - `LockMetrics`, `MicrometerLockMetricsAdapter` in observability module
+
+- **Virtual Threads Grafana Dashboard**: New `cashu-mint-virtual-threads.json` dashboard
+  - Lock contention panels (wait time, hold time, active locks)
+  - JVM thread metrics (live threads, thread states)
+  - Tomcat connection pool monitoring
+
+- **Gateway Client Optimization**: JDK HttpClient with virtual thread executor
+  - `GatewayClientConfiguration` provides `gatewayRestTemplate` bean
+  - Configurable timeouts: `GATEWAY_CLIENT_CONNECT_TIMEOUT`, `GATEWAY_CLIENT_READ_TIMEOUT`
+
+- **VT Operational Runbook**: `docs/runbooks/virtual-thread-issues.md`
+  - Diagnosis and resolution for lock contention, pinning, memory leaks
+  - Rollback procedure and escalation path
+
+- **Load Testing Infrastructure**: k6 scripts and baseline metrics capture
+  - `scripts/load-test-mint.js` for performance testing
+  - Heap exhaustion testing for VT workloads
+
+### Changed
+
+- Updated cashu-lib dependency from 0.11.1 to 0.12.0
+- Updated cashu-wallet dependency from 0.4.4 to 0.5.0
+- Tomcat thread pool reduced to 50 max threads (VTs handle concurrency)
+- Tomcat connection limits set to 2000 max-connections (primary VT concurrency limit)
+- `AsyncConfig` configures virtual thread executor for `@Async` tasks
+
+### Deprecated
+
+- `ThreadUtil.MINT_MELT_LOCK` - replaced by `QuoteLockManager.lockQuote()` for per-quote locking
+
+### Fixed
+
+- Voucher arbitrary denominations now work correctly for minting and swaps
+
+---
+
 ## [0.7.3] - 2026-01-21
 
 ### Changed
