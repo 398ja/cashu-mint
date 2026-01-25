@@ -11,6 +11,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.0] - 2026-01-25
+
+### Added
+
+- **Webhook-Based Payment Notifications**: New `cashu-mint-webhook` module for push-based payment status
+  - `PaymentWebhookController` receives payment events at `/webhook/payment`
+  - `QuoteStatusUpdater` maintains in-memory cache for instant payment lookups
+  - `WebhookSignatureValidator` validates HMAC-SHA256 signatures from `X-Webhook-Signature` header
+  - `PaymentNotification` DTO with idempotency key generation for deduplication
+  - Health endpoint at `/webhook/health` with cache statistics
+
+- **PaymentStatusChecker Interface**: New abstraction in `cashu-mint-protocol` for payment verification
+  - `isPaid(quoteId)` for instant cache lookup
+  - `getPreimage(quoteId)` to retrieve payment proof
+  - `markConsumed(quoteId)` for cleanup after successful minting
+  - `MintTask` checks webhook cache first, falls back to gateway polling
+
+- **Comprehensive Webhook Tests**: Unit and integration test coverage
+  - `PaymentWebhookControllerTest`, `QuoteStatusUpdaterTest`, `WebhookSignatureValidatorTest`
+  - `PaymentWebhookIT`, `PaymentWebhookE2EIT` for end-to-end testing
+
+- **Payment Webhook Documentation**: `docs/explanations/payment-webhook-architecture.md`
+  - Architecture comparison (polling vs push-based)
+  - Configuration and benefits
+
+### Changed
+
+- `MintTask` now checks `PaymentStatusChecker` before polling gateway, reducing latency for cached payments
+- `cashu-mint-rest` depends on `cashu-mint-webhook` module
+
+---
+
 ## [0.8.0] - 2026-01-23
 
 ### Added
