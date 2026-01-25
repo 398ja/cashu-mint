@@ -18,6 +18,24 @@ jobs:
           cache: 'maven'
       - name: Build with Maven
         run: ./mvnw -q verify
+      - name: Run tests with VT pinning detection
+        run: |
+          ./mvnw -q test -pl cashu-mint-protocol \
+            -Djdk.tracePinnedThreads=short \
+            -DargLine="-Djdk.tracePinnedThreads=short" \
+            2>&1 | tee pinning-detection.log
+          # Check for pinning events in test output
+          if grep -q "VirtualThread.*pinned\|Pinned.*virtual" pinning-detection.log; then
+            echo "::warning::Virtual thread pinning detected in tests"
+            grep -A5 "pinned\|Pinned" pinning-detection.log || true
+          fi
+      - name: Upload pinning detection log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinning-detection-log
+          path: pinning-detection.log
+          if-no-files-found: ignore
       - name: Upload surefire reports
         if: always()
         uses: actions/upload-artifact@v4

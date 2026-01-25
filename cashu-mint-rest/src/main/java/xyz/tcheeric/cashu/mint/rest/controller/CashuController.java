@@ -49,7 +49,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
-import xyz.tcheeric.gateway.common.InvoiceNotPaidException;
+import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
 
 import java.lang.reflect.Field;
 import java.util.List;

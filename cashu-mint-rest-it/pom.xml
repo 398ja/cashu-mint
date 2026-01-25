@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.7.3</version>
+        <version>0.9.0</version>
     </parent>
     <artifactId>cashu-mint-rest-it</artifactId>
-    <version>0.7.3</version>
+    <version>0.9.0</version>
     <name>cashu-mint-rest-it</name>
     <description>Integration tests for cashu-mint-rest</description>
 
@@ -70,6 +70,14 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Webhook module for integration testing -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-mint-webhook</artifactId>
+            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
