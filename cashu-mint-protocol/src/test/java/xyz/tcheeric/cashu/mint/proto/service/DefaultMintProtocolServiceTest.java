@@ -5,7 +5,7 @@ import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +44,7 @@ public class DefaultMintProtocolServiceTest {
 
         // Assert
         assertNotNull(gateway);
-        assertEquals("xyz.tcheeric.gateway.phoenixd.PhoenixdGateway", gateway.getClass().getName());
+        assertEquals("xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway", gateway.getClass().getName());
     }
 
     /**
@@ -75,7 +75,7 @@ public class DefaultMintProtocolServiceTest {
 
         // Assert: falls back to gateway.bolt11 which also maps to PhoenixdGateway in test properties
         assertNotNull(gateway);
-        assertEquals("xyz.tcheeric.gateway.phoenixd.PhoenixdGateway", gateway.getClass().getName());
+        assertEquals("xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway", gateway.getClass().getName());
     }
 }
 

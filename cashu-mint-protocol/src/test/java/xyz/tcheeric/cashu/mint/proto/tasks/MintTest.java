@@ -23,7 +23,7 @@ import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.math.BigInteger;
 import java.util.List;

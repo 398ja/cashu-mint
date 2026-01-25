@@ -14,10 +14,11 @@ import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.ThreadUtil;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final Mint mint;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
+    private final PaymentStatusChecker paymentStatusChecker;
     private final SplittingService splittingService = new SplittingService();
 
 
@@ -46,7 +48,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService);
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -55,30 +57,43 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null);
+    }
+
+    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
+                    @NonNull PaymentMethod method,
+                    String unit,
+                    @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    PaymentStatusChecker paymentStatusChecker) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.unit = unit;
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
+        this.paymentStatusChecker = paymentStatusChecker;
     }
 
     @Override
     protected PostMintResponse doExecute() throws CashuErrorException {
-        ThreadUtil.MINT_MELT_LOCK.lock();
-        try {
-            PostMintResponse result = new PostMintResponse();
-            List<BlindedMessage> blindedMessages = Objects.requireNonNull(
-                    postMintRequest.getBlindedMessages(),
-                    "Blinded messages must not be null");
+        PostMintResponse result = new PostMintResponse();
+        List<BlindedMessage> blindedMessages = Objects.requireNonNull(
+                postMintRequest.getBlindedMessages(),
+                "Blinded messages must not be null");
 
-            // If the invoice was not paid yet, Bob responds with a structured error.
-            if (log.isDebugEnabled()) {
-                log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
-                        blindedMessages.size());
-            }
+        // If the invoice was not paid yet, Bob responds with a structured error.
+        if (log.isDebugEnabled()) {
+            log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,
+                    blindedMessages.size());
+        }
 
-            String quoteId = postMintRequest.getQuoteId();
+        String quoteId = postMintRequest.getQuoteId();
+
+        // Per-quote lock: serializes concurrent requests for the same quote
+        // to prevent double-mint attacks while allowing parallel minting of different quotes
+        try (QuoteLockManager.QuoteLock quoteLock = QuoteLockManager.lockQuote(quoteId)) {
 
             // Voucher tokens use mock payment - no real bitcoin backing needed
             boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
@@ -88,12 +103,22 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true", quoteId);
             } else {
                 // Regular tokens require real Lightning payment per NUT-04
-                Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                        : mintProtocolService.createGateway(method, unit);
-                boolean paid = gateway.checkPaymentStatus(quoteId);
-                if (log.isDebugEnabled()) {
-                    log.debug("Payment status for quoteId={} paid={}", quoteId, paid);
+                // First check webhook cache (instant), then fall back to gateway polling
+                boolean paid = false;
+
+                if (paymentStatusChecker != null && paymentStatusChecker.isPaid(quoteId)) {
+                    log.debug("Payment confirmed via webhook cache: quoteId={}", quoteId);
+                    paid = true;
+                } else {
+                    // Fall back to gateway polling
+                    Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
+                            : mintProtocolService.createGateway(method, unit);
+                    paid = gateway.checkPaymentStatus(quoteId);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Payment status from gateway for quoteId={} paid={}", quoteId, paid);
+                    }
                 }
+
                 if (!paid) {
                     ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
                     throw new CashuErrorException(error.toJson());
@@ -148,9 +173,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
 
             return result;
-        } finally {
-            ThreadUtil.MINT_MELT_LOCK.unlock();
-        }
+        } // QuoteLock auto-released here
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {

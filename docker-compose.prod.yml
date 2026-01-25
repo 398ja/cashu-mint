@@ -100,6 +100,10 @@ services:
       SERVER_PORT: ${PAYMENT_ADAPTER_PORT:-8080}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      # Webhook configuration - send payment notifications to mint
+      WEBHOOK_URL: http://cashu-mint-rest:${CASHU_MINT_PORT:-7777}/webhook/payment
+      WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET}
+      WEBHOOK_ENABLED: "true"
     depends_on:
       payment-adapter-db:
         condition: service_healthy
@@ -132,6 +136,12 @@ services:
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_API_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Webhook configuration
+      MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET}
+      # Gateway client timeouts (optimized for virtual threads)
+      GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
+      GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
       cashu-vault-jpa:
         condition: service_started
@@ -209,6 +219,12 @@ services:
       GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.dummy.DummyGateway}
       GATEWAY_BOLT11: ${GATEWAY_BOLT11:-xyz.tcheeric.gateway.dummy.DummyGateway}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Webhook configuration
+      MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET:-dev-webhook-secret}
+      # Gateway client timeouts (optimized for virtual threads)
+      GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
+      GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
       cashu-vault-jpa:
         condition: service_started
