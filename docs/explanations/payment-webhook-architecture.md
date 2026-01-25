@@ -53,7 +53,13 @@ Receives payment notifications at `/webhook/payment`. Validates HMAC signatures 
 
 ### QuoteStatusUpdater
 
-Maintains an in-memory cache of paid quotes. Implements the `PaymentStatusChecker` interface to provide instant lookups from the protocol layer.
+Maintains an in-memory cache of paid quotes using Caffeine with TTL-based eviction to prevent unbounded memory growth. Implements the `PaymentStatusChecker` interface to provide instant lookups from the protocol layer.
+
+The cache automatically evicts entries after configurable TTLs:
+- **Paid quotes**: Evicted after 1 hour (configurable) if not consumed
+- **Idempotency keys**: Evicted after 24 hours (configurable) to prevent reprocessing old notifications
+
+For high-availability deployments, consider using Redis for cross-instance state sharing.
 
 ### PaymentStatusChecker
 
@@ -72,15 +78,21 @@ The `MintTask` checks this interface first, falling back to gateway polling if t
 ## Configuration
 
 ```properties
-# HMAC secret for webhook signature validation
-webhook.secret=your-secret-here
+# HMAC secret for webhook signature validation (REQUIRED in production)
+webhook.secret=${MINT_WEBHOOK_SECRET:}
+
+# Cache TTL settings
+webhook.cache.quote-ttl=1h           # How long paid quotes stay in cache
+webhook.cache.idempotency-ttl=24h    # How long idempotency keys are remembered
+webhook.cache.max-quotes=10000       # Maximum cached paid quotes
+webhook.cache.max-idempotency-keys=100000  # Maximum idempotency keys
 
 # Gateway client timeouts (optimized for virtual threads)
 gateway.client.connect-timeout=5s
 gateway.client.read-timeout=30s
 ```
 
-When `webhook.secret` is not configured, signature validation is skipped (development mode).
+When `webhook.secret` is not configured, signature validation is skipped (development mode only). In production, always set `MINT_WEBHOOK_SECRET` to prevent unsigned webhook acceptance.
 
 ## Benefits
 

@@ -1,22 +1,34 @@
 package xyz.tcheeric.cashu.mint.webhook;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 
-import java.util.Map;
+import java.time.Duration;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages quote payment status received via webhooks.
  *
  * <p>This service caches paid quotes so that MintTask can check payment
- * status without polling the gateway. In production, consider using
- * Redis for high-availability and persistence.
+ * status without polling the gateway. Uses Caffeine cache with TTL-based
+ * eviction to prevent unbounded memory growth.
+ *
+ * <p>For high-availability deployments, consider Redis for cross-instance
+ * state sharing.
  *
  * <p>Implements {@link PaymentStatusChecker} so it can be injected into MintTask.
+ *
+ * <h2>Configuration</h2>
+ * <ul>
+ *   <li>{@code webhook.cache.quote-ttl} - TTL for paid quotes (default: 1h)</li>
+ *   <li>{@code webhook.cache.idempotency-ttl} - TTL for idempotency keys (default: 24h)</li>
+ *   <li>{@code webhook.cache.max-quotes} - Max paid quotes to cache (default: 10000)</li>
+ *   <li>{@code webhook.cache.max-idempotency-keys} - Max idempotency keys (default: 100000)</li>
+ * </ul>
  */
 @Slf4j
 @Service
@@ -24,13 +36,37 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
 
     /**
      * Cache of paid quotes: quoteId -> PaymentNotification
+     * TTL ensures quotes are evicted if not consumed within the timeout.
      */
-    private final Map<String, PaymentNotification> paidQuotes = new ConcurrentHashMap<>();
+    private final Cache<String, PaymentNotification> paidQuotes;
 
     /**
-     * Set of processed notification idempotency keys for deduplication.
+     * Cache of processed notification idempotency keys for deduplication.
+     * Longer TTL than quotes to prevent reprocessing of old notifications.
      */
-    private final Set<String> processedNotifications = ConcurrentHashMap.newKeySet();
+    private final Cache<String, Boolean> processedNotifications;
+
+    public QuoteStatusUpdater(
+            @Value("${webhook.cache.quote-ttl:1h}") Duration quoteTtl,
+            @Value("${webhook.cache.idempotency-ttl:24h}") Duration idempotencyTtl,
+            @Value("${webhook.cache.max-quotes:10000}") int maxQuotes,
+            @Value("${webhook.cache.max-idempotency-keys:100000}") int maxIdempotencyKeys) {
+
+        this.paidQuotes = Caffeine.newBuilder()
+                .expireAfterWrite(quoteTtl)
+                .maximumSize(maxQuotes)
+                .evictionListener((key, value, cause) ->
+                        log.debug("Quote evicted from cache: key={}, cause={}", key, cause))
+                .build();
+
+        this.processedNotifications = Caffeine.newBuilder()
+                .expireAfterWrite(idempotencyTtl)
+                .maximumSize(maxIdempotencyKeys)
+                .build();
+
+        log.info("QuoteStatusUpdater initialized: quoteTtl={}, idempotencyTtl={}, maxQuotes={}, maxIdempotencyKeys={}",
+                quoteTtl, idempotencyTtl, maxQuotes, maxIdempotencyKeys);
+    }
 
     /**
      * Mark a quote as paid.
@@ -41,8 +77,9 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     public boolean markAsPaid(PaymentNotification notification) {
         String idempotencyKey = notification.getIdempotencyKey();
 
-        // Idempotency check
-        if (!processedNotifications.add(idempotencyKey)) {
+        // Idempotency check using putIfAbsent pattern
+        Boolean existing = processedNotifications.asMap().putIfAbsent(idempotencyKey, Boolean.TRUE);
+        if (existing != null) {
             log.debug("Duplicate notification ignored: {}", idempotencyKey);
             return false;
         }
@@ -60,8 +97,9 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @param quoteId the quote identifier
      * @return true if quote was marked as paid via webhook
      */
+    @Override
     public boolean isPaid(String quoteId) {
-        return paidQuotes.containsKey(quoteId);
+        return paidQuotes.getIfPresent(quoteId) != null;
     }
 
     /**
@@ -71,7 +109,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @return Optional containing payment details if quote is paid
      */
     public Optional<PaymentNotification> getPaymentDetails(String quoteId) {
-        return Optional.ofNullable(paidQuotes.get(quoteId));
+        return Optional.ofNullable(paidQuotes.getIfPresent(quoteId));
     }
 
     /**
@@ -80,6 +118,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @param quoteId the quote identifier
      * @return Optional containing preimage if available
      */
+    @Override
     public Optional<String> getPreimage(String quoteId) {
         return getPaymentDetails(quoteId).map(PaymentNotification::getPreimage);
     }
@@ -92,7 +131,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @return the removed payment notification, or null if not found
      */
     public PaymentNotification consumeQuote(String quoteId) {
-        PaymentNotification removed = paidQuotes.remove(quoteId);
+        PaymentNotification removed = paidQuotes.asMap().remove(quoteId);
         if (removed != null) {
             log.debug("Quote consumed after minting: quoteId={}", quoteId);
         }
@@ -114,7 +153,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @return count of paid quotes in cache
      */
     public int getCacheSize() {
-        return paidQuotes.size();
+        paidQuotes.cleanUp();
+        return (int) paidQuotes.estimatedSize();
     }
 
     /**
@@ -124,7 +164,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * @return count of processed notification keys
      */
     public int getProcessedCount() {
-        return processedNotifications.size();
+        processedNotifications.cleanUp();
+        return (int) processedNotifications.estimatedSize();
     }
 
     /**
@@ -132,8 +173,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * Use for testing or administrative purposes only.
      */
     public void clear() {
-        paidQuotes.clear();
-        processedNotifications.clear();
+        paidQuotes.invalidateAll();
+        processedNotifications.invalidateAll();
         log.info("Quote status cache cleared");
     }
 }

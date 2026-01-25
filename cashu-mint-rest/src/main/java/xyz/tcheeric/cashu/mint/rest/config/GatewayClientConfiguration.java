@@ -60,7 +60,7 @@ public class GatewayClientConfiguration {
      * <ul>
      *   <li>JDK HttpClient with virtual thread executor</li>
      *   <li>Explicit connect timeout</li>
-     *   <li>HTTP/2 support with HTTP/1.1 fallback</li>
+     *   <li>HTTP/1.1 protocol (explicit for compatibility)</li>
      * </ul>
      *
      * @param builder Spring Boot's RestTemplateBuilder for base configuration
