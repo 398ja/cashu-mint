@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.webhook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -17,7 +18,13 @@ class QuoteStatusUpdaterTest {
 
     @BeforeEach
     void setUp() {
-        updater = new QuoteStatusUpdater();
+        // Create with short TTLs for testing - 1 hour quote TTL, 24 hour idempotency TTL
+        updater = new QuoteStatusUpdater(
+                Duration.ofHours(1),
+                Duration.ofHours(24),
+                10000,
+                100000
+        );
     }
 
     @Test

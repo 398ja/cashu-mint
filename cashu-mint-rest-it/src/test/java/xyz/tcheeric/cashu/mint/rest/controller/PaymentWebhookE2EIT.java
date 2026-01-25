@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.mint.webhook.PaymentWebhookController;
 import xyz.tcheeric.cashu.mint.webhook.QuoteStatusUpdater;
 import xyz.tcheeric.cashu.mint.webhook.WebhookSignatureValidator;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -71,7 +72,13 @@ class PaymentWebhookE2EIT {
         @Bean
         @Primary
         public QuoteStatusUpdater quoteStatusUpdater() {
-            return new QuoteStatusUpdater();
+            // Test configuration with reasonable TTLs
+            return new QuoteStatusUpdater(
+                    Duration.ofHours(1),
+                    Duration.ofHours(24),
+                    10000,
+                    100000
+            );
         }
 
         @Bean
