@@ -131,6 +131,10 @@ services:
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       GATEWAY_WALLET_MOCK_PAYMENT_ENABLED: "true"
       GATEWAY_WALLET_MOCK_PAYMENT_PHOENIXD_URL: http://phoenixd-mock:9740
+      # Webhook configuration - send payment notifications to mint
+      WEBHOOK_URL: http://cashu-mint-rest-dev:${CASHU_MINT_PORT:-7777}/webhook/payment
+      WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET:-dev-webhook-secret}
+      WEBHOOK_ENABLED: "true"
     depends_on:
       payment-adapter-db:
         condition: service_healthy
@@ -173,6 +177,11 @@ services:
       PHOENIXD_LNADDRESS: off
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Webhook configuration
+      MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET:-dev-webhook-secret}
+      # Gateway client timeouts (optimized for virtual threads)
+      GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
+      GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
       vault-db-seed:
         condition: service_completed_successfully
