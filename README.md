@@ -41,6 +41,10 @@ docker compose -f cashu-mint-observability/docker/docker-compose.observability.y
 
 Browse metrics at `http://localhost:7777/actuator/prometheus` and Grafana at `http://localhost:3000` (admin/admin). See `docs/how-to/enable-observability.md` and `cashu-mint-observability/docs/metrics-reference.md` for configuration and metric names.
 
+## Payment notifications
+
+Version 0.8.0 introduces webhook-based payment notifications. Payment gateways push events to `/webhook/payment` instead of the mint polling for status. This reduces latency on mint requests and lowers gateway load. The mint falls back to polling when webhooks are unavailable. See [Payment webhook architecture](docs/explanations/payment-webhook-architecture.md) for details.
+
 ## Docs and tooling
 
 - Documentation follows the Diátaxis structure in `docs/README.md`.
