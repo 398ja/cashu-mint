@@ -10,7 +10,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 /**
  * Task for creating a voucher mint quote with percentage-based fee.

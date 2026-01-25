@@ -34,7 +34,7 @@ public class CashuMintRestApplication {
                 }
 
                 try {
-                    Class<?> clazz = Class.forName("xyz.tcheeric.gateway.phoenixd.PhoenixdGateway");
+                    Class<?> clazz = Class.forName("xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway");
                     Package pkg = clazz.getPackage();
                     log.info("Diagnostics: PhoenixdGateway present. package={} version={}",
                             (pkg != null ? pkg.getName() : "n/a"), (pkg != null ? pkg.getImplementationVersion() : "n/a"));

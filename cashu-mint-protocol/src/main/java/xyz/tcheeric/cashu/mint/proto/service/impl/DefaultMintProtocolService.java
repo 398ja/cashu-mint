@@ -14,7 +14,7 @@ import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 @Service
 public class DefaultMintProtocolService implements MintProtocolService {

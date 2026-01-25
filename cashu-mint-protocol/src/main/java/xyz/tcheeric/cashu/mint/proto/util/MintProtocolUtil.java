@@ -18,7 +18,7 @@ import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
 import java.io.InputStream;
