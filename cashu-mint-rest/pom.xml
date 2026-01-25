@@ -68,6 +68,11 @@
             <artifactId>cashu-mint-protocol</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-mint-webhook</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- Cashu Voucher Dependencies -->
         <dependency>
             <groupId>${project.groupId}</groupId>

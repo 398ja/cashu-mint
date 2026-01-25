@@ -25,7 +25,7 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
-import xyz.tcheeric.gateway.common.Gateway;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.math.BigInteger;
 import java.util.List;
