@@ -29,7 +29,7 @@
         <nostr-java.version>1.3.0</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions -->
-        <cashu-lib.version>0.13.0</cashu-lib.version>
+        <cashu-lib.version>0.13.1</cashu-lib.version>
         <payment-adapter.version>0.8.0</payment-adapter.version>
         <cashu-vault.version>0.5.0</cashu-vault.version>
         <cashu-mint.version>0.10.1</cashu-mint.version>
