@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,36 +59,43 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             throw new CashuErrorException(error.toJson());
         }
 
-        MintProtocolService service = MintProtocolServiceFactory.getInstance();
+        // Acquire per-proof locks to prevent concurrent swaps of the same proofs.
+        // This serializes access similar to SERIALIZABLE transaction isolation.
+        List<Proof<T>> proofsToSwap = request.getInputs();
+        try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
+                proofsToSwap.stream().map(proof -> proof.getSecret().toString()).toList())) {
 
-        // Validate no mixed voucher/regular proofs before verification
-        boolean isVoucherSwap = validateNoMixedProofTypes(request.getInputs());
+            MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
-        // Validate voucher swap amounts before signing (free splitting, but totals must match)
-        if (isVoucherSwap) {
-            validateVoucherSwapAmounts(request.getInputs(), request.getBlindedMessages());
+            // Validate no mixed voucher/regular proofs before verification
+            boolean isVoucherSwap = validateNoMixedProofTypes(proofsToSwap);
+
+            // Validate voucher swap amounts before signing (free splitting, but totals must match)
+            if (isVoucherSwap) {
+                validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
+            }
+
+            new VerifyProofsTask<>(mint, request, service).execute();
+
+            // Voucher swaps use standard keyset keys (power-of-2 amounts)
+            // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
+            List<BlindSignature> blindSignatures = new ArrayList<>();
+            for (BlindedMessage bm : request.getBlindedMessages()) {
+                SignBlindedMessageTask signTask = new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
+                BlindSignature sig = signTask.execute();
+                blindSignatures.add(sig);
+            }
+
+            PostSwapResponse response = new PostSwapResponse(blindSignatures);
+
+            // Skip fee verification for voucher swaps (no fees apply)
+            if (!isVoucherSwap) {
+                new VerifyFeesTask<>(request, response, mintLoadService).execute();
+            }
+            new InvalidateProofsTask<>(mint, proofsToSwap).execute();
+
+            return response;
         }
-
-        new VerifyProofsTask<>(mint, request, service).execute();
-
-        // Voucher swaps use standard keyset keys (power-of-2 amounts)
-        // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
-        List<BlindSignature> blindSignatures = new ArrayList<>();
-        for (BlindedMessage bm : request.getBlindedMessages()) {
-            SignBlindedMessageTask signTask = new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
-            BlindSignature sig = signTask.execute();
-            blindSignatures.add(sig);
-        }
-
-        PostSwapResponse response = new PostSwapResponse(blindSignatures);
-
-        // Skip fee verification for voucher swaps (no fees apply)
-        if (!isVoucherSwap) {
-            new VerifyFeesTask<>(request, response, mintLoadService).execute();
-        }
-        new InvalidateProofsTask<>(mint, request.getInputs()).execute();
-
-        return response;
     }
 
     /**
