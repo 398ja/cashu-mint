@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] - 2026-01-26
+
+### Added
+
+- **Proof Locking for Double-Spend Prevention**: `SwapTask` now uses per-proof locking via `ProofLockManager`
+  - Serializes concurrent swap requests for the same proofs
+  - Prevents double-spend attacks at the application level
+  - Allows parallel swapping of different proof sets
+  - Complements database-level unique constraints in cashu-vault
+
+- **Concurrency Tests for SwapTask**: Comprehensive test suite in `SwapTaskConcurrencyTest`
+  - Tests serialization of same-proof swaps
+  - Tests parallel execution of different-proof swaps
+  - Tests double-spend prevention behavior
+  - Tests partial overlap handling
+
+### Changed
+
+- Updated nostr-java dependency from 1.2.1 to 1.3.0
+- Updated cashu-lib dependency from 0.12.0 to 0.13.0
+
+### Fixed
+
+- **Webhook Cache TTL**: Added TTL-based cache eviction to `QuoteStatusUpdater`
+  - Prevents unbounded memory growth from completed payments
+  - Configurable via `webhook.cache.ttl` property
+
+---
+
 ## [0.9.0] - 2026-01-25
 
 ### Added
