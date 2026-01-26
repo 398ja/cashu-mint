@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated nostr-java dependency from 1.2.1 to 1.3.0
 - Updated cashu-lib dependency from 0.12.0 to 0.13.0
+- Updated cashu-vault dependency from 0.4.6 to 0.5.0
 
 ### Fixed
 
