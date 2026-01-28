@@ -17,8 +17,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 
 /**
  * Manages NUT-17 WebSocket subscriptions.
@@ -253,84 +252,172 @@ public class SubscriptionManager {
         }
     }
 
+    /**
+     * Sends current proof states using parallel vault queries via Virtual Threads.
+     */
     private void sendCurrentProofStates(WebSocketSession session, String subId, Set<String> yValues) {
-        for (String y : yValues) {
-            try {
-                ProofEntity proofEntity = proofVaultService.retrieveProof(y);
-                String state;
-                String witness = null;
-                if (proofEntity == null) {
-                    state = NUT07.UNSPENT;
-                } else if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
-                    state = NUT07.PENDING;
-                    witness = proofEntity.getWitness();
-                } else {
-                    state = NUT07.SPENT;
-                    witness = proofEntity.getWitness();
+        if (yValues.isEmpty()) {
+            return;
+        }
+
+        // Use Virtual Thread executor for parallel vault queries
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<ProofStateResult>> futures = yValues.stream()
+                    .map(y -> CompletableFuture.supplyAsync(() -> fetchProofState(y), executor))
+                    .toList();
+
+            // Wait for all and process results
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            for (CompletableFuture<ProofStateResult> future : futures) {
+                ProofStateResult result = future.getNow(null);
+                if (result != null && result.state() != null) {
+                    JsonRpcNotification notification = NUT17.proofStateNotification(
+                            subId, result.y(), result.state(), result.witness());
+                    sendNotification(session, notification);
+                    log.debug("current_proof_state_sent sub_id={} y_prefix={} state={}",
+                            subId, result.y().length() > 8 ? result.y().substring(0, 8) : result.y(), result.state());
                 }
-                JsonRpcNotification notification = NUT17.proofStateNotification(subId, y, state, witness);
-                sendNotification(session, notification);
-                log.debug("current_proof_state_sent sub_id={} y_prefix={} state={}",
-                        subId, y.length() > 8 ? y.substring(0, 8) : y, state);
-            } catch (Exception e) {
-                log.error("current_proof_state_error sub_id={} y={} error={}", subId, y, e.getMessage());
             }
         }
     }
 
-    private void sendCurrentMintQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
+    private ProofStateResult fetchProofState(String y) {
         try {
-            Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
-            for (String quoteId : quoteIds) {
-                try {
-                    boolean paid = gateway.checkPaymentStatus(quoteId);
-                    String request = gateway.getRequest(quoteId);
-                    int expiry = gateway.getPaymentExpiry(quoteId);
-
-                    QuoteStatePayload payload = new QuoteStatePayload();
-                    payload.setQuoteId(quoteId);
-                    payload.setRequest(request);
-                    payload.setState(paid ? "PAID" : "UNPAID");
-                    payload.setPaid(paid);
-                    payload.setExpiry((long) expiry);
-
-                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
-                    sendNotification(session, notification);
-                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
-                } catch (Exception e) {
-                    log.error("current_mint_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
-                }
+            ProofEntity proofEntity = proofVaultService.retrieveProof(y);
+            String state;
+            String witness = null;
+            if (proofEntity == null) {
+                state = NUT07.UNSPENT;
+            } else if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
+                state = NUT07.PENDING;
+                witness = proofEntity.getWitness();
+            } else {
+                state = NUT07.SPENT;
+                witness = proofEntity.getWitness();
             }
+            return new ProofStateResult(y, state, witness, null);
+        } catch (Exception e) {
+            log.error("current_proof_state_error y={} error={}", y, e.getMessage());
+            return new ProofStateResult(y, null, null, e);
+        }
+    }
+
+    private record ProofStateResult(String y, String state, String witness, Exception error) {}
+
+    /**
+     * Sends current mint quote states using parallel gateway queries via Virtual Threads.
+     */
+    private void sendCurrentMintQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
+        if (quoteIds.isEmpty()) {
+            return;
+        }
+
+        Gateway gateway;
+        try {
+            gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
         } catch (Exception e) {
             log.error("current_mint_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
+            return;
         }
-    }
 
-    private void sendCurrentMeltQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
-        try {
-            Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
-            for (String quoteId : quoteIds) {
-                try {
-                    boolean paid = gateway.checkPaymentStatus(quoteId);
-                    int expiry = gateway.getPaymentExpiry(quoteId);
+        // Use Virtual Thread executor for parallel gateway queries
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<QuoteStateResult>> futures = quoteIds.stream()
+                    .map(quoteId -> CompletableFuture.supplyAsync(
+                            () -> fetchMintQuoteState(gateway, quoteId), executor))
+                    .toList();
 
-                    QuoteStatePayload payload = new QuoteStatePayload();
-                    payload.setQuoteId(quoteId);
-                    payload.setState(paid ? "PAID" : "UNPAID");
-                    payload.setPaid(paid);
-                    payload.setExpiry((long) expiry);
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
+            for (CompletableFuture<QuoteStateResult> future : futures) {
+                QuoteStateResult result = future.getNow(null);
+                if (result != null && result.payload() != null) {
+                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, result.payload());
                     sendNotification(session, notification);
-                    log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
-                } catch (Exception e) {
-                    log.error("current_melt_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}",
+                            subId, result.quoteId(), result.payload().getPaid());
                 }
             }
-        } catch (Exception e) {
-            log.error("current_melt_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
         }
     }
+
+    private QuoteStateResult fetchMintQuoteState(Gateway gateway, String quoteId) {
+        try {
+            boolean paid = gateway.checkPaymentStatus(quoteId);
+            String request = gateway.getRequest(quoteId);
+            int expiry = gateway.getPaymentExpiry(quoteId);
+
+            QuoteStatePayload payload = new QuoteStatePayload();
+            payload.setQuoteId(quoteId);
+            payload.setRequest(request);
+            payload.setState(paid ? "PAID" : "UNPAID");
+            payload.setPaid(paid);
+            payload.setExpiry((long) expiry);
+
+            return new QuoteStateResult(quoteId, payload, null);
+        } catch (Exception e) {
+            log.error("current_mint_quote_state_error quote_id={} error={}", quoteId, e.getMessage());
+            return new QuoteStateResult(quoteId, null, e);
+        }
+    }
+
+    /**
+     * Sends current melt quote states using parallel gateway queries via Virtual Threads.
+     */
+    private void sendCurrentMeltQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
+        if (quoteIds.isEmpty()) {
+            return;
+        }
+
+        Gateway gateway;
+        try {
+            gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
+        } catch (Exception e) {
+            log.error("current_melt_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
+            return;
+        }
+
+        // Use Virtual Thread executor for parallel gateway queries
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<QuoteStateResult>> futures = quoteIds.stream()
+                    .map(quoteId -> CompletableFuture.supplyAsync(
+                            () -> fetchMeltQuoteState(gateway, quoteId), executor))
+                    .toList();
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            for (CompletableFuture<QuoteStateResult> future : futures) {
+                QuoteStateResult result = future.getNow(null);
+                if (result != null && result.payload() != null) {
+                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, result.payload());
+                    sendNotification(session, notification);
+                    log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}",
+                            subId, result.quoteId(), result.payload().getPaid());
+                }
+            }
+        }
+    }
+
+    private QuoteStateResult fetchMeltQuoteState(Gateway gateway, String quoteId) {
+        try {
+            boolean paid = gateway.checkPaymentStatus(quoteId);
+            int expiry = gateway.getPaymentExpiry(quoteId);
+
+            QuoteStatePayload payload = new QuoteStatePayload();
+            payload.setQuoteId(quoteId);
+            payload.setState(paid ? "PAID" : "UNPAID");
+            payload.setPaid(paid);
+            payload.setExpiry((long) expiry);
+
+            return new QuoteStateResult(quoteId, payload, null);
+        } catch (Exception e) {
+            log.error("current_melt_quote_state_error quote_id={} error={}", quoteId, e.getMessage());
+            return new QuoteStateResult(quoteId, null, e);
+        }
+    }
+
+    private record QuoteStateResult(String quoteId, QuoteStatePayload payload, Exception error) {}
 
     /**
      * Gets the number of active sessions.
