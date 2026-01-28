@@ -61,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improves performance when subscribers watch multiple items
 - `WebSocketConfig` allowed-origins split now handles whitespace around commas
 - Removed redundant `@ConditionalOnProperty` from `WebSocketConfig` bean method
+- NUT-17 quote state payloads now enriched with additional fields from quote lookups
+  - Mint quote notifications include `amount`, `request`, and `expiry`
+  - Melt quote notifications include `amount` and `expiry`
 
 ### Fixed
 

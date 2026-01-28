@@ -244,12 +244,31 @@ public class CashuController<T extends Secret> {
         );
 
         // Publish mint quote state change for NUT-17 WebSocket subscribers
-        // TODO: Enrich payload with amount, expiry, and request from quote lookup for completeness
         if (response != null && eventPublisher != null) {
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(request.getQuoteId());
             payload.setState("ISSUED");
             payload.setPaid(true);
+
+            // Calculate total output amount from blinded messages
+            long totalAmount = request.getBlindedMessages().stream()
+                    .mapToLong(BlindedMessage::getAmount)
+                    .sum();
+            payload.setAmount(totalAmount);
+
+            // Enrich with request and expiry from quote lookup
+            try {
+                PostMintQuoteResponse quoteStatus = NUT04.quotePaymentStatus(
+                        request.getQuoteId(), paymentMethod);
+                if (quoteStatus != null) {
+                    payload.setRequest(quoteStatus.getRequest());
+                    payload.setExpiry((long) quoteStatus.getExpiry());
+                }
+            } catch (Exception e) {
+                log.debug("mint_quote_enrichment_skipped quote_id={} reason={}",
+                        request.getQuoteId(), e.getMessage());
+            }
+
             eventPublisher.publishMintQuoteState(request.getQuoteId(), payload);
         }
 
@@ -299,16 +318,34 @@ public class CashuController<T extends Secret> {
         );
 
         // Publish events for NUT-17 WebSocket subscribers
-        // TODO: Enrich melt payload with preimage, amount, fee_reserve from response/quote for completeness
         if (response != null && eventPublisher != null) {
             // Publish proof spent events for input proofs
             eventPublisher.publishProofsSpent(request.getInputs());
 
-            // Publish melt quote state change
+            // Publish melt quote state change with enriched payload
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(request.getQuoteId());
             payload.setState(response.isPaid() ? "PAID" : "PENDING");
             payload.setPaid(response.isPaid());
+
+            // Calculate total input amount from proofs
+            long totalInputAmount = request.getInputs().stream()
+                    .mapToLong(Proof::getAmount)
+                    .sum();
+            payload.setAmount(totalInputAmount);
+
+            // Enrich with expiry from quote lookup
+            try {
+                PostMeltQuoteResponse quoteStatus = NUT05.quotePaymentStatus(
+                        request.getQuoteId(), paymentMethod);
+                if (quoteStatus != null) {
+                    payload.setExpiry((long) quoteStatus.getExpiry());
+                }
+            } catch (Exception e) {
+                log.debug("melt_quote_enrichment_skipped quote_id={} reason={}",
+                        request.getQuoteId(), e.getMessage());
+            }
+
             eventPublisher.publishMeltQuoteState(request.getQuoteId(), payload);
         }
 
