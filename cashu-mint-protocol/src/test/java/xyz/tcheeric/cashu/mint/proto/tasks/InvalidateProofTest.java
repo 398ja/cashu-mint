@@ -90,7 +90,7 @@ public class InvalidateProofTest {
 
             InvalidateProofsTask<RandomStringSecret> task = new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, proofVaultService);
 
-            assertThrows(IllegalStateException.class, task::execute);
+            assertThrows(CashuErrorException.class, task::execute);
         }
     }
 }
