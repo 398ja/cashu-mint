@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Nut17EventPublisher` service for publishing events from controllers
   - Spring ApplicationEvent integration for decoupled event propagation
   - Configurable via `cashu.websocket.enabled` property
+  - Security warning logged at startup when wildcard origins (`*`) used in production
 
 - **NUT-17 Protocol Implementation**: `NUT17.java` static utility class
   - Subscription parameter validation
@@ -31,11 +32,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - JSON-RPC response and notification factory methods
   - Filter ID extraction utilities
 
+- **NUT-17 Integration Tests**: `Nut17WebSocketIT` with comprehensive test coverage
+  - WebSocket connection establishment
+  - Subscribe/unsubscribe command handling
+  - Current state notification on subscription
+  - Proof state change notifications
+  - Multiple subscriber notification delivery
+
+- **NUT-17 Unit Tests**: Event publisher test coverage
+  - `ProofStatePublisherTest` for proof state event handling
+  - `QuoteStatePublisherTest` for quote state event handling
+  - `Nut17EventPublisherTest` for event emission via ApplicationEventPublisher
+
+- **Virtual Thread Guidelines**: Comprehensive `CLAUDE.md` documentation
+  - Decision table for when to use Virtual Threads
+  - Code patterns for parallel I/O with CompletableFuture
+  - Anti-patterns to avoid (synchronized on I/O, platform thread pools)
+  - Configuration reference for VT-related components
+
 ### Changed
 
 - Updated `mint.yaml` to advertise NUT-17 WebSocket subscription support
 - Updated cashu-lib dependency from 0.13.1 to 0.14.0 (includes NUT-17 DTOs)
 - Updated cashu-wallet dependency from 0.6.1 to 0.6.3
+- `SubscriptionManager.sendCurrentState()` now uses Virtual Threads for parallel I/O
+  - Parallel vault queries for proof state lookups
+  - Parallel gateway queries for mint/melt quote state lookups
+  - Improves performance when subscribers watch multiple items
+- `WebSocketConfig` allowed-origins split now handles whitespace around commas
+- Removed redundant `@ConditionalOnProperty` from `WebSocketConfig` bean method
+
+### Fixed
+
+- Race condition in `SubscriptionManager.subscribe()` using atomic `compute()` operation
 
 ---
 
