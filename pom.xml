@@ -33,10 +33,10 @@
         <payment-adapter.version>0.8.0</payment-adapter.version>
         <cashu-vault.version>0.5.0</cashu-vault.version>
         <cashu-mint.version>0.10.2</cashu-mint.version>
-        <cashu-wallet.version>0.5.0</cashu-wallet.version>
+        <cashu-wallet.version>0.6.1</cashu-wallet.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <cashu-mint-admin.version>0.2.4</cashu-mint-admin.version>
-        <cashu-voucher.version>0.5.0</cashu-voucher.version>
+        <cashu-voucher.version>0.6.0</cashu-voucher.version>
 
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.6</spring-boot.version>
