@@ -384,7 +384,10 @@ class Nut17WebSocketIT {
 
         @Override
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-            messages.offer(message.getPayload());
+            if (!messages.offer(message.getPayload())) {
+                // Queue is full - this should not happen in tests with reasonable message volumes
+                System.err.println("Warning: Message queue full, dropping message");
+            }
         }
     }
 }
