@@ -299,7 +299,8 @@ public class SubscriptionManager {
             }
             return new ProofStateResult(y, state, witness, null);
         } catch (Exception e) {
-            log.error("current_proof_state_error y={} error={}", y, e.getMessage());
+            log.error("current_proof_state_error y={} error={}",
+                    y != null && y.length() > 8 ? y.substring(0, 8) : y, e.getMessage());
             return new ProofStateResult(y, null, null, e);
         }
     }
