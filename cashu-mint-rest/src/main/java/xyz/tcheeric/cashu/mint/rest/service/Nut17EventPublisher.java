@@ -6,6 +6,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
@@ -38,7 +39,9 @@ public class Nut17EventPublisher {
      */
     public <T extends Secret> void publishProofsSpent(List<Proof<T>> proofs) {
         for (Proof<T> proof : proofs) {
-            publishProofState(proof.getSecret().toString(), NUT07.SPENT, null);
+            // Use Y coordinate (hash_to_curve result) to match vault storage format
+            String y = SecretUtil.toY(proof.getSecret());
+            publishProofState(y, NUT07.SPENT, null);
         }
     }
 
@@ -49,7 +52,9 @@ public class Nut17EventPublisher {
      */
     public <T extends Secret> void publishProofsPending(List<Proof<T>> proofs) {
         for (Proof<T> proof : proofs) {
-            publishProofState(proof.getSecret().toString(), NUT07.PENDING, null);
+            // Use Y coordinate (hash_to_curve result) to match vault storage format
+            String y = SecretUtil.toY(proof.getSecret());
+            publishProofState(y, NUT07.PENDING, null);
         }
     }
 
