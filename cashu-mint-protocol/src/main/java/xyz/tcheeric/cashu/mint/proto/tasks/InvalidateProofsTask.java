@@ -94,15 +94,15 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
                         existingProof.getState());
                 proofVaultService.invalidate(existingProof);
             }
+        } catch (CashuErrorException e) {
+            // Re-throw CashuErrorException as-is to preserve error details
+            throw e;
         } catch (Exception e) {
-            // Check if the exception wraps a 409 conflict (may be wrapped in RestClientException)
-            if (e.getMessage() != null && e.getMessage().contains("409")) {
-                log.info("invalidate_proofs_task wrapped_409_treating_as_already_spent secret={}",
-                        proofEntity.getSecret() != null ? proofEntity.getSecret().substring(0, 16) + "..." : "null");
-                // Treat as already spent for robustness
-            } else {
-                throw e instanceof CashuErrorException ? (CashuErrorException) e : new CashuErrorException(e.getMessage());
-            }
+            // Wrap other exceptions preserving the original cause for debugging
+            CashuErrorException wrapped = new CashuErrorException(
+                    "invalidate_proof_failed: " + e.getMessage());
+            wrapped.initCause(e);
+            throw wrapped;
         }
     }
 }
