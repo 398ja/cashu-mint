@@ -195,7 +195,8 @@ public class SubscriptionManager {
             sendNotification(session, notification);
         }
 
-        log.debug("proof_state_published y={} state={} subscriber_count={}", y, state, subIds.size());
+        String truncatedY = (y != null && y.length() > 8) ? y.substring(0, 8) : y;
+        log.debug("proof_state_published y={} state={} subscriber_count={}", truncatedY, state, subIds.size());
     }
 
     /**
