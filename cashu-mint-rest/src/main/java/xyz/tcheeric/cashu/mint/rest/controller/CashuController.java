@@ -39,6 +39,7 @@ import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
 import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
 import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
@@ -50,7 +51,10 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
+import xyz.tcheeric.cashu.mint.rest.service.Nut17EventPublisher;
 import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
+
+import org.springframework.lang.Nullable;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -68,11 +72,17 @@ public class CashuController<T extends Secret> {
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
     private final SignatureVaultService signatureVaultService;
+    @Nullable
+    private final Nut17EventPublisher eventPublisher;
 
-    public CashuController(NUT06 nut06, MintLoadService mintLoadService, SignatureVaultService signatureVaultService) {
+    public CashuController(NUT06 nut06,
+                           MintLoadService mintLoadService,
+                           SignatureVaultService signatureVaultService,
+                           @Nullable Nut17EventPublisher eventPublisher) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
         this.signatureVaultService = signatureVaultService;
+        this.eventPublisher = eventPublisher;
     }
 
     // Keyset generation is an administrative operation and not part of the public spec.
@@ -130,6 +140,12 @@ public class CashuController<T extends Secret> {
 
             log.info("swap_controller swap_completed request_id={} duration_ms={} signature_count={}",
                     requestId, duration, response.getBlindSignatures() != null ? response.getBlindSignatures().size() : 0);
+
+            // Publish proof spent events for NUT-17 WebSocket subscribers
+            if (eventPublisher != null) {
+                eventPublisher.publishProofsSpent(request.getInputs());
+            }
+
             return ResponseEntity.ok(response);
         } catch (CashuErrorException e) {
             long duration = System.currentTimeMillis() - startTime;
@@ -226,6 +242,16 @@ public class CashuController<T extends Secret> {
                 MintProtocolServiceFactory.getInstance(),
                 signatureVaultService
         );
+
+        // Publish mint quote state change for NUT-17 WebSocket subscribers
+        if (response != null && eventPublisher != null) {
+            QuoteStatePayload payload = new QuoteStatePayload();
+            payload.setQuoteId(request.getQuoteId());
+            payload.setState("ISSUED");
+            payload.setPaid(true);
+            eventPublisher.publishMintQuoteState(request.getQuoteId(), payload);
+        }
+
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
@@ -270,6 +296,20 @@ public class CashuController<T extends Secret> {
                 new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
                 new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
         );
+
+        // Publish events for NUT-17 WebSocket subscribers
+        if (response != null && eventPublisher != null) {
+            // Publish proof spent events for input proofs
+            eventPublisher.publishProofsSpent(request.getInputs());
+
+            // Publish melt quote state change
+            QuoteStatePayload payload = new QuoteStatePayload();
+            payload.setQuoteId(request.getQuoteId());
+            payload.setState(response.isPaid() ? "PAID" : "PENDING");
+            payload.setPaid(response.isPaid());
+            eventPublisher.publishMeltQuoteState(request.getQuoteId(), payload);
+        }
+
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
 
