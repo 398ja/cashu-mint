@@ -51,6 +51,6 @@ class NUT06Test {
 
         MintInfo.Nut nut9 = nuts.get("9");
         assertNotNull(nut9);
-        assertTrue(Boolean.TRUE.equals(nut9.getSupported()));
+        assertTrue(nut9.isSupportedSimple());
     }
 }

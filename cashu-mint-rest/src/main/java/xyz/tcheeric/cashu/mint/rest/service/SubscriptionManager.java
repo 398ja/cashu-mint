@@ -2,15 +2,23 @@ package xyz.tcheeric.cashu.mint.rest.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
+import xyz.tcheeric.cashu.common.PaymentMethod;
 import xyz.tcheeric.cashu.common.nut17.*;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Manages NUT-17 WebSocket subscriptions.
@@ -23,6 +31,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SubscriptionManager {
 
     private final ObjectMapper objectMapper;
+    private final ProofVaultService proofVaultService;
+    private final MintProtocolService mintProtocolService;
+    private final String defaultUnit;
 
     /**
      * Maps session ID to active WebSocket session.
@@ -45,8 +56,14 @@ public class SubscriptionManager {
      */
     private final Map<String, Set<String>> subscriptionIndex = new ConcurrentHashMap<>();
 
-    public SubscriptionManager(ObjectMapper objectMapper) {
+    public SubscriptionManager(ObjectMapper objectMapper,
+                               ProofVaultService proofVaultService,
+                               MintProtocolService mintProtocolService,
+                               @Value("${cashu.default-unit:sat}") String defaultUnit) {
         this.objectMapper = objectMapper;
+        this.proofVaultService = proofVaultService;
+        this.mintProtocolService = mintProtocolService;
+        this.defaultUnit = defaultUnit;
     }
 
     /**
@@ -63,7 +80,7 @@ public class SubscriptionManager {
 
         // Register session if not already present
         sessions.putIfAbsent(sessionId, session);
-        sessionSubscriptions.computeIfAbsent(sessionId, k -> new ArrayList<>());
+        sessionSubscriptions.computeIfAbsent(sessionId, k -> new CopyOnWriteArrayList<>());
 
         // Create subscription
         Subscription subscription = new Subscription(subId, sessionId, kind, new HashSet<>(ids));
@@ -206,15 +223,98 @@ public class SubscriptionManager {
     /**
      * Sends current state to a new subscriber.
      *
+     * <p>Per NUT-17 spec, new subscribers should receive the current state of subscribed items.
+     *
      * @param session the WebSocket session
      * @param subId the subscription ID
      * @param kind the subscription kind
      */
     public void sendCurrentState(WebSocketSession session, String subId, SubscriptionKind kind) {
-        // This method can be extended to query current state from vault services
-        // For now, we just acknowledge the subscription without sending current state
-        // The client will receive notifications when state changes occur
-        log.debug("current_state_requested sub_id={} kind={}", subId, kind);
+        Subscription subscription = subscriptionById.get(subId);
+        if (subscription == null) {
+            log.warn("current_state_requested sub_id={} not_found", subId);
+            return;
+        }
+
+        log.debug("current_state_requested sub_id={} kind={} id_count={}", subId, kind, subscription.ids().size());
+
+        switch (kind) {
+            case proof_state -> sendCurrentProofStates(session, subId, subscription.ids());
+            case bolt11_mint_quote -> sendCurrentMintQuoteStates(session, subId, subscription.ids());
+            case bolt11_melt_quote -> sendCurrentMeltQuoteStates(session, subId, subscription.ids());
+            default -> log.warn("current_state_unsupported_kind sub_id={} kind={}", subId, kind);
+        }
+    }
+
+    private void sendCurrentProofStates(WebSocketSession session, String subId, Set<String> yValues) {
+        for (String y : yValues) {
+            try {
+                ProofEntity proofEntity = proofVaultService.retrieveProof(y);
+                String state;
+                String witness = null;
+                if (proofEntity == null) {
+                    state = NUT07.UNSPENT;
+                } else if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
+                    state = NUT07.PENDING;
+                    witness = proofEntity.getWitness();
+                } else {
+                    state = NUT07.SPENT;
+                    witness = proofEntity.getWitness();
+                }
+                JsonRpcNotification notification = NUT17.proofStateNotification(subId, y, state, witness);
+                sendNotification(session, notification);
+                log.debug("current_proof_state_sent sub_id={} y_prefix={} state={}",
+                        subId, y.length() > 8 ? y.substring(0, 8) : y, state);
+            } catch (Exception e) {
+                log.error("current_proof_state_error sub_id={} y={} error={}", subId, y, e.getMessage());
+            }
+        }
+    }
+
+    private void sendCurrentMintQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
+        for (String quoteId : quoteIds) {
+            try {
+                Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
+                boolean paid = gateway.checkPaymentStatus(quoteId);
+                String request = gateway.getRequest(quoteId);
+                int expiry = gateway.getPaymentExpiry(quoteId);
+
+                QuoteStatePayload payload = new QuoteStatePayload();
+                payload.setQuoteId(quoteId);
+                payload.setRequest(request);
+                payload.setState(paid ? "PAID" : "UNPAID");
+                payload.setPaid(paid);
+                payload.setExpiry((long) expiry);
+
+                JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
+                sendNotification(session, notification);
+                log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
+            } catch (Exception e) {
+                log.error("current_mint_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+            }
+        }
+    }
+
+    private void sendCurrentMeltQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
+        for (String quoteId : quoteIds) {
+            try {
+                Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
+                boolean paid = gateway.checkPaymentStatus(quoteId);
+                int expiry = gateway.getPaymentExpiry(quoteId);
+
+                QuoteStatePayload payload = new QuoteStatePayload();
+                payload.setQuoteId(quoteId);
+                payload.setState(paid ? "PAID" : "UNPAID");
+                payload.setPaid(paid);
+                payload.setExpiry((long) expiry);
+
+                JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
+                sendNotification(session, notification);
+                log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
+            } catch (Exception e) {
+                log.error("current_melt_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+            }
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.rest.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,8 @@ import xyz.tcheeric.cashu.mint.rest.ws.Nut17WebSocketHandler;
  * WebSocket configuration for NUT-17 subscriptions.
  *
  * <p>Enable with {@code cashu.websocket.enabled=true} (default: true).
+ * <p>Configure allowed origins with {@code cashu.websocket.allowed-origins} (default: "*").
+ * For production, restrict to specific origins (e.g., "https://example.com").
  */
 @Configuration
 @EnableWebSocket
@@ -21,6 +24,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final Nut17WebSocketHandler nut17WebSocketHandler;
 
+    @Value("${cashu.websocket.allowed-origins:*}")
+    private String allowedOrigins;
+
     public WebSocketConfig(Nut17WebSocketHandler nut17WebSocketHandler) {
         this.nut17WebSocketHandler = nut17WebSocketHandler;
     }
@@ -28,7 +34,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(nut17WebSocketHandler, "/v1/ws")
-                .setAllowedOrigins("*");
+                .setAllowedOrigins(allowedOrigins.split(","));
     }
 
     @Bean
