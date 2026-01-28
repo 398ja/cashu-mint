@@ -47,3 +47,4 @@ build/
 /.claude/
 /cashu-mint-observability/logs/
 /project/
+/cashu-mint-webhook/logs/
