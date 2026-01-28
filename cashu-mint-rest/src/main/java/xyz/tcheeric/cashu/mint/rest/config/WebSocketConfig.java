@@ -20,7 +20,8 @@ import java.util.Arrays;
  *
  * <p>Enable with {@code cashu.websocket.enabled=true} (default: true).
  * <p>Configure allowed origins with {@code cashu.websocket.allowed-origins} (default: "*").
- * For production, restrict to specific origins (e.g., "https://example.com").
+ * For production, restrict to specific comma-separated origins
+ * (e.g., "https://example.com,https://app.example.com").
  */
 @Slf4j
 @Configuration
@@ -56,11 +57,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(nut17WebSocketHandler, "/v1/ws")
-                .setAllowedOrigins(allowedOrigins.split(","));
+                .setAllowedOrigins(allowedOrigins.split("\\s*,\\s*"));
     }
 
     @Bean
-    @ConditionalOnProperty(name = "cashu.websocket.enabled", havingValue = "true", matchIfMissing = true)
     public ServletServerContainerFactoryBean createWebSocketContainer() {
         ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
         container.setMaxTextMessageBufferSize(64 * 1024);

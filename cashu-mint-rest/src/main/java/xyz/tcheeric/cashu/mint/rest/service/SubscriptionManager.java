@@ -80,12 +80,19 @@ public class SubscriptionManager {
 
         // Register session if not already present
         sessions.putIfAbsent(sessionId, session);
-        sessionSubscriptions.computeIfAbsent(sessionId, k -> new CopyOnWriteArrayList<>());
 
         // Create subscription
         Subscription subscription = new Subscription(subId, sessionId, kind, new HashSet<>(ids));
         subscriptionById.put(subId, subscription);
-        sessionSubscriptions.get(sessionId).add(subscription);
+
+        // Add to session subscriptions atomically to avoid race with removeSession
+        sessionSubscriptions.compute(sessionId, (key, subs) -> {
+            if (subs == null) {
+                subs = new CopyOnWriteArrayList<>();
+            }
+            subs.add(subscription);
+            return subs;
+        });
 
         // Index for lookup
         for (String id : ids) {
