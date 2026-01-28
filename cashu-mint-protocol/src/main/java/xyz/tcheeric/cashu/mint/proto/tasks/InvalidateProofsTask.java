@@ -7,7 +7,6 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
@@ -15,6 +14,10 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 @Slf4j
@@ -62,14 +65,14 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
     private void storeAndInvalidateIdempotent(Proof<T> proof, ProofEntity proofEntity) throws CashuErrorException {
         try {
             proofVaultService.store(proofEntity);
-            log.debug("invalidate_proofs_task proof_stored secret={}",
-                    proofEntity.getSecret() != null ? proofEntity.getSecret().substring(0, 16) + "..." : "null");
+            log.debug("invalidate_proofs_task proof_stored secret_id={}",
+                    sanitizeSecretForLog(proofEntity.getSecret()));
             proofVaultService.invalidate(proofEntity);
         } catch (HttpClientErrorException.Conflict e) {
             // 409 Conflict means proof already exists - this is expected for retried swaps
             // Check if it's already spent (idempotent case) or needs invalidation
-            log.info("invalidate_proofs_task proof_already_exists checking_state secret={}",
-                    proofEntity.getSecret() != null ? proofEntity.getSecret().substring(0, 16) + "..." : "null");
+            log.info("invalidate_proofs_task proof_already_exists checking_state secret_id={}",
+                    sanitizeSecretForLog(proofEntity.getSecret()));
 
             // Use the same secret that was used for storage (proofEntity.getSecret() is already the Y point)
             ProofEntity existingProof = proofVaultService.retrieveProof(proofEntity.getSecret());
@@ -77,20 +80,20 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
             if (existingProof == null) {
                 // 409 conflict but can't find proof - likely a race condition or different lookup key
                 // Treat as already handled (idempotent) since the store conflicted
-                log.warn("invalidate_proofs_task proof_not_found_after_409_treating_as_spent secret={}",
-                        proofEntity.getSecret() != null ? proofEntity.getSecret().substring(0, 16) + "..." : "null");
+                log.warn("invalidate_proofs_task proof_not_found_after_409_treating_as_spent secret_id={}",
+                        sanitizeSecretForLog(proofEntity.getSecret()));
                 // Continue without throwing - the proof exists (hence the 409) so treat as idempotent success
                 return;
             }
 
             if (ProofEntity.STATE_SPENT.equalsIgnoreCase(existingProof.getState())) {
                 // Already spent - this is a successful retry, treat as idempotent success
-                log.info("invalidate_proofs_task proof_already_spent_idempotent secret={}",
-                        existingProof.getSecret() != null ? existingProof.getSecret().substring(0, 16) + "..." : "null");
+                log.info("invalidate_proofs_task proof_already_spent_idempotent secret_id={}",
+                        sanitizeSecretForLog(existingProof.getSecret()));
             } else {
                 // Exists but not yet invalidated - invalidate it now
-                log.info("invalidate_proofs_task proof_exists_invalidating secret={} current_state={}",
-                        existingProof.getSecret() != null ? existingProof.getSecret().substring(0, 16) + "..." : "null",
+                log.info("invalidate_proofs_task proof_exists_invalidating secret_id={} current_state={}",
+                        sanitizeSecretForLog(existingProof.getSecret()),
                         existingProof.getState());
                 proofVaultService.invalidate(existingProof);
             }
@@ -103,6 +106,24 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
                     "invalidate_proof_failed: " + e.getMessage());
             wrapped.initCause(e);
             throw wrapped;
+        }
+    }
+
+    /**
+     * Creates a sanitized log identifier from a secret using SHA-256 hashing.
+     * Returns the first 8 characters of the hash for log correlation without exposing the actual secret.
+     */
+    private String sanitizeSecretForLog(String secret) {
+        if (secret == null) {
+            return "null";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).substring(0, 8);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is always available in Java, but handle defensively
+            return "hash_error";
         }
     }
 }

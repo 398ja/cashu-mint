@@ -11,6 +11,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] - 2026-01-28
+
+### Added
+
+- **NUT-17 WebSocket Subscriptions**: Real-time notifications for proof and quote state changes
+  - WebSocket endpoint at `/v1/ws` with JSON-RPC 2.0 protocol
+  - `SubscriptionManager` for session tracking and efficient pub/sub with indexing
+  - `Nut17WebSocketHandler` for JSON-RPC message handling (subscribe/unsubscribe)
+  - `ProofStatePublisher` for broadcasting proof state transitions (UNSPENT → PENDING → SPENT)
+  - `QuoteStatePublisher` for broadcasting quote state transitions (UNPAID → PAID → ISSUED)
+  - `Nut17EventPublisher` service for publishing events from controllers
+  - Spring ApplicationEvent integration for decoupled event propagation
+  - Configurable via `cashu.websocket.enabled` property
+
+- **NUT-17 Protocol Implementation**: `NUT17.java` static utility class
+  - Subscription parameter validation
+  - Subscription ID generation
+  - JSON-RPC response and notification factory methods
+  - Filter ID extraction utilities
+
+### Changed
+
+- Updated `mint.yaml` to advertise NUT-17 WebSocket subscription support
+- Updated cashu-lib dependency from 0.13.1 to 0.14.0 (includes NUT-17 DTOs)
+
+---
+
 ## [0.10.2] - 2026-01-28
 
 ### Added

@@ -72,14 +72,40 @@ public class MintInfo {
         @JsonProperty
         private List<Method> methods;
 
+        /**
+         * For simple NUTs (7, 8, 9, 10, 12), this is a boolean.
+         * For NUT-17, this is a list of WebSocket supported configurations.
+         * Use {@link #getSupportedConfigs()} for NUT-17.
+         */
         @JsonProperty
-        private Boolean supported;
+        private Object supported;
 
         @JsonProperty
         private Boolean disabled;
 
         @JsonProperty("fee_reserve_percent")
         private Double feeReservePercent;
+
+        /**
+         * Returns true if this NUT has simple boolean support.
+         */
+        public boolean isSupportedSimple() {
+            return supported instanceof Boolean && (Boolean) supported;
+        }
+
+        /**
+         * Returns the supported configurations for NUT-17 style complex support.
+         * Returns null for simple boolean support.
+         */
+        @SuppressWarnings("unchecked")
+        public List<WebSocketConfig> getSupportedConfigs() {
+            if (supported instanceof List) {
+                return ((List<Map<String, Object>>) supported).stream()
+                        .map(WebSocketConfig::fromMap)
+                        .toList();
+            }
+            return null;
+        }
 
         @Setter
         @Getter
@@ -96,6 +122,26 @@ public class MintInfo {
 
             @JsonProperty
             private int maxAmount;
+        }
+
+        /**
+         * NUT-17 WebSocket configuration (method, unit, commands).
+         */
+        @Setter
+        @Getter
+        public static class WebSocketConfig {
+            private String method;
+            private String unit;
+            private List<String> commands;
+
+            @SuppressWarnings("unchecked")
+            public static WebSocketConfig fromMap(Map<String, Object> map) {
+                WebSocketConfig config = new WebSocketConfig();
+                config.method = (String) map.get("method");
+                config.unit = (String) map.get("unit");
+                config.commands = (List<String>) map.get("commands");
+                return config;
+            }
         }
     }
 }
