@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated `mint.yaml` to advertise NUT-17 WebSocket subscription support
 - Updated cashu-lib dependency from 0.13.1 to 0.14.0 (includes NUT-17 DTOs)
+- Updated cashu-wallet dependency from 0.6.1 to 0.6.3
 
 ---
 
