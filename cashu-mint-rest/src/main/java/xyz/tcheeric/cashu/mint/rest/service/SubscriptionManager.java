@@ -272,48 +272,56 @@ public class SubscriptionManager {
     }
 
     private void sendCurrentMintQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
-        for (String quoteId : quoteIds) {
-            try {
-                Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
-                boolean paid = gateway.checkPaymentStatus(quoteId);
-                String request = gateway.getRequest(quoteId);
-                int expiry = gateway.getPaymentExpiry(quoteId);
+        try {
+            Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
+            for (String quoteId : quoteIds) {
+                try {
+                    boolean paid = gateway.checkPaymentStatus(quoteId);
+                    String request = gateway.getRequest(quoteId);
+                    int expiry = gateway.getPaymentExpiry(quoteId);
 
-                QuoteStatePayload payload = new QuoteStatePayload();
-                payload.setQuoteId(quoteId);
-                payload.setRequest(request);
-                payload.setState(paid ? "PAID" : "UNPAID");
-                payload.setPaid(paid);
-                payload.setExpiry((long) expiry);
+                    QuoteStatePayload payload = new QuoteStatePayload();
+                    payload.setQuoteId(quoteId);
+                    payload.setRequest(request);
+                    payload.setState(paid ? "PAID" : "UNPAID");
+                    payload.setPaid(paid);
+                    payload.setExpiry((long) expiry);
 
-                JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
-                sendNotification(session, notification);
-                log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
-            } catch (Exception e) {
-                log.error("current_mint_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
+                    sendNotification(session, notification);
+                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
+                } catch (Exception e) {
+                    log.error("current_mint_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+                }
             }
+        } catch (Exception e) {
+            log.error("current_mint_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
         }
     }
 
     private void sendCurrentMeltQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
-        for (String quoteId : quoteIds) {
-            try {
-                Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
-                boolean paid = gateway.checkPaymentStatus(quoteId);
-                int expiry = gateway.getPaymentExpiry(quoteId);
+        try {
+            Gateway gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
+            for (String quoteId : quoteIds) {
+                try {
+                    boolean paid = gateway.checkPaymentStatus(quoteId);
+                    int expiry = gateway.getPaymentExpiry(quoteId);
 
-                QuoteStatePayload payload = new QuoteStatePayload();
-                payload.setQuoteId(quoteId);
-                payload.setState(paid ? "PAID" : "UNPAID");
-                payload.setPaid(paid);
-                payload.setExpiry((long) expiry);
+                    QuoteStatePayload payload = new QuoteStatePayload();
+                    payload.setQuoteId(quoteId);
+                    payload.setState(paid ? "PAID" : "UNPAID");
+                    payload.setPaid(paid);
+                    payload.setExpiry((long) expiry);
 
-                JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
-                sendNotification(session, notification);
-                log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
-            } catch (Exception e) {
-                log.error("current_melt_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
+                    sendNotification(session, notification);
+                    log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}", subId, quoteId, paid);
+                } catch (Exception e) {
+                    log.error("current_melt_quote_state_error sub_id={} quote_id={} error={}", subId, quoteId, e.getMessage());
+                }
             }
+        } catch (Exception e) {
+            log.error("current_melt_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
         }
     }
 
