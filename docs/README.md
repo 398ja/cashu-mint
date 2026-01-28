@@ -35,6 +35,7 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
 - [Voucher mint quote percentage fees (overview)](explanations/voucher-mint-quote-overview.md) - Quick reference for how percentage-based voucher pricing works.
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
+- [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
 
 ## Runbooks
 - [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
