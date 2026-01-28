@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -61,6 +62,9 @@ import java.util.UUID;
 @RequestMapping("/v1")
 public class CashuController<T extends Secret> {
 
+    // Request ID header for tracing (matches gateway's AbstractRequestBase)
+    public static final String REQUEST_ID_HEADER = "X-Request-ID";
+
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
     private final SignatureVaultService signatureVaultService;
@@ -92,16 +96,47 @@ public class CashuController<T extends Secret> {
 
     // Spec-compliant: infer mint from inputs' keyset id
     @PostMapping("/swap")
-    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request) throws CashuErrorException {
+    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request,
+                                                 HttpServletRequest httpRequest) throws CashuErrorException {
+        // Extract request ID for tracing duplicate requests
+        String requestId = httpRequest.getHeader(REQUEST_ID_HEADER);
+        long startTime = System.currentTimeMillis();
+
         if (request.getInputs() == null || request.getInputs().isEmpty()) {
+            log.warn("swap_controller bad_request request_id={} reason=empty_inputs", requestId);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        log.debug("Swapping {} inputs", request.getInputs().size());
+
+        log.info("swap_controller request_received request_id={} input_count={} output_count={}",
+                requestId, request.getInputs().size(),
+                request.getBlindedMessages() != null ? request.getBlindedMessages().size() : 0);
+
         UUID mintId = inferMintIdFromSwapInputs(request);
-        if (mintId == null) return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        log.debug("Found mint: {}", mintId);
-        PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService);
-        return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
+        if (mintId == null) {
+            log.warn("swap_controller bad_request request_id={} reason=mint_not_found", requestId);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        log.debug("swap_controller mint_resolved request_id={} mint_id={}", requestId, mintId);
+
+        try {
+            PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService);
+            long duration = System.currentTimeMillis() - startTime;
+
+            if (response == null) {
+                log.warn("swap_controller swap_returned_null request_id={} duration_ms={}", requestId, duration);
+                return ResponseEntity.notFound().build();
+            }
+
+            log.info("swap_controller swap_completed request_id={} duration_ms={} signature_count={}",
+                    requestId, duration, response.getBlindSignatures() != null ? response.getBlindSignatures().size() : 0);
+            return ResponseEntity.ok(response);
+        } catch (CashuErrorException e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("swap_controller swap_failed request_id={} duration_ms={} error={}",
+                    requestId, duration, e.getMessage());
+            throw e;
+        }
     }
 
     @PostMapping("/mint/quote/{method}")
