@@ -6,8 +6,9 @@ The protocol exposes a shared `SignatureVaultService` so signatures minted in on
 
 ## Modules
 
-- `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09), tasks, and vault/gateway integrations.
+- `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09/12/17), tasks, and vault/gateway integrations.
 - `cashu-mint-rest` – Spring Boot REST API that wires controllers to the protocol services and exposes actuator health/metrics.
+- `cashu-mint-webhook` – webhook-based payment notifications for push-based payment status updates.
 - `cashu-mint-observability` – Micrometer- and Actuator-based metrics, health indicators, and tracing hooks for the mint and gateway.
 - `cashu-mint-tools` – deterministic preload generator and SQL renderer for seeding the vault with reproducible keysets.
 - `cashu-mint-rest-it` – integration test harness for the REST module (voucher profile, H2, and Spring context tests).
@@ -44,6 +45,41 @@ Browse metrics at `http://localhost:7777/actuator/prometheus` and Grafana at `ht
 ## Payment notifications
 
 Version 0.8.0 introduces webhook-based payment notifications. Payment gateways push events to `/webhook/payment` instead of the mint polling for status. This reduces latency on mint requests and lowers gateway load. The mint falls back to polling when webhooks are unavailable. See [Payment webhook architecture](docs/explanations/payment-webhook-architecture.md) for details.
+
+## WebSocket subscriptions (NUT-17)
+
+Version 0.11.0 adds real-time WebSocket subscriptions per [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md). Clients can subscribe to proof and quote state changes and receive push notifications instead of polling.
+
+**Endpoint:** `ws://localhost:7777/v1/ws`
+
+**Supported subscription kinds:**
+- `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT
+- `bolt11_mint_quote` — Notifies when mint quotes change state (UNPAID → PAID → ISSUED)
+- `bolt11_melt_quote` — Notifies when melt quotes change state (UNPAID → PENDING → PAID)
+
+**Configuration:**
+```properties
+# Enable/disable WebSocket subscriptions (default: true)
+cashu.websocket.enabled=true
+
+# Allowed origins for CORS (default: * — restrict in production)
+cashu.websocket.allowed-origins=https://your-app.com
+```
+
+**Example subscription (JSON-RPC 2.0):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-1",
+  "method": "subscribe",
+  "params": {
+    "kind": "proof_state",
+    "filters": [{"ids": ["proof-y-value-1", "proof-y-value-2"]}]
+  }
+}
+```
+
+New subscribers receive the current state of subscribed items immediately, then real-time updates as states change.
 
 ## Docs and tooling
 
