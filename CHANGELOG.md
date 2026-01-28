@@ -11,6 +11,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] - 2026-01-28
+
+### Added
+
+- **NUT-17 WebSocket Subscriptions**: Real-time notifications for proof and quote state changes
+  - WebSocket endpoint at `/v1/ws` with JSON-RPC 2.0 protocol
+  - `SubscriptionManager` for session tracking and efficient pub/sub with indexing
+  - `Nut17WebSocketHandler` for JSON-RPC message handling (subscribe/unsubscribe)
+  - `ProofStatePublisher` for broadcasting proof state transitions (UNSPENT → PENDING → SPENT)
+  - `QuoteStatePublisher` for broadcasting quote state transitions (UNPAID → PAID → ISSUED)
+  - `Nut17EventPublisher` service for publishing events from controllers
+  - Spring ApplicationEvent integration for decoupled event propagation
+  - Configurable via `cashu.websocket.enabled` property
+  - Security warning logged at startup when wildcard origins (`*`) used in production
+
+- **NUT-17 Protocol Implementation**: `NUT17.java` static utility class
+  - Subscription parameter validation
+  - Subscription ID generation
+  - JSON-RPC response and notification factory methods
+  - Filter ID extraction utilities
+
+- **NUT-17 Integration Tests**: `Nut17WebSocketIT` with comprehensive test coverage
+  - WebSocket connection establishment
+  - Subscribe/unsubscribe command handling
+  - Current state notification on subscription
+  - Proof state change notifications
+  - Multiple subscriber notification delivery
+
+- **NUT-17 Unit Tests**: Event publisher test coverage
+  - `ProofStatePublisherTest` for proof state event handling
+  - `QuoteStatePublisherTest` for quote state event handling
+  - `Nut17EventPublisherTest` for event emission via ApplicationEventPublisher
+
+- **Virtual Thread Guidelines**: Comprehensive `CLAUDE.md` documentation
+  - Decision table for when to use Virtual Threads
+  - Code patterns for parallel I/O with CompletableFuture
+  - Anti-patterns to avoid (synchronized on I/O, platform thread pools)
+  - Configuration reference for VT-related components
+
+### Changed
+
+- Updated `mint.yaml` to advertise NUT-17 WebSocket subscription support
+- Updated cashu-lib dependency from 0.13.1 to 0.14.0 (includes NUT-17 DTOs)
+- Updated cashu-wallet dependency from 0.6.1 to 0.6.3
+- `SubscriptionManager.sendCurrentState()` now uses Virtual Threads for parallel I/O
+  - Parallel vault queries for proof state lookups
+  - Parallel gateway queries for mint/melt quote state lookups
+  - Improves performance when subscribers watch multiple items
+- `WebSocketConfig` allowed-origins split now handles whitespace around commas
+- Removed redundant `@ConditionalOnProperty` from `WebSocketConfig` bean method
+- NUT-17 quote state payloads now enriched with additional fields from quote lookups
+  - Mint quote notifications include `amount`, `request`, and `expiry`
+  - Melt quote notifications include `amount` and `expiry`
+
+### Fixed
+
+- Race condition in `SubscriptionManager.subscribe()` using atomic `compute()` operation
+
+---
+
 ## [0.10.2] - 2026-01-28
 
 ### Added

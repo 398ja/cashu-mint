@@ -35,3 +35,14 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
 - [Voucher mint quote percentage fees (overview)](explanations/voucher-mint-quote-overview.md) - Quick reference for how percentage-based voucher pricing works.
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
+- [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
+
+## Runbooks
+- [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
+
+## Loom / Virtual Threads
+- [Baseline metrics](loom/baseline-metrics.md) - Performance baseline before VT migration.
+- [Library audit](loom/library-audit.md) - Evaluation of third-party library VT compatibility.
+- [Phase 1 pilot guide](loom/phase1-pilot-guide.md) - Step-by-step pilot implementation guide.
+- [Pilot results](loom/pilot-results.md) - Results and learnings from VT pilot.
+- [Pool tuning results](loom/pool-tuning-results.md) - Thread pool configuration tuning for VT.

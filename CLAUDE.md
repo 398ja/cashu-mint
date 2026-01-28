@@ -9,6 +9,7 @@ This is a Java implementation of the Cashu ecash protocol, organized as a multi-
 **Main modules:**
 - `cashu-mint-protocol` - Core Cashu protocol implementation (business logic)
 - `cashu-mint-rest` - Public REST API (port 7777)
+- `cashu-mint-webhook` - Webhook-based payment notifications
 - `cashu-mint-rest-it` - Integration tests
 - `cashu-mint-tools` - Test data generation utilities
 - `cashu-mint-observability` - Prometheus metrics, Grafana dashboards, health indicators
@@ -107,6 +108,7 @@ Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-p
 - `NUT06.java` - Mint information
 - `NUT07.java` - Token state check
 - `NUT09.java` - Restore signatures
+- `NUT17.java` - WebSocket subscriptions (real-time state notifications)
 
 **When implementing NUT features:**
 1. Consult the official specification at https://github.com/cashubtc/nuts/blob/main/{NN}.md
@@ -189,6 +191,159 @@ From AGENTS.md, the codebase follows:
 - "Clean Architecture" book parts III & IV, chapters 7-14
 - Java Design Patterns from https://github.com/iluwatar/java-design-patterns
 - Use Lombok to reduce boilerplate
+
+### Use Virtual Threads for Concurrency
+
+This project uses Java 21 Virtual Threads (Project Loom) for efficient concurrency. Virtual Threads are enabled by default via `spring.threads.virtual.enabled=true`. **Always prefer Virtual Threads over platform threads for I/O-bound work.**
+
+#### When to Use Virtual Threads
+
+| Scenario | Use Virtual Threads? | Pattern |
+|----------|---------------------|---------|
+| Database queries | Yes | `StructuredTaskScope` for parallel queries |
+| HTTP/REST calls | Yes | `StructuredTaskScope` or VT executor |
+| WebSocket message sends | Yes | Parallel send to multiple subscribers |
+| File I/O | Yes | VT handles blocking efficiently |
+| CPU-intensive computation | No | Use parallel streams or ForkJoinPool |
+| Quick in-memory operations | No | Overhead not justified |
+
+#### Patterns and Examples
+
+**1. Parallel I/O with CompletableFuture and VT Executor (Preferred)**
+
+Use when you need results from multiple independent I/O operations:
+
+```java
+import java.util.concurrent.*;
+
+// Parallel database/API queries with Virtual Threads
+private List<QuoteState> fetchQuoteStates(List<String> quoteIds, Gateway gateway) {
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        List<CompletableFuture<QuoteState>> futures = quoteIds.stream()
+            .map(id -> CompletableFuture.supplyAsync(() -> {
+                boolean paid = gateway.checkPaymentStatus(id);
+                return new QuoteState(id, paid);
+            }, executor))
+            .toList();
+
+        // Wait for all futures to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return futures.stream()
+            .map(f -> f.getNow(null))
+            .filter(Objects::nonNull)
+            .toList();
+    }
+}
+```
+
+**2. Fire-and-Forget with @Async**
+
+Use for event handlers that shouldn't block the caller:
+
+```java
+@Async  // Runs on VT via AsyncConfig
+@EventListener
+public void onProofStateChange(ProofStateChangeEvent event) {
+    subscriptionManager.publishProofState(event.getY(), event.getState(), null);
+}
+```
+
+**3. Parallel Fan-Out (Notifications)**
+
+Use when sending to multiple recipients:
+
+```java
+private void notifySubscribers(Set<String> subscriberIds, JsonRpcNotification notification) {
+    try (var scope = new StructuredTaskScope.ShutdownOnSuccess<Void>()) {
+        for (String subId : subscriberIds) {
+            scope.fork(() -> {
+                WebSocketSession session = sessions.get(subId);
+                if (session != null && session.isOpen()) {
+                    session.sendMessage(new TextMessage(toJson(notification)));
+                }
+                return null;
+            });
+        }
+        scope.join();
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        log.warn("Interrupted during subscriber notification");
+    }
+}
+```
+
+**4. Simple Parallel Execution**
+
+Use for straightforward parallelization without result collection:
+
+```java
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    proofs.forEach(proof -> executor.submit(() -> {
+        String y = SecretUtil.toY(proof.getSecret());
+        publishProofState(y, NUT07.SPENT, null);
+    }));
+}  // Auto-waits for completion on close
+```
+
+#### Anti-Patterns to Avoid
+
+**❌ Sequential I/O in loops when items are independent:**
+```java
+// BAD: Sequential blocking calls
+for (String quoteId : quoteIds) {
+    boolean paid = gateway.checkPaymentStatus(quoteId);  // Blocks
+    // ...
+}
+```
+
+**❌ Using synchronized for I/O operations (causes VT pinning):**
+```java
+// BAD: Pins virtual thread to carrier thread
+synchronized (lock) {
+    database.query(...);  // Pinned during entire I/O!
+}
+
+// GOOD: Use ReentrantLock instead
+private final ReentrantLock lock = new ReentrantLock();
+lock.lock();
+try {
+    database.query(...);  // VT can unmount during I/O
+} finally {
+    lock.unlock();
+}
+```
+
+**❌ Creating platform thread pools for I/O work:**
+```java
+// BAD: Wastes platform threads on I/O
+ExecutorService pool = Executors.newFixedThreadPool(10);
+
+// GOOD: Use virtual threads
+ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor();
+```
+
+#### Configuration Reference
+
+| Component | Configuration | Purpose |
+|-----------|--------------|---------|
+| `AsyncConfig` | `@Async` executor | VT for all async tasks |
+| `GatewayClientConfiguration` | HTTP client executor | VT for gateway calls |
+| Tomcat | `spring.threads.virtual.enabled` | VT for request handling |
+| `QuoteLockManager` | `ReentrantLock` | Per-quote locking (VT-safe) |
+| `ProofLockManager` | `ReentrantLock` | Per-proof locking (VT-safe) |
+
+#### Debugging Virtual Threads
+
+```bash
+# Enable VT debugging output
+-Djdk.tracePinnedThreads=full
+
+# Check for pinning in logs
+grep -i "pinned" logs/application.log
+```
+
+See `docs/runbooks/virtual-thread-issues.md` for comprehensive troubleshooting.
 
 ### Commit Convention
 
@@ -287,11 +442,15 @@ Vouchers use structured secrets with Nostr publishing:
 ```
 cashu-mint-rest
   ├── cashu-mint-protocol
-  │     ├── cashu-lib (0.6.0)
-  │     ├── cashu-vault (0.3.0)
-  │     ├── payment-adapter (0.6.0)
-  │     └── cashu-voucher (0.2.0)
-  └── Spring Boot 3.5.5
+  │     ├── cashu-lib (0.14.0)
+  │     ├── cashu-vault (0.5.0)
+  │     ├── payment-adapter (0.8.0)
+  │     └── cashu-voucher (0.6.0)
+  ├── cashu-mint-webhook
+  └── Spring Boot 3.5.6
+
+cashu-mint-webhook
+  └── cashu-mint-protocol
 
 cashu-mint-tools
   └── (independent, generates test data)

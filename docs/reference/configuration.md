@@ -34,6 +34,21 @@ Keep NUT-06 (`mint.yaml`) methods/units aligned with the gateway mappings you co
 
 The dev Docker Compose profile mounts `scripts/preload-test-data.json` and seeds the vault using `scripts/preload-test-data.sql`.
 
+## WebSocket subscriptions (NUT-17)
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `cashu.websocket.enabled` | `true` | Enable NUT-17 WebSocket endpoint at `/v1/ws`. |
+| `cashu.websocket.allowed-origins` | `*` | Comma-separated CORS origins. Restrict in production. |
+
+## Payment webhooks
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `webhook.enabled` | `true` | Enable push-based payment notifications. |
+| `webhook.secret` | _(unset)_ | HMAC-SHA256 secret for signature validation. |
+| `webhook.cache.ttl` | `PT15M` | TTL for payment status cache entries. |
+
 ## Voucher minting (voucher profile)
 
 Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v1/vouchers`. Required properties come from `application-voucher.yml`:
