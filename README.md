@@ -6,8 +6,9 @@ The protocol exposes a shared `SignatureVaultService` so signatures minted in on
 
 ## Modules
 
-- `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09), tasks, and vault/gateway integrations.
+- `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09/12/17), tasks, and vault/gateway integrations.
 - `cashu-mint-rest` – Spring Boot REST API that wires controllers to the protocol services and exposes actuator health/metrics.
+- `cashu-mint-webhook` – webhook-based payment notifications for push-based payment status updates.
 - `cashu-mint-observability` – Micrometer- and Actuator-based metrics, health indicators, and tracing hooks for the mint and gateway.
 - `cashu-mint-tools` – deterministic preload generator and SQL renderer for seeding the vault with reproducible keysets.
 - `cashu-mint-rest-it` – integration test harness for the REST module (voucher profile, H2, and Spring context tests).

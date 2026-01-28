@@ -11,3 +11,5 @@ This reference lists the NUT specifications implemented in the repository.
 - [NUT-06](https://github.com/cashubtc/nuts/blob/main/06.md): Mint information
 - [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md): Token state check
 - [NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md): Restore signatures
+- [NUT-12](https://github.com/cashubtc/nuts/blob/main/12.md): DLEQ proofs (blind signature correctness)
+- [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md): WebSocket subscriptions (real-time state notifications)
