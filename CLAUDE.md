@@ -9,6 +9,7 @@ This is a Java implementation of the Cashu ecash protocol, organized as a multi-
 **Main modules:**
 - `cashu-mint-protocol` - Core Cashu protocol implementation (business logic)
 - `cashu-mint-rest` - Public REST API (port 7777)
+- `cashu-mint-webhook` - Webhook-based payment notifications
 - `cashu-mint-rest-it` - Integration tests
 - `cashu-mint-tools` - Test data generation utilities
 - `cashu-mint-observability` - Prometheus metrics, Grafana dashboards, health indicators
@@ -107,6 +108,7 @@ Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-p
 - `NUT06.java` - Mint information
 - `NUT07.java` - Token state check
 - `NUT09.java` - Restore signatures
+- `NUT17.java` - WebSocket subscriptions (real-time state notifications)
 
 **When implementing NUT features:**
 1. Consult the official specification at https://github.com/cashubtc/nuts/blob/main/{NN}.md
@@ -440,11 +442,15 @@ Vouchers use structured secrets with Nostr publishing:
 ```
 cashu-mint-rest
   ├── cashu-mint-protocol
-  │     ├── cashu-lib (0.6.0)
-  │     ├── cashu-vault (0.3.0)
-  │     ├── payment-adapter (0.6.0)
-  │     └── cashu-voucher (0.2.0)
-  └── Spring Boot 3.5.5
+  │     ├── cashu-lib (0.14.0)
+  │     ├── cashu-vault (0.5.0)
+  │     ├── payment-adapter (0.8.0)
+  │     └── cashu-voucher (0.6.0)
+  ├── cashu-mint-webhook
+  └── Spring Boot 3.5.6
+
+cashu-mint-webhook
+  └── cashu-mint-protocol
 
 cashu-mint-tools
   └── (independent, generates test data)
