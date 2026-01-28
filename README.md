@@ -45,6 +45,41 @@ Browse metrics at `http://localhost:7777/actuator/prometheus` and Grafana at `ht
 
 Version 0.8.0 introduces webhook-based payment notifications. Payment gateways push events to `/webhook/payment` instead of the mint polling for status. This reduces latency on mint requests and lowers gateway load. The mint falls back to polling when webhooks are unavailable. See [Payment webhook architecture](docs/explanations/payment-webhook-architecture.md) for details.
 
+## WebSocket subscriptions (NUT-17)
+
+Version 0.11.0 adds real-time WebSocket subscriptions per [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md). Clients can subscribe to proof and quote state changes and receive push notifications instead of polling.
+
+**Endpoint:** `ws://localhost:7777/v1/ws`
+
+**Supported subscription kinds:**
+- `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT
+- `bolt11_mint_quote` — Notifies when mint quotes change state (UNPAID → PAID → ISSUED)
+- `bolt11_melt_quote` — Notifies when melt quotes change state (UNPAID → PENDING → PAID)
+
+**Configuration:**
+```properties
+# Enable/disable WebSocket subscriptions (default: true)
+cashu.websocket.enabled=true
+
+# Allowed origins for CORS (default: * — restrict in production)
+cashu.websocket.allowed-origins=https://your-app.com
+```
+
+**Example subscription (JSON-RPC 2.0):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-1",
+  "method": "subscribe",
+  "params": {
+    "kind": "proof_state",
+    "filters": [{"ids": ["proof-y-value-1", "proof-y-value-2"]}]
+  }
+}
+```
+
+New subscribers receive the current state of subscribed items immediately, then real-time updates as states change.
+
 ## Docs and tooling
 
 - Documentation follows the Diátaxis structure in `docs/README.md`.

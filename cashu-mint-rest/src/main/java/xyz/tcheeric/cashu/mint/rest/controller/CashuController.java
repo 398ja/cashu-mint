@@ -244,6 +244,7 @@ public class CashuController<T extends Secret> {
         );
 
         // Publish mint quote state change for NUT-17 WebSocket subscribers
+        // TODO: Enrich payload with amount, expiry, and request from quote lookup for completeness
         if (response != null && eventPublisher != null) {
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(request.getQuoteId());
@@ -298,6 +299,7 @@ public class CashuController<T extends Secret> {
         );
 
         // Publish events for NUT-17 WebSocket subscribers
+        // TODO: Enrich melt payload with preimage, amount, fee_reserve from response/quote for completeness
         if (response != null && eventPublisher != null) {
             // Publish proof spent events for input proofs
             eventPublisher.publishProofsSpent(request.getInputs());
