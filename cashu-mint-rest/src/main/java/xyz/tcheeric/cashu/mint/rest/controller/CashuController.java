@@ -377,7 +377,10 @@ public class CashuController<T extends Secret> {
     @GetMapping("/info")
     public ResponseEntity<ObjectNode> info() throws CashuErrorException {
         MintInfo info = nut06.mintInfo();
-        ObjectNode node = new ObjectMapper().valueToTree(info);
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode node = mapper.valueToTree(info);
+        // Re-serialize nuts using getter to include dynamically loaded NUT-17
+        node.set("nuts", mapper.valueToTree(info.getNuts()));
         addLegacyInfoFields(node, info);
         return ResponseEntity.ok(node);
     }

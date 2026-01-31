@@ -1,12 +1,17 @@
 package xyz.tcheeric.cashu.mint.proto.util;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -15,44 +20,140 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "mint")
 @PropertySource(name = "NUT06 Mint Informtion", value = "classpath:mint.yaml", factory = YamlPropertySourceFactory.class)
 @Setter
-@Getter
+@Slf4j
 public class MintInfo {
 
     @JsonProperty
+    @Getter
     private String name;
 
     @JsonProperty
+    @Getter
     private String pubkey;
 
     @JsonProperty
+    @Getter
     private String version;
 
     @JsonProperty
+    @Getter
     private String description;
 
     @JsonProperty
+    @Getter
     private String descriptionLong;
 
     @JsonProperty
+    @Getter
     private String motd;
 
     @JsonProperty
+    @Getter
     private String iconUrl;
 
     @JsonProperty
+    @Getter
     private List<String> urls;
 
     @JsonProperty
+    @Getter
     private long time;
 
     @JsonProperty
+    @Getter
     private String tosUrl;
 
     @JsonProperty
+    @Getter
     private List<Contact> contact;
 
-    @JsonProperty
     private Map<String, Nut> nuts;
+
+    @JsonIgnore
+    private volatile boolean nut17Loaded = false;
+
+    /**
+     * Sets the nuts configuration map and loads NUT-17 from raw YAML.
+     * Called by Spring during property binding.
+     */
+    public void setNuts(Map<String, Nut> nuts) {
+        // Use mutable map to allow adding NUT-17 dynamically
+        if (nuts != null) {
+            this.nuts = new java.util.HashMap<>(nuts);
+        } else {
+            this.nuts = nuts;
+        }
+
+        if (this.nuts != null && !this.nuts.containsKey("17")) {
+            loadNut17Configuration();
+        }
+    }
+
+    /**
+     * Returns the nuts configuration map with NUT-17 included.
+     */
+    @JsonProperty("nuts")
+    public Map<String, Nut> getNuts() {
+        // Ensure NUT-17 is loaded if not present
+        if (nuts != null && !nuts.containsKey("17") && !nut17Loaded) {
+            loadNut17Configuration();
+        }
+        return nuts;
+    }
+
+    /**
+     * Loads NUT-17 configuration from raw YAML since Spring's property binding
+     * cannot correctly bind complex nested list structures to Object type fields.
+     */
+    @SuppressWarnings("unchecked")
+    private synchronized void loadNut17Configuration() {
+        if (nut17Loaded) {
+            return;
+        }
+        nut17Loaded = true;
+
+        try {
+            ClassPathResource resource = new ClassPathResource("mint.yaml");
+            if (!resource.exists()) {
+                log.warn("mint.yaml not found on classpath, NUT-17 configuration not loaded");
+                return;
+            }
+            Yaml yaml = new Yaml();
+            try (InputStream inputStream = resource.getInputStream()) {
+                Map<String, Object> root = yaml.load(inputStream);
+                Map<String, Object> mint = (Map<String, Object>) root.get("mint");
+                if (mint == null) {
+                    return;
+                }
+                Map<String, Object> nutsMap = (Map<String, Object>) mint.get("nuts");
+                if (nutsMap == null) {
+                    return;
+                }
+                Object nut17Config = nutsMap.get(17);
+                if (nut17Config == null) {
+                    nut17Config = nutsMap.get("17");
+                }
+                if (nut17Config instanceof Map) {
+                    Map<String, Object> nut17 = (Map<String, Object>) nut17Config;
+                    Object supported = nut17.get("supported");
+                    if (supported instanceof List) {
+                        if (nuts == null) {
+                            nuts = new java.util.HashMap<>();
+                        }
+                        Nut nut = nuts.get("17");
+                        if (nut == null) {
+                            nut = new Nut();
+                            nuts.put("17", nut);
+                        }
+                        nut.setSupported(supported);
+                        log.debug("NUT-17 configuration loaded: {} supported configs", ((List<?>) supported).size());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to load NUT-17 configuration from mint.yaml", e);
+        }
+    }
 
     @Setter
     @Getter

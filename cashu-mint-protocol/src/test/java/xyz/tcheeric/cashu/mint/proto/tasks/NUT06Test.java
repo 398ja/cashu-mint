@@ -53,4 +53,26 @@ class NUT06Test {
         assertNotNull(nut9);
         assertTrue(nut9.isSupportedSimple());
     }
+
+    @Test
+    // Ensures the mint advertises NUT-17 WebSocket subscription support
+    void nut17Supported() throws CashuErrorException {
+        MintInfo mintInfo = nut06.mintInfo();
+        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
+
+        MintInfo.Nut nut17 = nuts.get("17");
+        assertNotNull(nut17, "NUT-17 should be present in mint info");
+
+        var supportedConfigs = nut17.getSupportedConfigs();
+        assertNotNull(supportedConfigs, "NUT-17 should have supported configurations");
+        assertFalse(supportedConfigs.isEmpty(), "NUT-17 should have at least one supported configuration");
+
+        var config = supportedConfigs.get(0);
+        assertEquals("bolt11", config.getMethod());
+        assertEquals("sat", config.getUnit());
+        assertNotNull(config.getCommands());
+        assertTrue(config.getCommands().contains("bolt11_mint_quote"));
+        assertTrue(config.getCommands().contains("bolt11_melt_quote"));
+        assertTrue(config.getCommands().contains("proof_state"));
+    }
 }
