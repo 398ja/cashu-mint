@@ -50,3 +50,13 @@ mint:
       supported: true
     12:
       supported: true
+    17:
+      # NUT-17 WebSocket subscriptions for real-time state updates
+      supported:
+        -
+          method: bolt11
+          unit: sat
+          commands:
+            - bolt11_mint_quote
+            - bolt11_melt_quote
+            - proof_state
