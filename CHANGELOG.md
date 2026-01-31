@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.1] - 2026-01-31
+
+### Fixed
+
+- **NUT-17 Info Endpoint**: Fixed NUT-17 WebSocket configuration not appearing in `/v1/info` response
+  - Spring's `@ConfigurationProperties` binding could not correctly handle complex nested list structures bound to `Object` type fields
+  - Added direct YAML loading via SnakeYAML for NUT-17 configuration
+  - Controller now explicitly serializes nuts map using getter to ensure dynamically loaded NUT-17 is included
+  - Added unit test to verify NUT-17 support in mint info
+
+---
+
 ## [0.11.0] - 2026-01-28
 
 ### Added
