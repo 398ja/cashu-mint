@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.spending;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.common.P2PKProof;
-import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;

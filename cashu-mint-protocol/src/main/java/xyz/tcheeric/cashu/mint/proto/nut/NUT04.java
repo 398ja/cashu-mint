@@ -2,13 +2,13 @@ package xyz.tcheeric.cashu.mint.proto.nut;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
-import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
-import xyz.tcheeric.cashu.entities.rest.PostMintRequest;
-import xyz.tcheeric.cashu.entities.rest.PostMintResponse;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteStatusTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTokensTask;
