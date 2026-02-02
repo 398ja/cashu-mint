@@ -5,7 +5,7 @@ import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import xyz.tcheeric.cashu.common.DLEQProof;
+import xyz.tcheeric.cashu.common.nut12.DLEQProof;
 import xyz.tcheeric.cashu.crypto.DLEQUtils;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultDLEQProofGenerator;
 
