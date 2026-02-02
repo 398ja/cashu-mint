@@ -12,8 +12,23 @@ import xyz.tcheeric.cashu.mint.proto.tasks.CheckStateTask;
 
 import java.util.UUID;
 
+/**
+ * NUT-07: Token state check.
+ *
+ * <p>This class provides static methods for checking the spend state of proofs.
+ * States are: UNSPENT (available), PENDING (in-flight), SPENT (consumed).
+ *
+ * <p><b>Security:</b> This endpoint is public and allows checking any proof state.
+ * It does not reveal the secret or signature, only the Y-coordinate and state.
+ *
+ * @see <a href="https://github.com/cashubtc/nuts/blob/main/07.md">NUT-07 Specification</a>
+ */
 @Nut(value = 7, description = "Check the state of a proof")
-public class NUT07 {
+public final class NUT07 {
+
+    private NUT07() {
+        // Utility class - prevent instantiation
+    }
 
     public static final String UNSPENT = "UNSPENT";
     public static final String PENDING = "PENDING";

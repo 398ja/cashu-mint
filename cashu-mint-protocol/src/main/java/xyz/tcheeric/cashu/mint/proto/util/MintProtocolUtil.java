@@ -30,9 +30,19 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 
-public class MintProtocolUtil {
+/**
+ * Protocol utilities for the Cashu mint.
+ *
+ * <p><b>Security:</b> This class handles gateway instantiation and key lookups.
+ * Private keys are retrieved only from authenticated vault services.
+ */
+public final class MintProtocolUtil {
 
     private static final Logger log = LoggerFactory.getLogger(MintProtocolUtil.class);
+
+    private MintProtocolUtil() {
+        // Utility class - prevent instantiation
+    }
 
     public static Gateway createGateway(@NonNull PaymentMethod method) {
         return createGateway(method, null);
@@ -42,7 +52,8 @@ public class MintProtocolUtil {
         try {
             Gateway gateway = GatewayLoader.loadGateway(method, unit);
             if (!gateway.supports(method)) {
-                throw new IllegalArgumentException("Gateway does not support payment method: " + method);
+                log.error("Gateway does not support payment method: {}", method);
+                throw new IllegalArgumentException("Gateway configuration error");
             }
             return gateway;
         } catch (Exception e) {
@@ -192,12 +203,14 @@ public class MintProtocolUtil {
                 gatewayClassName = properties.getProperty(key);
             }
             if (gatewayClassName == null || gatewayClassName.isBlank()) {
-                throw new IllegalArgumentException("Gateway class not specified for method " + method + (unit != null ? (" and unit " + unit) : ""));
+                log.error("Gateway class not specified for method {} and unit {}", method, unit);
+                throw new IllegalArgumentException("Gateway not configured");
             }
 
             Class<?> gatewayClass = Class.forName(gatewayClassName);
             if (!Gateway.class.isAssignableFrom(gatewayClass)) {
-                throw new IllegalArgumentException("Configured gateway does not implement Gateway: " + gatewayClassName);
+                log.error("Configured gateway does not implement Gateway interface: {}", gatewayClassName);
+                throw new IllegalArgumentException("Invalid gateway configuration");
             }
             return (Gateway) gatewayClass.getDeclaredConstructor().newInstance();
         }

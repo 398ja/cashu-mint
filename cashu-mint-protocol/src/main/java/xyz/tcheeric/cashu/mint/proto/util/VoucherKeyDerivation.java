@@ -48,7 +48,8 @@ public final class VoucherKeyDerivation {
             throw new IllegalArgumentException("Master secret cannot be null or empty");
         }
         if (amount <= 0) {
-            throw new IllegalArgumentException("Amount must be positive: " + amount);
+            log.warn("Invalid voucher amount requested: {}", amount);
+            throw new IllegalArgumentException("Invalid voucher amount");
         }
 
         try {
@@ -65,7 +66,8 @@ public final class VoucherKeyDerivation {
 
             return PrivateKey.fromBytes(derivedKey);
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new RuntimeException("Failed to derive voucher key for amount " + amount, e);
+            log.error("Failed to derive voucher key for amount {}", amount, e);
+            throw new RuntimeException("Key derivation failed", e);
         }
     }
 

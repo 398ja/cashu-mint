@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
+import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
@@ -82,6 +83,15 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         List<BlindedMessage> blindedMessages = Objects.requireNonNull(
                 postMintRequest.getBlindedMessages(),
                 "Blinded messages must not be null");
+
+        // Security limit check (per Oracle Secure Coding Guidelines DOS-1)
+        if (blindedMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
+            log.warn("mint_task too_many_outputs count={} max={}",
+                    blindedMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
+            ErrorResponse error = new ErrorResponse("too_many_outputs",
+                    "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
+            throw new CashuErrorException(error.toJson());
+        }
 
         // If the invoice was not paid yet, Bob responds with a structured error.
         if (log.isDebugEnabled()) {
