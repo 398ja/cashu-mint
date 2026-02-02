@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.0] - 2026-02-02
+
+### Security
+
+- Completed Oracle Java Secure Coding Guidelines remediation tasks: final NUT/utility classes with private constructors, SHA-256 key derivation for lock keys, unmodifiable MintInfo nuts map, sanitized exception messages, webhook input validation, configurable swap/mint limits, WebSocket subscription limits, and NUT security Javadoc
+
+### Changed
+
+- Moved the Java secure coding audit report into the `audits/` directory
+
+### Fixed
+
+- Aligned `VerifyProofsTaskTest` voucher secret FQCN assertion with the current `nut18` package
+
+---
+
 ## [0.11.1] - 2026-01-31
 
 ### Fixed

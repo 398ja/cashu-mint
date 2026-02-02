@@ -9,14 +9,15 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
-import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
+import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,27 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     @Override
     protected PostSwapResponse doExecute() throws CashuErrorException {
         log.debug("Executing SwapTask for mint {}", mintId);
+
+        // Security limit checks (per Oracle Secure Coding Guidelines DOS-1)
+        List<Proof<T>> inputProofs = request.getInputs();
+        List<BlindedMessage> outputMessages = request.getBlindedMessages();
+
+        if (inputProofs != null && inputProofs.size() > SecurityLimits.MAX_PROOFS) {
+            log.warn("swap_task too_many_inputs count={} max={}",
+                    inputProofs.size(), SecurityLimits.MAX_PROOFS);
+            ErrorResponse error = new ErrorResponse("too_many_inputs",
+                    "Maximum " + SecurityLimits.MAX_PROOFS + " inputs allowed");
+            throw new CashuErrorException(error.toJson());
+        }
+
+        if (outputMessages != null && outputMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
+            log.warn("swap_task too_many_outputs count={} max={}",
+                    outputMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
+            ErrorResponse error = new ErrorResponse("too_many_outputs",
+                    "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
+            throw new CashuErrorException(error.toJson());
+        }
+
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {
             log.error("Mint not found");

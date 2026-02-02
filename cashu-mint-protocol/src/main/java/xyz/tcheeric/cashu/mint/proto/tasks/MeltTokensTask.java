@@ -2,11 +2,11 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.Mint;
-import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostMeltRequest;
-import xyz.tcheeric.cashu.entities.rest.PostMeltResponse;
+import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
+import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;

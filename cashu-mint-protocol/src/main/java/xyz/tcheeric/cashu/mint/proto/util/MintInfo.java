@@ -91,6 +91,11 @@ public class MintInfo {
 
     /**
      * Returns the nuts configuration map with NUT-17 included.
+     *
+     * <p><b>Security:</b> Returns an unmodifiable view to prevent external modification
+     * of internal state (per Oracle Secure Coding Guidelines MUTABLE-2).
+     *
+     * @return unmodifiable view of the nuts configuration map
      */
     @JsonProperty("nuts")
     public Map<String, Nut> getNuts() {
@@ -98,7 +103,7 @@ public class MintInfo {
         if (nuts != null && !nuts.containsKey("17") && !nut17Loaded) {
             loadNut17Configuration();
         }
-        return nuts;
+        return nuts == null ? null : java.util.Collections.unmodifiableMap(nuts);
     }
 
     /**

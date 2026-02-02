@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
 import org.bouncycastle.math.ec.ECPoint;
-import xyz.tcheeric.cashu.common.DLEQProof;
+import xyz.tcheeric.cashu.common.nut12.DLEQProof;
 
 import java.math.BigInteger;
 
