@@ -91,7 +91,7 @@ public class PreloadMintLoadService implements MintLoadService {
 
     @Override
     public List<Mint> load(boolean archive) throws CashuErrorException {
-        List<Mint> list = new ArrayList<>();
+        List<Mint> list = new ArrayList<>(1);  // Single mint in list
         Mint mint = load(UUID.randomUUID(), archive);
         list.add(mint);
         return list;
