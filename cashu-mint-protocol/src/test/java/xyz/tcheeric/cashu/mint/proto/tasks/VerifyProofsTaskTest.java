@@ -11,14 +11,14 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.P2PKProof;
-import xyz.tcheeric.cashu.common.P2PKSecret;
+import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
-import xyz.tcheeric.cashu.common.VoucherSecret;
+import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import xyz.tcheeric.cashu.common.Proof;
 
@@ -378,7 +378,7 @@ public class VerifyProofsTaskTest {
 
         // Verify class name detection
         String className = voucherSecret.getClass().getName();
-        assertEquals("xyz.tcheeric.cashu.common.VoucherSecret", className,
+        assertEquals("xyz.tcheeric.cashu.common.nut18.VoucherSecret", className,
                 "VoucherSecret should have expected fully qualified class name");
 
         // Verify detector identifies it
@@ -393,4 +393,3 @@ public class VerifyProofsTaskTest {
         );
     }
 }
-

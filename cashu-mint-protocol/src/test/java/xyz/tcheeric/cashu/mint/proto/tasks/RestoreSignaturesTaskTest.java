@@ -7,7 +7,8 @@ import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeysetId;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
+import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreRequest;
+import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreResponse;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 
 import java.util.List;
@@ -39,8 +40,8 @@ public class RestoreSignaturesTaskTest {
         RestoreSignaturesTask task = new RestoreSignaturesTask(request, service);
         var response = task.execute();
 
-        xyz.tcheeric.cashu.entities.rest.PostRestoreResponse expected =
-                new xyz.tcheeric.cashu.entities.rest.PostRestoreResponse(List.of(message), List.of(signature));
+        PostRestoreResponse expected =
+                new PostRestoreResponse(List.of(message), List.of(signature));
         assertThat(response).isEqualTo(expected);
     }
 }

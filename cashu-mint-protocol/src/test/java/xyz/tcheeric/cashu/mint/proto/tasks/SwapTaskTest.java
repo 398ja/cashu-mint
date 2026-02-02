@@ -16,14 +16,14 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
-import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
-import xyz.tcheeric.cashu.common.VoucherSecret;
+import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 
 import java.util.ArrayList;

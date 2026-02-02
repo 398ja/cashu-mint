@@ -1,9 +1,9 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
-import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostMeltQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;

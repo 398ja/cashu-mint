@@ -2,9 +2,9 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;

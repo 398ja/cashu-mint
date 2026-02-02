@@ -6,11 +6,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import xyz.tcheeric.cashu.common.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.nut17.*;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
@@ -24,10 +25,13 @@ import java.util.concurrent.*;
  *
  * <p>Thread-safe service that tracks active sessions and their subscriptions,
  * and routes notifications to matching subscribers.
+ *
+ * <p><b>Security:</b> Subscription limits are enforced to prevent resource
+ * exhaustion attacks (per Oracle Secure Coding Guidelines DOS-1).
  */
 @Slf4j
 @Service
-public class SubscriptionManager {
+public final class SubscriptionManager {
 
     private final ObjectMapper objectMapper;
     private final ProofVaultService proofVaultService;
@@ -68,13 +72,34 @@ public class SubscriptionManager {
     /**
      * Creates a new subscription for a session.
      *
+     * <p><b>Security:</b> Subscription limits are enforced to prevent resource exhaustion
+     * attacks (per Oracle Secure Coding Guidelines DOS-1).
+     *
      * @param session the WebSocket session
      * @param kind the subscription kind
      * @param ids the IDs to subscribe to
      * @return the assigned subscription ID
+     * @throws IllegalArgumentException if limits are exceeded
      */
     public String subscribe(WebSocketSession session, SubscriptionKind kind, List<String> ids) {
         String sessionId = session.getId();
+
+        // Security limit checks (per Oracle Secure Coding Guidelines DOS-1)
+        List<Subscription> existingSubs = sessionSubscriptions.get(sessionId);
+        if (existingSubs != null && existingSubs.size() >= SecurityLimits.MAX_SUBSCRIPTIONS_PER_SESSION) {
+            log.warn("subscription_limit_exceeded session_id={} current={} max={}",
+                    sessionId, existingSubs.size(), SecurityLimits.MAX_SUBSCRIPTIONS_PER_SESSION);
+            throw new IllegalArgumentException("Maximum " + SecurityLimits.MAX_SUBSCRIPTIONS_PER_SESSION
+                    + " subscriptions per session allowed");
+        }
+
+        if (ids != null && ids.size() > SecurityLimits.MAX_SUBSCRIPTION_IDS) {
+            log.warn("subscription_ids_limit_exceeded session_id={} count={} max={}",
+                    sessionId, ids.size(), SecurityLimits.MAX_SUBSCRIPTION_IDS);
+            throw new IllegalArgumentException("Maximum " + SecurityLimits.MAX_SUBSCRIPTION_IDS
+                    + " IDs per subscription allowed");
+        }
+
         String subId = NUT17.generateSubscriptionId();
 
         // Register session if not already present
