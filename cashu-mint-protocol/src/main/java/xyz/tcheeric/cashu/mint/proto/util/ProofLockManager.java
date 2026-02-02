@@ -1,7 +1,11 @@
 package xyz.tcheeric.cashu.mint.proto.util;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,11 +13,33 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Provides per-proof locking to coordinate concurrent melts that reference the same secrets.
+ *
+ * <p><b>Security:</b> Secrets are hashed using SHA-256 before being used as HashMap keys.
+ * This prevents hash collision DoS attacks where an attacker could craft secrets with
+ * colliding hashCodes to degrade HashMap performance (per Oracle Secure Coding Guidelines DOS-5).
  */
 public final class ProofLockManager {
     private static final ConcurrentHashMap<String, ProofMutex> LOCKS = new ConcurrentHashMap<>();
 
     private ProofLockManager() {
+    }
+
+    /**
+     * Derives a secure key from a secret using SHA-256.
+     * This prevents hash collision attacks on the internal HashMap.
+     *
+     * @param secret the original secret string
+     * @return SHA-256 hash of the secret as hex string
+     */
+    private static String deriveKey(String secret) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is always available in Java
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     public static ProofLock lockSecrets(Collection<String> secrets) {
@@ -22,24 +48,25 @@ public final class ProofLockManager {
             };
         }
 
-        TreeSet<String> uniqueSecrets = new TreeSet<>();
+        TreeSet<String> uniqueKeys = new TreeSet<>();
         for (String secret : secrets) {
             if (secret != null) {
-                uniqueSecrets.add(secret);
+                // Use cryptographic hash as key to prevent hash collision attacks
+                uniqueKeys.add(deriveKey(secret));
             }
         }
-        if (uniqueSecrets.isEmpty()) {
+        if (uniqueKeys.isEmpty()) {
             return () -> {
             };
         }
 
-        List<LockEntry> acquired = new ArrayList<>(uniqueSecrets.size());
+        List<LockEntry> acquired = new ArrayList<>(uniqueKeys.size());
         boolean success = false;
         try {
-            for (String secret : uniqueSecrets) {
-                ProofMutex mutex = incrementReference(secret);
+            for (String key : uniqueKeys) {
+                ProofMutex mutex = incrementReference(key);
                 mutex.lock.lock();
-                acquired.add(new LockEntry(secret, mutex));
+                acquired.add(new LockEntry(key, mutex));
             }
             success = true;
         } finally {

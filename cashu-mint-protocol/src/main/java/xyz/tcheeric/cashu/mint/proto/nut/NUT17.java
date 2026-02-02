@@ -18,11 +18,19 @@ import java.util.UUID;
  *     <li>proof_state - Proof state changes (NUT-07)</li>
  * </ul>
  *
+ * <p><b>Security:</b> Subscription IDs are generated using {@link UUID#randomUUID()}.
+ * Clients can only unsubscribe from their own session's subscriptions.
+ * State notifications only include information the client requested via filters.
+ *
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/17.md">NUT-17 Specification</a>
  */
 @Slf4j
 @Nut(value = 17, description = "WebSocket subscriptions")
-public class NUT17 {
+public final class NUT17 {
+
+    private NUT17() {
+        // Utility class - prevent instantiation
+    }
 
     /**
      * JSON-RPC method for subscribing to events.

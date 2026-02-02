@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
-import xyz.tcheeric.cashu.entities.rest.PostSwapRequest;
-import xyz.tcheeric.cashu.entities.rest.PostSwapResponse;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
+import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 

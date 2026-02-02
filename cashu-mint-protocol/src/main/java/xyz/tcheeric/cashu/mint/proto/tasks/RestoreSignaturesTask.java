@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.PostRestoreRequest;
-import xyz.tcheeric.cashu.entities.rest.PostRestoreResponse;
+import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreRequest;
+import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreResponse;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.ArrayList;

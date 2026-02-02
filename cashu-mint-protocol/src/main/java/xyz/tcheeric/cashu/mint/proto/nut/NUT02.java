@@ -14,9 +14,24 @@ import xyz.tcheeric.cashu.mint.proto.tasks.LoadKeySetsTask;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * NUT-02: Keysets and keyset IDs.
+ *
+ * <p>This class provides static methods for keyset management including
+ * retrieval of active keysets and individual keyset lookups.
+ *
+ * <p><b>Security:</b> Keyset IDs are derived from public keys using SHA-256.
+ * This ensures keysets cannot be forged without knowledge of the private keys.
+ *
+ * @see <a href="https://github.com/cashubtc/nuts/blob/main/02.md">NUT-02 Specification</a>
+ */
 @Slf4j
 @Nut(2)
-public class NUT02 {
+public final class NUT02 {
+
+    private NUT02() {
+        // Utility class - prevent instantiation
+    }
 
     public static List<KeySet> keys(UUID mintId) throws CashuErrorException {
         return new LoadKeySetsTask(mintId).execute();
