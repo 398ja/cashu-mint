@@ -10,12 +10,15 @@ import org.springframework.web.bind.annotation.*;
  * <p>This controller receives real-time payment notifications so the mint
  * can update quote status without polling the gateway.
  *
+ * <p><b>Security:</b> Input validation and signature verification are performed
+ * before processing any webhook notification.
+ *
  * <p>Endpoint: POST /webhook/payment
  */
 @Slf4j
 @RestController
 @RequestMapping("/webhook")
-public class PaymentWebhookController {
+public final class PaymentWebhookController {
 
     private final QuoteStatusUpdater quoteStatusUpdater;
     private final WebhookSignatureValidator signatureValidator;
@@ -29,16 +32,36 @@ public class PaymentWebhookController {
     /**
      * Receive payment notification from payment-adapter.
      *
+     * <p><b>Security:</b> Input validation is performed before processing to ensure
+     * required fields are present (per Oracle Secure Coding Guidelines INPUT-1).
+     *
      * @param signature    HMAC signature from X-Webhook-Signature header
      * @param idempotencyKey idempotency key from X-Idempotency-Key header
      * @param notification the payment notification payload
-     * @return 200 OK if processed, 401 if signature invalid, 500 on error
+     * @return 200 OK if processed, 400 if invalid input, 401 if signature invalid, 500 on error
      */
     @PostMapping("/payment")
     public ResponseEntity<WebhookResponse> handlePaymentWebhook(
             @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody PaymentNotification notification) {
+
+        // Input validation (per Oracle Secure Coding Guidelines INPUT-1)
+        if (notification == null) {
+            log.warn("Webhook received with null notification");
+            return ResponseEntity.badRequest()
+                    .body(WebhookResponse.error("Missing notification payload"));
+        }
+        if (notification.getQuoteId() == null || notification.getQuoteId().isBlank()) {
+            log.warn("Webhook received with missing quoteId");
+            return ResponseEntity.badRequest()
+                    .body(WebhookResponse.error("Missing quoteId"));
+        }
+        if (notification.getPaymentMethod() == null || notification.getPaymentMethod().isBlank()) {
+            log.warn("Webhook received with missing paymentMethod");
+            return ResponseEntity.badRequest()
+                    .body(WebhookResponse.error("Missing paymentMethod"));
+        }
 
         log.info("Received payment webhook: quoteId={}, method={}, idempotencyKey={}",
                 notification.getQuoteId(), notification.getPaymentMethod(), idempotencyKey);

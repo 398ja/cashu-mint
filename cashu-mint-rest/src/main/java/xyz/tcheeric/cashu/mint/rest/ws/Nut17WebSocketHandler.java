@@ -17,10 +17,13 @@ import xyz.tcheeric.cashu.mint.rest.service.SubscriptionManager;
  *
  * <p>Handles JSON-RPC 2.0 messages for subscribe/unsubscribe operations
  * and routes notifications to subscribed clients.
+ *
+ * <p><b>Security:</b> Subscription limits are enforced to prevent resource
+ * exhaustion attacks (per Oracle Secure Coding Guidelines DOS-1).
  */
 @Slf4j
 @Component
-public class Nut17WebSocketHandler extends TextWebSocketHandler {
+public final class Nut17WebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final SubscriptionManager subscriptionManager;
@@ -84,6 +87,9 @@ public class Nut17WebSocketHandler extends TextWebSocketHandler {
 
     /**
      * Handles a subscribe request.
+     *
+     * <p><b>Security:</b> Subscription limits are enforced by SubscriptionManager
+     * to prevent resource exhaustion attacks.
      */
     private void handleSubscribe(WebSocketSession session, JsonRpcRequest request) {
         SubscriptionParams params = request.getParams();
@@ -92,11 +98,20 @@ public class Nut17WebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        String subId = subscriptionManager.subscribe(
-                session,
-                params.getKind(),
-                NUT17.extractIds(params.getFilters())
-        );
+        String subId;
+        try {
+            subId = subscriptionManager.subscribe(
+                    session,
+                    params.getKind(),
+                    NUT17.extractIds(params.getFilters())
+            );
+        } catch (IllegalArgumentException e) {
+            // Subscription limit exceeded
+            log.warn("nut17_ws subscribe_limit_exceeded session_id={} error={}",
+                    session.getId(), e.getMessage());
+            sendError(session, request.getId(), JsonRpcError.INVALID_PARAMS, e.getMessage());
+            return;
+        }
 
         log.info("nut17_ws subscribe session_id={} sub_id={} kind={} filter_count={}",
                 session.getId(), subId, params.getKind(), params.getFilters().size());

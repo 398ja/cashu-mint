@@ -21,9 +21,25 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.UUID;
 
+/**
+ * NUT-04: Mint tokens.
+ *
+ * <p>This class provides static methods for creating mint quotes and minting
+ * new tokens after Lightning payment verification.
+ *
+ * <p><b>Security:</b> Minting requires proof of Lightning payment via gateway
+ * verification. Per-quote locking prevents double-mint attacks where concurrent
+ * requests could both pass payment verification simultaneously.
+ *
+ * @see <a href="https://github.com/cashubtc/nuts/blob/main/04.md">NUT-04 Specification</a>
+ */
 @Nut(value = 4, description = "Mint tokens")
 @Slf4j
-public class NUT04 {
+public final class NUT04 {
+
+    private NUT04() {
+        // Utility class - prevent instantiation
+    }
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) throws CashuErrorException {
         return new MintQuoteTask(amount, method).execute();

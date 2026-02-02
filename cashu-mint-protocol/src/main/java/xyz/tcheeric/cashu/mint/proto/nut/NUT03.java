@@ -14,10 +14,25 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.UUID;
 
-// TEST - When calling swap, ensure that the VerifyProofs and InvalidateProofs tasks are executed
+/**
+ * NUT-03: Swap tokens.
+ *
+ * <p>This class provides static methods for swapping existing proofs for new
+ * blinded signatures. Swaps atomically invalidate input proofs and issue new outputs.
+ *
+ * <p><b>Security:</b> Input proofs are verified cryptographically before invalidation.
+ * Per-proof locking prevents double-spend attacks during concurrent swap operations.
+ * The total input amount must equal the total output amount (minus fees if applicable).
+ *
+ * @see <a href="https://github.com/cashubtc/nuts/blob/main/03.md">NUT-03 Specification</a>
+ */
 @Slf4j
 @Nut(3)
-public class NUT03 {
+public final class NUT03 {
+
+    private NUT03() {
+        // Utility class - prevent instantiation
+    }
 
     public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
                                                            @NonNull PostSwapRequest<T> postSwapRequest,

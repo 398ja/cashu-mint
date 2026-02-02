@@ -64,7 +64,11 @@ import xyz.tcheeric.cashu.mint.proto.tasks.RestoreSignaturesTask;
  * @see RestoreSignaturesTask
  */
 @Nut(value = 9, description = "Restore signatures")
-public class NUT09 {
+public final class NUT09 {
+
+    private NUT09() {
+        // Utility class - prevent instantiation
+    }
 
     /**
      * Restores blind signatures for the given blinded messages.

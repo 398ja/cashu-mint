@@ -20,9 +20,20 @@ import java.util.UUID;
  *
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/17.md">NUT-17 Specification</a>
  */
+/**
+ * NUT-17: WebSocket subscriptions for real-time state updates.
+ *
+ * <p><b>Security:</b> Subscription IDs are generated using UUID.randomUUID().
+ * Clients can only unsubscribe from their own session's subscriptions.
+ * State notifications only include information the client requested via filters.
+ */
 @Slf4j
 @Nut(value = 17, description = "WebSocket subscriptions")
-public class NUT17 {
+public final class NUT17 {
+
+    private NUT17() {
+        // Utility class - prevent instantiation
+    }
 
     /**
      * JSON-RPC method for subscribing to events.
