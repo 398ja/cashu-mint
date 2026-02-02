@@ -101,7 +101,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
             // Voucher swaps use standard keyset keys (power-of-2 amounts)
             // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
-            List<BlindSignature> blindSignatures = new ArrayList<>();
+            List<BlindSignature> blindSignatures = new ArrayList<>(request.getBlindedMessages().size());
             for (BlindedMessage bm : request.getBlindedMessages()) {
                 SignBlindedMessageTask signTask = new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
                 BlindSignature sig = signTask.execute();
@@ -133,13 +133,14 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             return false;
         }
 
-        boolean hasVoucherProofs = proofs.stream().anyMatch(this::isVoucherProof);
-        boolean hasRegularProofs = proofs.stream().anyMatch(proof -> !isVoucherProof(proof));
+        // Single pass to count voucher proofs instead of multiple stream iterations
+        long voucherCount = proofs.stream().filter(this::isVoucherProof).count();
+        boolean hasVoucherProofs = voucherCount > 0;
+        boolean hasRegularProofs = voucherCount < proofs.size();
 
         if (hasVoucherProofs && hasRegularProofs) {
             log.warn("swap_task mixed_proof_types_rejected voucher_count={} regular_count={}",
-                    proofs.stream().filter(this::isVoucherProof).count(),
-                    proofs.stream().filter(proof -> !isVoucherProof(proof)).count());
+                    voucherCount, proofs.size() - voucherCount);
             ErrorResponse error = new ErrorResponse("mixed_proof_types_error",
                     "Cannot mix voucher and regular proofs in same operation");
             throw new CashuErrorException(error.toJson());

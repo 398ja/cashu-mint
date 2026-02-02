@@ -76,8 +76,9 @@ class PaymentWebhookE2EIT {
             return new QuoteStatusUpdater(
                     Duration.ofHours(1),
                     Duration.ofHours(24),
-                    10000,
-                    100000
+                    10_485_760L,  // 10MB max weight
+                    100000,
+                    null  // No MeterRegistry for tests
             );
         }
 

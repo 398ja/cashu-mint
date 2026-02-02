@@ -102,7 +102,7 @@ public final class MintPreloadDataGenerator {
 
     private MintPreloadData createData() {
         Keys keys = new Keys();
-        List<MintPreloadData.DenominationKey> keyMaterials = new ArrayList<>();
+        List<MintPreloadData.DenominationKey> keyMaterials = new ArrayList<>(denominations.size());
 
         for (Integer amount : denominations) {
             String privateKeyHex = derivePrivateKeyHex(amount);

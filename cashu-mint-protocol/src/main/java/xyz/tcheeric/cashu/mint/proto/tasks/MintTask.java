@@ -191,7 +191,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throw new CashuErrorException("mint_request_missing_outputs");
         }
 
-        Map<String, List<Integer>> outputsByKeyset = new HashMap<>();
+        // Most mint requests use 1-2 keysets; use small initial capacity
+        Map<String, List<Integer>> outputsByKeyset = new HashMap<>(4);
         for (BlindedMessage message : blindedMessages) {
             if (message == null) {
                 throw new CashuErrorException("mint_request_contains_null_output");

@@ -81,6 +81,20 @@ cashu.websocket.allowed-origins=https://your-app.com
 
 New subscribers receive the current state of subscribed items immediately, then real-time updates as states change.
 
+## Security
+
+The mint implements security controls aligned with the [Oracle Java Secure Coding Guidelines](https://www.oracle.com/java/technologies/javase/seccodeguide.html):
+
+- **Immutable protocol classes** — NUT implementation classes are final with private constructors to prevent subclassing and ensure consistent behavior.
+- **Input validation** — Webhook payloads, WebSocket messages, and REST inputs are validated with size limits and sanitized before processing.
+- **Configurable rate limits** — Swap and mint operations enforce configurable maximum input/output counts via `SecurityLimits`.
+- **Subscription limits** — WebSocket subscriptions are capped per session to prevent resource exhaustion.
+- **Secure key derivation** — Lock managers use SHA-256 hashing for deterministic, collision-resistant key generation.
+- **Defensive collections** — Internal maps and lists are wrapped as unmodifiable where exposed to prevent external mutation.
+- **Sanitized exceptions** — Error messages exclude sensitive internal details to avoid information leakage.
+
+See `audits/AUDIT_REPORT_java-secure-coding-guidelines.md` for the full compliance report.
+
 ## Docs and tooling
 
 - Documentation follows the Diátaxis structure in `docs/README.md`.
