@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.1] - 2026-02-02
+
+### Changed
+
+- **QuoteStatusUpdater**: Migrated from count-based to weight-based eviction using `maximumWeight()` and custom weigher for accurate memory management
+- **QuoteStatusUpdater**: Added `recordStats()` and Micrometer metrics integration (`CaffeineCacheMetrics.monitor()`) for cache observability
+- **VoucherQuoteRegistry**: Replaced unbounded `ConcurrentHashMap` with Caffeine cache (24h TTL, 10k max entries) to prevent memory leaks
+
+### Improved
+
+- **Collection Capacity Optimization**: Added initial capacity to HashMap/ArrayList constructors across protocol tasks to reduce resizing overhead:
+  - `MintProtocolUtil.createLightningAddressRequest()`: HashMap capacity 3
+  - `MintTask.execute()`: HashMap capacity 4
+  - `SwapTask.execute()`: ArrayList capacity matching input size
+  - `RestoreSignaturesTask`: ArrayList capacities for outputs/signatures
+  - `P2PKSpendingCondition`: Estimated ArrayList capacity
+- **SwapTask**: Optimized double stream iteration to single pass for voucher proof detection
+
+### Fixed
+
+- Removed unused import for `DBMintVault` in `MintProtocolUtil`
+- Added `results/` directory to `.gitignore`
+
+---
+
 ## [0.12.0] - 2026-02-02
 
 ### Security

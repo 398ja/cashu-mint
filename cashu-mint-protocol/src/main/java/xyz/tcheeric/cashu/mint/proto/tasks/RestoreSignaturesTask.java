@@ -84,8 +84,9 @@ public class RestoreSignaturesTask extends InstrumentedTask<PostRestoreResponse>
         int requestedCount = request.getBlindedMessages().size();
         log.debug("NUT-09 restore request received: {} blinded messages", requestedCount);
 
-        List<BlindedMessage> outputs = new ArrayList<>();
-        List<BlindSignature> signatures = new ArrayList<>();
+        // Size lists to max possible matches (all messages have stored signatures)
+        List<BlindedMessage> outputs = new ArrayList<>(requestedCount);
+        List<BlindSignature> signatures = new ArrayList<>(requestedCount);
         int foundCount = 0;
         int notFoundCount = 0;
 
