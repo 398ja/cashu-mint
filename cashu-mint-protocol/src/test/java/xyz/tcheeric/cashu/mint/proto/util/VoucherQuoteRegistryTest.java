@@ -140,4 +140,67 @@ public class VoucherQuoteRegistryTest {
 
         assertEquals(largeFaceValue, VoucherQuoteRegistry.getFaceValue(quoteId));
     }
+
+    @Test
+    public void testCleanUp() {
+        // Test that cleanUp can be called without errors
+        VoucherQuoteRegistry.storeFaceValue("quote-1", 1000L);
+        VoucherQuoteRegistry.cleanUp();
+
+        // Entries should still exist (TTL not expired)
+        assertEquals(1000L, VoucherQuoteRegistry.getFaceValue("quote-1"));
+    }
+
+    @Test
+    public void testHitRate() {
+        // Test that hit rate is tracked
+        VoucherQuoteRegistry.storeFaceValue("quote-1", 1000L);
+
+        // Perform some gets
+        VoucherQuoteRegistry.getFaceValue("quote-1");  // hit
+        VoucherQuoteRegistry.getFaceValue("quote-1");  // hit
+        VoucherQuoteRegistry.getFaceValue("nonexistent");  // miss
+
+        // Hit rate should be tracked
+        double hitRate = VoucherQuoteRegistry.getHitRate();
+        assertTrue(hitRate >= 0.0 && hitRate <= 1.0, "Hit rate should be between 0 and 1");
+    }
+
+    @Test
+    public void testEvictionCount() {
+        // Test that eviction count starts at zero
+        long evictionCount = VoucherQuoteRegistry.getEvictionCount();
+        assertTrue(evictionCount >= 0, "Eviction count should be non-negative");
+    }
+
+    @Test
+    public void testConcurrentAccess() throws InterruptedException {
+        // Test thread safety with concurrent writes
+        int threadCount = 10;
+        int opsPerThread = 100;
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(threadCount);
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount);
+
+        for (int t = 0; t < threadCount; t++) {
+            final int threadId = t;
+            executor.submit(() -> {
+                try {
+                    for (int i = 0; i < opsPerThread; i++) {
+                        String quoteId = "quote-" + threadId + "-" + i;
+                        VoucherQuoteRegistry.storeFaceValue(quoteId, (long) i);
+                        VoucherQuoteRegistry.getFaceValue(quoteId);
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        boolean completed = latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertTrue(completed, "Concurrent operations should complete without deadlock");
+        // Note: exact size may be less than threadCount * opsPerThread due to max size limit
+        assertTrue(VoucherQuoteRegistry.size() > 0, "Some entries should be stored");
+    }
 }

@@ -89,7 +89,7 @@ public final class MintProtocolUtil {
 
     public static String createLightningAddressRequest(@NonNull String lnAddress, @NonNull Integer amount, String description) {
         try {
-            Map<String, Object> requestMap = new HashMap<>();
+            Map<String, Object> requestMap = new HashMap<>(3);  // 3 known entries
             requestMap.put("lnAddress", lnAddress);
             requestMap.put("amount", amount);
             requestMap.put("description", description);
@@ -157,7 +157,7 @@ public final class MintProtocolUtil {
         secureRandom.nextBytes(randomBytes);
 
         // Print the generated random bytes as a hex string
-        StringBuilder hexString = new StringBuilder();
+        StringBuilder hexString = new StringBuilder(length * 2);  // Each byte becomes 2 hex chars
         for (byte b : randomBytes) {
             hexString.append(String.format("%02x", b));
         }
