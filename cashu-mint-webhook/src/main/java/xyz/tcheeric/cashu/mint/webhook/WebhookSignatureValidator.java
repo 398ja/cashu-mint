@@ -18,10 +18,13 @@ import java.util.Base64;
  *
  * <p>If no secret is configured, validation is skipped (for development).
  * In production, always configure MINT_WEBHOOK_SECRET.
+ *
+ * <p><b>Security:</b> Uses constant-time comparison to prevent timing attacks
+ * (per Oracle Secure Coding Guidelines).
  */
 @Slf4j
 @Component
-public class WebhookSignatureValidator {
+public final class WebhookSignatureValidator {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule());
