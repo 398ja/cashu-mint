@@ -48,9 +48,10 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         }
 
         // Retrieve all signing public keys
-        List<String> publicKeyList = new ArrayList<>();
-        publicKeyList.add(Hex.toHexString(secret.getData()));
         List<String> secretPubkeys = secret.getPubKeys();
+        int estimatedSize = 1 + (secretPubkeys != null ? secretPubkeys.size() : 0);
+        List<String> publicKeyList = new ArrayList<>(estimatedSize);
+        publicKeyList.add(Hex.toHexString(secret.getData()));
         if (secretPubkeys != null) {
             publicKeyList.addAll(secretPubkeys);
         }
