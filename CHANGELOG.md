@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.2] - 2026-02-03
+
+### Changed
+
+- Updated `cashu-vault` dependency to 0.6.0
+
+### Added
+
+- Added security section to README documenting Oracle Java Secure Coding Guidelines compliance
+
+---
+
 ## [0.12.1] - 2026-02-02
 
 ### Changed
