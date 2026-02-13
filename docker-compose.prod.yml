@@ -56,6 +56,8 @@ services:
         condition: service_healthy
     ports:
       - "${CASHU_VAULT_PORT:-3333}:${CASHU_VAULT_PORT:-3333}"
+    volumes:
+      - vault-logs:/app/logs
     restart: unless-stopped
     networks:
       - cashu
@@ -284,6 +286,8 @@ services:
 volumes:
   vault-db-data:
   gateway-db-data:
+  vault-logs:
+  phoenixd-data:
 networks:
   cashu:
     name: cashu
