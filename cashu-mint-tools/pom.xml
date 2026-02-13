@@ -4,12 +4,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.12.1</version>
+        <version>0.12.2</version>
     </parent>
 
     <artifactId>cashu-mint-tools</artifactId>
     <packaging>jar</packaging>
-    <version>0.12.1</version>
+    <version>0.12.2</version>
 
     <name>cashu-mint-tools</name>
     <url>http://maven.apache.org</url>
