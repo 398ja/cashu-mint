@@ -20,6 +20,8 @@
         <module>cashu-mint-admin/mint-admin-core</module>
         <module>cashu-mint-admin/mint-admin-cli</module>
         <module>cashu-mint-admin/mint-admin-rest</module>
+        <module>cashu-mint-admin/mint-admin-web</module>
+        <module>cashu-mint-admin/mint-admin-tests</module>
     </modules>
 
     <properties>
