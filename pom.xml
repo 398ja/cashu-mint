@@ -16,7 +16,10 @@
         <module>cashu-mint-webhook</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-rest-it</module>
-        <!-- Admin modules moved to separate project: cashu-mint-admin -->
+        <!-- Admin modules (git submodule: cashu-mint-admin) -->
+        <module>cashu-mint-admin/mint-admin-core</module>
+        <module>cashu-mint-admin/mint-admin-cli</module>
+        <module>cashu-mint-admin/mint-admin-rest</module>
     </modules>
 
     <properties>
