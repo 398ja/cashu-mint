@@ -1,0 +1,92 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>xyz.tcheeric</groupId>
+        <artifactId>cashu-mint</artifactId>
+        <version>0.13.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>cashu-mint-admin</artifactId>
+    <version>0.13.0</version>
+    <packaging>pom</packaging>
+
+    <name>cashu-mint-admin</name>
+    <modules>
+        <module>mint-admin-core</module>
+        <module>mint-admin-cli</module>
+        <module>mint-admin-rest</module>
+        <module>mint-admin-web</module>
+        <module>mint-admin-tests</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.parameters>true</maven.compiler.parameters>
+        <spring.boot.version>${spring-boot.version}</spring.boot.version>
+        <!-- Skipped by default; profiles override to false -->
+        <admin.skip.integration-tests>true</admin.skip.integration-tests>
+        <admin.skip.e2e-tests>true</admin.skip.e2e-tests>
+    </properties>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <!-- Skip integration and E2E tests in regular build (active by default) -->
+        <profile>
+            <id>skip-integration-tests</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/*IT.java</exclude>
+                                <exclude>**/*E2EIT.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Integration tests: mvn verify -Pintegration-tests -->
+        <profile>
+            <id>integration-tests</id>
+            <properties>
+                <admin.skip.integration-tests>false</admin.skip.integration-tests>
+            </properties>
+        </profile>
+
+        <!-- E2E tests: mvn verify -Pe2e-tests -->
+        <profile>
+            <id>e2e-tests</id>
+            <properties>
+                <admin.skip.e2e-tests>false</admin.skip.e2e-tests>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

@@ -1,0 +1,21 @@
+/.claude/
+/.idea/
+/project/
+
+# Build output
+**/target/
+**/dist/
+**/node_modules/
+
+# Logs
+*.log
+
+# Test artifacts
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# TypeScript build info
+*.tsbuildinfo
+/project/

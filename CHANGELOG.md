@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.13.0] - 2026-02-16
+
+### Added
+
+- Integrated `cashu-mint-admin` as a git submodule with CLI, REST API, web UI, and test modules
+- Added `mint-admin-web` and `mint-admin-tests` to the Maven reactor
+- New documentation: getting started tutorial, architecture overview, NUT implementation guide, E2E test guide, environment variables reference
+- Admin module documentation: CLI command reference, REST API reference, configuration reference, architecture explanation
+
+### Changed
+
+- Enhanced error handling and updated database configuration for PostgreSQL
+- Overhauled `docs/` directory — expanded skeleton files, removed misplaced content, consolidated trivial docs
+- Updated CLAUDE.md docs file count from 21 to 32
+
+### Removed
+
+- Removed misplaced imani-bridge files (`SECURE_CODING.md`, `security-implementation-plan.md`)
+- Removed unfilled `baseline-metrics.md` template
+- Consolidated `java-version.md`, `license.md`, and `disclaimer.md` into parent docs
+
+---
+
 ## [0.12.2] - 2026-02-03
 
 ### Changed

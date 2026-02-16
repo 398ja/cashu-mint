@@ -25,6 +25,7 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultSignatureVaultService;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -82,9 +83,20 @@ public class NUT13RecoveryIntegrationTest {
         Mockito.when(protocolService.getPrivateKey(Mockito.anyString(), Mockito.anyInt(), Mockito.any()))
                 .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-        // Mock mint load service
+        // Mock mint load service with a Mint that has keyset(s) configured
         mintLoadService = Mockito.mock(MintLoadService.class);
-        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.eq(false))).thenReturn(new Mint());
+        Mint mint = new Mint();
+        Keys keys = new Keys();
+        // Standard Cashu power-of-2 denominations
+        for (int exp = 0; exp <= 7; exp++) {
+            BigInteger denom = BigInteger.valueOf(1L << exp);
+            keys.put(denom, PrivateKey.derivePublicKey(PrivateKey.fromString(
+                    String.format("%064x", denom.longValue()))));
+        }
+        mint.addKeySet(KeySet.builder().id(TEST_KEYSET_ID).unit("sat").keys(keys).build());
+        // Secondary keyset used by testRecoveryWithMultipleKeysets
+        mint.addKeySet(KeySet.builder().id("00ad268c4d1f5826").unit("sat").keys(keys).build());
+        Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.eq(false))).thenReturn(mint);
     }
 
     /**

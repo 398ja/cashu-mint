@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.12.2</version>
+    <version>0.13.0</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -16,7 +16,12 @@
         <module>cashu-mint-webhook</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-rest-it</module>
-        <!-- Admin modules moved to separate project: cashu-mint-admin -->
+        <!-- Admin modules (git submodule: cashu-mint-admin) -->
+        <module>cashu-mint-admin/mint-admin-core</module>
+        <module>cashu-mint-admin/mint-admin-cli</module>
+        <module>cashu-mint-admin/mint-admin-rest</module>
+        <module>cashu-mint-admin/mint-admin-web</module>
+        <module>cashu-mint-admin/mint-admin-tests</module>
     </modules>
 
     <properties>
@@ -24,6 +29,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <java.version>21</java.version>
+        <!-- Skipped by default; integration-tests profile overrides to false -->
+        <skip.integration-tests>true</skip.integration-tests>
 
         <!-- Nostr Java Ecosystem Versions -->
         <nostr-java.version>1.3.0</nostr-java.version>
@@ -32,10 +39,10 @@
         <cashu-lib.version>0.16.0</cashu-lib.version>
         <payment-adapter.version>0.8.0</payment-adapter.version>
         <cashu-vault.version>0.6.0</cashu-vault.version>
-        <cashu-mint.version>0.12.2</cashu-mint.version>
+        <cashu-mint.version>0.13.0</cashu-mint.version>
         <cashu-wallet.version>0.6.3</cashu-wallet.version>
         <cashu-client.version>1.2.8</cashu-client.version>
-        <cashu-mint-admin.version>0.2.4</cashu-mint-admin.version>
+        <cashu-mint-admin.version>0.13.0</cashu-mint-admin.version>
         <cashu-voucher.version>0.6.1</cashu-voucher.version>
 
         <!-- Spring Boot (imported as BOM) -->
@@ -796,6 +803,9 @@
             <activation>
                 <activeByDefault>false</activeByDefault>
             </activation>
+            <properties>
+                <skip.integration-tests>false</skip.integration-tests>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

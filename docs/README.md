@@ -1,14 +1,20 @@
 # Cashu Mint Documentation
 
-This directory contains documentation organized using the Diátaxis framework.
+> **Disclaimer:** This project is a work in progress and is not yet ready for production use. Use at your own risk.
+
+This directory contains documentation organized using the [Diataxis framework](https://diataxis.fr/).
 
 ## Tutorials
+
 - [Getting started](tutorials/getting-started.md) - Walk through starting a local Cashu mint.
 - [Run with Docker Compose](tutorials/run-with-docker-compose.md) - Start the stack using Docker Compose.
 
 ## How-to guides
+
 - [Development workflow](how-to/development-workflow.md) - Prepare dependencies, migrations, and tests.
-- [Run tests](how-to/run-tests.md) - Step-by-step instructions for executing the test suite.
+- [Run tests](how-to/run-tests.md) - Unit, integration, and E2E test instructions.
+- [Run E2E tests](how-to/run-e2e-tests.md) - End-to-end test infrastructure and execution.
+- [Add a NUT implementation](how-to/add-a-nut.md) - Step-by-step guide for implementing a new NUT.
 - [Publish a Docker image](how-to/publish-docker-image.md) - Build and push the REST image.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.
 - [Configure gateways](how-to/configure-gateways.md) - Map methods/units to gateway classes.
@@ -16,20 +22,20 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Enable observability](how-to/enable-observability.md) - Start Prometheus/Grafana/Jaeger and tune metrics/traces.
 
 ## Reference
-- [Configuration](reference/configuration.md) - Application properties and defaults.
+
+- [Configuration](reference/configuration.md) - Application properties, prerequisites, and defaults.
+- [Environment variables](reference/environment-variables.md) - Comprehensive environment variable reference.
 - [REST API](reference/rest-api.md) - HTTP endpoints exposed by the mint.
 - [Tools](reference/tools.md) - Preload profiles and usage for generating test data.
 - [Module layers](reference/module-layers.md) - Module boundaries, package layout, and wiring examples.
 - [Artifact dependencies](reference/artifact-dependencies.md) - How the Cashu modules, vaults, gateways, and libraries relate.
 - [Supported NUTs](reference/nuts.md) - Implemented Cashu protocol specs.
-- [Java version](reference/java-version.md) - Required JDK for building.
-- [License](reference/license.md) - Licensing information.
 - [Metrics reference](../cashu-mint-observability/docs/metrics-reference.md) - Prometheus metrics exposed by the observability module.
 
 ## Explanations
-- [Architecture overview](explanations/architecture-overview.md) - High-level component interactions.
+
+- [Architecture overview](explanations/architecture-overview.md) - High-level component interactions and request flow.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
-- [Disclaimer](explanations/disclaimer.md) - Project maturity notice.
 - [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
 - [Voucher mock payment and free splitting](explanations/voucher-mock-payment.md) - How voucher tokens skip payment verification and support arbitrary denominations.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
@@ -38,11 +44,16 @@ This directory contains documentation organized using the Diátaxis framework.
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
 
 ## Runbooks
+
 - [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
 
 ## Loom / Virtual Threads
-- [Baseline metrics](loom/baseline-metrics.md) - Performance baseline before VT migration.
+
 - [Library audit](loom/library-audit.md) - Evaluation of third-party library VT compatibility.
 - [Phase 1 pilot guide](loom/phase1-pilot-guide.md) - Step-by-step pilot implementation guide.
 - [Pilot results](loom/pilot-results.md) - Results and learnings from VT pilot.
 - [Pool tuning results](loom/pool-tuning-results.md) - Thread pool configuration tuning for VT.
+
+---
+
+This project is licensed under the MIT License. See [LICENSE.md](../LICENSE.md) for details.
