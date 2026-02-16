@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.admin.adapter.out.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -14,11 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintAggregateViewRepository;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
-import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
@@ -138,18 +133,14 @@ class LifecycleEventOutboxDispatcherTest {
         }
     }
 
-    private static final class StubLifecycleEventOutboxHandler extends LifecycleEventOutboxHandler {
+    private static final class StubLifecycleEventOutboxHandler implements OutboxMessageHandler {
 
         private final List<OutboxMessage> handledMessages = java.util.Collections.synchronizedList(new ArrayList<>());
         private final List<UUID> handlingFailures = new ArrayList<>();
         private final List<UUID> runtimeFailures = new ArrayList<>();
 
-        StubLifecycleEventOutboxHandler() {
-            super(new NoopAggregateViewRepository(), new NoopHistoryRepository(), new ObjectMapper());
-        }
-
         @Override
-        public MintLifecycleEvent handle(final OutboxMessage message) {
+        public void handle(final OutboxMessage message) {
             handledMessages.add(message);
             if (handlingFailures.contains(message.eventId())) {
                 throw new OutboxMessageHandlingException("simulated failure");
@@ -157,9 +148,6 @@ class LifecycleEventOutboxDispatcherTest {
             if (runtimeFailures.contains(message.eventId())) {
                 throw new IllegalStateException("boom");
             }
-            return MintLifecycleEvent.created(message.aggregateId(), LifecycleState.State.ACTIVE,
-                ConfigurationRevisionId.of(1), "v1",
-                new xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata("actor", "action", Instant.now()));
         }
 
         void failWithHandlingException(final UUID eventId) {
@@ -172,33 +160,4 @@ class LifecycleEventOutboxDispatcherTest {
     }
 
     private record FailureRecord(UUID eventId, Instant attemptAt, Instant nextAttempt) { }
-
-    private static final class NoopAggregateViewRepository implements MintAggregateViewRepository {
-
-        @Override
-        public void upsert(final MintLifecycleEvent event) {
-        }
-
-        @Override
-        public java.util.Optional<MintAggregateView> findById(final MintId mintId) {
-            return java.util.Optional.empty();
-        }
-
-        @Override
-        public List<MintAggregateView> findAll() {
-            return List.of();
-        }
-    }
-
-    private static final class NoopHistoryRepository implements MintLifecycleHistoryRepository {
-
-        @Override
-        public void append(final UUID eventId, final MintLifecycleEvent event) {
-        }
-
-        @Override
-        public List<MintLifecycleHistoryEntry> findByMintId(final MintId mintId) {
-            return List.of();
-        }
-    }
 }

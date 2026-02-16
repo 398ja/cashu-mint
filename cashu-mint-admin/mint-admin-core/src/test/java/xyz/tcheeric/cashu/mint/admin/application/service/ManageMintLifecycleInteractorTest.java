@@ -72,11 +72,11 @@ class ManageMintLifecycleInteractorTest {
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
-        assertEquals(LifecycleState.State.PROVISIONED, response.lifecycleState());
+        assertEquals(LifecycleState.State.PROVISIONING, response.lifecycleState());
         assertEquals(VERSION_TAG, response.versionTag());
         assertEquals(1, transactionManager.executionCount);
         assertNotNull(mintRepository.lastSaved);
-        assertEquals(LifecycleState.State.PROVISIONED, mintRepository.lastSaved.lifecycleState().value());
+        assertEquals(LifecycleState.State.PROVISIONING, mintRepository.lastSaved.lifecycleState().value());
         assertEquals(1, configurationSetRepository.countRevisions(MintId.fromString(MINT_ID)));
         assertEquals(1, eventPublisher.events.size());
         final MintLifecycleEvent event = eventPublisher.events.getFirst();
@@ -107,7 +107,7 @@ class ManageMintLifecycleInteractorTest {
 
         final ManageMintLifecycleResponse response = interactor.handle(request);
 
-        assertEquals(LifecycleState.State.PROVISIONED, response.lifecycleState());
+        assertEquals(LifecycleState.State.PROVISIONING, response.lifecycleState());
         assertEquals("next", mintRepository.lastSaved.configurationSet().parameters().get("version.tag"));
         assertEquals(ConfigurationRevisionId.of(2), mintRepository.lastSaved.configurationSet().revisionId());
         assertEquals(1, configurationSetRepository.countRevisions(MintId.fromString(MINT_ID), ConfigurationRevisionId.of(2)));
@@ -252,7 +252,7 @@ class ManageMintLifecycleInteractorTest {
     }
 
     private void storeProvisionedMint(final String versionTag) {
-        final MintAggregate aggregate = createProvisionedAggregate(versionTag);
+        final MintAggregate aggregate = createProvisioningAggregate(versionTag);
         mintRepository.save(aggregate);
         configurationSetRepository.save(aggregate.mintId(), aggregate.configurationSet());
         eventPublisher.events.clear();
@@ -260,7 +260,9 @@ class ManageMintLifecycleInteractorTest {
     }
 
     private void storeActiveMint() {
-        final MintAggregate provisioned = createProvisionedAggregate("initial");
+        final MintAggregate provisioning = createProvisioningAggregate("initial");
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
         final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
         mintRepository.save(active);
         configurationSetRepository.save(active.mintId(), active.configurationSet());
@@ -269,7 +271,9 @@ class ManageMintLifecycleInteractorTest {
     }
 
     private void storeSuspendedMint() {
-        final MintAggregate provisioned = createProvisionedAggregate("initial");
+        final MintAggregate provisioning = createProvisioningAggregate("initial");
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
         final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
         final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
         mintRepository.save(suspended);
@@ -279,7 +283,9 @@ class ManageMintLifecycleInteractorTest {
     }
 
     private void storeRetiredMint() {
-        final MintAggregate provisioned = createProvisionedAggregate("initial");
+        final MintAggregate provisioning = createProvisioningAggregate("initial");
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
         final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
         final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
         final MintAggregate retired = suspended.decommission(new AuditMetadata(OPERATOR_ID, "Retired", clock.instant()));
@@ -289,7 +295,7 @@ class ManageMintLifecycleInteractorTest {
         transactionManager.executionCount = 0;
     }
 
-    private MintAggregate createProvisionedAggregate(final String versionTag) {
+    private MintAggregate createProvisioningAggregate(final String versionTag) {
         final MintId mintId = MintId.fromString(MINT_ID);
         final UUID operatorUuid = UUID.fromString(OPERATOR_ID);
         final AuditMetadata auditMetadata = new AuditMetadata(OPERATOR_ID, "Mint created", clock.instant());

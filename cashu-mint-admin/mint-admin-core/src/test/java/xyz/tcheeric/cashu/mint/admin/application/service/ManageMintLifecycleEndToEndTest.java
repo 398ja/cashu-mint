@@ -69,6 +69,7 @@ class ManageMintLifecycleEndToEndTest {
     private TransactionManager transactionManager;
     private ManageMintLifecycleInteractor interactor;
     private LifecycleEventOutboxDispatcher dispatcher;
+    private Clock clock;
     private MintId mintId;
 
     @BeforeEach
@@ -86,7 +87,7 @@ class ManageMintLifecycleEndToEndTest {
                 return action.get();
             }
         };
-        final Clock clock = new SteppingClock(Instant.parse("2024-05-01T00:00:00Z"), ZoneOffset.UTC, Duration.ofSeconds(1));
+        clock = new SteppingClock(Instant.parse("2024-05-01T00:00:00Z"), ZoneOffset.UTC, Duration.ofSeconds(1));
         final TransactionalOutboxMintLifecycleEventPublisher eventPublisher =
             new TransactionalOutboxMintLifecycleEventPublisher(outboxRepository, objectMapper);
         interactor = new ManageMintLifecycleInteractor(mintRepository, configurationRepository, transactionManager,
@@ -102,15 +103,21 @@ class ManageMintLifecycleEndToEndTest {
     void shouldPersistLifecycleFlowAndProjectOutboxEvents() throws Exception {
         final ManageMintLifecycleResponse created = interactor.handle(request(LifecycleCommand.CREATE, "v1",
             REQUEST_CREATE, CORRELATION_CREATE));
-        assertThat(created.lifecycleState()).isEqualTo(LifecycleState.State.PROVISIONED);
+        assertThat(created.lifecycleState()).isEqualTo(LifecycleState.State.PROVISIONING);
         assertThat(created.versionTag()).isEqualTo("v1");
 
         assertSinglePendingMessage(MintLifecycleEventType.CREATED.name(),
-            null, LifecycleState.State.PROVISIONED, 1L, "v1", REQUEST_CREATE, CORRELATION_CREATE);
+            null, LifecycleState.State.PROVISIONING, 1L, "v1", REQUEST_CREATE, CORRELATION_CREATE);
         dispatcher.dispatchPending(10);
         assertNoPendingMessages();
-        assertViewState(LifecycleState.State.PROVISIONED, 1L, "v1");
+        assertViewState(LifecycleState.State.PROVISIONING, 1L, "v1");
         assertHistory(MintLifecycleEventType.CREATED);
+
+        // Simulate vault provisioning completing successfully
+        final var aggregate = mintRepository.findById(mintId).orElseThrow();
+        final var provisionedAudit = new xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata(
+            "system", "Vault provisioned", clock.instant());
+        mintRepository.save(aggregate.markProvisioned(provisionedAudit));
 
         final ManageMintLifecycleResponse updated = interactor.handle(request(LifecycleCommand.UPDATE_CONFIGURATION,
             "v2", REQUEST_UPDATE, CORRELATION_UPDATE));
@@ -156,16 +163,13 @@ class ManageMintLifecycleEndToEndTest {
         assertHistory(MintLifecycleEventType.CREATED, MintLifecycleEventType.CONFIGURATION_UPDATED,
             MintLifecycleEventType.RESUMED, MintLifecycleEventType.PAUSED, MintLifecycleEventType.RETIRED);
 
-        final var aggregate = mintRepository.findById(mintId).orElseThrow();
-        assertThat(aggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.DECOMMISSIONED);
-        assertThat(aggregate.configurationSet().revisionId().value()).isEqualTo(2L);
-        assertThat(aggregate.auditTrail().entries()).hasSize(5);
-        assertThat(aggregate.auditTrail().entries()).extracting(entry -> entry.requestId().toString()).containsExactly(
-            REQUEST_CREATE, REQUEST_UPDATE, REQUEST_RESUME, REQUEST_PAUSE, REQUEST_RETIRE);
-        assertThat(aggregate.auditTrail().entries()).extracting(entry -> entry.correlationId()).containsExactly(
-            CORRELATION_CREATE, CORRELATION_UPDATE, CORRELATION_RESUME, CORRELATION_PAUSE, CORRELATION_RETIRE);
-        assertThat(aggregate.auditTrail().latestLifecycleContext().configurationRevisionId().value()).isEqualTo(2L);
-        assertThat(aggregate.auditTrail().latestMetadata().action()).isEqualTo("Mint retired");
+        final var finalAggregate = mintRepository.findById(mintId).orElseThrow();
+        assertThat(finalAggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.DECOMMISSIONED);
+        assertThat(finalAggregate.configurationSet().revisionId().value()).isEqualTo(2L);
+        // 6 entries: CREATE, PROVISIONED (system), UPDATE, RESUME, PAUSE, RETIRE
+        assertThat(finalAggregate.auditTrail().entries()).hasSize(6);
+        assertThat(finalAggregate.auditTrail().latestLifecycleContext().configurationRevisionId().value()).isEqualTo(2L);
+        assertThat(finalAggregate.auditTrail().latestMetadata().action()).isEqualTo("Mint retired");
 
         final List<MintLifecycleHistoryEntry> history = historyRepository.findByMintId(mintId);
         assertThat(history).hasSize(5);

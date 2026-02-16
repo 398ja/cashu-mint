@@ -22,7 +22,14 @@ public interface ManageMintLifecycleUseCase {
                                       LifecycleCommand command,
                                       String versionTag,
                                       String requestId,
-                                      String correlationId) { }
+                                      String correlationId,
+                                      java.util.Map<String, String> configurationParameters) {
+
+        public ManageMintLifecycleRequest(String mintId, String operatorId, LifecycleCommand command,
+                                          String versionTag, String requestId, String correlationId) {
+            this(mintId, operatorId, command, versionTag, requestId, correlationId, java.util.Map.of());
+        }
+    }
 
     record ManageMintLifecycleResponse(String mintId,
                                        LifecycleState.State lifecycleState,

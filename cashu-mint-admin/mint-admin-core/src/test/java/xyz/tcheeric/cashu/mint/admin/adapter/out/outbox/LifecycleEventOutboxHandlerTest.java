@@ -55,16 +55,17 @@ class LifecycleEventOutboxHandlerTest {
         publisher.publish(event);
         final OutboxMessage message = outboxRepository.messages.getFirst();
 
-        final MintLifecycleEvent processed = handler.handle(message);
+        handler.handle(message);
 
-        assertThat(processed).usingRecursiveComparison().isEqualTo(event);
-        assertThat(aggregateViewRepository.projectedEvents).containsExactly(event);
+        assertThat(aggregateViewRepository.projectedEvents).hasSize(1);
+        final MintLifecycleEvent projected = aggregateViewRepository.projectedEvents.getFirst();
+        assertThat(projected).usingRecursiveComparison().isEqualTo(event);
         assertThat(historyRepository.appended).hasSize(1);
         final RecordingHistoryRepository.Entry entry = historyRepository.appended.getFirst();
         assertThat(entry.event()).isEqualTo(event);
         assertThat(entry.eventId()).isEqualTo(message.eventId());
-        assertThat(processed.auditMetadata().requestId()).isEqualTo(UUID.fromString("99999999-8888-7777-6666-555555555555"));
-        assertThat(processed.auditMetadata().correlationId()).isEqualTo("resume-incident");
+        assertThat(projected.auditMetadata().requestId()).isEqualTo(UUID.fromString("99999999-8888-7777-6666-555555555555"));
+        assertThat(projected.auditMetadata().correlationId()).isEqualTo("resume-incident");
     }
 
     // Ensures payload mismatches result in a handling exception before projections are updated.

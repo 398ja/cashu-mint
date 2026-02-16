@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
 import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 
 const COLUMNS: Column<MintDetail>[] = [
   {
@@ -58,6 +58,12 @@ export function MintListPage() {
     <div className="space-y-4 max-w-5xl">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-zinc-100">Mints</h1>
+        <button
+          onClick={() => navigate("/mints/create")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+        >
+          <Plus className="h-4 w-4" /> Create Mint
+        </button>
       </div>
 
       <div className="flex items-center gap-3">
@@ -84,7 +90,9 @@ export function MintListPage() {
           className="rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none"
         >
           <option value="">All States</option>
+          <option value="PROVISIONING">Provisioning</option>
           <option value="PROVISIONED">Provisioned</option>
+          <option value="PROVISION_FAILED">Provision Failed</option>
           <option value="ACTIVE">Active</option>
           <option value="SUSPENDED">Suspended</option>
           <option value="DECOMMISSIONED">Decommissioned</option>

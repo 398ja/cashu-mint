@@ -239,10 +239,10 @@ class LifecycleParityIntegrationTest {
                     if (mints.containsKey(request.mintId())) {
                         throw new IllegalStateException("mint already exists: " + request.mintId());
                     }
-                    mints.put(request.mintId(), LifecycleState.State.PROVISIONED);
+                    mints.put(request.mintId(), LifecycleState.State.PROVISIONING);
                     versionTags.put(request.mintId(), request.versionTag());
                     yield new ManageMintLifecycleResponse(request.mintId(),
-                        LifecycleState.State.PROVISIONED, request.versionTag());
+                        LifecycleState.State.PROVISIONING, request.versionTag());
                 }
                 case UPDATE_CONFIGURATION -> {
                     requireExisting(request.mintId());

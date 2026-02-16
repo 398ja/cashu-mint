@@ -59,7 +59,7 @@ public class StubMintLifecyclePort implements MintLifecyclePort {
                 false
             ));
         }
-        final MintState created = new MintState(LifecycleState.State.PROVISIONED, request.versionTag());
+        final MintState created = new MintState(LifecycleState.State.PROVISIONING, request.versionTag());
         states.put(request.mintId(), created);
         return presenter.present(new LifecycleSummaryPresenter.LifecycleSummaryRequest(
             LifecycleAction.CREATE,
@@ -104,7 +104,8 @@ public class StubMintLifecyclePort implements MintLifecyclePort {
 
     private LifecycleAction actionFor(final LifecycleState.State target) {
         return switch (target) {
-            case PROVISIONED -> LifecycleAction.CREATE;
+            case PROVISIONING, PROVISIONED -> LifecycleAction.CREATE;
+            case PROVISION_FAILED -> LifecycleAction.RETIRE;
             case ACTIVE -> LifecycleAction.RESUME;
             case SUSPENDED -> LifecycleAction.PAUSE;
             case DECOMMISSIONED -> LifecycleAction.RETIRE;

@@ -1,5 +1,7 @@
 const STATE_STYLES: Record<string, string> = {
+  PROVISIONING: "bg-indigo-950 text-indigo-300 border-indigo-800",
   PROVISIONED: "bg-blue-950 text-blue-300 border-blue-800",
+  PROVISION_FAILED: "bg-red-950 text-red-300 border-red-800",
   ACTIVE: "bg-emerald-950 text-emerald-300 border-emerald-800",
   SUSPENDED: "bg-amber-950 text-amber-300 border-amber-800",
   DECOMMISSIONED: "bg-zinc-800 text-zinc-400 border-zinc-700",

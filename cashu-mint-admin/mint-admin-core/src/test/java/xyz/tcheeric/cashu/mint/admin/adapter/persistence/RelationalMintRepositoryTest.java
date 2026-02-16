@@ -88,8 +88,9 @@ class RelationalMintRepositoryTest {
             creation);
         final NotificationPolicy policy = new NotificationPolicy(true, false, Duration.ofMinutes(5), creation);
         final MintAggregate aggregate = MintAggregate.create(mintId, configuration, operator, policy, creation);
+        final AuditMetadata provisioned = new AuditMetadata("system", "provisioned", Instant.parse("2024-01-01T12:00:00Z"));
         final AuditMetadata activation = new AuditMetadata("system", "activate", Instant.parse("2024-01-02T00:00:00Z"));
-        return aggregate.activate(activation);
+        return aggregate.markProvisioned(provisioned).activate(activation);
     }
 
     private static final class RecordingTransactionExecutor implements TransactionExecutor {
