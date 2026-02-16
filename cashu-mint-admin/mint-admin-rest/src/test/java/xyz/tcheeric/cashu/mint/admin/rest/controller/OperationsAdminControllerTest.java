@@ -1,0 +1,98 @@
+package xyz.tcheeric.cashu.mint.admin.rest.controller;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
+import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
+import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@AutoConfigureMockMvc
+@Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminOperationsService.class})
+@TestPropertySource(properties = "admin.security.api-token=test-token")
+class OperationsAdminControllerTest {
+
+    private static final String ADMIN_TOKEN = "test-token";
+    private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
+    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    // Checks that scheduling maintenance requires authentication.
+    @Test
+    @DisplayName("Schedule maintenance requires authentication")
+    void scheduleMaintenanceRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(maintenanceJson()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // Checks that scheduling maintenance requires the OPS_ADMIN role.
+    @Test
+    @DisplayName("Schedule maintenance requires role header")
+    void scheduleMaintenanceRequiresRole() throws Exception {
+        mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(maintenanceJson()))
+                .andExpect(status().isForbidden());
+    }
+
+    // Ensures scheduling maintenance returns SCHEDULED status.
+    @Test
+    @DisplayName("Schedule maintenance returns scheduled response")
+    void scheduleMaintenanceReturnsResponse() throws Exception {
+        mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(maintenanceJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mintId").value(MINT_ID))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.message").value("Maintenance window scheduled"));
+    }
+
+    // Ensures force close returns FORCE_CLOSED status.
+    @Test
+    @DisplayName("Force close returns response")
+    void forceCloseReturnsResponse() throws Exception {
+        mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/force-close")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(maintenanceJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mintId").value(MINT_ID))
+                .andExpect(jsonPath("$.status").value("FORCE_CLOSED"));
+    }
+
+    private String maintenanceJson() {
+        return """
+                {
+                  "reason": "Scheduled update",
+                  "durationMinutes": 60,
+                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                }
+                """.formatted(OPERATOR_ID);
+    }
+}
