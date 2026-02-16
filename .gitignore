@@ -50,3 +50,15 @@ build/
 /cashu-mint-webhook/logs/
 /logs/
 /results/
+
+# Logs
+*.log
+
+# Test artifacts
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# TypeScript build info
+*.tsbuildinfo

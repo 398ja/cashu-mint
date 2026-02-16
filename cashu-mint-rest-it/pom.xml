@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.12.2</version>
+        <version>0.13.0</version>
     </parent>
     <artifactId>cashu-mint-rest-it</artifactId>
-    <version>0.12.2</version>
+    <version>0.13.0</version>
     <name>cashu-mint-rest-it</name>
     <description>Integration tests for cashu-mint-rest</description>
 
@@ -89,6 +89,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <skipTests>${skip.integration-tests}</skipTests>
                     <includes>
                         <include>**/*IT.java</include>
                         <include>**/*IntegrationTest.java</include>
