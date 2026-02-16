@@ -1,5 +1,11 @@
 # Configuration
 
+## Prerequisites
+
+The project requires **Java 21** for build and runtime. The Maven Enforcer plugin rejects other JDK versions. Ensure `JAVA_HOME` points to a JDK 21 installation, or configure a Maven Toolchain with JDK 21.
+
+## Properties reference
+
 Default values are sourced from `cashu-mint-rest/src/main/resources/application.properties`, `cashu-mint-rest/src/main/resources/application-voucher.yml`, and `cashu-mint-protocol/src/main/resources/proto.properties`. Override any property with an environment variable (uppercase, dots to underscores) or a `-D` system property.
 
 ## Core server settings
