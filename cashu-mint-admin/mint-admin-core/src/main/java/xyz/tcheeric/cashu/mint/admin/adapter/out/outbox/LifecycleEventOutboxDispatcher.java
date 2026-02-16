@@ -23,18 +23,18 @@ public class LifecycleEventOutboxDispatcher {
     private static final Duration OVERFLOW_BACKOFF = Duration.ofHours(24);
 
     private final OutboxRepository outboxRepository;
-    private final LifecycleEventOutboxHandler handler;
+    private final OutboxMessageHandler handler;
     private final Clock clock;
     private final Duration failureBackoff;
 
     public LifecycleEventOutboxDispatcher(final OutboxRepository outboxRepository,
-                                          final LifecycleEventOutboxHandler handler,
+                                          final OutboxMessageHandler handler,
                                           final Duration failureBackoff) {
         this(outboxRepository, handler, Clock.systemUTC(), failureBackoff);
     }
 
     public LifecycleEventOutboxDispatcher(final OutboxRepository outboxRepository,
-                                          final LifecycleEventOutboxHandler handler,
+                                          final OutboxMessageHandler handler,
                                           final Clock clock,
                                           final Duration failureBackoff) {
         this.outboxRepository = Objects.requireNonNull(outboxRepository, "outbox repository must not be null");

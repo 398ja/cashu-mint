@@ -33,14 +33,14 @@ class MintAggregateTest {
     }
 
     @Test
-    // Ensures create initialises the aggregate in a provisioned state with matching audit trail metadata.
-    void shouldCreateMintAggregateWithProvisionedState() {
+    // Ensures create initialises the aggregate in a provisioning state with matching audit trail metadata.
+    void shouldCreateMintAggregateWithProvisioningState() {
         final AuditMetadata creationMetadata = metadata("create");
 
         final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
             creationMetadata);
 
-        assertThat(aggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONED);
+        assertThat(aggregate.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONING);
         final AuditMetadata storedAudit = aggregate.auditMetadata();
         assertThat(storedAudit.actor()).isEqualTo(creationMetadata.actor());
         assertThat(storedAudit.action()).isEqualTo(creationMetadata.action());
@@ -56,12 +56,13 @@ class MintAggregateTest {
     void shouldActivateMintAggregate() {
         final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
             metadata("create"));
+        final MintAggregate provisioned = aggregate.markProvisioned(metadata("provisioned"));
         final AuditMetadata activationMetadata = metadata("activate");
 
-        final MintAggregate activated = aggregate.activate(activationMetadata);
+        final MintAggregate activated = provisioned.activate(activationMetadata);
 
         assertThat(activated.lifecycleState().value()).isEqualTo(LifecycleState.State.ACTIVE);
-        assertThat(activated.auditTrail().entries()).hasSize(2);
+        assertThat(activated.auditTrail().entries()).hasSize(3);
         final AuditMetadata latest = activated.auditTrail().latestMetadata();
         assertThat(latest.actor()).isEqualTo(activationMetadata.actor());
         assertThat(latest.action()).isEqualTo(activationMetadata.action());
@@ -69,6 +70,43 @@ class MintAggregateTest {
         assertThat(latest.lifecycleContext().configurationRevisionId())
             .isEqualTo(aggregate.configurationSet().revisionId());
         assertThat(aggregate.auditTrail().entries()).hasSize(1);
+    }
+
+    @Test
+    // Ensures markProvisioned transitions from PROVISIONING to PROVISIONED.
+    void shouldMarkProvisioned() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+
+        final MintAggregate provisioned = aggregate.markProvisioned(metadata("vault ready"));
+
+        assertThat(provisioned.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONED);
+        assertThat(provisioned.auditTrail().entries()).hasSize(2);
+    }
+
+    @Test
+    // Ensures markProvisionFailed transitions from PROVISIONING to PROVISION_FAILED.
+    void shouldMarkProvisionFailed() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+
+        final MintAggregate failed = aggregate.markProvisionFailed(metadata("vault failed"));
+
+        assertThat(failed.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISION_FAILED);
+        assertThat(failed.auditTrail().entries()).hasSize(2);
+    }
+
+    @Test
+    // Ensures retryProvisioning transitions from PROVISION_FAILED back to PROVISIONING.
+    void shouldRetryProvisioning() {
+        final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
+            metadata("create"));
+        final MintAggregate failed = aggregate.markProvisionFailed(metadata("vault failed"));
+
+        final MintAggregate retrying = failed.retryProvisioning(metadata("retry"));
+
+        assertThat(retrying.lifecycleState().value()).isEqualTo(LifecycleState.State.PROVISIONING);
+        assertThat(retrying.auditTrail().entries()).hasSize(3);
     }
 
     @Test
@@ -103,8 +141,9 @@ class MintAggregateTest {
     void shouldExposeLifecycleApprovalMetadata() {
         final MintAggregate aggregate = MintAggregate.create(MINT_ID, configuration(1, "100"), operator(), policy(),
             metadata("create"));
+        final MintAggregate provisioned = aggregate.markProvisioned(metadata("provisioned"));
 
-        final LifecycleState.TransitionApproval approval = aggregate
+        final LifecycleState.TransitionApproval approval = provisioned
             .approvalRequirementsFor(LifecycleState.State.ACTIVE)
             .orElseThrow();
 

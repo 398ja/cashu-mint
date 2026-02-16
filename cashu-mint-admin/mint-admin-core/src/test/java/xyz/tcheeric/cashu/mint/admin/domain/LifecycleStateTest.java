@@ -39,4 +39,70 @@ class LifecycleStateTest {
 
         assertThat(state.approvalRequirementsFor(LifecycleState.State.SUSPENDED)).isEmpty();
     }
+
+    @Test
+    // Ensures PROVISIONING can transition to PROVISIONED on successful vault provisioning.
+    void shouldAllowProvisioningToProvisioned() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISIONING);
+
+        final LifecycleState next = state.transitionTo(LifecycleState.State.PROVISIONED);
+
+        assertThat(next.value()).isEqualTo(LifecycleState.State.PROVISIONED);
+    }
+
+    @Test
+    // Ensures PROVISIONING can transition to PROVISION_FAILED on permanent failure.
+    void shouldAllowProvisioningToProvisionFailed() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISIONING);
+
+        final LifecycleState next = state.transitionTo(LifecycleState.State.PROVISION_FAILED);
+
+        assertThat(next.value()).isEqualTo(LifecycleState.State.PROVISION_FAILED);
+    }
+
+    @Test
+    // Ensures PROVISIONING can transition to DECOMMISSIONED for operator abort.
+    void shouldAllowProvisioningToDecommissioned() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISIONING);
+
+        final LifecycleState next = state.transitionTo(LifecycleState.State.DECOMMISSIONED);
+
+        assertThat(next.value()).isEqualTo(LifecycleState.State.DECOMMISSIONED);
+    }
+
+    @Test
+    // Ensures PROVISIONING rejects transition directly to ACTIVE.
+    void shouldRejectProvisioningToActive() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISIONING);
+
+        assertThrows(IllegalStateException.class, () -> state.transitionTo(LifecycleState.State.ACTIVE));
+    }
+
+    @Test
+    // Ensures PROVISION_FAILED can retry by transitioning back to PROVISIONING.
+    void shouldAllowProvisionFailedToProvisioning() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISION_FAILED);
+
+        final LifecycleState next = state.transitionTo(LifecycleState.State.PROVISIONING);
+
+        assertThat(next.value()).isEqualTo(LifecycleState.State.PROVISIONING);
+    }
+
+    @Test
+    // Ensures PROVISION_FAILED can be decommissioned.
+    void shouldAllowProvisionFailedToDecommissioned() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISION_FAILED);
+
+        final LifecycleState next = state.transitionTo(LifecycleState.State.DECOMMISSIONED);
+
+        assertThat(next.value()).isEqualTo(LifecycleState.State.DECOMMISSIONED);
+    }
+
+    @Test
+    // Ensures PROVISION_FAILED rejects transition directly to ACTIVE.
+    void shouldRejectProvisionFailedToActive() {
+        final LifecycleState state = LifecycleState.of(LifecycleState.State.PROVISION_FAILED);
+
+        assertThrows(IllegalStateException.class, () -> state.transitionTo(LifecycleState.State.ACTIVE));
+    }
 }

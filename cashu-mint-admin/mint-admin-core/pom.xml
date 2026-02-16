@@ -18,6 +18,23 @@
     </properties>
 
     <dependencies>
+        <!-- Cashu key derivation and vault API -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-lib-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-lib-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-vault-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
         <!-- Bring MVC auto-configuration onto the test classpath so MockMvc is available -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

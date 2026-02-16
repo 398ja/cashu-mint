@@ -22,7 +22,7 @@ import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
 /**
  * Processes lifecycle messages persisted in the transactional outbox.
  */
-public class LifecycleEventOutboxHandler {
+public class LifecycleEventOutboxHandler implements OutboxMessageHandler {
 
     private final MintAggregateViewRepository aggregateViewRepository;
     private final MintLifecycleHistoryRepository historyRepository;
@@ -38,13 +38,8 @@ public class LifecycleEventOutboxHandler {
         this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
     }
 
-    /**
-     * Handle the supplied outbox message, projecting the lifecycle change into read models.
-     *
-     * @param message the message to process
-     * @return the reconstructed lifecycle event
-     */
-    public MintLifecycleEvent handle(final OutboxMessage message) {
+    @Override
+    public void handle(final OutboxMessage message) {
         Objects.requireNonNull(message, "outbox message must not be null");
         final LifecycleEventPayload payload = readPayload(message);
         if (payload.eventId() != null && !message.eventId().toString().equals(payload.eventId())) {
@@ -54,7 +49,6 @@ public class LifecycleEventOutboxHandler {
         final MintLifecycleEvent event = toEvent(payload);
         aggregateViewRepository.upsert(event);
         historyRepository.append(message.eventId(), event);
-        return event;
     }
 
     private LifecycleEventPayload readPayload(final OutboxMessage message) {
@@ -80,6 +74,10 @@ public class LifecycleEventOutboxHandler {
 
         return switch (type) {
             case CREATED -> MintLifecycleEvent.created(mintId, currentState, revision, versionTag, audit);
+            case VAULT_PROVISIONED -> MintLifecycleEvent.vaultProvisioned(mintId, requireState(previousState, type),
+                currentState, revision, versionTag, audit);
+            case VAULT_PROVISION_FAILED -> MintLifecycleEvent.vaultProvisionFailed(mintId, requireState(previousState, type),
+                currentState, revision, versionTag, audit);
             case CONFIGURATION_UPDATED -> MintLifecycleEvent.configurationUpdated(mintId, currentState, revision, versionTag,
                 audit);
             case PAUSED -> MintLifecycleEvent.paused(mintId, requireState(previousState, type), currentState, revision,

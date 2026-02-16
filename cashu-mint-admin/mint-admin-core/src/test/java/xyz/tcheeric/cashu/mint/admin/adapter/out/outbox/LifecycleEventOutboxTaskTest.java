@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.admin.adapter.out.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -14,9 +13,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintAggregateViewRepository;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
@@ -107,44 +103,10 @@ class LifecycleEventOutboxTaskTest {
         }
     }
 
-    private static final class NoopHandler extends LifecycleEventOutboxHandler {
-
-        NoopHandler() {
-            super(new NoopAggregateViewRepository(), new NoopHistoryRepository(), new ObjectMapper());
-        }
+    private static final class NoopHandler implements OutboxMessageHandler {
 
         @Override
-        public MintLifecycleEvent handle(final OutboxMessage message) {
-            return null;
-        }
-    }
-
-    private static final class NoopAggregateViewRepository implements MintAggregateViewRepository {
-
-        @Override
-        public void upsert(final MintLifecycleEvent event) {
-        }
-
-        @Override
-        public java.util.Optional<MintAggregateView> findById(final MintId mintId) {
-            return java.util.Optional.empty();
-        }
-
-        @Override
-        public List<MintAggregateView> findAll() {
-            return List.of();
-        }
-    }
-
-    private static final class NoopHistoryRepository implements MintLifecycleHistoryRepository {
-
-        @Override
-        public void append(final UUID eventId, final MintLifecycleEvent event) {
-        }
-
-        @Override
-        public List<MintLifecycleHistoryEntry> findByMintId(final MintId mintId) {
-            return List.of();
+        public void handle(final OutboxMessage message) {
         }
     }
 }

@@ -22,18 +22,34 @@ import lombok.experimental.Accessors;
 public final class LifecycleState {
 
     public enum State {
+        PROVISIONING,
         PROVISIONED,
+        PROVISION_FAILED,
         ACTIVE,
         SUSPENDED,
         DECOMMISSIONED;
 
         Map<State, TransitionApproval> transitionApprovals() {
             return switch (this) {
+                case PROVISIONING -> Map.of(
+                    State.PROVISIONED, TransitionApproval.of(State.PROVISIONED, Set.of(),
+                        "Automatic transition on successful vault provisioning."),
+                    State.PROVISION_FAILED, TransitionApproval.of(State.PROVISION_FAILED, Set.of(),
+                        "Automatic transition on permanent vault provisioning failure."),
+                    State.DECOMMISSIONED, TransitionApproval.of(State.DECOMMISSIONED, Set.of("Operations"),
+                        "Aborting a provisioning mint requires operations sign-off.")
+                );
                 case PROVISIONED -> Map.of(
                     State.ACTIVE, TransitionApproval.of(State.ACTIVE, Set.of("Operations", "Security"),
                         "Activation requires operations and security sign-off."),
                     State.DECOMMISSIONED, TransitionApproval.of(State.DECOMMISSIONED, Set.of("Operations"),
                         "Decommissioning a provisioned mint requires operations sign-off.")
+                );
+                case PROVISION_FAILED -> Map.of(
+                    State.PROVISIONING, TransitionApproval.of(State.PROVISIONING, Set.of("Operations"),
+                        "Retrying provisioning requires operations sign-off."),
+                    State.DECOMMISSIONED, TransitionApproval.of(State.DECOMMISSIONED, Set.of("Operations"),
+                        "Decommissioning a failed mint requires operations sign-off.")
                 );
                 case ACTIVE -> Map.of(
                     State.SUSPENDED, TransitionApproval.of(State.SUSPENDED, Set.of("Operations"),
