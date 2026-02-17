@@ -45,16 +45,16 @@ final class H2TestDataSourceFactory {
     }
 
     private static String readSchemaScript() throws IOException {
-        final String v1 = readMigration("/db/migration/V1__create_admin_schema.sql");
-        final String v2 = readMigration("/db/migration/V2__link_audit_events.sql");
-        final String v3 = readMigration("/db/migration/V3__extend_audit_metadata.sql");
-        final String v4 = readMigration("/db/migration/V4__create_mint_lifecycle_history.sql");
-        final String v5 = readMigration("/db/migration/V5__create_mint_lifecycle_approval_states.sql");
-        final String v6 = readMigration("/db/migration/V6__extend_lifecycle_audit_linkage.sql");
-        final String v7 = readMigration("/db/migration/V7__create_admin_user_accounts.sql");
-        final String v8 = readMigration("/db/migration/V8__create_alerts_and_alert_escalations.sql");
-        final String v9 = readMigration("/db/migration/V9__create_mint_health_snapshots.sql");
-        final String v10 = readMigration("/db/migration/V10__create_operational_controls.sql");
+        final String v1 = readMigration("/db/migration/admin/V1__create_admin_schema.sql");
+        final String v2 = readMigration("/db/migration/admin/V2__link_audit_events.sql");
+        final String v3 = readMigration("/db/migration/admin/V3__extend_audit_metadata.sql");
+        final String v4 = readMigration("/db/migration/admin/V4__create_mint_lifecycle_history.sql");
+        final String v5 = readMigration("/db/migration/admin/V5__create_mint_lifecycle_approval_states.sql");
+        final String v6 = readMigration("/db/migration/admin/V6__extend_lifecycle_audit_linkage.sql");
+        final String v7 = readMigration("/db/migration/admin/V7__create_admin_user_accounts.sql");
+        final String v8 = readMigration("/db/migration/admin/V8__create_alerts_and_alert_escalations.sql");
+        final String v9 = readMigration("/db/migration/admin/V9__create_mint_health_snapshots.sql");
+        final String v10 = readMigration("/db/migration/admin/V10__create_operational_controls.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6
             + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
