@@ -49,9 +49,10 @@ public class MintTest {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
         // Split 100 into proper denominations: 64 + 32 + 4 = 100
+        // Each blinded message must have a unique public key so the signature vault stores them independently
         BlindedMessage blindedMessage1 = new BlindedMessage(64, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
-        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
-        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7"), null);
+        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("025f9d298d8d9e774c81ee64927a27e6e6b6e18f65447eb6a16808f92b84e44112"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
         PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage1, blindedMessage2, blindedMessage3), List.of(secret, secret), List.of(r));
@@ -116,9 +117,10 @@ public class MintTest {
         Secret secret = RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
         byte[] r = Utils.hexStringToBytes("ea129258e052c096f08d394b40d93ba36e8074728677f0ce11efe1f3e06d2def");
         // Split 100 into proper denominations: 64 + 32 + 4 = 100
+        // Each blinded message must have a unique public key so the signature vault stores them independently
         BlindedMessage blindedMessage1 = new BlindedMessage(64, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
-        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
-        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"), null);
+        BlindedMessage blindedMessage2 = new BlindedMessage(32, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7"), null);
+        BlindedMessage blindedMessage3 = new BlindedMessage(4, KeysetId.fromString(VALID_KEYSET_ID), PublicKey.fromString("025f9d298d8d9e774c81ee64927a27e6e6b6e18f65447eb6a16808f92b84e44112"), null);
 
         String quoteId = "61f9b403-3464-489c-97c3-48ca468c099a";
         PostMintRequest postMintRequest = new PostMintRequest(quoteId, List.of(blindedMessage1, blindedMessage2, blindedMessage3), List.of(secret, secret), List.of(r));
