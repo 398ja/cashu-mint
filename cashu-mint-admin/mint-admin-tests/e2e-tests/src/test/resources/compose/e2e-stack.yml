@@ -203,6 +203,10 @@ services:
       DATASOURCE_DRIVER: org.h2.Driver
       ADMIN_API_TOKEN: e2e-admin-token
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      CASHU_VAULT_BASE_URL: "http://cashu-vault-jpa:3333"
+    depends_on:
+      cashu-vault-jpa:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "URL=http://localhost:7778/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
       interval: 10s

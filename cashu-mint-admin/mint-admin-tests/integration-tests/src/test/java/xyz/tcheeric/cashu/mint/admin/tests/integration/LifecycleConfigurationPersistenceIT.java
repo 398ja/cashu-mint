@@ -3,17 +3,31 @@ package xyz.tcheeric.cashu.mint.admin.tests.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
+import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
+import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAdminIntegrationIT;
 
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
 class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
+
+    @Autowired
+    private MintRepository mintRepository;
+
+    @Autowired
+    private MintLifecycleEventPublisher eventPublisher;
 
     private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
 
@@ -60,6 +74,17 @@ class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
             UUID.fromString(mintId));
         assertThat(revisionCountAfterPreview).isEqualTo(revisionCountBeforePreview);
 
+        // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
+        final MintId mint = MintId.fromString(mintId);
+        final MintAggregate provisioning = mintRepository.findById(mint)
+            .orElseThrow(() -> new IllegalStateException("mint not found: " + mintId));
+        final AuditMetadata provisionAudit = new AuditMetadata("system", "Vault provisioned", Instant.now());
+        final MintAggregate provisioned = provisioning.markProvisioned(provisionAudit);
+        mintRepository.save(provisioned);
+        eventPublisher.publish(MintLifecycleEvent.vaultProvisioned(mint,
+            provisioning.lifecycleState().value(), provisioned.lifecycleState().value(),
+            provisioned.configurationSet().revisionId(), "v1", provisionAudit));
+
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("requestedBy", actor(), "reason", "Activate after provisioning"),
@@ -104,7 +129,7 @@ class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
             "SELECT payload::json->>'currentState' FROM admin_outbox WHERE aggregate_id = ? ORDER BY occurred_at, event_id",
             String.class,
             UUID.fromString(mintId));
-        assertThat(states).contains("PROVISIONED", "ACTIVE", "SUSPENDED", "ACTIVE", "DECOMMISSIONED");
+        assertThat(states).contains("PROVISIONING", "PROVISIONED", "ACTIVE", "SUSPENDED", "ACTIVE", "DECOMMISSIONED");
     }
 
     // Ensures rollback to a missing revision returns a not-found response through API error mapping.
