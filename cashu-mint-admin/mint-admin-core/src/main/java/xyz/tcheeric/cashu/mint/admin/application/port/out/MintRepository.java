@@ -32,4 +32,14 @@ public interface MintRepository {
      * @return an immutable list of aggregates
      */
     List<MintAggregate> findAll();
+
+    /**
+     * Check whether an {@code ACTIVE} mint already exists for the given unit,
+     * excluding the specified mint from the check.
+     *
+     * @param unit          the currency unit (e.g. "sat", "usd")
+     * @param excludeMintId the mint to exclude from the check
+     * @return {@code true} if another active mint exists for that unit
+     */
+    boolean existsActiveByUnit(String unit, MintId excludeMintId);
 }
