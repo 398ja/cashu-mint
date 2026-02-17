@@ -50,7 +50,7 @@ interface ActorDto {
 export function createMint(body: {
   mintId: string;
   requestedBy: ActorDto;
-  metadata: { name: string; description: string; tags: string[] };
+  metadata: { displayName: string; description: string; tags: string[] };
   configuration: Record<string, unknown>;
 }): Promise<LifecycleActionResponse> {
   return apiPost("/admin/lifecycle/mints", body);
@@ -60,7 +60,7 @@ export function updateMint(
   mintId: string,
   body: {
     requestedBy: ActorDto;
-    metadata: { name: string; description: string; tags: string[] };
+    metadata: { displayName: string; description: string; tags: string[] };
     configuration: Record<string, unknown>;
     revisionId: string;
   },

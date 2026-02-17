@@ -136,7 +136,7 @@ class MintAdminCliApplicationTest {
         final MintLifecyclePort.MintLifecycleCommand command = lifecyclePort.lastCommand.get();
         assertThat(command.operation()).isEqualTo(LifecycleAction.CREATE);
         assertThat(command.request().mintId()).isEqualTo("mint-321");
-        assertThat(execution.getSystemOutString()).contains("\"currentState\" : \"PROVISIONED\"");
+        assertThat(execution.getSystemOutString()).contains("\"currentState\" : \"PROVISIONING\"");
         assertThat(execution.getSystemOutString()).contains("\"changed\" : true");
         execution.assertExitCode(CommandLine.ExitCode.OK);
     }

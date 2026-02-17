@@ -1,3 +1,5 @@
+> **Archived:** This document is preserved for historical reference. For the current consolidated summary, see [Virtual thread adoption](../../explanations/virtual-thread-adoption.md).
+
 # Virtual Thread Compatibility Audit
 
 This document audits third-party dependencies for potential virtual thread compatibility issues.

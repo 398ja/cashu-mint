@@ -50,8 +50,13 @@ public class DefaultSignatureVaultService implements SignatureVaultService {
                     existing.getKeySetId(), existing.getAmount(),
                     signature.getKeySetId(), signature.getAmount());
 
-            // If the signatures differ, this is a serious issue that should be investigated
-            if (!existing.equals(signature)) {
+            // Compare core signature (C') only, excluding the DLEQ proof which is
+            // non-deterministic by design (uses SecureRandom). Same blinded message + same
+            // private key always produces the same C', but different DLEQ proofs (e, s).
+            boolean coreSignatureMatches = existing.getAmount() == signature.getAmount()
+                    && java.util.Objects.equals(existing.getKeySetId(), signature.getKeySetId())
+                    && java.util.Objects.equals(existing.getBlindedSignature(), signature.getBlindedSignature());
+            if (!coreSignatureMatches) {
                 log.error("CRITICAL: Different signatures for same blinded message! " +
                                 "This indicates a potential double-mint or cryptographic issue. " +
                                 "key={}", key);

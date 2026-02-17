@@ -66,8 +66,11 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
         final UUID requestId = resolveRequestId(validated.requestId());
         final String correlationId = resolveCorrelationId(validated.correlationId(), requestId);
 
+        final Map<String, String> configParams = validated.configurationParameters() == null
+            ? Map.of() : validated.configurationParameters();
+
         return switch (command) {
-            case CREATE -> createMint(mintId, operatorId, versionTag, requestId, correlationId);
+            case CREATE -> createMint(mintId, operatorId, versionTag, requestId, correlationId, configParams);
             case UPDATE_CONFIGURATION -> updateConfiguration(mintId, operatorId, versionTag, requestId, correlationId);
             case PAUSE -> pauseMint(mintId, operatorId, versionTag, requestId, correlationId);
             case RESUME -> resumeMint(mintId, operatorId, versionTag, requestId, correlationId);
@@ -79,16 +82,26 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
                                                    final UUID operatorId,
                                                    final String versionTag,
                                                    final UUID requestId,
-                                                   final String correlationId) {
+                                                   final String correlationId,
+                                                   final Map<String, String> configParams) {
         return transactionManager.execute(() -> {
             if (mintRepository.findById(mintId).isPresent()) {
                 throw new IllegalStateException("mint already exists: " + mintId.asString());
             }
 
+            final String unit = configParams.getOrDefault("cashu.unit", "sat");
+            if (mintRepository.existsActiveByUnit(unit, mintId)) {
+                throw new IllegalStateException(
+                    "cannot create mint: another mint is already active for unit '" + unit + "'. "
+                    + "Pause or retire the existing mint first.");
+            }
+
             final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.CREATE, requestId,
                 correlationId);
+            final Map<String, String> mergedParams = new java.util.HashMap<>(configParams);
+            mergedParams.put(CONFIG_VERSION_PARAMETER, versionTag);
             final ConfigurationSet configuration = new ConfigurationSet(INITIAL_REVISION,
-                Map.of(CONFIG_VERSION_PARAMETER, versionTag), auditMetadata);
+                Map.copyOf(mergedParams), auditMetadata);
             final OperatorAccount operatorAccount = new OperatorAccount(operatorId, operatorId.toString(),
                 Set.of("MINT_ADMIN"), auditMetadata);
             final NotificationPolicy notificationPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(5),
@@ -98,8 +111,9 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
                 notificationPolicy, auditMetadata);
             mintRepository.save(aggregate);
             configurationSetRepository.save(mintId, configuration);
-            eventPublisher.publish(MintLifecycleEvent.created(mintId, aggregate.lifecycleState().value(),
-                configuration.revisionId(), versionTag, aggregate.auditMetadata()));
+            eventPublisher.publish(MintLifecycleEvent.created(mintId,
+                aggregate.lifecycleState().value(), configuration.revisionId(), versionTag,
+                aggregate.auditMetadata()));
             return buildResponse(aggregate, versionTag);
         });
     }
@@ -151,6 +165,12 @@ public class ManageMintLifecycleInteractor extends AbstractUseCaseInteractor
                                                    final String correlationId) {
         return transactionManager.execute(() -> {
             final MintAggregate current = loadExistingAggregate(mintId);
+            final String unit = current.configurationSet().parameters()
+                .getOrDefault("cashu.unit", "sat");
+            if (mintRepository.existsActiveByUnit(unit, mintId)) {
+                throw new IllegalStateException(
+                    "cannot activate mint: another mint is already active for unit '" + unit + "'");
+            }
             final AuditMetadata auditMetadata = createAuditMetadata(operatorId, LifecycleCommand.RESUME, requestId,
                 correlationId);
             final MintAggregate activated = current.activate(auditMetadata);

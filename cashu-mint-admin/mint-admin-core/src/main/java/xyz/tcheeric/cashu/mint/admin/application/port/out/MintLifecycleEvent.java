@@ -38,6 +38,26 @@ public record MintLifecycleEvent(MintLifecycleEventType type,
             versionTag, auditMetadata);
     }
 
+    public static MintLifecycleEvent vaultProvisioned(final MintId mintId,
+                                                         final LifecycleState.State previousState,
+                                                         final LifecycleState.State currentState,
+                                                         final ConfigurationRevisionId revisionId,
+                                                         final String versionTag,
+                                                         final AuditMetadata auditMetadata) {
+        return new MintLifecycleEvent(MintLifecycleEventType.VAULT_PROVISIONED, mintId, previousState, currentState,
+            revisionId, versionTag, auditMetadata);
+    }
+
+    public static MintLifecycleEvent vaultProvisionFailed(final MintId mintId,
+                                                           final LifecycleState.State previousState,
+                                                           final LifecycleState.State currentState,
+                                                           final ConfigurationRevisionId revisionId,
+                                                           final String versionTag,
+                                                           final AuditMetadata auditMetadata) {
+        return new MintLifecycleEvent(MintLifecycleEventType.VAULT_PROVISION_FAILED, mintId, previousState, currentState,
+            revisionId, versionTag, auditMetadata);
+    }
+
     public static MintLifecycleEvent configurationUpdated(final MintId mintId,
                                                           final LifecycleState.State currentState,
                                                           final ConfigurationRevisionId revisionId,
@@ -82,6 +102,8 @@ public record MintLifecycleEvent(MintLifecycleEventType type,
      */
     public enum MintLifecycleEventType {
         CREATED,
+        VAULT_PROVISIONED,
+        VAULT_PROVISION_FAILED,
         CONFIGURATION_UPDATED,
         PAUSED,
         RESUMED,

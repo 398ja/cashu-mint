@@ -70,8 +70,8 @@ public final class MintAggregate {
         final AuditMetadata creationMetadata = requireNonNull(metadata, "audit metadata must not be null")
             .withLifecycleContext(configurationSet.revisionId(), notificationPolicy);
         final AuditTrail trail = AuditTrail.create(creationMetadata);
-        return new MintAggregate(mintId, LifecycleState.provisioned(), configurationSet, operatorAccount,
-            notificationPolicy, trail, creationMetadata);
+        return new MintAggregate(mintId, LifecycleState.of(LifecycleState.State.PROVISIONING), configurationSet,
+            operatorAccount, notificationPolicy, trail, creationMetadata);
     }
 
     public static MintAggregate reconstitute(final MintId mintId,
@@ -95,6 +95,18 @@ public final class MintAggregate {
 
     public MintAggregate decommission(final AuditMetadata metadata) {
         return transitionLifecycleTo(LifecycleState.State.DECOMMISSIONED, metadata);
+    }
+
+    public MintAggregate markProvisioned(final AuditMetadata metadata) {
+        return transitionLifecycleTo(LifecycleState.State.PROVISIONED, metadata);
+    }
+
+    public MintAggregate markProvisionFailed(final AuditMetadata metadata) {
+        return transitionLifecycleTo(LifecycleState.State.PROVISION_FAILED, metadata);
+    }
+
+    public MintAggregate retryProvisioning(final AuditMetadata metadata) {
+        return transitionLifecycleTo(LifecycleState.State.PROVISIONING, metadata);
     }
 
     public Optional<LifecycleState.TransitionApproval> approvalRequirementsFor(

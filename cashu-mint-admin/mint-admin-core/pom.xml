@@ -4,7 +4,7 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint-admin</artifactId>
-        <version>0.13.0</version>
+        <version>0.14.0</version>
     </parent>
 
     <artifactId>mint-admin-core</artifactId>
@@ -18,6 +18,29 @@
     </properties>
 
     <dependencies>
+        <!-- Cashu key derivation and vault API -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-lib-common</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-lib-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-vault-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
         <!-- Bring MVC auto-configuration onto the test classpath so MockMvc is available -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

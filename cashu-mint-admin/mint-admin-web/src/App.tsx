@@ -13,6 +13,7 @@ import { LoginPage } from "@/features/login/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { MintListPage } from "@/features/mints/MintListPage";
 import { MintDetailPage } from "@/features/mints/MintDetailPage";
+import { CreateMintPage } from "@/features/mints/CreateMintPage";
 import { HealthPage } from "@/features/mints/HealthPage";
 import { ConfigurationPage } from "@/features/configuration/ConfigurationPage";
 import { UserListPage } from "@/features/users/UserListPage";
@@ -60,6 +61,14 @@ export function App() {
                 element={
                   <RequireRole role="MINT_ADMIN">
                     <MintListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/mints/create"
+                element={
+                  <RequireRole role="MINT_ADMIN">
+                    <CreateMintPage />
                   </RequireRole>
                 }
               />
