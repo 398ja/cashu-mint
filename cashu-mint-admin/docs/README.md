@@ -12,6 +12,7 @@ This directory contains documentation for the admin components, organized using 
 
 ## Tutorials
 
+- [Admin User Guide](tutorials/admin-user-guide.md) — Complete guide to operating a Cashu mint: lifecycle, configuration, alerts, users, and maintenance.
 - [Administer a mint from the CLI](tutorials/administer-mint-from-cli.md) — Practice lifecycle management, configuration, users, and alerts from the command line.
 
 ## How-to guides
