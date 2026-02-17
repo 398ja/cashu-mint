@@ -20,3 +20,5 @@ This explanation outlines the responsibilities of each module and how the Cashu 
 | [NUT-06](https://github.com/cashubtc/nuts/blob/main/06.md) | Mint information | Exposed via `/v1/info`, with legacy helper fields appended for compatibility. |
 | [NUT-07](https://github.com/cashubtc/nuts/blob/main/07.md) | Token state check | `/v1/checkstate` merges state across active and archived mints. |
 | [NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md) | Restore signatures | `/v1/restore` reuses the shared `SignatureVaultService` to return prior signatures. |
+| [NUT-12](https://github.com/cashubtc/nuts/blob/main/12.md) | DLEQ proofs | Blind signature correctness proofs generated via `cashu-lib-crypto` (`DLEQUtils`). Returned alongside blind signatures when supported. |
+| [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md) | WebSocket subscriptions | JSON-RPC 2.0 endpoint at `/v1/ws` for real-time `proof_state`, `bolt11_mint_quote`, and `bolt11_melt_quote` notifications. Handled by `NUT17.java` and `WebSocketHandler`. |
