@@ -196,6 +196,11 @@ class AdminLifecycleServiceTest {
         public List<MintAggregate> findAll() {
             return List.of();
         }
+
+        @Override
+        public boolean existsActiveByUnit(final String unit, final MintId excludeMintId) {
+            return false;
+        }
     }
 
     /**
