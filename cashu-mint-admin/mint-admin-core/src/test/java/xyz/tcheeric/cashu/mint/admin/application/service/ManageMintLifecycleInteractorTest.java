@@ -247,6 +247,62 @@ class ManageMintLifecycleInteractorTest {
         assertEquals(event.auditMetadata().requestId().toString(), event.auditMetadata().correlationId());
     }
 
+    @Test
+    // Ensures resume is rejected when another mint is already active for the same unit.
+    void shouldRejectResumeWhenAnotherMintIsActiveForSameUnit() {
+        storeActiveMintWithUnit("223e4567-e89b-12d3-a456-426614174000", "sat");
+        storeSuspendedMint();
+
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RESUME, "resume-tag");
+
+        final IllegalStateException exception = assertThrows(IllegalStateException.class,
+            () -> interactor.handle(request));
+        assertTrue(exception.getMessage().contains("cannot activate mint"));
+        assertTrue(exception.getMessage().contains("sat"));
+    }
+
+    @Test
+    // Ensures resume succeeds when no other mint is active for the same unit.
+    void shouldAllowResumeWhenNoOtherMintIsActiveForSameUnit() {
+        storeActiveMintWithUnit("223e4567-e89b-12d3-a456-426614174000", "usd");
+        storeSuspendedMint();
+
+        final ManageMintLifecycleRequest request = request(LifecycleCommand.RESUME, "resume-tag");
+
+        final ManageMintLifecycleResponse response = interactor.handle(request);
+
+        assertEquals(LifecycleState.State.ACTIVE, response.lifecycleState());
+    }
+
+    @Test
+    // Ensures creation is rejected when another mint is already active for the same unit.
+    void shouldRejectCreateWhenActiveMintExistsForSameUnit() {
+        storeActiveMintWithUnit("223e4567-e89b-12d3-a456-426614174000", "sat");
+
+        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
+            LifecycleCommand.CREATE, VERSION_TAG, REQUEST_ID, CORRELATION_ID,
+            Map.of("cashu.unit", "sat"));
+
+        final IllegalStateException exception = assertThrows(IllegalStateException.class,
+            () -> interactor.handle(request));
+        assertTrue(exception.getMessage().contains("cannot create mint"));
+        assertTrue(exception.getMessage().contains("sat"));
+    }
+
+    @Test
+    // Ensures creation succeeds when only a suspended mint exists for the same unit.
+    void shouldAllowCreateWhenOnlySuspendedMintExistsForSameUnit() {
+        storeSuspendedMintWithUnit("223e4567-e89b-12d3-a456-426614174000", "sat");
+
+        final ManageMintLifecycleRequest request = new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID,
+            LifecycleCommand.CREATE, VERSION_TAG, REQUEST_ID, CORRELATION_ID,
+            Map.of("cashu.unit", "sat"));
+
+        final ManageMintLifecycleResponse response = interactor.handle(request);
+
+        assertEquals(LifecycleState.State.PROVISIONING, response.lifecycleState());
+    }
+
     private ManageMintLifecycleRequest request(final LifecycleCommand command, final String versionTag) {
         return new ManageMintLifecycleRequest(MINT_ID, OPERATOR_ID, command, versionTag, REQUEST_ID, CORRELATION_ID);
     }
@@ -295,6 +351,66 @@ class ManageMintLifecycleInteractorTest {
         transactionManager.executionCount = 0;
     }
 
+    private void storeActiveMintWithUnit(final String otherMintId, final String unit) {
+        final MintId mintId = MintId.fromString(otherMintId);
+        final UUID operatorUuid = UUID.fromString(OPERATOR_ID);
+        final AuditMetadata auditMetadata = new AuditMetadata(OPERATOR_ID, "Mint created", clock.instant());
+        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("version.tag", "v1", "cashu.unit", unit), auditMetadata);
+        final OperatorAccount operatorAccount = new OperatorAccount(operatorUuid, OPERATOR_ID, Set.of("MINT_ADMIN"),
+            auditMetadata);
+        final NotificationPolicy notificationPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(5),
+            auditMetadata);
+        final MintAggregate provisioning = MintAggregate.create(mintId, configuration, operatorAccount,
+            notificationPolicy, auditMetadata);
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
+        final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
+        mintRepository.save(active);
+        configurationSetRepository.save(active.mintId(), active.configurationSet());
+    }
+
+    private void storeSuspendedMintWithUnit(final String otherMintId, final String unit) {
+        final MintId mintId = MintId.fromString(otherMintId);
+        final UUID operatorUuid = UUID.fromString(OPERATOR_ID);
+        final AuditMetadata auditMetadata = new AuditMetadata(OPERATOR_ID, "Mint created", clock.instant());
+        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("version.tag", "v1", "cashu.unit", unit), auditMetadata);
+        final OperatorAccount operatorAccount = new OperatorAccount(operatorUuid, OPERATOR_ID, Set.of("MINT_ADMIN"),
+            auditMetadata);
+        final NotificationPolicy notificationPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(5),
+            auditMetadata);
+        final MintAggregate provisioning = MintAggregate.create(mintId, configuration, operatorAccount,
+            notificationPolicy, auditMetadata);
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
+        final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
+        final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
+        mintRepository.save(suspended);
+        configurationSetRepository.save(suspended.mintId(), suspended.configurationSet());
+    }
+
+    private void storeDecommissionedMintWithUnit(final String otherMintId, final String unit) {
+        final MintId mintId = MintId.fromString(otherMintId);
+        final UUID operatorUuid = UUID.fromString(OPERATOR_ID);
+        final AuditMetadata auditMetadata = new AuditMetadata(OPERATOR_ID, "Mint created", clock.instant());
+        final ConfigurationSet configuration = new ConfigurationSet(ConfigurationRevisionId.of(1),
+            Map.of("version.tag", "v1", "cashu.unit", unit), auditMetadata);
+        final OperatorAccount operatorAccount = new OperatorAccount(operatorUuid, OPERATOR_ID, Set.of("MINT_ADMIN"),
+            auditMetadata);
+        final NotificationPolicy notificationPolicy = new NotificationPolicy(true, false, Duration.ofMinutes(5),
+            auditMetadata);
+        final MintAggregate provisioning = MintAggregate.create(mintId, configuration, operatorAccount,
+            notificationPolicy, auditMetadata);
+        final MintAggregate provisioned = provisioning.markProvisioned(
+            new AuditMetadata(OPERATOR_ID, "Vault ready", clock.instant()));
+        final MintAggregate active = provisioned.activate(new AuditMetadata(OPERATOR_ID, "Activated", clock.instant()));
+        final MintAggregate suspended = active.suspend(new AuditMetadata(OPERATOR_ID, "Paused", clock.instant()));
+        final MintAggregate retired = suspended.decommission(new AuditMetadata(OPERATOR_ID, "Retired", clock.instant()));
+        mintRepository.save(retired);
+        configurationSetRepository.save(retired.mintId(), retired.configurationSet());
+    }
+
     private MintAggregate createProvisioningAggregate(final String versionTag) {
         final MintId mintId = MintId.fromString(MINT_ID);
         final UUID operatorUuid = UUID.fromString(OPERATOR_ID);
@@ -338,6 +454,15 @@ class ManageMintLifecycleInteractorTest {
         @Override
         public List<MintAggregate> findAll() {
             return new ArrayList<>(storage.values());
+        }
+
+        @Override
+        public boolean existsActiveByUnit(final String unit, final MintId excludeMintId) {
+            return storage.values().stream()
+                .filter(m -> !m.mintId().equals(excludeMintId))
+                .filter(m -> m.lifecycleState().value() == LifecycleState.State.ACTIVE)
+                .anyMatch(m -> unit.equals(
+                    m.configurationSet().parameters().getOrDefault("cashu.unit", "sat")));
         }
     }
 
