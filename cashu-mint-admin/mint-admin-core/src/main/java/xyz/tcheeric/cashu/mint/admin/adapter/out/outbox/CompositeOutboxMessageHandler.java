@@ -6,9 +6,10 @@ import java.util.Objects;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
 
 /**
- * Dispatches an outbox message to multiple handlers in order, ensuring every handler
- * is attempted even if earlier handlers fail. If any handler throws, the first exception
- * is rethrown as an {@link OutboxMessageHandlingException} after all handlers have run.
+ * Dispatches an outbox message to multiple handlers in order, failing fast on the first
+ * error. This prevents partial-success scenarios where earlier handlers persist side
+ * effects (e.g. lifecycle history keyed by event_id) while later handlers fail, causing
+ * duplicate-key errors on retry.
  */
 public class CompositeOutboxMessageHandler implements OutboxMessageHandler {
 
@@ -25,23 +26,8 @@ public class CompositeOutboxMessageHandler implements OutboxMessageHandler {
     @Override
     public void handle(final OutboxMessage message) {
         Objects.requireNonNull(message, "outbox message must not be null");
-        RuntimeException firstFailure = null;
         for (final OutboxMessageHandler handler : handlers) {
-            try {
-                handler.handle(message);
-            } catch (final RuntimeException ex) {
-                if (firstFailure == null) {
-                    firstFailure = ex;
-                } else {
-                    firstFailure.addSuppressed(ex);
-                }
-            }
-        }
-        if (firstFailure != null) {
-            if (firstFailure instanceof OutboxMessageHandlingException) {
-                throw firstFailure;
-            }
-            throw new OutboxMessageHandlingException("Composite handler failed", firstFailure);
+            handler.handle(message);
         }
     }
 }

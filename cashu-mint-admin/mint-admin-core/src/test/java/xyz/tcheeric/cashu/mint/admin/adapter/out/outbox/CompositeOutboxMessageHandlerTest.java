@@ -44,30 +44,28 @@ class CompositeOutboxMessageHandlerTest {
     }
 
     @Test
-    // Ensures remaining handlers execute even when an earlier handler fails.
-    void shouldCallAllHandlersEvenWhenFirstFails() {
+    // Ensures fail-fast: second handler is not invoked when the first fails.
+    void shouldFailFastWhenFirstHandlerThrows() {
         final List<String> calls = new ArrayList<>();
         final OutboxMessageHandler failing = msg -> { calls.add("fail"); throw new RuntimeException("boom"); };
         final OutboxMessageHandler passing = msg -> calls.add("ok");
 
-        assertThrows(OutboxMessageHandlingException.class,
+        assertThrows(RuntimeException.class,
             () -> new CompositeOutboxMessageHandler(List.of(failing, passing)).handle(sampleMessage()));
 
-        assertThat(calls).containsExactly("fail", "ok");
+        assertThat(calls).containsExactly("fail");
     }
 
     @Test
-    // Ensures the first exception is rethrown with subsequent failures as suppressed.
-    void shouldRethrowFirstExceptionWithSuppressed() {
+    // Ensures the exception from the failing handler propagates directly.
+    void shouldPropagateHandlerException() {
         final OutboxMessageHandler h1 = msg -> { throw new RuntimeException("first"); };
         final OutboxMessageHandler h2 = msg -> { throw new RuntimeException("second"); };
 
-        final OutboxMessageHandlingException ex = assertThrows(OutboxMessageHandlingException.class,
+        final RuntimeException ex = assertThrows(RuntimeException.class,
             () -> new CompositeOutboxMessageHandler(List.of(h1, h2)).handle(sampleMessage()));
 
-        assertThat(ex.getCause()).hasMessage("first");
-        assertThat(ex.getCause().getSuppressed()).hasSize(1);
-        assertThat(ex.getCause().getSuppressed()[0]).hasMessage("second");
+        assertThat(ex).hasMessage("first");
     }
 
     @Test
