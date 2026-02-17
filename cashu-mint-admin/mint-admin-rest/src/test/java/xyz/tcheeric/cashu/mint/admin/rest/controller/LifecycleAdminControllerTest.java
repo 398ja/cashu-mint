@@ -16,12 +16,18 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.web.servlet.MvcResult;
 
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
+import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
+import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,6 +51,9 @@ class LifecycleAdminControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private MintRepository mintRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -79,6 +88,9 @@ class LifecycleAdminControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_1)))
                 .andExpect(status().isOk());
+
+        // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
+        markProvisioned(MINT_ID_1);
 
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/resume")
@@ -115,6 +127,9 @@ class LifecycleAdminControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_2)))
                 .andExpect(status().isOk());
+
+        // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
+        markProvisioned(MINT_ID_2);
 
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/resume")
@@ -176,5 +191,13 @@ class LifecycleAdminControllerTest {
               "reason": "%s"
             }
             """.formatted(OPERATOR_ID, reason);
+    }
+
+    // Simulates vault provisioning completion by advancing PROVISIONING → PROVISIONED.
+    private void markProvisioned(final String mintId) {
+        final MintAggregate aggregate = mintRepository.findById(MintId.fromString(mintId))
+            .orElseThrow(() -> new IllegalStateException("mint not found: " + mintId));
+        final AuditMetadata audit = new AuditMetadata("system", "Vault provisioned", Instant.now());
+        mintRepository.save(aggregate.markProvisioned(audit));
     }
 }
