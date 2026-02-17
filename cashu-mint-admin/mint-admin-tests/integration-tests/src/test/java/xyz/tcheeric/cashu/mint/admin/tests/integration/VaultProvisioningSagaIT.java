@@ -216,6 +216,68 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         assertThat(stub().countInvocations("provision")).isEqualTo(2);
     }
 
+    // Verifies that a second mint cannot be activated for the same unit when one is already active.
+    @Test
+    void shouldRejectSecondActiveMintForSameUnit() {
+        final String mintIdA = UUID.randomUUID().toString();
+        final String mintIdB = UUID.randomUUID().toString();
+
+        // Create mint A with unit=sat (no other sat mint exists yet)
+        adminApiClient().post(
+            "/admin/lifecycle/mints",
+            createMintPayloadWithUnit(mintIdA, "sat"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        outboxDispatcher.dispatchPending(100);
+        assertMintState(mintIdA, "PROVISIONED");
+
+        // Activate mint A
+        final ResponseEntity<JsonNode> activatedA = adminApiClient().post(
+            "/admin/lifecycle/mints/" + mintIdA + "/resume",
+            Map.of("requestedBy", actor(), "reason", "Activate A"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        assertThat(activatedA.getStatusCode().value()).isEqualTo(200);
+        assertMintState(mintIdA, "ACTIVE");
+
+        // Attempt to create mint B with same unit=sat → should fail 409 (non-terminal mint exists)
+        final ResponseEntity<JsonNode> createdB = adminApiClient().post(
+            "/admin/lifecycle/mints",
+            createMintPayloadWithUnit(mintIdB, "sat"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        assertThat(createdB.getStatusCode().value()).isEqualTo(409);
+    }
+
+    // Verifies that creating a mint with a different unit succeeds even when another unit is active.
+    @Test
+    void shouldAllowCreateForDifferentUnit() {
+        final String mintIdA = UUID.randomUUID().toString();
+        final String mintIdB = UUID.randomUUID().toString();
+
+        // Create and activate mint A with unit=sat
+        adminApiClient().post(
+            "/admin/lifecycle/mints",
+            createMintPayloadWithUnit(mintIdA, "sat"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        outboxDispatcher.dispatchPending(100);
+        adminApiClient().post(
+            "/admin/lifecycle/mints/" + mintIdA + "/resume",
+            Map.of("requestedBy", actor(), "reason", "Activate A"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        assertMintState(mintIdA, "ACTIVE");
+
+        // Create mint B with unit=usd → should succeed
+        final ResponseEntity<JsonNode> createdB = adminApiClient().post(
+            "/admin/lifecycle/mints",
+            createMintPayloadWithUnit(mintIdB, "usd"),
+            ADMIN_TOKEN,
+            MINT_ADMIN_ROLE);
+        assertThat(createdB.getStatusCode().value()).isEqualTo(200);
+    }
+
     private StubVaultProvisioningPort stub() {
         return (StubVaultProvisioningPort) vaultProvisioningPort;
     }
@@ -232,6 +294,20 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         jdbcTemplate.update(
             "UPDATE admin_outbox SET available_at = NOW() - INTERVAL '1 second' WHERE aggregate_id = ? AND dispatched_at IS NULL",
             UUID.fromString(mintId));
+    }
+
+    private Map<String, Object> createMintPayloadWithUnit(final String mintId, final String unit) {
+        return Map.of(
+            "mintId", mintId,
+            "requestedBy", actor(),
+            "metadata", Map.of(
+                "displayName", "Unit Mint " + mintId.substring(0, 8),
+                "description", "Unit enforcement mint",
+                "tags", List.of("unit-test")),
+            "configuration", Map.of(
+                "versionTag", "v1",
+                "name", "unit-mint",
+                "cashu.unit", unit));
     }
 
     private Map<String, Object> createMintPayload(final String mintId) {

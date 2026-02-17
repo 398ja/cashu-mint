@@ -221,6 +221,11 @@ class VaultProvisioningOutboxHandlerTest {
         public List<MintAggregate> findAll() {
             return new ArrayList<>(storage.values());
         }
+
+        @Override
+        public boolean existsActiveByUnit(final String unit, final MintId excludeMintId) {
+            return false;
+        }
     }
 
     private static final class RecordingConfigSetRepository implements ConfigurationSetRepository {
