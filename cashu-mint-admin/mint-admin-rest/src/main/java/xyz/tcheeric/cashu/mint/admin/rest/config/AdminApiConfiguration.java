@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.admin.rest.config;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -61,6 +62,7 @@ public class AdminApiConfiguration {
     public Jackson2ObjectMapperBuilder jacksonCustomizer() {
         return Jackson2ObjectMapperBuilder.json()
                 .findModulesViaServiceLoader(true)
-                .featuresToDisable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+                .featuresToDisable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 }

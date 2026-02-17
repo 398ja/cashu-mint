@@ -168,6 +168,8 @@ services:
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
+      # Both env vars point to the same vault service: CASHU_VAULT_BASE_URL is used by
+      # cashu-mint-protocol (VaultClientFactory), VAULT_BASE_URL by cashu-mint-admin.
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
@@ -220,7 +222,7 @@ services:
     networks:
       - cashu
   cashu-mint-admin-rest:
-    image: docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION:-latest}
+    image: cashu-mint-admin-rest:dev
     ports:
       - "${CASHU_MINT_ADMIN_PORT:-7778}:${CASHU_MINT_ADMIN_PORT:-7778}"
     environment:
@@ -231,10 +233,14 @@ services:
       DATASOURCE_PASSWORD: postgres
       DATASOURCE_DRIVER: org.postgresql.Driver
       ADMIN_API_TOKEN: ${CASHU_MINT_ADMIN_API_TOKEN:-local-dev-token}
+      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
     depends_on:
       admin-db:
+        condition: service_healthy
+      cashu-vault-jpa:
         condition: service_healthy
     restart: unless-stopped
     networks:

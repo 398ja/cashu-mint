@@ -1,3 +1,5 @@
+> **Archived:** This document is preserved for historical reference. For the current consolidated summary, see [Virtual thread adoption](../../explanations/virtual-thread-adoption.md).
+
 # Phase 1: Virtual Thread Pilot Guide
 
 This guide provides step-by-step instructions for running the Virtual Thread pilot experiment.
@@ -202,7 +204,7 @@ If OOM or high memory usage:
 
 ## Go/No-Go Criteria
 
-Based on [loom-assessment.md](../../project/loom-assessment.md):
+Based on [loom-assessment.md](../../../project/loom-assessment.md):
 
 | Metric | Go Criteria |
 |--------|-------------|

@@ -115,6 +115,9 @@ class JdbcMintRepositoryIntegrationTest {
         MintAggregate updatedAggregate = aggregate.updateConfiguration(updatedConfig, configAudit);
         updatedAggregate = updatedAggregate.updateOperatorAccount(updatedOperator, operatorAudit);
         updatedAggregate = updatedAggregate.updateNotificationPolicy(updatedPolicy, policyAudit);
+        final AuditMetadata provisionedAudit = new AuditMetadata("system", "vault-provisioned", baseTime.plusSeconds(35),
+            List.of("provisioned"), List.of("INC-204"), AutomationContext.manual());
+        updatedAggregate = updatedAggregate.markProvisioned(provisionedAudit);
         updatedAggregate = updatedAggregate.activate(activationAudit);
 
         mintRepository.save(updatedAggregate);

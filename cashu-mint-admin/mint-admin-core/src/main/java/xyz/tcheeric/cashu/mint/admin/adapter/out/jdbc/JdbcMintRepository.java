@@ -305,6 +305,15 @@ public class JdbcMintRepository implements MintRepository {
     }
 
     @Override
+    public boolean existsActiveByUnit(final String unit, final MintId excludeMintId) {
+        return findAll().stream()
+            .filter(m -> !m.mintId().equals(excludeMintId))
+            .filter(m -> m.lifecycleState().value() == LifecycleState.State.ACTIVE)
+            .anyMatch(m -> unit.equals(
+                m.configurationSet().parameters().getOrDefault("cashu.unit", "sat")));
+    }
+
+    @Override
     public List<MintAggregate> findAll() {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(SELECT_ALL_IDS_SQL);

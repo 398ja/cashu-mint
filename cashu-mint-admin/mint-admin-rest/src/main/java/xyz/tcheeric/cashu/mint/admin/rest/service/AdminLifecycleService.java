@@ -90,13 +90,15 @@ public class AdminLifecycleService {
     public LifecycleActionResponse createMint(final CreateMintRequest request) {
         Objects.requireNonNull(request, "request");
         final String versionTag = extractVersionTag(request.configuration(), DEFAULT_VERSION_TAG);
+        final java.util.Map<String, String> configParams = extractConfigurationParameters(request.configuration());
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             request.mintId(),
             request.requestedBy().id(),
             LifecycleCommand.CREATE,
             versionTag,
             null,
-            null
+            null,
+            configParams
         );
         try {
             final ManageMintLifecycleResponse response = lifecycleUseCase.handle(useCaseRequest);
@@ -185,7 +187,24 @@ public class AdminLifecycleService {
         if (message != null && message.contains("Cannot transition")) {
             return new AdminServiceException(HttpStatus.CONFLICT, "invalid_transition", message);
         }
+        if (message != null && message.contains("already active for unit")) {
+            return new AdminServiceException(HttpStatus.CONFLICT, "unit_conflict", message);
+        }
         return new AdminServiceException(HttpStatus.INTERNAL_SERVER_ERROR, "lifecycle_error", message);
+    }
+
+    private static java.util.Map<String, String> extractConfigurationParameters(
+            final java.util.Map<String, Object> configuration) {
+        if (configuration == null || configuration.isEmpty()) {
+            return java.util.Map.of();
+        }
+        final java.util.Map<String, String> params = new java.util.HashMap<>();
+        configuration.forEach((key, value) -> {
+            if (value instanceof String str && !str.isBlank()) {
+                params.put(key, str);
+            }
+        });
+        return java.util.Map.copyOf(params);
     }
 
     private static String extractVersionTag(final java.util.Map<String, Object> configuration, final String fallback) {
