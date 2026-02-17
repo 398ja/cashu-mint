@@ -1,8 +1,10 @@
 package xyz.tcheeric.cashu.mint.admin.tests.e2e;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,7 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
     void shouldExecuteLifecycleTransitionsAgainstRunningStack() {
         final String mintId = UUID.randomUUID().toString();
 
-        // Create a new mint (starts in PROVISIONED state).
+        // Create a new mint (starts in PROVISIONING state; outbox handler will provision the vault).
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/lifecycle/mints",
             Map.of(
@@ -26,6 +28,9 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
                 "configuration", Map.of("versionTag", "lifecycle-v1")),
             MINT_ADMIN_ROLE);
         assertThat(created.getStatusCode().value()).isEqualTo(200);
+
+        // Wait for vault provisioning saga to complete (PROVISIONING -> PROVISIONED).
+        awaitProvisionedState(mintId);
 
         // Activate the mint (PROVISIONED -> ACTIVE) before it can be paused.
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
@@ -62,5 +67,19 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
         // Verify the mint REST API is still reachable after lifecycle operations.
         final ResponseEntity<JsonNode> mintInfo = mintApiClient().get("/v1/info");
         assertThat(mintInfo.getStatusCode().value()).isEqualTo(200);
+    }
+
+    // Polls the admin API until the mint transitions from PROVISIONING to PROVISIONED.
+    private void awaitProvisionedState(final String mintId) {
+        await()
+            .atMost(Duration.ofSeconds(30))
+            .pollInterval(Duration.ofSeconds(2))
+            .untilAsserted(() -> {
+                final ResponseEntity<JsonNode> detail = adminApiClient().get(
+                    "/admin/lifecycle/mints/" + mintId,
+                    MINT_ADMIN_ROLE);
+                assertThat(detail.getStatusCode().value()).isEqualTo(200);
+                assertThat(detail.getBody().path("lifecycleState").asText()).isEqualTo("PROVISIONED");
+            });
     }
 }
