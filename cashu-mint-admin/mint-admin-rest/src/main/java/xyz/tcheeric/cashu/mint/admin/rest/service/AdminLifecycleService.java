@@ -187,6 +187,9 @@ public class AdminLifecycleService {
         if (message != null && message.contains("Cannot transition")) {
             return new AdminServiceException(HttpStatus.CONFLICT, "invalid_transition", message);
         }
+        if (message != null && message.contains("already active for unit")) {
+            return new AdminServiceException(HttpStatus.CONFLICT, "unit_conflict", message);
+        }
         return new AdminServiceException(HttpStatus.INTERNAL_SERVER_ERROR, "lifecycle_error", message);
     }
 
