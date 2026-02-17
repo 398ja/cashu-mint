@@ -1,5 +1,11 @@
 # Voucher mint quotes as percentage fees
 
+## TL;DR
+
+For voucher mints, the mint charges `floor(face_value * fee_percent / 100)` instead of the full face value. The percentage is configurable via `voucher.quote.fee-percent` (properties), `VOUCHER_QUOTE_FEE_PERCENT` (env), or `-Dvoucher.quote.fee-percent` (JVM arg). The calculation occurs inside `MintQuoteTask` before delegating to the payment gateway and applies only when the secret type is a voucher and fee config is present. Non-voucher mints are unaffected. Unit tests in `VoucherMintQuoteTaskTest` exercise small/large amounts and zero-fee scenarios; integration tests verify the calculated price preserves the NUT-04 response structure.
+
+---
+
 This document describes the planned change to calculate voucher mint quotes as a configurable percentage of the voucher face value. No code has been updated yet; this explains the intended behavior, configuration surface, and edge cases before implementation.
 
 ## Goals
@@ -51,3 +57,9 @@ This document describes the planned change to calculate voucher mint quotes as a
 - Unit: percentage computation (0%, 1%, 10%, 100%), rounding behavior, overflow guard, and config parsing/validation for env/system properties.
 - Integration: `POST /v1/mint/quote/{method}` returns an invoice whose amount matches the computed fee; `GET /v1/mint/quote/{method}/{quote_id}` reflects paid status of that invoice; `POST /v1/mint/{method}` mints the full face value after paying only the fee.
 - Edge: extremely small amounts (ensure zero/low fees behave as expected), very large amounts, invalid percentages, and non-voucher mint paths unaffected.
+
+## See Also
+
+- [Voucher mock payment and free splitting](voucher-mock-payment.md)
+- [Voucher structured secrets](voucher-structured-secrets.md)
+- [REST API reference](../reference/rest-api.md)

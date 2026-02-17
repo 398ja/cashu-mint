@@ -1,3 +1,5 @@
+> **Archived:** This document is preserved for historical reference. For the current consolidated summary, see [Virtual thread adoption](../../explanations/virtual-thread-adoption.md).
+
 # Phase 1 Pilot Results
 
 **Date:** 2026-01-22

@@ -278,36 +278,7 @@ open target/site/jacoco/index.html
 
 ## Troubleshooting
 
-### Integration Tests Fail Locally
-
-**Problem:** Integration tests fail with connection errors.
-
-**Solution:** Ensure required services are running:
-```bash
-# Start Nostr relay (if testing with real relay)
-docker run -p 7777:8080 scsibug/nostr-rs-relay
-
-# Or use mocked components (default)
-```
-
-### Tests Run Slowly
-
-**Problem:** Regular builds are slow due to integration tests.
-
-**Solution:** Integration tests are excluded by default. If they're running:
-```bash
-# Verify profile is active
-mvn help:active-profiles
-
-# Ensure integration tests are skipped
-mvn clean test -P-integration-tests
-```
-
-### MockBean Deprecation Warnings
-
-**Problem:** Warnings about `@MockBean` deprecation.
-
-**Solution:** This is a Spring Boot 3.5+ deprecation warning. The tests still work correctly. Future versions will migrate to new mocking approaches.
+For solutions to common test failures, build issues, and environment problems, see [Troubleshoot common issues](docs/how-to/troubleshoot-common-issues.md).
 
 ## Additional Resources
 
