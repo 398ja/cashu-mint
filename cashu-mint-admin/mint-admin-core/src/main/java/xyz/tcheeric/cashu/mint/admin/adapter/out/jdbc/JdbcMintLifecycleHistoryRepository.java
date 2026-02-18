@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -94,7 +95,12 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             statement.setObject(16, audit.requestId());
             statement.setString(17, audit.correlationId());
             statement.executeUpdate();
-        } catch (final SQLException | IOException ex) {
+        } catch (final SQLException ex) {
+            if (isDuplicateKey(ex)) {
+                return;
+            }
+            throw new JdbcRepositoryException("Failed to append lifecycle history entry", ex);
+        } catch (final IOException ex) {
             throw new JdbcRepositoryException("Failed to append lifecycle history entry", ex);
         }
     }
@@ -158,6 +164,11 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             return List.of();
         }
         return objectMapper.readValue(raw, LIST_TYPE);
+    }
+
+    private static boolean isDuplicateKey(final SQLException ex) {
+        final String sqlState = ex.getSQLState();
+        return "23505".equals(sqlState) || ex instanceof SQLIntegrityConstraintViolationException;
     }
 
     private String toState(final LifecycleState.State state) {
