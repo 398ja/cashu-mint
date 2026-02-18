@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated `payment-adapter` dependency to 0.9.0
+- Updated `payment-adapter` dependency to 0.10.0
 - Updated `cashu-vault` dependency to 0.7.0
 
 ### Fixed
