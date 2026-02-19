@@ -115,6 +115,15 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
             throw new CashuErrorException(error.toJson());
         }
 
+        // PrivateKey implements AutoCloseable, but keyset keys are shared/cached
+        // across the mint and must not be closed here. Voucher-derived keys are
+        // ephemeral but closing is handled by GC since they don't hold native resources.
+        @SuppressWarnings("resource")
+        BlindSignature result = signWithKey(privateKey);
+        return result;
+    }
+
+    private BlindSignature signWithKey(PrivateKey privateKey) throws CashuErrorException {
         byte[] signature = BDHKEUtils.signBlindedMessage(
                 blindedMessage.getBlindedMessage().getBytes(),
                 privateKey.getBytes()
