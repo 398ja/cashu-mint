@@ -57,6 +57,90 @@ services:
     restart: unless-stopped
     networks:
       - cashu
+  hashicorp-vault:
+    image: hashicorp/vault:1.18
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault-data:/vault/file
+    healthcheck:
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - cashu
+  vault-init:
+    image: hashicorp/vault:1.18
+    depends_on:
+      hashicorp-vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://hashicorp-vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        vault secrets enable -path=$$VAULT_MOUNT kv-v2 || true
+
+        vault policy write cashu-vault - <<EOF
+        path "$${VAULT_MOUNT}/data/keys/*" {
+          capabilities = ["create", "read", "update"]
+        }
+        path "$${VAULT_MOUNT}/metadata/keys/*" {
+          capabilities = ["read", "list", "delete"]
+        }
+        path "$${VAULT_MOUNT}/data/seeds/*" {
+          capabilities = ["create", "read", "update"]
+        }
+        path "$${VAULT_MOUNT}/metadata/seeds/*" {
+          capabilities = ["read", "list"]
+        }
+        path "$${VAULT_MOUNT}/delete/keys/*" {
+          capabilities = ["update"]
+        }
+        path "$${VAULT_MOUNT}/destroy/keys/*" {
+          capabilities = ["update"]
+        }
+        path "$${VAULT_MOUNT}/metadata/*" {
+          capabilities = ["list"]
+        }
+        EOF
+
+        vault auth enable approle || true
+
+        vault write auth/approle/role/cashu-vault \
+          token_policies="cashu-vault" \
+          token_ttl=1h \
+          token_max_ttl=4h \
+          secret_id_ttl=720h \
+          secret_id_num_uses=0
+
+        ROLE_ID=$$(vault read -field=role_id auth/approle/role/cashu-vault/role-id)
+        SECRET_ID=$$(vault write -f -field=secret_id auth/approle/role/cashu-vault/secret-id)
+
+        echo "VAULT_ROLE_ID=$$ROLE_ID"
+        echo "VAULT_SECRET_ID=$$SECRET_ID"
+
+        echo "$$ROLE_ID" > /vault/file/role-id
+        echo "$$SECRET_ID" > /vault/file/secret-id
+
+        echo "Vault initialized with $${VAULT_MOUNT} KV v2 engine and AppRole auth"
+    volumes:
+      - vault-data:/vault/file
+    restart: "no"
+    networks:
+      - cashu
   cashu-vault-jpa:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
     environment:
@@ -70,9 +154,20 @@ services:
       SERVER_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      # HashiCorp Vault configuration (uses AppRole credentials from vault-init)
+      VAULT_BACKEND: HASHICORP
+      VAULT_HASHI_URI: http://hashicorp-vault:8200
+      VAULT_HASHI_AUTH_METHOD: ${VAULT_HASHI_AUTH_METHOD:-APPROLE}
+      VAULT_HASHI_ROLE_ID: ${VAULT_HASHI_ROLE_ID}
+      VAULT_HASHI_SECRET_ID: ${VAULT_HASHI_SECRET_ID}
+      VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
     depends_on:
       cashu-vault-db:
         condition: service_healthy
+      hashicorp-vault:
+        condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
     ports:
       - "${CASHU_VAULT_PORT:-3333}:${CASHU_VAULT_PORT:-3333}"
     volumes:
@@ -232,6 +327,7 @@ volumes:
   gateway-db-data:
   admin-db-data:
   vault-logs:
+  vault-data:
   phoenixd-data:
 networks:
   cashu:
