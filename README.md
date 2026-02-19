@@ -2,8 +2,6 @@
 
 cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/cashubtc/nuts) that packages the protocol, observability, and a Spring Boot REST API for running a mint.
 
-The protocol exposes a shared `SignatureVaultService` so signatures minted in one request can be restored later. When calling `NUT04.mint`, `NUT09.restore`, or other protocol helpers directly, pass the same `SignatureVaultService` instance to persist signatures across requests.
-
 ## Modules
 
 - `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09/12/17), tasks, and vault/gateway integrations.
@@ -90,6 +88,12 @@ cashu.websocket.allowed-origins=https://your-app.com
 ```
 
 New subscribers receive the current state of subscribed items immediately, then real-time updates as states change.
+
+## Signature persistence and wallet recovery
+
+The protocol stores every blind signature produced during minting and swapping in a shared `SignatureVaultService`. This store is what makes wallet recovery ([NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md)) possible: a wallet that loses its local data can re-derive the same blinded messages and ask the mint to return the original signatures.
+
+When using the REST API this is handled automatically — Spring injects a single `SignatureVaultService` bean into every controller. If you call protocol helpers like `NUT04.mint`, `NUT03.swap`, or `NUT09.restore` directly, you must pass the **same** `SignatureVaultService` instance to all of them so that signatures stored during minting can be retrieved during recovery.
 
 ## Security
 
