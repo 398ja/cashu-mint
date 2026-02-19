@@ -37,7 +37,7 @@
 
         <!-- Cashu Ecosystem Versions -->
         <cashu-lib.version>0.16.0</cashu-lib.version>
-        <payment-adapter.version>0.10.0</payment-adapter.version>
+        <payment-adapter.version>0.10.1</payment-adapter.version>
         <cashu-vault.version>0.7.0</cashu-vault.version>
         <cashu-mint.version>0.14.1</cashu-mint.version>
         <cashu-wallet.version>0.6.3</cashu-wallet.version>
