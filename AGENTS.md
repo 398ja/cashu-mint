@@ -61,7 +61,7 @@ When writing code, follow Clean Code and Clean Architecture principles:
 - If you must comment, explain *why*, not *what* — the code shows what
 
 ### Error Handling
-- Use exceptions rather than return codes
+- Use exceptions rather than return codes...
 - Write try-catch-finally statements first when writing code that could throw
 - Use unchecked exceptions; checked exceptions violate the Open/Closed Principle
 - Provide context with exceptions: include operation attempted and failure type
