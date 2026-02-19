@@ -94,7 +94,12 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             statement.setObject(16, audit.requestId());
             statement.setString(17, audit.correlationId());
             statement.executeUpdate();
-        } catch (final SQLException | IOException ex) {
+        } catch (final SQLException ex) {
+            if (isDuplicateKey(ex)) {
+                return;
+            }
+            throw new JdbcRepositoryException("Failed to append lifecycle history entry", ex);
+        } catch (final IOException ex) {
             throw new JdbcRepositoryException("Failed to append lifecycle history entry", ex);
         }
     }
@@ -158,6 +163,10 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
             return List.of();
         }
         return objectMapper.readValue(raw, LIST_TYPE);
+    }
+
+    private static boolean isDuplicateKey(final SQLException ex) {
+        return "23505".equals(ex.getSQLState());
     }
 
     private String toState(final LifecycleState.State state) {

@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.1] - 2026-02-18
+
+### Added
+
+- HashiCorp Vault service and initialization scripts to `docker-compose.dev.yml` and `docker-compose.prod.yml`
+- Admin module: user guide tutorial and transactional outbox explanation documentation
+
+### Changed
+
+- Updated `payment-adapter` dependency to 0.10.0
+- Updated `cashu-vault` dependency to 0.7.0
+
+### Fixed
+
+- Admin module: made lifecycle history append idempotent for outbox at-least-once redelivery
+- Admin module: added missing Flyway migration scripts and made outbox handler fail-fast
+- Admin module: corrected test migration paths to `db/migration/admin/`
+- Protocol: resolved DLEQ non-determinism and duplicate storage key issues in tests
+
+---
+
 ## [0.14.0] - 2026-02-17
 
 ### Added

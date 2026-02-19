@@ -81,7 +81,7 @@ public class MintInfo {
         if (nuts != null) {
             this.nuts = new java.util.HashMap<>(nuts);
         } else {
-            this.nuts = nuts;
+            this.nuts = null;
         }
 
         if (this.nuts != null && !this.nuts.containsKey("17")) {
@@ -134,6 +134,8 @@ public class MintInfo {
                 if (nutsMap == null) {
                     return;
                 }
+                // SnakeYAML parses unquoted numeric YAML keys as Integer, not String
+                @SuppressWarnings("SuspiciousMethodCalls")
                 Object nut17Config = nutsMap.get(17);
                 if (nut17Config == null) {
                     nut17Config = nutsMap.get("17");
