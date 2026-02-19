@@ -7,7 +7,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -167,8 +166,7 @@ public class JdbcMintLifecycleHistoryRepository implements MintLifecycleHistoryR
     }
 
     private static boolean isDuplicateKey(final SQLException ex) {
-        final String sqlState = ex.getSQLState();
-        return "23505".equals(sqlState) || ex instanceof SQLIntegrityConstraintViolationException;
+        return "23505".equals(ex.getSQLState());
     }
 
     private String toState(final LifecycleState.State state) {
