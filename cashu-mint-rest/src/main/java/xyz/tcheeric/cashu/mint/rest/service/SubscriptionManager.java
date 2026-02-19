@@ -106,7 +106,8 @@ public final class SubscriptionManager {
         sessions.putIfAbsent(sessionId, session);
 
         // Create subscription
-        Subscription subscription = new Subscription(subId, sessionId, kind, new HashSet<>(ids));
+        Set<String> safeIds = ids != null ? new HashSet<>(ids) : new HashSet<>();
+        Subscription subscription = new Subscription(subId, sessionId, kind, safeIds);
         subscriptionById.put(subId, subscription);
 
         // Add to session subscriptions atomically to avoid race with removeSession
@@ -119,13 +120,13 @@ public final class SubscriptionManager {
         });
 
         // Index for lookup
-        for (String id : ids) {
+        for (String id : safeIds) {
             String indexKey = indexKey(kind, id);
             subscriptionIndex.computeIfAbsent(indexKey, k -> ConcurrentHashMap.newKeySet()).add(subId);
         }
 
         log.debug("subscription_created sub_id={} session_id={} kind={} id_count={}",
-                subId, sessionId, kind, ids.size());
+                subId, sessionId, kind, safeIds.size());
 
         return subId;
     }
@@ -171,6 +172,7 @@ public final class SubscriptionManager {
      *
      * @param sessionId the session ID
      */
+    @SuppressWarnings("resource") // WebSocketSession lifecycle is managed by the Spring framework, not by us
     public void removeSession(String sessionId) {
         sessions.remove(sessionId);
         List<Subscription> subs = sessionSubscriptions.remove(sessionId);
