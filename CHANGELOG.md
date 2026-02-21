@@ -11,6 +11,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.1] - 2026-02-18
+
+### Added
+
+- HashiCorp Vault service and initialization scripts to `docker-compose.dev.yml` and `docker-compose.prod.yml`
+- Admin module: user guide tutorial and transactional outbox explanation documentation
+
+### Changed
+
+- Updated `payment-adapter` dependency to 0.10.0
+- Updated `cashu-vault` dependency to 0.7.0
+
+### Fixed
+
+- Admin module: made lifecycle history append idempotent for outbox at-least-once redelivery
+- Admin module: added missing Flyway migration scripts and made outbox handler fail-fast
+- Admin module: corrected test migration paths to `db/migration/admin/`
+- Protocol: resolved DLEQ non-determinism and duplicate storage key issues in tests
+
+---
+
+## [0.14.0] - 2026-02-17
+
+### Added
+
+- `CONTRIBUTING.md` contributor guide with branch naming, commit conventions, and PR process
+- `docs/reference/glossary.md` — Cashu and ecash terminology (~35 terms)
+- `docs/reference/error-codes.md` — complete REST API error code reference with causes and resolutions
+- `docs/how-to/deploy-production.md` — production deployment checklist (TLS, secrets, monitoring, backups)
+- `docs/how-to/develop-gateway-adapter.md` — guide for implementing custom payment gateway adapters
+- `docs/tutorials/websocket-client-example.md` — step-by-step WebSocket client tutorial with wscat and JavaScript
+- `docs/how-to/troubleshoot-common-issues.md` — consolidated troubleshooting guide
+- `docs/explanations/virtual-thread-adoption.md` — consolidated virtual thread adoption narrative
+- Admin module: vault provisioning saga with compensation logic
+- Admin module: active mint checks by unit during lifecycle create and resume operations
+- Admin module: integration and E2E tests for vault provisioning saga
+
+### Changed
+
+- Expanded `docs/reference/rest-api.md` with WebSocket endpoint documentation and error response section
+- Expanded `docs/reference/nuts.md` from link list to table with implementation classes and status
+- Added NUT-12 (DLEQ proofs) and NUT-17 (WebSocket subscriptions) to `docs/explanations/architecture-and-nuts.md`
+- Merged `voucher-mint-quote-overview.md` TL;DR into `voucher-mint-quote-percentage.md`
+- Updated `README.md` with admin module section, contributing link, and Diataxis documentation index
+- Updated `TESTING.md` troubleshooting section to cross-reference new troubleshooting guide
+- Archived `docs/loom/` files to `docs/archive/loom/` with header notes pointing to consolidated doc
+- Admin module: updated Flyway migration location and Jackson serialization settings
+- Admin module: enhanced error handling and configuration
+- Updated `mint-admin-web` vite config to use environment variable for API proxy target
+- Added Byte Buddy dependency and excluded `slf4j-simple` from `cashu-lib-common`
+- Converted `cashu-mint-admin` from git submodule to regular directory
+
+### Removed
+
+- Deleted `docs/explanations/voucher-mint-quote-overview.md` (merged into percentage doc)
+- Removed `docs/loom/` directory (archived to `docs/archive/loom/`)
+
+---
+
+## [0.13.0] - 2026-02-16
+
+### Added
+
+- Integrated `cashu-mint-admin` as a git submodule with CLI, REST API, web UI, and test modules
+- Added `mint-admin-web` and `mint-admin-tests` to the Maven reactor
+- New documentation: getting started tutorial, architecture overview, NUT implementation guide, E2E test guide, environment variables reference
+- Admin module documentation: CLI command reference, REST API reference, configuration reference, architecture explanation
+
+### Changed
+
+- Enhanced error handling and updated database configuration for PostgreSQL
+- Overhauled `docs/` directory — expanded skeleton files, removed misplaced content, consolidated trivial docs
+- Updated CLAUDE.md docs file count from 21 to 32
+
+### Removed
+
+- Removed misplaced imani-bridge files (`SECURE_CODING.md`, `security-implementation-plan.md`)
+- Removed unfilled `baseline-metrics.md` template
+- Consolidated `java-version.md`, `license.md`, and `disclaimer.md` into parent docs
+
+---
+
 ## [0.12.2] - 2026-02-03
 
 ### Changed

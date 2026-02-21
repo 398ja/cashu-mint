@@ -2,8 +2,6 @@
 
 cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/cashubtc/nuts) that packages the protocol, observability, and a Spring Boot REST API for running a mint.
 
-The protocol exposes a shared `SignatureVaultService` so signatures minted in one request can be restored later. When calling `NUT04.mint`, `NUT09.restore`, or other protocol helpers directly, pass the same `SignatureVaultService` instance to persist signatures across requests.
-
 ## Modules
 
 - `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09/12/17), tasks, and vault/gateway integrations.
@@ -13,7 +11,17 @@ The protocol exposes a shared `SignatureVaultService` so signatures minted in on
 - `cashu-mint-tools` – deterministic preload generator and SQL renderer for seeding the vault with reproducible keysets.
 - `cashu-mint-rest-it` – integration test harness for the REST module (voucher profile, H2, and Spring context tests).
 
-Administrative APIs live in the separate [`cashu-mint-admin`](https://github.com/cashubtc/cashu-mint-admin) project. The Compose files in this repo reference the published `cashu-mint-admin-rest` image but no admin code ships here.
+### Admin modules (`cashu-mint-admin/`)
+
+The `cashu-mint-admin` directory contains the administrative layer for managing mint lifecycle, configuration, users, and alerts:
+
+- `mint-admin-core` – domain model, use case ports, services, and Flyway migrations.
+- `mint-admin-cli` – Picocli command-line interface with stub and HTTP adapters.
+- `mint-admin-rest` – Spring Boot REST API (port 7778).
+- `mint-admin-web` – React/TypeScript web admin interface.
+- `mint-admin-tests` – integration and E2E test harnesses.
+
+See [`cashu-mint-admin/docs/README.md`](cashu-mint-admin/docs/README.md) for admin-specific documentation. The Docker Compose files in this repo include the published `cashu-mint-admin-rest` image in the dev stack.
 
 ## Run the stack locally
 
@@ -81,6 +89,12 @@ cashu.websocket.allowed-origins=https://your-app.com
 
 New subscribers receive the current state of subscribed items immediately, then real-time updates as states change.
 
+## Signature persistence and wallet recovery
+
+The protocol stores every blind signature produced during minting and swapping in a shared `SignatureVaultService`. This store is what makes wallet recovery ([NUT-09](https://github.com/cashubtc/nuts/blob/main/09.md)) possible: a wallet that loses its local data can re-derive the same blinded messages and ask the mint to return the original signatures.
+
+When using the REST API this is handled automatically — Spring injects a single `SignatureVaultService` bean into every controller. If you call protocol helpers like `NUT04.mint`, `NUT03.swap`, or `NUT09.restore` directly, you must pass the **same** `SignatureVaultService` instance to all of them so that signatures stored during minting can be retrieved during recovery.
+
 ## Security
 
 The mint implements security controls aligned with the [Oracle Java Secure Coding Guidelines](https://www.oracle.com/java/technologies/javase/seccodeguide.html):
@@ -95,11 +109,20 @@ The mint implements security controls aligned with the [Oracle Java Secure Codin
 
 See `audits/AUDIT_REPORT_java-secure-coding-guidelines.md` for the full compliance report.
 
-## Docs and tooling
+## Documentation
 
-- Documentation follows the Diátaxis structure in `docs/README.md`.
-- Gateway mapping overrides are documented in `docs/how-to/configure-gateways.md`.
-- Preload generation commands live in `cashu-mint-tools` (see `docs/reference/tools.md`).
+Documentation is organized using the [Diataxis framework](https://diataxis.fr/) under [`docs/`](docs/README.md):
+
+- **Tutorials** — Getting started, Docker Compose, WebSocket client example
+- **How-to guides** — Development workflow, testing, deployment, gateway adapters, troubleshooting
+- **Reference** — REST API, error codes, glossary, configuration, environment variables, NUT implementations
+- **Explanations** — Architecture, voucher system, webhooks, virtual threads, security
+
+See [`docs/reference/glossary.md`](docs/reference/glossary.md) for Cashu and ecash terminology.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming, commit conventions, PR process, and code standards.
 
 Run the full build before opening a PR:
 

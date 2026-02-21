@@ -1,0 +1,203 @@
+package xyz.tcheeric.cashu.mint.admin.rest.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.web.servlet.MvcResult;
+
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
+import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
+import xyz.tcheeric.cashu.mint.admin.domain.MintId;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
+import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
+import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
+
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@AutoConfigureMockMvc
+@Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminLifecycleService.class})
+@TestPropertySource(properties = "admin.security.api-token=test-token")
+class LifecycleAdminControllerTest {
+
+    private static final String ADMIN_TOKEN = "test-token";
+    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String MINT_ID_1 = "11111111-1111-1111-1111-111111111111";
+    private static final String MINT_ID_2 = "22222222-2222-2222-2222-222222222222";
+    private static final String MISSING_MINT_ID = "99999999-9999-9999-9999-999999999999";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private MintRepository mintRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // Verifies that lifecycle endpoints reject unauthenticated calls.
+    @Test
+    @DisplayName("Lifecycle create requires authentication")
+    void createMintRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/admin/lifecycle/mints")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createMintJson(MINT_ID_1)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // Ensures lifecycle create requires an RBAC role when authenticated.
+    @Test
+    @DisplayName("Lifecycle create requires role header")
+    void createMintRequiresRole() throws Exception {
+        mockMvc.perform(post("/admin/lifecycle/mints")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createMintJson(MINT_ID_1)))
+                .andExpect(status().isForbidden());
+    }
+
+    // Verifies pause endpoint updates lifecycle state when proper credentials and roles are supplied.
+    @Test
+    @DisplayName("Lifecycle pause returns transition summary")
+    void pauseMintReturnsLifecycleResponse() throws Exception {
+        mockMvc.perform(post("/admin/lifecycle/mints")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createMintJson(MINT_ID_1)))
+                .andExpect(status().isOk());
+
+        // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
+        markProvisioned(MINT_ID_1);
+
+        // Activate first (PROVISIONED -> ACTIVE), then pause
+        mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/resume")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(lifecycleChangeJson("activation")))
+                .andExpect(status().isOk());
+
+        final MvcResult pauseResult = mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/pause")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(lifecycleChangeJson("maintenance")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation").value("PAUSE"))
+                .andExpect(jsonPath("$.message").value("Mint paused"))
+                .andExpect(jsonPath("$.currentState").value("SUSPENDED"))
+                .andExpect(header().exists(AdminCorrelationIdFilter.CORRELATION_ID_HEADER))
+                .andReturn();
+
+        final String correlationHeader = pauseResult.getResponse()
+            .getHeader(AdminCorrelationIdFilter.CORRELATION_ID_HEADER);
+        assertThat(correlationHeader).isNotBlank();
+    }
+
+    // Ensures provided correlation identifiers flow back to the caller unchanged.
+    @Test
+    @DisplayName("Lifecycle pause reuses provided correlation header")
+    void pauseMintHonoursProvidedCorrelationId() throws Exception {
+        mockMvc.perform(post("/admin/lifecycle/mints")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createMintJson(MINT_ID_2)))
+                .andExpect(status().isOk());
+
+        // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
+        markProvisioned(MINT_ID_2);
+
+        // Activate first (PROVISIONED -> ACTIVE), then pause
+        mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/resume")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(lifecycleChangeJson("activation")))
+                .andExpect(status().isOk());
+
+        final String provided = "manual-correlation";
+
+        mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/pause")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .header(AdminCorrelationIdFilter.CORRELATION_ID_HEADER, provided)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(lifecycleChangeJson("manual")))
+                .andExpect(status().isOk())
+                .andExpect(header().string(AdminCorrelationIdFilter.CORRELATION_ID_HEADER, provided));
+    }
+
+    // Ensures lifecycle update failures surface structured error responses consistent with CLI messaging.
+    @Test
+    @DisplayName("Lifecycle update returns structured not-found error")
+    void updateMintReturnsStructuredError() throws Exception {
+        mockMvc.perform(put("/admin/lifecycle/mints/" + MISSING_MINT_ID)
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "requestedBy": {"id":"%s","displayName":"Ops"},
+                                  "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
+                                  "configuration": {"versionTag":"v2"},
+                                  "revisionId": "rev-2"
+                                }
+                                """.formatted(OPERATOR_ID)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.code").value("mint_not_found"));
+    }
+
+    private String createMintJson(final String mintId) {
+        return """
+            {
+              "mintId": "%s",
+              "requestedBy": {"id":"%s","displayName":"Ops"},
+              "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
+              "configuration": {"versionTag":"2024-Q1"}
+            }
+            """.formatted(mintId, OPERATOR_ID);
+    }
+
+    private String lifecycleChangeJson(final String reason) {
+        return """
+            {
+              "requestedBy": {"id":"%s","displayName":"Ops"},
+              "reason": "%s"
+            }
+            """.formatted(OPERATOR_ID, reason);
+    }
+
+    // Simulates vault provisioning completion by advancing PROVISIONING → PROVISIONED.
+    private void markProvisioned(final String mintId) {
+        final MintAggregate aggregate = mintRepository.findById(MintId.fromString(mintId))
+            .orElseThrow(() -> new IllegalStateException("mint not found: " + mintId));
+        final AuditMetadata audit = new AuditMetadata("system", "Vault provisioned", Instant.now());
+        mintRepository.save(aggregate.markProvisioned(audit));
+    }
+}

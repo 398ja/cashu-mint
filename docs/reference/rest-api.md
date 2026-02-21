@@ -133,7 +133,67 @@ Issue a voucher (gift card) signed by the mint's issuer key.
 ### `GET /v1/vouchers/{voucherId}/status`
 Return the status of a voucher from the Nostr ledger (`ISSUED`, `REDEEMED`, `REVOKED`, `EXPIRED`).
 
+## WebSocket Subscriptions (NUT-17)
+
+### `ws://localhost:7777/v1/ws`
+JSON-RPC 2.0 WebSocket endpoint for real-time state change notifications.
+
+**Supported subscription kinds:**
+- `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT.
+- `bolt11_mint_quote` — Notifies when mint quotes change state (UNPAID -> PAID -> ISSUED).
+- `bolt11_melt_quote` — Notifies when melt quotes change state (UNPAID -> PENDING -> PAID).
+
+**Subscribe:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "sub-1",
+  "method": "subscribe",
+  "params": {
+    "kind": "proof_state",
+    "filters": [{"ids": ["y-value-1", "y-value-2"]}]
+  }
+}
+```
+
+**Unsubscribe:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "unsub-1",
+  "method": "unsubscribe",
+  "params": { "subId": "proof_state-abc123" }
+}
+```
+
+**Configuration:**
+- `cashu.websocket.enabled` (default: `true`) — enable/disable the endpoint.
+- `cashu.websocket.allowed-origins` (default: `*`) — restrict in production.
+
+See the [WebSocket client tutorial](../tutorials/websocket-client-example.md) for a complete walkthrough.
+
 ## Errors
 
-- Unpaid Lightning invoices return `402 Payment Required` with error code `mint_invoice_not_paid_error`.
-- Validation errors return `400 Bad Request`; not-found resources return `404 Not Found`.
+All error responses use the following JSON shape:
+
+```json
+{
+  "code": "error_code_here",
+  "message": "Human-readable description"
+}
+```
+
+| HTTP Status | When |
+|-------------|------|
+| 400 | Validation errors, invalid input |
+| 402 | Invoice not paid (Lightning payment required) |
+| 404 | Resource not found (mint, keyset, quote) |
+| 500 | Internal server error |
+
+For the complete list of error codes, causes, and resolutions, see the [Error codes reference](error-codes.md).
+
+## See Also
+
+- [Error codes reference](error-codes.md)
+- [Supported NUTs](nuts.md)
+- [Glossary](glossary.md)

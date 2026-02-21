@@ -74,6 +74,18 @@
       "name": "webhook.wid",
       "type": "java.lang.String",
       "description": "Webhook identifier consumed by gateway callbacks."
+    },
+    {
+      "name": "cashu.websocket.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Enable NUT-17 WebSocket subscriptions for real-time state updates."
+    },
+    {
+      "name": "cashu.websocket.allowed-origins",
+      "type": "java.lang.String",
+      "defaultValue": "*",
+      "description": "Comma-separated list of allowed WebSocket origins. Restrict in production."
     }
   ]
 }

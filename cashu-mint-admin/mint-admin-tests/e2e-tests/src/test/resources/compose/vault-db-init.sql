@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS e2e_bootstrap_marker (
+    id INTEGER PRIMARY KEY,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO e2e_bootstrap_marker (id) VALUES (1)
+ON CONFLICT (id) DO NOTHING;
