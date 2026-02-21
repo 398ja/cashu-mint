@@ -114,7 +114,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             } else {
                 // Regular tokens require real Lightning payment per NUT-04
                 // First check webhook cache (instant), then fall back to gateway polling
-                boolean paid = false;
+                boolean paid;
 
                 if (paymentStatusChecker != null && paymentStatusChecker.isPaid(quoteId)) {
                     log.debug("Payment confirmed via webhook cache: quoteId={}", quoteId);

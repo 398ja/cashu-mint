@@ -51,9 +51,19 @@ public class MintTaskConcurrencyTest {
 
     private static final String VALID_KEYSET_ID = "004cf8cba2f93266";
 
+    // Distinct valid secp256k1 public keys so each blinded message gets a unique vault storage key
+    private static final String[] DISTINCT_PUBKEYS = {
+            "02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2",
+            "03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7",
+            "025f9d298d8d9e774c81ee64927a27e6e6b6e18f65447eb6a16808f92b84e44112",
+            "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+    };
+    private final AtomicInteger pubkeyIndex = new AtomicInteger(0);
+
     @AfterEach
     void tearDown() {
         VoucherQuoteRegistry.clear();
+        pubkeyIndex.set(0);
     }
 
     private Mint createMintWithKeys() {
@@ -72,10 +82,12 @@ public class MintTaskConcurrencyTest {
     }
 
     private BlindedMessage createBlindedMessage(int amount) {
+        // Use distinct public keys to avoid vault storage key collisions
+        String pubkey = DISTINCT_PUBKEYS[pubkeyIndex.getAndIncrement() % DISTINCT_PUBKEYS.length];
         return new BlindedMessage(
                 amount,
                 KeysetId.fromString(VALID_KEYSET_ID),
-                PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"),
+                PublicKey.fromString(pubkey),
                 null
         );
     }

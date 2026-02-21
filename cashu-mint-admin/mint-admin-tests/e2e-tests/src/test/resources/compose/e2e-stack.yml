@@ -1,0 +1,221 @@
+services:
+  cashu-vault-db:
+    image: postgres:${POSTGRES_VERSION}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_vault"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - cashu
+
+  payment-adapter-db:
+    image: postgres:${POSTGRES_VERSION}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_gateway
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - cashu
+
+  admin-db:
+    image: postgres:${POSTGRES_VERSION}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_admin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_admin"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - cashu
+
+  vault-db-init:
+    image: postgres:${POSTGRES_VERSION}
+    depends_on:
+      cashu-vault-db:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ./vault-db-init.sql:/sql/vault-db-init.sql:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -v ON_ERROR_STOP=1 -f /sql/vault-db-init.sql"]
+    restart: "no"
+    networks:
+      - cashu
+
+  vault-db-seed:
+    image: postgres:${POSTGRES_VERSION}
+    depends_on:
+      vault-db-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_vault
+      PGPASSWORD: postgres
+    volumes:
+      - ./vault-db-seed.sql:/sql/vault-db-seed.sql:ro
+    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -v ON_ERROR_STOP=1 -f /sql/vault-db-seed.sql"]
+    restart: "no"
+    networks:
+      - cashu
+
+  cashu-vault-jpa:
+    image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION}
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      CASHU_VAULT_PORT: 3333
+      SERVER_PORT: 3333
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+    depends_on:
+      vault-db-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "URL=http://localhost:3333/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - cashu
+
+  phoenixd-mock:
+    image: docker.398ja.xyz/phoenixd-mock:${PHOENIXD_VERSION}
+    entrypoint: ["java", "-cp", "@/app/jib-classpath-file", "xyz.tcheeric.phoenixd.mock.Main"]
+    environment:
+      PHOENIXD_PORT: 9740
+      SERVER_ADDRESS: 0.0.0.0
+    networks:
+      cashu:
+        aliases:
+          - phoenixd
+
+  payment-adapter-rest:
+    image: docker.398ja.xyz/payment-adapter-rest:${PAYMENT_ADAPTER_VERSION}
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      PAYMENT_ADAPTER_PORT: 8080
+      GATEWAY_API_BASE_URL: http://payment-adapter-rest:8080
+      SERVER_ADDRESS: 0.0.0.0
+      PAYMENT_ADAPTER_PROVIDER: mock
+      PHOENIXD_BASE_URL: http://phoenixd-mock:9740
+      PHOENIXD_API_KEY: ""
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-adapter-db:5432/cashu_gateway
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SERVER_PORT: 8080
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      GATEWAY_WALLET_MOCK_PAYMENT_ENABLED: "true"
+      GATEWAY_WALLET_MOCK_PAYMENT_PHOENIXD_URL: http://phoenixd-mock:9740
+      WEBHOOK_URL: http://cashu-mint-rest:7777/webhook/payment
+      WEBHOOK_SECRET: e2e-webhook-secret
+      WEBHOOK_ENABLED: "true"
+    depends_on:
+      payment-adapter-db:
+        condition: service_healthy
+      phoenixd-mock:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "URL=http://localhost:8080/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - cashu
+
+  cashu-mint-rest:
+    image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION}
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
+      SERVER_PORT: 7777
+      SERVER_ADDRESS: 0.0.0.0
+      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:3333
+      VAULT_BASE_URL: http://cashu-vault-jpa:3333
+      PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:8080
+      GATEWAY_API_BASE_URL: http://payment-adapter-rest:8080
+      GATEWAY_BOLT11_SAT: xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+      GATEWAY_BOLT11: xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+      PHOENIXD_BASE_URL: http://phoenixd-mock:9740
+      PHOENIXD_API_TOKEN: local-token
+      PHOENIXD_LNADDRESS: off
+      MINT_WEBHOOK_SECRET: e2e-webhook-secret
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      CASHU_WEBSOCKET_ENABLED: "false"
+    depends_on:
+      vault-db-seed:
+        condition: service_completed_successfully
+      payment-adapter-rest:
+        condition: service_healthy
+      phoenixd-mock:
+        condition: service_started
+    volumes:
+      - ./preload-test-data.json:/app/scripts/preload-test-data.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "URL=http://localhost:7777/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - cashu
+
+  mint-admin-rest:
+    image: docker.398ja.xyz/cashu-mint-admin-rest:${CASHU_MINT_ADMIN_VERSION}
+    environment:
+      SERVER_PORT: 7778
+      SERVER_ADDRESS: 0.0.0.0
+      # Use H2 until published image includes PostgreSQL driver
+      DATASOURCE_URL: "jdbc:h2:mem:cashu_admin_e2e;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+      DATASOURCE_USERNAME: sa
+      DATASOURCE_PASSWORD: ""
+      DATASOURCE_DRIVER: org.h2.Driver
+      ADMIN_API_TOKEN: e2e-admin-token
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      CASHU_VAULT_BASE_URL: "http://cashu-vault-jpa:3333"
+    depends_on:
+      cashu-vault-jpa:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "URL=http://localhost:7778/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - cashu
+
+networks:
+  cashu:
+    driver: bridge

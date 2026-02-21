@@ -528,7 +528,7 @@ The mint exposes a shared `SignatureVaultService` bean to persist signatures acr
 ## Special Directories
 
 - `scripts/` - Build automation and SQL rendering helpers
-- `docs/` - Diátaxis-organized documentation (21 files)
+- `docs/` - Diátaxis-organized documentation (32 files)
 - `.github/workflows/` - CI/CD: tests, formatting, releases, conventional commits
 
 ## Docker
