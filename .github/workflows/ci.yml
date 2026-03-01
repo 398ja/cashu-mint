@@ -31,21 +31,21 @@ jobs:
           fi
       - name: Upload pinning detection log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pinning-detection-log
           path: pinning-detection.log
           if-no-files-found: ignore
       - name: Upload surefire reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: '**/target/surefire-reports'
           if-no-files-found: ignore
       - name: Upload JaCoCo coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jacoco-exec
           path: '**/target/jacoco.exec'
