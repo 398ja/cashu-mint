@@ -49,4 +49,17 @@ public class DefaultProofVaultService implements ProofVaultService {
             return null;
         }
     }
+
+    @Override
+    public ProofEntity retrieveProofByY(String yHex) throws CashuErrorException {
+        try {
+            // NUT-07 receives the hash-to-curve point Y directly from the client.
+            // Passing it through retrieveProof() would re-run hash_to_curve and
+            // silently miss every lookup, so DBProofVault is queried directly.
+            return DBProofVault.retrieveProof(yHex);
+        } catch (CashuErrorException e) {
+            log.warn("DefaultProofVaultService: failed to retrieve proof by Y {}: {}", yHex, e.getMessage());
+            return null;
+        }
+    }
 }
