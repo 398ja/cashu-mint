@@ -91,7 +91,13 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             log.debug("Voucher issuer signature verified: voucherId={}", voucherSecret.getVoucherId());
         }
 
-        // 3. Check if proof has been used already (double-spend prevention)
+        // 3. Check if proof has been used already (double-spend prevention).
+        //    Only STATE_SPENT is terminal — PENDING means another in-flight
+        //    operation is still resolving and InvalidateProofsTask will
+        //    re-invalidate idempotently from PENDING when the swap actually
+        //    commits. Throwing here on PENDING would block legitimate retries
+        //    and ignores the state machine that the storage path already
+        //    encodes (see InvalidateProofsTask.storeAndInvalidateIdempotent).
         ProofEntity proofEntity;
         try {
             proofEntity = proofVaultService.retrieveProof(secret.toString());
@@ -100,13 +106,19 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             proofEntity = null;
         }
 
-        if (proofEntity != null) {
-            log.error("verify_proof_already_used_error voucher_proof amount={}", proof.getAmount());
+        if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
+            log.error("verify_proof_already_used_error voucher_proof amount={} state={}",
+                    proof.getAmount(), proofEntity.getState());
             ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
             throw new CashuErrorException(error.toJson());
         }
 
-        log.debug("Voucher proof has not been used...");
+        if (proofEntity != null) {
+            log.debug("Voucher proof exists in non-terminal state {} — allowing through for idempotent retry",
+                    proofEntity.getState());
+        } else {
+            log.debug("Voucher proof has not been used...");
+        }
 
         // 4. Validate keyset ID
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {

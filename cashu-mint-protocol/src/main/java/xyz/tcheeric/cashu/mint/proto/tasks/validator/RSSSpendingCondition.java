@@ -37,7 +37,9 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         log.debug("Verify proof {}", proof);
 
-        // Check if proof has been used already
+        // Check if proof has been used already. Only STATE_SPENT is terminal —
+        // PENDING means another in-flight operation is still resolving and
+        // InvalidateProofsTask handles idempotent recovery downstream.
         Secret secret = proof.getSecret();
         ProofEntity proofEntity;
         try {
@@ -48,13 +50,18 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
             proofEntity = null;
         }
         log.debug("Proof entity {}...", proofEntity);
-        if (proofEntity != null) {
-            log.error("verify_proof_already_used_error");
+        if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
+            log.error("verify_proof_already_used_error state={}", proofEntity.getState());
             ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
             throw new CashuErrorException(error.toJson());
         }
 
-        log.debug("The proof has not yet been used...");
+        if (proofEntity != null) {
+            log.debug("Proof exists in non-terminal state {} — allowing through for idempotent retry",
+                    proofEntity.getState());
+        } else {
+            log.debug("The proof has not yet been used...");
+        }
 
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");
