@@ -86,7 +86,7 @@ public class RSSSpendingConditionTest {
     }
 
     /**
-     * Ensures a proof already stored in the vault triggers a reuse error.
+     * Ensures a proof already SPENT in the vault triggers a reuse error.
      */
     @Test
     public void verifyUsedProof() throws CashuErrorException {
@@ -97,7 +97,9 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(new ProofEntity());
+        ProofEntity spent = new ProofEntity();
+        spent.setState(ProofEntity.STATE_SPENT);
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(spent);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -106,6 +108,37 @@ public class RSSSpendingConditionTest {
             bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
 
             assertThrows(CashuErrorException.class, () -> cond.verify(proof));
+        }
+    }
+
+    /**
+     * Verifies that a PENDING proof is NOT treated as terminal already-used.
+     * The downstream InvalidateProofsTask handles idempotent recovery from
+     * PENDING (see storeAndInvalidateIdempotent). Rejecting here would block
+     * legitimate saga retries.
+     */
+    @Test
+    public void verifyPendingProofPassesThrough() throws CashuErrorException {
+        String kid = "ks1";
+        Mint mint = createMint(kid);
+        RSSProof proof = createProof(kid);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
+
+        ProofEntity pending = new ProofEntity();
+        pending.setState(ProofEntity.STATE_PENDING);
+        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(pending);
+
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
+                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
+            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
+
+            // Must not throw verify_proof_already_used_error — the rest of
+            // verify() runs and reaches BDHKE verification (mocked to true).
+            cond.verify(proof);
         }
     }
 }
