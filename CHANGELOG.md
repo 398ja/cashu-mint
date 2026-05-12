@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.14.2] - 2026-05-12
+
+### Fixed
+
+- `CheckStateTask` (NUT-07 `/v1/checkstate`) was passing the already-computed hash-to-curve point `Y` back through `DefaultProofVaultService.retrieveProof()`, which calls `SecretUtil.toYFromString` (= `hash_to_curve`) again. The second hash produced a point that no stored proof was keyed under, so every checkstate response was a false `UNSPENT` regardless of the proof's actual state. Wallets relying on NUT-07 as a pre-spend oracle were flying blind, only learning that proofs were SPENT/PENDING when the subsequent swap rejected them.
+- `VoucherSpendingCondition.verify()` rejected proofs with `verify_proof_already_used_error` for *any* existing `ProofEntity`, not just terminal `STATE_SPENT`. This blocked legitimate saga retries when the same proofs were still in `STATE_PENDING` from a prior in-flight attempt. The condition now only rejects on `STATE_SPENT`, mirroring `InvalidateProofsTask.storeAndInvalidateIdempotent()`'s idempotent recovery path.
+- `RSSSpendingCondition.verify()` had the same PENDING-treated-as-terminal bug; same fix applied.
+
+### Added
+
+- `ProofVaultService.retrieveProofByY(yHex)` — new lookup method for callers that already hold the hash-to-curve point Y (NUT-07 wire shape). Skips the hash step that `retrieveProof(secret)` applies for raw-secret callers. `CheckStateTask` now uses this method.
+- `DefaultProofVaultServiceTest` — regression coverage proving `SecretUtil.toYFromString` is not idempotent on Y, and pinning the contract for both lookup methods.
+
+---
+
 ## [0.14.1] - 2026-02-18
 
 ### Added

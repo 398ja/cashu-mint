@@ -42,7 +42,7 @@ public class CheckStateTaskTest {
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
-        when(proofVaultService.retrieveProof(secret.toString())).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProofByY(secret.toString())).thenReturn(proofEntity);
         when(proofEntity.getState()).thenReturn(ProofEntity.STATE_PENDING);
         when(proofEntity.getWitness()).thenReturn("wit");
 
@@ -50,7 +50,7 @@ public class CheckStateTaskTest {
         PostCheckStateResponse response = task.execute();
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProof(secret.toString());
+        verify(proofVaultService).retrieveProofByY(secret.toString());
 
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
@@ -75,7 +75,7 @@ public class CheckStateTaskTest {
 
         // Mock the ProofVaultService to throw a runtime error
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        when(proofVaultService.retrieveProof(secret.toString()))
+        when(proofVaultService.retrieveProofByY(secret.toString()))
                 .thenThrow(new IllegalStateException("fail"));
 
         // Execute
@@ -83,7 +83,7 @@ public class CheckStateTaskTest {
         assertThrows(IllegalStateException.class, task::execute);
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProof(secret.toString());
+        verify(proofVaultService).retrieveProofByY(secret.toString());
     }
 
     // Ensures missing proofs are reported as unspent when the vault returns null.
@@ -100,13 +100,13 @@ public class CheckStateTaskTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        when(proofVaultService.retrieveProof(secret.toString())).thenReturn(null);
+        when(proofVaultService.retrieveProofByY(secret.toString())).thenReturn(null);
 
         CheckStateTask task = new CheckStateTask(mintId, request, mintProtocolService, proofVaultService, mintVaultService);
         PostCheckStateResponse response = task.execute();
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProof(secret.toString());
+        verify(proofVaultService).retrieveProofByY(secret.toString());
 
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
         assertEquals(NUT07.UNSPENT, state.getState());
