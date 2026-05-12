@@ -136,7 +136,7 @@ class VoucherSpendingConditionTest {
     }
 
     /**
-     * Verifies that a voucher proof that was already used is rejected.
+     * Verifies that a voucher proof that was already spent (terminal state) is rejected.
      */
     @Test
     void verify_AlreadyUsedProof_ThrowsException() throws CashuErrorException {
@@ -145,12 +145,45 @@ class VoucherSpendingConditionTest {
         String keysetId = "00abc123def45678";
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
-        // Mock: proof already used
+        // Mock: proof in terminal STATE_SPENT
+        ProofEntity spent = new ProofEntity();
+        spent.setState(ProofEntity.STATE_SPENT);
         Mockito.when(mockProofVaultService.retrieveProof(anyString()))
-                .thenReturn(new ProofEntity());
+                .thenReturn(spent);
 
         // Act & Assert
-        assertThrows(CashuErrorException.class, () -> condition.verify(proof));
+        CashuErrorException ex = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
+        assertTrue(ex.getMessage().contains("verify_proof_already_used_error"),
+                "Exception should indicate verify_proof_already_used_error");
+    }
+
+    /**
+     * Verifies that a voucher proof in STATE_PENDING is NOT rejected by the
+     * spending condition. PENDING means another in-flight operation has the
+     * proof locked; InvalidateProofsTask handles idempotent recovery downstream.
+     * Rejecting here would block legitimate retries (e.g. saga resumes after a
+     * transient backend hiccup).
+     */
+    @Test
+    void verify_PendingProof_DoesNotThrowAlreadyUsed() throws CashuErrorException {
+        int amount = 8;
+        String keysetId = "00abc123def45678";
+        Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
+
+        ProofEntity pending = new ProofEntity();
+        pending.setState(ProofEntity.STATE_PENDING);
+        Mockito.when(mockProofVaultService.retrieveProof(anyString()))
+                .thenReturn(pending);
+
+        // The spending condition may still fail later for an unrelated reason
+        // (no real keyset, no real BDHKE proof) — the assertion is that
+        // whatever it throws is NOT verify_proof_already_used_error.
+        try {
+            condition.verify(proof);
+        } catch (CashuErrorException ex) {
+            assertTrue(!ex.getMessage().contains("verify_proof_already_used_error"),
+                    "PENDING must not be treated as terminal already-used; got: " + ex.getMessage());
+        }
     }
 
     /**

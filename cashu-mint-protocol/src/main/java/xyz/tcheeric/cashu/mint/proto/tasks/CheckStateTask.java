@@ -62,7 +62,10 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
             PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
             state.setHashToCurveSecret(hash);
             ProofEntity proofEntity;
-            proofEntity = proofVaultService.retrieveProof(hash.toString());
+            // NUT-07: `hash` is already the hash-to-curve point Y supplied by the
+            // client. retrieveProof(...) hashes its input again, which silently
+            // misses every entry; use retrieveProofByY to look up the raw Y.
+            proofEntity = proofVaultService.retrieveProofByY(hash.toString());
             if (proofEntity == null) {
                 state.setState(NUT07.UNSPENT);
             } else {
