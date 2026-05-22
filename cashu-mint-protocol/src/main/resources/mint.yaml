@@ -48,6 +48,12 @@ mint:
       supported: true
     10:
       supported: true
+    11:
+      # NUT-11 P2PK spending conditions (verified by P2PKSpendingCondition
+      # + VerifyProofsTask). Advertised honestly so clients that gate P2PK
+      # use on /v1/info — including imani-gateway-core's spec-029 in-person
+      # delivery saga branch — can pick the right code path.
+      supported: true
     12:
       supported: true
     17:
