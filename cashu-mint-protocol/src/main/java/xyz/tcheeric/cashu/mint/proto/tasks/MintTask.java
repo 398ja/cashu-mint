@@ -13,13 +13,22 @@ import xyz.tcheeric.cashu.common.util.SplittingService;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
+import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
+import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
+import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.OutputsHash;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -34,6 +43,8 @@ import java.util.stream.Collectors;
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
 @Slf4j
 public class MintTask<T extends Secret> extends InstrumentedTask<PostMintResponse> {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private final PostMintRequest<T> postMintRequest;
     private final PaymentMethod method;
     private final String unit;
@@ -41,6 +52,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
     private final PaymentStatusChecker paymentStatusChecker;
+    private final MintQuoteRepository mintQuoteRepository;
+    private final IssuanceRecordRepository issuanceRecordRepository;
     private final SplittingService splittingService = new SplittingService();
 
 
@@ -49,7 +62,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null);
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -58,7 +71,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -68,6 +81,27 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker) {
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null);
+    }
+
+    /**
+     * Spec 001 constructor: when {@code mintQuoteRepository} and
+     * {@code issuanceRecordRepository} are non-null, MintTask enforces FR-001
+     * (sum of output amounts == quote.amount), FR-002 (single-use via
+     * compare-and-set lifecycle transitions), and FR-011 (one IssuanceRecord
+     * per quote). Production wires both ports when
+     * {@code cashu.mint.jpa.enabled=true}; legacy unit-test constructors leave
+     * them null so the existing test surface keeps working.
+     */
+    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
+                    @NonNull PaymentMethod method,
+                    String unit,
+                    @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    PaymentStatusChecker paymentStatusChecker,
+                    MintQuoteRepository mintQuoteRepository,
+                    IssuanceRecordRepository issuanceRecordRepository) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.unit = unit;
@@ -75,6 +109,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
         this.paymentStatusChecker = paymentStatusChecker;
+        this.mintQuoteRepository = mintQuoteRepository;
+        this.issuanceRecordRepository = issuanceRecordRepository;
     }
 
     @Override
@@ -135,6 +171,46 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
             }
 
+            // Spec 001 FR-001/FR-002/FR-011: bind issuance to the durable quote
+            // amount and consume the quote at most once. When the JPA module is
+            // wired in, the repository is non-null and amount-binding is
+            // enforced; legacy unit-test contexts (repo == null) preserve the
+            // original behavior.
+            String outputsHash = null;
+            MintQuote durableQuote = null;
+            if (!isVoucherQuote && mintQuoteRepository != null) {
+                durableQuote = mintQuoteRepository.findById(quoteId).orElse(null);
+                if (durableQuote == null) {
+                    log.warn("mint_task missing_durable_quote quote_id={}", quoteId);
+                    throw new CashuErrorException(new ErrorResponse("quote_not_found").toJson());
+                }
+                long requestedTotal = blindedMessages.stream()
+                        .mapToLong(BlindedMessage::getAmount)
+                        .sum();
+                if (requestedTotal != durableQuote.amount()) {
+                    log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
+                            quoteId, durableQuote.amount(), requestedTotal);
+                    throw new CashuErrorException(
+                            new ErrorResponse("amount_mismatch",
+                                    "Sum of blinded output amounts must equal the quote amount").toJson());
+                }
+                outputsHash = OutputsHash.compute(blindedMessages);
+                int updated = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.PAID, LifecycleState.ISSUING);
+                if (updated == 0) {
+                    MintQuote refreshed = mintQuoteRepository.findById(quoteId).orElse(durableQuote);
+                    if (refreshed.lifecycleState() == LifecycleState.ISSUED
+                            && issuanceRecordRepository != null) {
+                        IssuanceRecord existing = issuanceRecordRepository.findById(quoteId).orElse(null);
+                        if (existing != null && existing.outputsHash().equals(outputsHash)) {
+                            log.info("[mint][replay] quote_id={} outputs_hash={}", quoteId, outputsHash);
+                            return decodeSignatures(existing.signaturesJson());
+                        }
+                        throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                    }
+                    throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+                }
+            }
+
             // Check if this is a voucher quote and validate against face value
             Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
             if (voucherFaceValue != null) {
@@ -182,8 +258,66 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.debug("Cleaned up voucher quote from registry: quoteId={}", quoteId);
             }
 
+            // FR-002 / FR-011 — persist the ledger row and finish the lifecycle
+            // transition. We do this after signing so the row is only written
+            // for successful issuances. On commit failure the quote stays in
+            // ISSUING and surfaces to the operator (no auto-rollback because
+            // signing has already happened; ISSUING is an operator-triage state).
+            if (durableQuote != null && issuanceRecordRepository != null) {
+                IssuanceRecordRow row = new IssuanceRecordRow(
+                        quoteId,
+                        outputsHash,
+                        encodeSignatures(result.getBlindSignatures()),
+                        firstKeysetId(blindedMessages),
+                        durableQuote.amount());
+                issuanceRecordRepository.insertIfAbsent(row);
+                int closed = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.ISSUING, LifecycleState.ISSUED);
+                if (closed == 0) {
+                    log.warn("mint_task lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                }
+            }
+
             return result;
         } // QuoteLock auto-released here
+    }
+
+    private static String firstKeysetId(List<BlindedMessage> outputs) {
+        return outputs.get(0).getKeySetId().toString();
+    }
+
+    private static String encodeSignatures(List<BlindSignature> signatures) {
+        try {
+            return JSON.writeValueAsString(signatures);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize BlindSignature list", e);
+        }
+    }
+
+    private PostMintResponse decodeSignatures(String json) throws CashuErrorException {
+        try {
+            List<BlindSignature> sigs = JSON.readValue(json,
+                    JSON.getTypeFactory().constructCollectionType(List.class, BlindSignature.class));
+            PostMintResponse replay = new PostMintResponse();
+            sigs.forEach(replay::addBlindSignature);
+            return replay;
+        } catch (JsonProcessingException e) {
+            log.error("[mint][replay] failed_to_decode_signatures", e);
+            throw new CashuErrorException(new ErrorResponse("internal_error").toJson());
+        }
+    }
+
+    /** Inline {@link IssuanceRecord} for the happy-path persistence call. */
+    private record IssuanceRecordRow(
+            String quoteId,
+            String outputsHash,
+            String signaturesJson,
+            String keysetId,
+            long totalAmount) implements IssuanceRecord {
+
+        @Override
+        public java.time.Instant issuedAt() {
+            return null; // populated by the adapter / DB default
+        }
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {

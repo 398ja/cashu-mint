@@ -3,8 +3,8 @@ package xyz.tcheeric.cashu.mint.webhook;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -14,41 +14,41 @@ import java.security.MessageDigest;
 import java.util.Base64;
 
 /**
- * Validates HMAC signatures on incoming webhooks.
- *
- * <p>If no secret is configured, validation is skipped (for development).
- * In production, always configure MINT_WEBHOOK_SECRET.
+ * Validates HMAC signatures on incoming webhooks. Spec 001 FR-007 makes the
+ * shared secret mandatory in non-local profiles via
+ * {@link WebhookSecretStartupValidator}; this class is strict: a missing or
+ * blank secret causes validation to fail (no silent pass-through). Local
+ * development needs to configure {@code cashu.mint.webhook.shared-secret}
+ * (or {@code MINT_WEBHOOK_SECRET}) the same way production does.
  *
  * <p><b>Security:</b> Uses constant-time comparison to prevent timing attacks
  * (per Oracle Secure Coding Guidelines).
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public final class WebhookSignatureValidator {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule());
 
-    @Value("${webhook.secret:}")
-    private String webhookSecret;
+    private final WebhookProperties properties;
 
     /**
      * Validate the webhook signature.
      *
      * @param notification the notification payload
      * @param signature    the signature from X-Webhook-Signature header
-     * @return true if signature is valid or validation is disabled
+     * @return true if signature is present and verifies; false otherwise (including missing secret)
      */
     public boolean validate(PaymentNotification notification, String signature) {
-        // If no secret configured, skip validation (development mode)
-        if (webhookSecret == null || webhookSecret.isBlank()) {
-            log.debug("Webhook signature validation disabled (no secret configured)");
-            return true;
+        if (!properties.hasSharedSecret()) {
+            log.warn("Webhook signature validation cannot proceed: shared secret not configured");
+            return false;
         }
 
-        // If secret is configured but no signature provided, reject
         if (signature == null || signature.isBlank()) {
-            log.warn("Webhook signature missing but secret is configured");
+            log.warn("Webhook signature missing for quoteId={}", notification.getQuoteId());
             return false;
         }
 
@@ -56,7 +56,6 @@ public final class WebhookSignatureValidator {
             String payload = MAPPER.writeValueAsString(notification);
             String expectedSignature = computeSignature(payload);
 
-            // Constant-time comparison to prevent timing attacks
             boolean valid = MessageDigest.isEqual(
                     signature.getBytes(StandardCharsets.UTF_8),
                     expectedSignature.getBytes(StandardCharsets.UTF_8)
@@ -84,7 +83,7 @@ public final class WebhookSignatureValidator {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    webhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+                    properties.getSharedSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKeySpec);
             byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
@@ -100,6 +99,6 @@ public final class WebhookSignatureValidator {
      * @return true if a secret is configured
      */
     public boolean isEnabled() {
-        return webhookSecret != null && !webhookSecret.isBlank();
+        return properties.hasSharedSecret();
     }
 }

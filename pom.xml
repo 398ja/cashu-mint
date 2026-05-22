@@ -12,6 +12,7 @@
     <modules>
         <module>cashu-mint-tools</module>
         <module>cashu-mint-protocol</module>
+        <module>cashu-mint-jpa</module>
         <module>cashu-mint-observability</module>
         <module>cashu-mint-webhook</module>
         <module>cashu-mint-rest</module>
@@ -414,6 +415,11 @@
             <dependency>
                 <groupId>xyz.tcheeric</groupId>
                 <artifactId>cashu-mint-observability</artifactId>
+                <version>${cashu-mint.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-mint-jpa</artifactId>
                 <version>${cashu-mint.version}</version>
             </dependency>
             <dependency>
