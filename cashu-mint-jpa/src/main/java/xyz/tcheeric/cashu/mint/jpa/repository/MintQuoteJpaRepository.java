@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 
@@ -58,6 +59,7 @@ public interface MintQuoteJpaRepository extends JpaRepository<MintQuoteEntity, S
      * on a return of {@code 0} and decide whether to replay or reject.
      */
     @Modifying
+    @Transactional("mintTransactionManager")
     @Query("UPDATE MintQuoteEntity q "
             + "SET q.lifecycleState = :to, q.updatedAt = CURRENT_TIMESTAMP "
             + "WHERE q.quoteId = :id AND q.lifecycleState = :from")
