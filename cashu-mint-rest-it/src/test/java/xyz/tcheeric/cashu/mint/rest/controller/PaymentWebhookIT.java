@@ -72,14 +72,16 @@ class PaymentWebhookIT {
                     Duration.ofHours(24),
                     10_485_760L,  // 10MB max weight
                     100000,
-                    null  // No MeterRegistry for tests
+                    null, null, null, null  // Legacy cache-only path for existing IT
             );
         }
 
         @Bean
         @Primary
         public WebhookSignatureValidator webhookSignatureValidator() {
-            return new WebhookSignatureValidator();
+            xyz.tcheeric.cashu.mint.webhook.WebhookProperties props =
+                    new xyz.tcheeric.cashu.mint.webhook.WebhookProperties();
+            return new WebhookSignatureValidator(props);
         }
 
         @Bean

@@ -3,7 +3,7 @@
 
 CREATE TABLE issuance_record (
     quote_id        VARCHAR(64)              NOT NULL,
-    outputs_hash    CHAR(64)                 NOT NULL,
+    outputs_hash    VARCHAR(64)                 NOT NULL,
     signatures_json JSONB                    NOT NULL,
     keyset_id       VARCHAR(64)              NOT NULL,
     total_amount    BIGINT                   NOT NULL,
