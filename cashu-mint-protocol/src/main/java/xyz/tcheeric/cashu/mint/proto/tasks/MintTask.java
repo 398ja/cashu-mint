@@ -243,15 +243,12 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 outputsHash = OutputsHash.compute(blindedMessages);
                 int updated = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.PAID, LifecycleState.ISSUING);
                 if (updated == 0) {
-                    MintQuote refreshed = mintQuoteRepository.findById(quoteId).orElse(durableQuote);
-                    if (refreshed.lifecycleState() == LifecycleState.ISSUED
-                            && issuanceRecordRepository != null) {
-                        IssuanceRecord existing = issuanceRecordRepository.findById(quoteId).orElse(null);
-                        if (existing != null && existing.outputsHash().equals(outputsHash)) {
-                            log.info("[mint][replay] quote_id={} outputs_hash={}", quoteId, outputsHash);
-                            return decodeSignatures(existing.signaturesJson());
-                        }
-                        throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                    // Spec 001 T310 — another writer is between PAID and ISSUED.
+                    // Poll briefly (bounded so a hung writer doesn't pin our request)
+                    // and then either replay or surface issuance_in_progress.
+                    PostMintResponse replay = awaitIssuedAndReplay(quoteId, outputsHash, durableQuote);
+                    if (replay != null) {
+                        return replay;
                     }
                     throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
                 }
@@ -325,6 +322,52 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
             return result;
         } // QuoteLock auto-released here
+    }
+
+    /** Backoff schedule for the ISSUING-state polling loop (spec 001 T310). */
+    static final long[] ISSUING_POLL_BACKOFF_MS = {50L, 100L, 200L, 400L, 800L};
+
+    /**
+     * Spec 001 T310 — when the CAS PAID→ISSUING returns 0, another writer is
+     * between PAID and ISSUED. We poll the durable state with bounded backoff
+     * (total budget ~1.55s) and either replay the issued signatures (matching
+     * {@code outputs_hash}), surface {@code quote_already_issued} (ISSUED with
+     * different outputs), or return {@code null} so the caller can throw
+     * {@code issuance_in_progress}.
+     */
+    private PostMintResponse awaitIssuedAndReplay(String quoteId, String outputsHash, MintQuote fallback)
+            throws CashuErrorException {
+        for (int attempt = 0; attempt <= ISSUING_POLL_BACKOFF_MS.length; attempt++) {
+            MintQuote refreshed = mintQuoteRepository.findById(quoteId).orElse(fallback);
+            LifecycleState state = refreshed.lifecycleState();
+            if (state == LifecycleState.ISSUED) {
+                if (issuanceRecordRepository == null) {
+                    throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                }
+                IssuanceRecord existing = issuanceRecordRepository.findById(quoteId).orElse(null);
+                if (existing != null && existing.outputsHash().equals(outputsHash)) {
+                    log.info("[mint][replay] quote_id={} outputs_hash={} attempt={}",
+                            quoteId, outputsHash, attempt);
+                    incrementCounter("cashu_mint_idempotent_replay_total");
+                    return decodeSignatures(existing.signaturesJson());
+                }
+                throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+            }
+            if (state != LifecycleState.ISSUING) {
+                // Some unexpected lifecycle (e.g. FAILED). Bail out.
+                return null;
+            }
+            if (attempt == ISSUING_POLL_BACKOFF_MS.length) {
+                break;
+            }
+            try {
+                Thread.sleep(ISSUING_POLL_BACKOFF_MS[attempt]);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        return null;
     }
 
     private void incrementCounter(String name) {
