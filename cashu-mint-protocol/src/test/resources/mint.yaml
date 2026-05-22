@@ -48,10 +48,6 @@ mint:
       supported: true
     10:
       supported: true
-    11:
-      # NUT-11 P2PK spending conditions — kept in sync with the canonical
-      # main mint.yaml. Tests assert the entry is present.
-      supported: true
     12:
       supported: true
     17:
