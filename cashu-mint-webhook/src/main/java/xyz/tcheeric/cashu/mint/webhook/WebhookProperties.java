@@ -25,6 +25,14 @@ public class WebhookProperties {
      */
     private String sharedSecret = "";
 
+    /**
+     * Stable provider identifier used as the high half of the durable webhook
+     * idempotency key {@code (provider, provider_event_id)} (FR-006). Defaults
+     * to {@code "phoenixd"} for the existing Lightning deployment; override per
+     * environment when a different gateway sources the webhooks.
+     */
+    private String provider = "phoenixd";
+
     public boolean hasSharedSecret() {
         return sharedSecret != null && !sharedSecret.isBlank();
     }
