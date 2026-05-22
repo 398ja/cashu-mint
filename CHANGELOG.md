@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.15.0] - 2026-05-22
+
+### Added
+
+- `/v1/info` now advertises NUT-11 (P2PK spending conditions). The mint
+  already verified P2PK secrets at the wire (`P2PKSpendingCondition` wired
+  into `VerifyProofsTask:128`) but the info response silently omitted the
+  entry, so clients that gate P2PK use on `/v1/info` — including
+  `imani-gateway-core`'s spec-029 in-person delivery saga branch — would
+  refuse the path despite swap requests working. The new entry is a simple
+  `supported: true` (no per-method config), matching NUT-09 / NUT-10 / NUT-12.
+
+---
+
 ## [0.14.2] - 2026-05-12
 
 ### Fixed
