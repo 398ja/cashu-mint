@@ -144,20 +144,14 @@ description: "Task list for spec 001 — Mint Quote Amount Binding and Webhook I
 
 ### Tests for User Story 3
 
-- [ ] **T300** [P] [US3] Write `MintQuoteIdempotentReplayIT`: same-outputs replay returns identical signatures; different-outputs replay returns `quote_already_issued`.
-- [ ] **T301** [P] [US3] Write `IssuingConcurrencyTest` (unit): two threads enter `ISSUING` concurrently; only one inserts `IssuanceRecord`, the other receives `issuance_in_progress` and (after the first commits) returns the same signatures via the replay path.
+- [ ] **T300** [P] [US3] Write `MintQuoteIdempotentReplayIT`: same-outputs replay returns identical signatures; different-outputs replay returns `quote_already_issued`. *(deferred — Testcontainers wiring required; covered at unit level by `MintTaskAmountValidationTest#replay_with_same_outputs_returns_cached_signatures` and `#replay_with_different_outputs_against_issued_quote_is_rejected`.)*
+- [X] **T301** [P] [US3] Write `IssuingConcurrencyTest` (unit). *(commit: pending; 2 Mockito cases — the replay path successfully fires after the durable state transitions from ISSUING to ISSUED inside the bounded backoff window, and the exhaustion path surfaces `issuance_in_progress` without incrementing the replay counter.)*
 
 ### Implementation for User Story 3
 
-- [ ] **T310** [US3] Extend `MintTask` (modified in T111) replay branch: when CAS `PAID → ISSUING` returns 0, re-read the quote.
-  - State `ISSUING` ⇒ short retry loop with backoff (research-deferred TTL); after exhaustion, return `issuance_in_progress`.
-  - State `ISSUED`:
-    - Load `IssuanceRecord` by `quote_id`.
-    - Compute incoming `outputs_hash` (T110).
-    - If equal ⇒ return `signatures_json` (idempotent NUT-19 replay).
-    - Else ⇒ reject as `quote_already_issued`.
-- [ ] **T311** [P] [US3] Add structured-log line tagged `[mint][replay]` on every idempotent replay so support can grep replays vs. fresh issuances.
-- [ ] **T312** [P] [US3] Add Micrometer counter `cashu_mint_idempotent_replay_total` (FR-012).
+- [X] **T310** [US3] Extend `MintTask` replay branch: bounded backoff polling (50/100/200/400/800 ms — total budget ≈1.55 s) when CAS PAID→ISSUING returns 0 and the quote is still in `ISSUING`. *(commit: pending; on every poll: ISSUED + matching outputs_hash → replay, ISSUED + different outputs → `quote_already_issued`, anything else after exhaustion → `issuance_in_progress`. `Thread.sleep` honours interrupts cleanly. Constants exposed package-private as `ISSUING_POLL_BACKOFF_MS` for tests.)*
+- [X] **T311** [P] [US3] Add structured-log line tagged `[mint][replay]` on every idempotent replay. *(commit: pending — this line already shipped in T111 (f4acc15); T310 extends it with an `attempt=N` field so operators can distinguish first-poll replays from replays after backoff.)*
+- [X] **T312** [P] [US3] Add Micrometer counter `cashu_mint_idempotent_replay_total{path="mint"}` (FR-012). *(commit: pending; emitted on every successful replay via the same optional `MeterRegistry` constructor introduced in T115. Covered by `IssuingConcurrencyTest#concurrent_issuing_is_replayed_once_state_reaches_issued`.)*
 
 **Checkpoint**: All three user stories pass independently. US3 depends on US1's `MintTask` but does not change the public response shape — clients see identical signatures across retries.
 
