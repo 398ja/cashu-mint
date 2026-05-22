@@ -74,18 +74,30 @@ public final class PaymentWebhookController {
         }
 
         try {
-            boolean isNew = quoteStatusUpdater.markAsPaid(notification);
-
-            if (isNew) {
-                log.info("Payment webhook processed: quoteId={}, amount={}",
-                        notification.getQuoteId(), notification.getAmount());
-                return ResponseEntity.ok(WebhookResponse.success("Payment recorded"));
-            } else {
-                log.debug("Duplicate payment webhook ignored: quoteId={}",
-                        notification.getQuoteId());
-                return ResponseEntity.ok(WebhookResponse.success("Duplicate ignored"));
-            }
-
+            WebhookOutcome outcome = quoteStatusUpdater.record(notification);
+            return switch (outcome.outcome()) {
+                case accepted -> {
+                    log.info("Payment webhook processed: quoteId={}, amount={}",
+                            notification.getQuoteId(), notification.getAmount());
+                    yield ResponseEntity.ok(WebhookResponse.success("Payment recorded"));
+                }
+                case duplicate -> ResponseEntity.ok(WebhookResponse.success("Duplicate ignored"));
+                case tamper -> ResponseEntity.status(409)
+                        .body(WebhookResponse.error("Tamper signal recorded"));
+                case amount_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Amount does not match quote"));
+                case unit_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Unit does not match quote"));
+                case method_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Payment method does not match quote"));
+                case expired -> ResponseEntity.status(410)
+                        .body(WebhookResponse.error("Quote has expired"));
+                case noop -> ResponseEntity.ok(WebhookResponse.success("No state transition required"));
+                case orphan -> ResponseEntity.status(202)
+                        .body(WebhookResponse.success("Webhook stored; quote not yet known"));
+                case unsigned_rejected, signature_invalid -> ResponseEntity.status(401)
+                        .body(WebhookResponse.error("Signature rejected"));
+            };
         } catch (Exception e) {
             log.error("Failed to process payment webhook: quoteId={}",
                     notification.getQuoteId(), e);
