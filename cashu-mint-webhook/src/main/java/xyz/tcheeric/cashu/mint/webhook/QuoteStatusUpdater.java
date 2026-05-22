@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
@@ -103,6 +104,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * repos) the legacy cache-only path is used and the result is always either
      * {@link Outcome#accepted} or {@link Outcome#duplicate}.
      */
+    @Transactional("mintTransactionManager")
     public WebhookOutcome record(PaymentNotification notification) {
         if (notification == null) {
             throw new IllegalArgumentException("notification must not be null");
