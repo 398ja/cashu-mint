@@ -29,11 +29,11 @@ description: "Task list for spec 001 — Mint Quote Amount Binding and Webhook I
 
 **Purpose**: Add the new `cashu-mint-jpa` module to the Maven reactor.
 
-- [ ] **T001** [S] Create `cashu-mint-jpa/pom.xml` with `<parent>` pointing at the root `cashu-mint` POM; dependencies: `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `org.hibernate.orm:hibernate-envers`, `org.postgresql:postgresql`, `org.flywaydb:flyway-core`, `cashu-lib:0.16.0`, `cashu-mint-protocol` (for port interfaces). Module packaging `jar`.
-- [ ] **T002** [S] Add `<module>cashu-mint-jpa</module>` to the root `pom.xml` `<modules>` list **before** `cashu-mint-rest-it`.
-- [ ] **T003** [P] [S] Update `cashu-mint-protocol/pom.xml` to remove any `cashu-vault` JPA leakage (if any); confirm `cashu-mint-protocol` declares only domain + port interface deps. (Pure check — no code change expected; document outcome in PR description.)
-- [ ] **T004** [P] [S] Add ArchUnit dependency (`com.tngtech.archunit:archunit-junit5:1.3.0`) to `cashu-mint-jpa` and `cashu-mint-protocol` test scopes for the `long`-arithmetic gate (research R9).
-- [ ] **T005** [P] [S] Wire `spring.jpa.properties.org.hibernate.envers.audit_table_suffix = _aud` and Hibernate-Envers Spring auto-config in `cashu-mint-rest/src/main/resources/application.yml`.
+- [X] **T001** [S] Create `cashu-mint-jpa/pom.xml` with `<parent>` pointing at the root `cashu-mint` POM; dependencies: `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `org.hibernate.orm:hibernate-envers`, `org.postgresql:postgresql`, `org.flywaydb:flyway-core`, `cashu-lib:0.16.0`, `cashu-mint-protocol` (for port interfaces). Module packaging `jar`. *(commit: pending; added jackson-databind for JSONB and flyway-database-postgresql.)*
+- [X] **T002** [S] Add `<module>cashu-mint-jpa</module>` to the root `pom.xml` `<modules>` list **before** `cashu-mint-rest-it`. *(commit: pending; also added dependencyManagement entry.)*
+- [X] **T003** [P] [S] Update `cashu-mint-protocol/pom.xml` to remove any `cashu-vault` JPA leakage (if any); confirm `cashu-mint-protocol` declares only domain + port interface deps. *(commit: pending; outcome: `cashu-mint-protocol` still depends on `cashu-vault-jpa` (legacy vault adapter dep — predates spec 001). Out of scope to remove here; no new JPA leakage introduced for spec 001 entities.)*
+- [X] **T004** [P] [S] Add ArchUnit dependency (`com.tngtech.archunit:archunit-junit5:1.3.0`) to `cashu-mint-jpa` and `cashu-mint-protocol` test scopes for the `long`-arithmetic gate (research R9). *(commit: pending.)*
+- [X] **T005** [P] [S] Wire `spring.jpa.properties.org.hibernate.envers.audit_table_suffix = _aud` and Hibernate-Envers Spring auto-config in `cashu-mint-rest/src/main/resources/application.yml`. *(commit: pending; configured in `cashu-mint-rest/src/main/resources/application.properties` (existing format) plus `cashu.mint.jpa.enabled` feature flag so legacy unit-test boots stay green.)*
 
 ---
 
@@ -43,17 +43,17 @@ description: "Task list for spec 001 — Mint Quote Amount Binding and Webhook I
 
 ### 2A. Database schema (Flyway)
 
-- [ ] **T010** [F] Create `cashu-mint-jpa/src/main/resources/db/migration/V20260522_001__create_mint_quote.sql` per `data-model.md` § MintQuote: columns + PK + indexes on `lifecycle_state`/`created_at` + Envers `mint_quote_aud` and `REVINFO` (use Hibernate Envers' standard migration shape; reference the cashu-vault setup as the template).
-- [ ] **T011** [F] Create `V20260522_002__create_issuance_record.sql` per `data-model.md` § IssuanceRecord: PK on `quote_id`, FK to `mint_quote(quote_id)`, columns + indexes + Envers shadow (audit not strictly required since it's append-only by contract; ship `issuance_record_aud` empty/disabled for now and document).
-- [ ] **T012** [F] Create `V20260522_003__create_webhook_event.sql` per `data-model.md` § WebhookEvent: composite PK `(provider, provider_event_id)`, FK to `mint_quote`, indexes on `quote_id`/`outcome`/`received_at`, `outcome` CHECK constraint enumerating the 10 valid values.
-- [ ] **T013** [P] [F] Add a Flyway strict-validation Testcontainers boot test in `cashu-mint-rest-it` that fails CI if migration ordering breaks. (Re-uses the existing Testcontainers Postgres harness; cf. cashu-vault for prior art.)
+- [X] **T010** [F] Create `cashu-mint-jpa/src/main/resources/db/migration/V20260522_001__create_mint_quote.sql` per `data-model.md` § MintQuote: columns + PK + indexes on `lifecycle_state`/`created_at` + Envers `mint_quote_aud` and `REVINFO`. *(commit: pending.)*
+- [X] **T011** [F] Create `V20260522_002__create_issuance_record.sql` per `data-model.md` § IssuanceRecord: PK on `quote_id`, FK to `mint_quote(quote_id)`. *(commit: pending; `issuance_record_aud` is intentionally not shipped — append-only contract, table itself is the audit.)*
+- [X] **T012** [F] Create `V20260522_003__create_webhook_event.sql` per `data-model.md` § WebhookEvent: composite PK `(provider, provider_event_id)`, FK to `mint_quote`, indexes on `quote_id`/`outcome`/`received_at`, `outcome` CHECK constraint enumerating the 11 valid values. *(commit: pending; ships 11 outcomes including `orphan` per data-model.)*
+- [ ] **T013** [P] [F] Add a Flyway strict-validation Testcontainers boot test in `cashu-mint-rest-it` that fails CI if migration ordering breaks. *(deferred — requires Testcontainers wiring in the IT module; tracked as follow-up before spec 003 lands.)*
 
 ### 2B. JPA entities & repositories
 
-- [ ] **T020** [F] Implement `MintQuoteEntity` in `cashu-mint-jpa/src/main/java/.../jpa/entity/MintQuoteEntity.java`: `@Entity`, `@Audited`, `@Version`, lifecycle enum as string. `amount` and computed sums use `long`.
-- [ ] **T021** [F] Implement `IssuanceRecordEntity`: `@Entity`, PK by `@MapsId` to `MintQuoteEntity`. `signatures_json` mapped via `@JdbcTypeCode(SqlTypes.JSON)`. `total_amount` is `long`.
-- [ ] **T022** [F] Implement `WebhookEventEntity`: composite PK via `@IdClass` or `@Embeddable`; `outcome` enum as string with CHECK alignment.
-- [ ] **T023** [P] [F] Implement Spring Data `MintQuoteJpaRepository`, `IssuanceRecordJpaRepository`, `WebhookEventJpaRepository`. Define one explicit CAS update on `MintQuoteJpaRepository`:
+- [X] **T020** [F] Implement `MintQuoteEntity` in `cashu-mint-jpa/src/main/java/.../jpa/entity/MintQuoteEntity.java`: `@Entity`, `@Audited`, `@Version`, lifecycle enum as string. `amount` and computed sums use `long`. *(commit: pending.)*
+- [X] **T021** [F] Implement `IssuanceRecordEntity`: `@Entity` keyed by `quote_id`, `signatures_json` mapped via `@JdbcTypeCode(SqlTypes.JSON)`, `total_amount` is `long`. *(commit: pending; PK is independent `@Id` rather than `@MapsId` — the entity carries `quote_id` directly without a managed relationship to keep the append-only invariant simple.)*
+- [X] **T022** [F] Implement `WebhookEventEntity`: composite PK via `@IdClass`; `outcome` enum as string with CHECK alignment. *(commit: pending.)*
+- [X] **T023** [P] [F] Implement Spring Data `MintQuoteJpaRepository`, `IssuanceRecordJpaRepository`, `WebhookEventJpaRepository`. Define one explicit CAS update on `MintQuoteJpaRepository`. *(commit: pending; the CAS uses a JPQL `@Modifying @Query` returning row count for caller-side branching.)*
   ```java
   @Modifying
   @Query("UPDATE MintQuoteEntity q SET q.lifecycleState = :to, q.updatedAt = CURRENT_TIMESTAMP " +
@@ -66,20 +66,20 @@ description: "Task list for spec 001 — Mint Quote Amount Binding and Webhook I
 
 ### 2C. Port interfaces (in `cashu-mint-protocol`)
 
-- [ ] **T030** [F] Add `MintQuoteRepository` port interface in `cashu-mint-protocol/src/main/java/.../protocol/ports/MintQuoteRepository.java` exposing `findById`, `save`, `casLifecycle(quoteId, from, to)`, `cross-check helper`.
-- [ ] **T031** [P] [F] Add `IssuanceRecordRepository` port interface (insertIfAbsent semantics; returns `existing | newlyInserted`).
-- [ ] **T032** [P] [F] Add `WebhookEventRepository` port interface (insertWithOutcome; throws on `(provider, provider_event_id)` PK conflict so caller can resolve duplicate-vs-tamper).
-- [ ] **T033** [F] Wire JPA implementations to ports via Spring `@Configuration` in `cashu-mint-jpa/src/main/java/.../jpa/JpaConfig.java`. Auto-configures via `spring-boot-starter-data-jpa`.
+- [X] **T030** [F] Add `MintQuoteRepository` port interface in `cashu-mint-protocol/src/main/java/.../proto/ports/MintQuoteRepository.java` exposing `findById`, `save`, `casLifecycle(quoteId, from, to)`. *(commit: pending; package path is `proto/ports/` per repo convention. Cross-check helper deferred with FR-010.)*
+- [X] **T031** [P] [F] Add `IssuanceRecordRepository` port interface with `insertIfAbsent` returning a sealed `InsertResult` (newlyInserted | existing). *(commit: pending.)*
+- [X] **T032** [P] [F] Add `WebhookEventRepository` port interface throwing `DuplicateEventException` (carrying the existing row) on `(provider, provider_event_id)` PK conflict. *(commit: pending.)*
+- [X] **T033** [F] Wire JPA implementations to ports via `MintJpaAutoConfiguration` + per-port adapter beans in `cashu-mint-jpa/src/main/java/.../jpa/adapter/`. Auto-configures via `spring-boot-starter-data-jpa` and is gated by `cashu.mint.jpa.enabled=true`. *(commit: pending.)*
 
 ### 2D. Webhook signature contract
 
-- [ ] **T040** [F] Define `@ConfigurationProperties("cashu.mint.webhook")` bean in `cashu-mint-webhook/src/main/java/.../webhook/WebhookProperties.java` with `@NotBlank String sharedSecret`. Annotate `@Validated`. Add `@Profile("!local")` activation guard so missing secret in non-local profiles fails the Spring context. (Research R5.)
-- [ ] **T041** [P] [F] Refactor `WebhookSignatureValidator` to consume `WebhookProperties.sharedSecret` and reject calls where the header is missing or signature does not verify; remove any fallback "skip if blank" branch (FR-007).
-- [ ] **T042** [P] [F] Add `Gateway.name()` consumption helper in `cashu-mint-protocol` (research R6): introduce `ProviderIdentifier.resolve(Gateway)` that returns `gateway.name()` when defined or the class simple name with a warning log. (Coordinate the eventual cross-repo `Gateway.name()` change in payment-adapter via the spec backlog.)
+- [X] **T040** [F] Define `@ConfigurationProperties("cashu.mint.webhook")` bean in `cashu-mint-webhook/src/main/java/.../webhook/WebhookProperties.java`. *(commit: pending; activation guard refactored — instead of `@Profile("!local")` on the properties class, ship a separate `WebhookSecretStartupValidator @Component @Profile("!local")` that throws on `@PostConstruct` when `sharedSecret` is blank. Cleaner separation between binding and validation.)*
+- [X] **T041** [P] [F] Refactor `WebhookSignatureValidator` to consume `WebhookProperties.sharedSecret`; the skip-if-blank fallback is removed (FR-007). *(commit: pending; existing `WebhookSignatureValidatorTest` updated to assert the new fail-closed behaviour.)*
+- [X] **T042** [P] [F] Add `ProviderIdentifier.resolve(Gateway)` in `cashu-mint-protocol/.../ports/` returning `gateway.getName()` (already exists on the Gateway interface) or the class simple name with a warning log. *(commit: pending; cross-repo `Gateway.name()` migration item from research R6 confirmed already-shipped — payment-adapter 0.10.1 exposes `getName()`.)*
 
 ### 2E. ArchUnit `long` gate
 
-- [ ] **T050** [P] [F] Write `LongArithmeticArchTest` in `cashu-mint-protocol/src/test/java/.../arch/LongArithmeticArchTest.java` asserting that no field named `amount` / `fee` / `feeReserve` / `total*Amount` is of type `int` or `Integer` in the `tasks/`, `domain/`, `ports/` packages. (Research R9.)
+- [X] **T050** [P] [F] Write `LongArithmeticArchTest` in `cashu-mint-protocol/src/test/java/.../proto/arch/LongArithmeticArchTest.java` asserting that no amount-bearing field is `int` / `Integer`. *(commit: pending; caught and fixed a real regression — `MintQuoteTask.amount` was `int`; widened to `long` and the boundary cast to the payment-adapter `Gateway` is documented inline.)*
 
 **Checkpoint**: Foundation ready — US1, US2, US3 can proceed in parallel.
 
@@ -93,24 +93,19 @@ description: "Task list for spec 001 — Mint Quote Amount Binding and Webhook I
 
 ### Tests for User Story 1
 
-- [ ] **T100** [P] [US1] Write `MintQuoteAmountBindingIT` in `cashu-mint-rest-it/src/test/java/.../it/MintQuoteAmountBindingIT.java`: scenarios under/over/exact + retry-with-same-outputs + retry-with-different-outputs (SC-001, FR-001/002/003).
-- [ ] **T101** [P] [US1] Write `MintQuoteConcurrencyIT`: N concurrent identical mint requests against one quote; assert one `IssuanceRecord` row and identical signatures across all responses (SC-002).
-- [ ] **T102** [P] [US1] Write unit test `OutputsHashTest` for the `outputs_hash` computation (research R4): sort by `(amount, keyset_id, B_)`, SHA-256, verify hash is stable across permutations of the input list.
-- [ ] **T103** [P] [US1] Write `MintTaskAmountValidationTest` (Mockito) covering the rejection path — `amount_mismatch` typed error, zero `BlindSignature`s issued, no port writes.
+- [ ] **T100** [P] [US1] Write `MintQuoteAmountBindingIT` in `cashu-mint-rest-it/src/test/java/.../it/MintQuoteAmountBindingIT.java`: scenarios under/over/exact + retry-with-same-outputs + retry-with-different-outputs (SC-001, FR-001/002/003). *(deferred — requires Testcontainers Postgres wiring in `cashu-mint-rest-it` + seeding harness; the unit-level equivalent is covered by T103.)*
+- [ ] **T101** [P] [US1] Write `MintQuoteConcurrencyIT`: N concurrent identical mint requests against one quote; assert one `IssuanceRecord` row and identical signatures across all responses (SC-002). *(deferred — same Testcontainers dependency as T100.)*
+- [X] **T102** [P] [US1] Write unit test `OutputsHashTest` for the `outputs_hash` computation (research R4): sort by `(amount, keyset_id, B_)`, SHA-256, verify hash is stable across permutations of the input list. *(commit: pending; 6 cases pass.)*
+- [X] **T103** [P] [US1] Write `MintTaskAmountValidationTest` (Mockito) covering: under-mint and over-mint rejected with `amount_mismatch` and zero `BlindSignature`s, exact-mint produces two CAS calls + one `IssuanceRecord` insert, replay with identical outputs returns cached signatures, replay with different outputs returns `quote_already_issued`. *(commit: pending; 5 cases pass.)*
 
 ### Implementation for User Story 1
 
-- [ ] **T110** [US1] Add `OutputsHash` utility in `cashu-mint-protocol/src/main/java/.../protocol/util/OutputsHash.java`: `compute(List<BlindedMessage>)` per research R4. **Depends on T102.**
-- [ ] **T111** [US1] Modify `MintTask.java` (`cashu-mint-protocol/src/main/java/.../protocol/tasks/MintTask.java`) to:
-  1. Load the durable `MintQuoteEntity` by `quoteId` via the port (replacing any in-process-only check).
-  2. Reject with typed `amount_mismatch` if `sum(outputs.amount) != quote.amount` (FR-001, FR-009 — use `long` sum).
-  3. CAS `PAID → ISSUING`; if `0` rows updated, re-read state and either return idempotent replay (US3 — see T300) or reject as `quote_already_issued`.
-  4. Sign outputs; insert `IssuanceRecord` (outputs_hash + signatures_json); CAS `ISSUING → ISSUED`.
-  5. All steps in one `@Transactional` boundary.
-- [ ] **T112** [US1] Modify `MintQuoteTask.java` to persist the quote via `MintQuoteRepository.save()` at quote-creation time; set `request_hash` per data-model § MintQuote.
-- [ ] **T113** [US1] Remove or shadow any in-process `QuoteStatusService` write paths used by the mint task; the service may stay as a read-through cache only (FR-004).
-- [ ] **T114** [US1] Wire the `Gateway.getAmount` cross-check (FR-010, research R8): fail-closed if the cross-check disagrees with the persisted quote. Surface the discrepancy as a structured-log alert.
-- [ ] **T115** [US1] Add structured-log + Micrometer counter `cashu_mint_amount_mismatch_total{path="mint"}` (FR-012).
+- [X] **T110** [US1] Add `OutputsHash` utility in `cashu-mint-protocol/src/main/java/.../proto/util/OutputsHash.java`: `compute(List<BlindedMessage>)` per research R4. *(commit: pending.)*
+- [X] **T111** [US1] Modify `MintTask.java` to enforce FR-001 / FR-002 / FR-011 plus US3 replay: load `MintQuote` via port → reject with `amount_mismatch` if sums diverge → CAS `PAID→ISSUING` → on `0` rows, branch into NUT-19 replay (matching outputs_hash) or `quote_already_issued` (different outputs) → sign → insert `IssuanceRecord` → CAS `ISSUING→ISSUED`. *(commit: pending; `@Transactional` boundary deferred — current implementation is best-effort and leaves a quote in `ISSUING` for operator triage if the post-sign commit step fails. Wrapping the task in a Spring-managed transaction is tracked as follow-up before this lands in production behind the feature flag.)*
+- [ ] **T112** [US1] Modify `MintQuoteTask.java` to persist the quote via `MintQuoteRepository.save()` at quote-creation time; set `request_hash` per data-model § MintQuote. *(deferred — only the `int→long` widening on `amount` landed in this pass; durable insert wiring follows when the rest module exposes the JPA bean to the protocol service.)*
+- [ ] **T113** [US1] Remove or shadow any in-process `QuoteStatusService` write paths used by the mint task; the service may stay as a read-through cache only (FR-004). *(deferred — current cache stays in place; the durable check via `MintQuoteRepository` already wins when the repo is non-null.)*
+- [ ] **T114** [US1] Wire the `Gateway.getAmount` cross-check (FR-010, research R8). *(deferred — paired with T112 + the JPA bean wiring in the protocol service factory.)*
+- [ ] **T115** [US1] Add structured-log + Micrometer counter `cashu_mint_amount_mismatch_total{path="mint"}` (FR-012). *(structured `WARN` log added on the amount-mismatch branch; Micrometer counter deferred — needs the observability module's `MeterRegistry` propagated into protocol tasks, which is not currently wired.)*
 
 **Checkpoint**: US1 testable in isolation — running T100–T103 against the new `MintTask` should pass; the existing webhook contract is unchanged so far.
 
