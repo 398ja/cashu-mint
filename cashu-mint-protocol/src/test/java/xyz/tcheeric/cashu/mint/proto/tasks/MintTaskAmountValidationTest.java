@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
@@ -81,6 +83,7 @@ class MintTaskAmountValidationTest {
     private SignatureVaultService signatureVaultService;
     private Mint mint;
     private Gateway gateway;
+    private MeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() throws CashuErrorException {
@@ -88,6 +91,8 @@ class MintTaskAmountValidationTest {
         issuanceRecordRepository = Mockito.mock(IssuanceRecordRepository.class);
         gateway = Mockito.mock(Gateway.class);
         when(gateway.checkPaymentStatus(anyString())).thenReturn(true);
+        // FR-010 cross-check default: gateway agrees with the test stubs (10 sats).
+        when(gateway.getAmount(anyString())).thenReturn(10);
 
         service = Mockito.mock(MintProtocolService.class);
         when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(gateway);
@@ -96,6 +101,7 @@ class MintTaskAmountValidationTest {
 
         signatureVaultService = new DefaultSignatureVaultService();
         mint = createMintWithKeys();
+        meterRegistry = new SimpleMeterRegistry();
     }
 
     @AfterEach
@@ -220,11 +226,75 @@ class MintTaskAmountValidationTest {
         }
     }
 
+    @Test
+    void cross_check_mismatch_with_gateway_fails_closed_and_increments_counter() throws CashuErrorException {
+        String quoteId = "fr010-mismatch";
+        when(mintQuoteRepository.findById(quoteId)).thenReturn(Optional.of(stub(quoteId, 10L, LifecycleState.PAID)));
+        // Gateway disagrees with the durable record: durable = 10, gateway reports 7.
+        when(gateway.getAmount(quoteId)).thenReturn(7);
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(blinded(8), blinded(2))); // valid sum against durable 10
+
+        try (MockedConstruction<SignBlindedMessageTask> ignored = signBlindedConstruction()) {
+            CashuErrorException ex = assertThrows(CashuErrorException.class, newMeteredTask(request)::execute);
+            assertThat(errorCode(ex)).isEqualTo("quote_amount_cross_check_failed");
+        }
+
+        verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+        verify(issuanceRecordRepository, never()).insertIfAbsent(any());
+        assertThat(meterRegistry.counter("cashu_mint_quote_cross_check_failures_total", "path", "mint")
+                .count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void cross_check_gateway_failure_fails_closed() throws CashuErrorException {
+        String quoteId = "fr010-throw";
+        when(mintQuoteRepository.findById(quoteId)).thenReturn(Optional.of(stub(quoteId, 10L, LifecycleState.PAID)));
+        when(gateway.getAmount(quoteId)).thenThrow(new RuntimeException("upstream unavailable"));
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(blinded(8), blinded(2)));
+
+        try (MockedConstruction<SignBlindedMessageTask> ignored = signBlindedConstruction()) {
+            CashuErrorException ex = assertThrows(CashuErrorException.class, newMeteredTask(request)::execute);
+            assertThat(errorCode(ex)).isEqualTo("quote_amount_cross_check_failed");
+        }
+
+        assertThat(meterRegistry.counter("cashu_mint_quote_cross_check_failures_total", "path", "mint")
+                .count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void amount_mismatch_increments_counter() throws CashuErrorException {
+        String quoteId = "fr115-counter";
+        when(mintQuoteRepository.findById(quoteId)).thenReturn(Optional.of(stub(quoteId, 10L, LifecycleState.PAID)));
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(blinded(8), blinded(1))); // sum=9 != 10
+
+        try (MockedConstruction<SignBlindedMessageTask> ignored = signBlindedConstruction()) {
+            assertThrows(CashuErrorException.class, newMeteredTask(request)::execute);
+        }
+
+        assertThat(meterRegistry.counter("cashu_mint_amount_mismatch_total", "path", "mint")
+                .count()).isEqualTo(1.0);
+    }
+
     // ---------------------- helpers ----------------------
 
     private MintTask<Secret> newTask(PostMintRequest<Secret> request) {
         return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
                 signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository);
+    }
+
+    private MintTask<Secret> newMeteredTask(PostMintRequest<Secret> request) {
+        return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
+                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository,
+                meterRegistry);
     }
 
     private MockedConstruction<SignBlindedMessageTask> signBlindedConstruction() {
