@@ -8,7 +8,7 @@ CREATE TABLE webhook_event (
     amount             BIGINT                   NOT NULL,
     unit               VARCHAR(16)              NOT NULL,
     payment_method     VARCHAR(32)              NOT NULL,
-    signature_digest   CHAR(64),
+    signature_digest   VARCHAR(64),
     outcome            VARCHAR(32)              NOT NULL,
     received_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     raw_body_compressed BYTEA,
