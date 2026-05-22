@@ -29,6 +29,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final PaymentStatusChecker paymentStatusChecker;
     private final MintQuoteRepository mintQuoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
+    private final MeterRegistry meterRegistry;
     private final SplittingService splittingService = new SplittingService();
 
 
@@ -62,7 +64,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null);
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -71,7 +73,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -81,15 +83,32 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null, null);
+    }
+
+    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
+                    @NonNull PaymentMethod method,
+                    String unit,
+                    @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    PaymentStatusChecker paymentStatusChecker,
+                    MintQuoteRepository mintQuoteRepository,
+                    IssuanceRecordRepository issuanceRecordRepository) {
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService,
+                paymentStatusChecker, mintQuoteRepository, issuanceRecordRepository, null);
     }
 
     /**
      * Spec 001 constructor: when {@code mintQuoteRepository} and
      * {@code issuanceRecordRepository} are non-null, MintTask enforces FR-001
      * (sum of output amounts == quote.amount), FR-002 (single-use via
-     * compare-and-set lifecycle transitions), and FR-011 (one IssuanceRecord
-     * per quote). Production wires both ports when
+     * compare-and-set lifecycle transitions), FR-010 (Gateway.getAmount
+     * cross-check before the PAID→ISSUING transition), and FR-011 (one
+     * IssuanceRecord per quote). When {@code meterRegistry} is non-null, the
+     * task emits {@code cashu_mint_amount_mismatch_total} and
+     * {@code cashu_mint_quote_cross_check_failures_total} counters tagged with
+     * {@code path="mint"}. Production wires all four when
      * {@code cashu.mint.jpa.enabled=true}; legacy unit-test constructors leave
      * them null so the existing test surface keeps working.
      */
@@ -101,7 +120,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker,
                     MintQuoteRepository mintQuoteRepository,
-                    IssuanceRecordRepository issuanceRecordRepository) {
+                    IssuanceRecordRepository issuanceRecordRepository,
+                    MeterRegistry meterRegistry) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.unit = unit;
@@ -111,6 +131,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         this.paymentStatusChecker = paymentStatusChecker;
         this.mintQuoteRepository = mintQuoteRepository;
         this.issuanceRecordRepository = issuanceRecordRepository;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -171,11 +192,12 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
             }
 
-            // Spec 001 FR-001/FR-002/FR-011: bind issuance to the durable quote
-            // amount and consume the quote at most once. When the JPA module is
-            // wired in, the repository is non-null and amount-binding is
-            // enforced; legacy unit-test contexts (repo == null) preserve the
-            // original behavior.
+            // Spec 001 FR-001/FR-002/FR-010/FR-011: bind issuance to the
+            // durable quote amount, cross-check it against the gateway, and
+            // consume the quote at most once. When the JPA module is wired in,
+            // the repository is non-null and amount-binding is enforced;
+            // legacy unit-test contexts (repo == null) preserve the original
+            // behavior.
             String outputsHash = null;
             MintQuote durableQuote = null;
             if (!isVoucherQuote && mintQuoteRepository != null) {
@@ -190,10 +212,34 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (requestedTotal != durableQuote.amount()) {
                     log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
                             quoteId, durableQuote.amount(), requestedTotal);
+                    incrementCounter("cashu_mint_amount_mismatch_total");
                     throw new CashuErrorException(
                             new ErrorResponse("amount_mismatch",
                                     "Sum of blinded output amounts must equal the quote amount").toJson());
                 }
+
+                // FR-010: cross-check the durable quote against the gateway's
+                // own view. Fail-closed on disagreement (research R8).
+                Gateway crossCheckGateway = unit == null
+                        ? mintProtocolService.createGateway(method)
+                        : mintProtocolService.createGateway(method, unit);
+                Integer gatewayAmount;
+                try {
+                    gatewayAmount = crossCheckGateway.getAmount(quoteId);
+                } catch (RuntimeException e) {
+                    log.error("mint_task gateway_cross_check_failed quote_id={}", quoteId, e);
+                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    throw new CashuErrorException(
+                            new ErrorResponse("quote_amount_cross_check_failed").toJson());
+                }
+                if (gatewayAmount == null || gatewayAmount.longValue() != durableQuote.amount()) {
+                    log.error("mint_task gateway_cross_check_mismatch quote_id={} durable={} gateway={}",
+                            quoteId, durableQuote.amount(), gatewayAmount);
+                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    throw new CashuErrorException(
+                            new ErrorResponse("quote_amount_cross_check_failed").toJson());
+                }
+
                 outputsHash = OutputsHash.compute(blindedMessages);
                 int updated = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.PAID, LifecycleState.ISSUING);
                 if (updated == 0) {
@@ -279,6 +325,13 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
             return result;
         } // QuoteLock auto-released here
+    }
+
+    private void incrementCounter(String name) {
+        if (meterRegistry == null) {
+            return;
+        }
+        meterRegistry.counter(name, "path", "mint").increment();
     }
 
     private static String firstKeysetId(List<BlindedMessage> outputs) {
