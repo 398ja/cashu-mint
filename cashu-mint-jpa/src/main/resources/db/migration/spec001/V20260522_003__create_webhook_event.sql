@@ -14,8 +14,11 @@ CREATE TABLE webhook_event (
     raw_body_compressed BYTEA,
     CONSTRAINT webhook_event_pk PRIMARY KEY (provider, provider_event_id),
     CONSTRAINT webhook_event_amount_positive_chk CHECK (amount > 0),
-    CONSTRAINT webhook_event_quote_fk FOREIGN KEY (quote_id)
-        REFERENCES mint_quote (quote_id),
+    -- Intentionally no FK to mint_quote(quote_id): the `orphan` outcome
+    -- records webhooks that arrive before the quote row exists (spec 001
+    -- data-model § WebhookEvent). The reconciliation join happens in
+    -- application queries; referential integrity is enforced by the
+    -- append-only contract and operator dashboards.
     CONSTRAINT webhook_event_outcome_chk CHECK (outcome IN (
         'accepted',
         'amount_mismatch',
