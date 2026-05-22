@@ -19,7 +19,16 @@ import java.time.Instant;
 import java.util.HexFormat;
 
 /**
- * Task for creating a mint quote.
+ * NUT-04 mint-quote creation: asks the gateway for a payment request and
+ * returns the quote id / payment string / expiry.
+ *
+ * <p>Spec references (FR-014 — pinned-commit URLs tracked as a follow-up;
+ * current links use {@code main}):
+ * <ul>
+ *   <li>NUT-04: <a href="https://github.com/cashubtc/nuts/blob/main/04.md">cashubtc/nuts §04</a> — mint tokens (quote endpoint)</li>
+ *   <li>NUT-06: <a href="https://github.com/cashubtc/nuts/blob/main/06.md">cashubtc/nuts §06</a> — mint info (advertised limits)</li>
+ *   <li>NUT-20: <a href="https://github.com/cashubtc/nuts/blob/main/20.md">cashubtc/nuts §20</a> — signed mint quote (where supported)</li>
+ * </ul>
  *
  * <p>Spec 001 T112 / FR-004: when a {@link MintQuoteRepository} is provided,
  * the task persists the new quote row in state {@code UNPAID} with a

@@ -14,6 +14,39 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
  * concurrent writers cannot both succeed in advancing the lifecycle state.
  *
  * <p>Spec 001: research §R3 (compare-and-set).
+ *
+ * <h2>Operator reconciliation (FR-001 daily invariant)</h2>
+ *
+ * Run this query daily and alert if it does not return 0 rows. The total
+ * authorised amount across {@code ISSUED} quotes MUST equal the total amount
+ * issued in append-only {@code issuance_record} rows:
+ *
+ * <pre>{@code
+ * SELECT 'mint_quote_vs_issuance_record' AS check_name,
+ *        COALESCE((SELECT SUM(mq.amount)
+ *                  FROM mint_quote mq
+ *                  WHERE mq.lifecycle_state = 'ISSUED'), 0) AS issued_quote_total,
+ *        COALESCE((SELECT SUM(ir.total_amount) FROM issuance_record ir), 0) AS issued_record_total
+ * HAVING COALESCE((SELECT SUM(mq.amount)
+ *                  FROM mint_quote mq
+ *                  WHERE mq.lifecycle_state = 'ISSUED'), 0)
+ *       <> COALESCE((SELECT SUM(ir.total_amount) FROM issuance_record ir), 0);
+ * }</pre>
+ *
+ * A second invariant: every {@code PAID → ISSUED} transition MUST have a
+ * matching {@code webhook_event} row with {@code outcome = 'accepted'}:
+ *
+ * <pre>{@code
+ * SELECT mq.quote_id
+ *   FROM mint_quote mq
+ *   LEFT JOIN webhook_event we
+ *     ON we.quote_id = mq.quote_id AND we.outcome = 'accepted'
+ *  WHERE mq.lifecycle_state IN ('PAID','ISSUING','ISSUED')
+ *    AND we.quote_id IS NULL;
+ * }</pre>
+ *
+ * Either query returning non-empty is an operator alert per spec 001 SC-001 /
+ * SC-004.
  */
 @Repository
 public interface MintQuoteJpaRepository extends JpaRepository<MintQuoteEntity, String> {

@@ -21,6 +21,12 @@ import java.util.Base64;
  * development needs to configure {@code cashu.mint.webhook.shared-secret}
  * (or {@code MINT_WEBHOOK_SECRET}) the same way production does.
  *
+ * <p>This class implements the cashu-mint side of the webhook contract;
+ * sibling spec NUT references for the controller it gates are documented on
+ * {@link PaymentWebhookController}. There is no canonical NUT for webhook
+ * signature validation today — the contract lives in spec 001 § FR-007
+ * (Principle VI of the cashu-mint Constitution v1.1.0).
+ *
  * <p><b>Security:</b> Uses constant-time comparison to prevent timing attacks
  * (per Oracle Secure Coding Guidelines).
  */

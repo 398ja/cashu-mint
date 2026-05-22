@@ -30,6 +30,11 @@ import java.util.Optional;
  * record keyed by {@code (provider, provider_event_id)} (spec 001 FR-005,
  * FR-006, FR-008).
  *
+ * <p>Spec references (FR-014 — pinned-commit URLs tracked as a follow-up):
+ * <ul>
+ *   <li>NUT-04: <a href="https://github.com/cashubtc/nuts/blob/main/04.md">cashubtc/nuts §04</a> — payment confirmation lifecycle</li>
+ * </ul>
+ *
  * <p>The in-process Caffeine cache stays as a read-through accelerator for
  * {@link PaymentStatusChecker#isPaid} so {@code MintTask} can short-circuit
  * the gateway polling path. It is no longer the source of truth for write

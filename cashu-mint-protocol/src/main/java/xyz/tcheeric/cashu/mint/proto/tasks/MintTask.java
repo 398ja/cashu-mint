@@ -42,6 +42,33 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 // TEST - When mint_invoice_not_paid_error is thrown, signBlindedMessage is never invoked, else it is invoked for each blindedMessage in the request
+/**
+ * NUT-04 mint operation: signs blinded outputs for a paid quote.
+ *
+ * <p>Spec references (FR-014 — pinned-commit URLs tracked as a follow-up;
+ * current links use {@code main}):
+ * <ul>
+ *   <li>NUT-04: <a href="https://github.com/cashubtc/nuts/blob/main/04.md">cashubtc/nuts §04</a> — mint tokens</li>
+ *   <li>NUT-19: <a href="https://github.com/cashubtc/nuts/blob/main/19.md">cashubtc/nuts §19</a> — cached responses / idempotent retry</li>
+ *   <li>NUT-20: <a href="https://github.com/cashubtc/nuts/blob/main/20.md">cashubtc/nuts §20</a> — signed mint quote (where supported)</li>
+ * </ul>
+ *
+ * <p>Spec 001 integrity contract implemented here:
+ * <ul>
+ *   <li>FR-001: {@code sum(outputs.amount) == quote.amount}; mismatches throw
+ *       {@code amount_mismatch} and increment
+ *       {@code cashu_mint_amount_mismatch_total{path="mint"}}.</li>
+ *   <li>FR-002 / FR-011: compare-and-set lifecycle transitions
+ *       {@code PAID → ISSUING → ISSUED} with one append-only
+ *       {@code IssuanceRecord} row per quote.</li>
+ *   <li>FR-003: NUT-19 idempotent replay — same blinded outputs against an
+ *       {@code ISSUED} quote return the previously signed promises; different
+ *       outputs reject with {@code quote_already_issued}.</li>
+ *   <li>FR-010: {@code Gateway.getAmount(quoteId)} cross-check before the
+ *       {@code PAID → ISSUING} CAS; failures emit
+ *       {@code cashu_mint_quote_cross_check_failures_total{path="mint"}}.</li>
+ * </ul>
+ */
 @Slf4j
 public class MintTask<T extends Secret> extends InstrumentedTask<PostMintResponse> {
     private static final ObjectMapper JSON = new ObjectMapper();
