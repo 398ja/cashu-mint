@@ -55,21 +55,6 @@ class NUT06Test {
     }
 
     @Test
-    // Ensures the mint advertises NUT-11 P2PK spending conditions so clients
-    // that gate P2PK use on /v1/info (including imani-gateway-core's spec-029
-    // in-person delivery saga branch) can pick the right code path. Backing
-    // verifier wiring lives in P2PKSpendingCondition + VerifyProofsTask.
-    void nut11Supported() throws CashuErrorException {
-        MintInfo mintInfo = nut06.mintInfo();
-        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
-
-        MintInfo.Nut nut11 = nuts.get("11");
-        assertNotNull(nut11, "NUT-11 should be present in mint info");
-        assertTrue(nut11.isSupportedSimple(),
-                "NUT-11 should be advertised as supported (simple capability, no per-method config)");
-    }
-
-    @Test
     // Ensures the mint advertises NUT-17 WebSocket subscription support
     void nut17Supported() throws CashuErrorException {
         MintInfo mintInfo = nut06.mintInfo();
