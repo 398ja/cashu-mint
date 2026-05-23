@@ -7,8 +7,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import xyz.tcheeric.cashu.mint.jpa.repository.IssuanceRecordJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.WebhookEventJpaRepository;
@@ -37,16 +35,27 @@ import xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication;
 @SpringBootTest(classes = CashuMintRestApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles({"test", "spec001-it"})
-@Testcontainers
 public abstract class AbstractMintDurableIT {
 
-    @Container
+    /**
+     * Singleton Postgres container shared by every spec-001 IT class. We don't
+     * declare it with {@code @Container} because that scopes the lifecycle to
+     * each test class — but Spring's {@code ApplicationContext} cache holds the
+     * datasource URL across classes that share the same configuration, so the
+     * second IT class would try to connect to a stopped container. The shared
+     * singleton outlives every IT class in the JVM and is stopped by the JVM
+     * shutdown hook Testcontainers installs (the Ryuk reaper container).
+     */
     @SuppressWarnings("resource")
-    protected static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine")
-                    .withDatabaseName("cashu_mint_it")
-                    .withUsername("cashu")
-                    .withPassword("cashu");
+    protected static final PostgreSQLContainer<?> POSTGRES;
+
+    static {
+        POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("cashu_mint_it")
+                .withUsername("cashu")
+                .withPassword("cashu");
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
