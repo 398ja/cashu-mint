@@ -587,14 +587,31 @@ public class CashuController<T extends Secret> {
             }
         }
 
-        // Decide status using message hints; default to 500 for structured errors in this handler
+        // Decide status from the parsed error code first (typed contract),
+        // then fall back to message hints, then a 500 default.
         HttpStatus status;
-        String message = ex.getMessage();
-        String normalized = message == null ? "" : message.trim();
-        if (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found")) {
-            status = HttpStatus.NOT_FOUND;
-        } else {
-            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        String code = error.code() == null ? "" : error.code();
+        switch (code) {
+            case "insufficient_input":
+            case "amount_mismatch":
+            case "invalid_quote_amount":
+            case "quote_amount_cross_check_failed":
+            case "quote_already_issued":
+            case "issuance_in_progress":
+                status = HttpStatus.BAD_REQUEST;
+                break;
+            case "quote_not_found":
+                status = HttpStatus.NOT_FOUND;
+                break;
+            default:
+                String message = ex.getMessage();
+                String normalized = message == null ? "" : message.trim();
+                if (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found")) {
+                    status = HttpStatus.NOT_FOUND;
+                } else {
+                    status = HttpStatus.INTERNAL_SERVER_ERROR;
+                }
+                break;
         }
 
         return new ResponseEntity<>(error, status);
