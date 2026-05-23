@@ -19,7 +19,6 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
-import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -96,18 +95,22 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             var quoteId = postMeltRequest.getQuoteId();
             var gateway = unit == null ? mintProtocolService.createGateway(method)
                     : mintProtocolService.createGateway(method, unit);
-            var amount = gateway.getAmount(quoteId);
+            long invoiceAmount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
-            var fee_reserve = gateway.getFeeReserve(quoteId);
-            var calculated_fee_reserve = fee_reserve + (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
-            log.debug("Processing melt quote {} for request {} with fee reserve {}", quoteId, request, calculated_fee_reserve);
-            var totalAmount = proofsToMelt.stream().mapToInt(proof -> proof.getAmount()).sum()
-                    + postMeltRequest.getFees(keyset) + calculated_fee_reserve;
-
-            if (totalAmount < amount + fee_reserve) {
-                ErrorResponse error = new ErrorResponse("melt_proof_amount_error");
-                throw new CashuErrorException(error.toJson());
+            ExactFeeReserveResolver.Resolved feeReserve =
+                    ExactFeeReserveResolver.resolve(gateway, quoteId, postMeltRequest, keyset);
+            long proofSum = proofsToMelt.stream()
+                    .mapToLong(Proof::getAmount)
+                    .sum();
+            if (log.isDebugEnabled()) {
+                log.debug("Processing melt quote {} for request {} with invoice={} lightningReserve={} inputFees={} proofSum={}",
+                        quoteId, request, invoiceAmount,
+                        feeReserve.getLightningReserve(), feeReserve.getInputFees(), proofSum);
             }
+
+            // Spec 002 FR-001 / FR-009: sum(proofs) >= invoice + exactFeeReserve, long arithmetic.
+            // The validator throws insufficient_input *before* any external payment is attempted (SC-001).
+            BurnAmountValidator.requireFunded(proofSum, invoiceAmount, feeReserve.getTotal());
 
             gateway.pay(quoteId);
             if (!gateway.checkPaymentStatus(quoteId)) {

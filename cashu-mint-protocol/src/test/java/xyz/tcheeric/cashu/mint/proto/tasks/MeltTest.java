@@ -194,8 +194,10 @@ public class MeltTest {
         // Assert that a CashuErrorException is thrown
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-        assertEquals("melt_proof_amount_error", error.code());
-        assertEquals("Proof amount error", error.message());
+        // Spec 002 FR-001: under-funded melt now rejects with the typed
+        // `insufficient_input` code carried by BurnAmountValidator; the
+        // legacy `melt_proof_amount_error` code is retired.
+        assertEquals("insufficient_input", error.code());
         Mockito.verify(proofVaultService, Mockito.never()).storePending(Mockito.any());
         Mockito.verify(mockGateway, Mockito.never()).pay(anyString());
     }
