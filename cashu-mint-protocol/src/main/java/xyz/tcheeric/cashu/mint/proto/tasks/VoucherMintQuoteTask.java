@@ -5,6 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
@@ -12,21 +16,28 @@ import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+
 /**
  * Task for creating a voucher mint quote with percentage-based fee.
  *
- * <p>Unlike regular mint quotes that charge the full face value, voucher mint quotes
- * charge only a percentage of the voucher face value as a minting fee.
+ * <p><strong>Non-standard extension:</strong> vouchers are a vendor extension
+ * on top of <a href="https://github.com/cashubtc/nuts/blob/main/04.md">NUT-04</a>;
+ * see Constitution II and spec 003 FR-010/FR-013. The voucher path MUST NOT
+ * appear under the NUT-06 {@code nuts} key.
  *
- * <p>Example: With 10% fee configuration:
- * <ul>
- *   <li>User requests 1,000 sat voucher</li>
- *   <li>Gateway invoice is for 100 sats (10% fee)</li>
- *   <li>After payment, user receives 1,000 sat worth of tokens</li>
- * </ul>
+ * <p>Unlike regular mint quotes that charge the full face value, voucher mint
+ * quotes charge only a percentage of the voucher face value as a minting fee.
  *
- * <p>The original face value is stored in {@link VoucherQuoteRegistry} to ensure
- * the correct amount is minted when the quote is fulfilled.
+ * <h3>Spec 003 changes</h3>
+ * When the durable repositories are wired ({@code cashu.mint.jpa.enabled=true}),
+ * this task persists a {@code voucher_quote} row with
+ * {@code lifecycle_state=UNFUNDED} so the voucher classification + face value
+ * survive a restart (FR-001) and so the mint can later enforce the
+ * funding-required gate (FR-002). The in-memory {@link VoucherQuoteRegistry}
+ * is kept as a read-through accelerator (FR-003).
  *
  * @see VoucherFeeConfig
  * @see VoucherFeeCalculator
@@ -34,6 +45,8 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
  */
 @Slf4j
 public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
+
+    private static final String VOUCHER_TYPE_CUSTOMER_PAID = "customer_paid";
 
     private final int faceValue;
     private final PaymentMethod method;
@@ -80,7 +93,12 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
 
         String quoteId = gateway.createMintQuote((int) voucherPrice, null);
 
-        // Store face value for later minting
+        // Spec 003 FR-001/FR-003 — persist the durable voucher quote so the
+        // classification and face value survive a restart. The in-memory
+        // registry becomes a read-through cache (still populated for the
+        // legacy fast path).
+        persistVoucherQuote(quoteId, voucherPrice);
+
         VoucherQuoteRegistry.storeFaceValue(quoteId, faceValue);
 
         // Retrieve request and expiry from gateway
@@ -95,5 +113,87 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                 .request(request)
                 .expiry(expiry)
                 .build();
+    }
+
+    private void persistVoucherQuote(String quoteId, long chargedAmount) throws CashuErrorException {
+        VoucherQuoteRepository repo = MintIntegrityContext.voucherQuoteRepository();
+        if (repo == null) {
+            // Legacy unit-test context — no JPA repo wired, registry-only.
+            return;
+        }
+        try {
+            // Spec 003 review fix — fee semantics for fee-only voucher
+            // pricing: the gateway invoice is created for the fee
+            // (chargedAmount = voucherPrice = faceValue * feePercent),
+            // which is strictly less than faceValue. So fee == chargedAmount
+            // for this variant — the customer pays the fee, the merchant
+            // covers the face value via the funding row. Recording
+            // max(0, chargedAmount - faceValue) was always 0 and lost the
+            // audit signal.
+            long fee = chargedAmount;
+            VoucherQuoteRecord record = new VoucherQuoteRecord(
+                    quoteId,
+                    VOUCHER_TYPE_CUSTOMER_PAID,
+                    faceValue,
+                    chargedAmount,
+                    fee,
+                    unit != null ? unit : "sat",
+                    requestHash(quoteId, faceValue, chargedAmount));
+            repo.save(record);
+            log.info("voucher_quote persisted quote_id={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
+                    quoteId, faceValue, chargedAmount, fee);
+        } catch (RuntimeException e) {
+            // Spec 003 review fix — when the durable repo is wired and
+            // save fails, the client MUST NOT receive a quote_id that
+            // can't be redeemed. A failure here typically means a
+            // transient DB error; fail closed so the client retries
+            // rather than paying the gateway invoice and discovering
+            // voucher_quote_not_found later.
+            log.error("voucher_quote persist_failed quote_id={}", quoteId, e);
+            throw new CashuErrorException(
+                    "{\"error\":\"voucher_quote_persist_failed\"}");
+        }
+    }
+
+    private static String requestHash(String quoteId, int faceValue, long chargedAmount) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            // Spec 003 review fix — pin charset so request_hash is stable
+            // across environments (default JVM charset is platform-dependent).
+            byte[] bytes = digest.digest(
+                    (quoteId + "|" + faceValue + "|" + chargedAmount)
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /**
+     * Minimal anonymous implementation of {@link VoucherQuote} used to hand
+     * a fresh record to the JPA adapter. The adapter copies the fields onto
+     * a {@code VoucherQuoteEntity}; this saves us from depending on the JPA
+     * module from the protocol task.
+     */
+    private record VoucherQuoteRecord(
+            String quoteId,
+            String voucherType,
+            long faceValue,
+            long chargedAmount,
+            long fee,
+            String unit,
+            String requestHash
+    ) implements VoucherQuote {
+        @Override public String merchantId() { return null; }
+        @Override public String customerId() { return null; }
+        @Override public String fundingId() { return null; }
+        @Override public VoucherLifecycleState lifecycleState() { return VoucherLifecycleState.UNFUNDED; }
+        @Override public String idempotencyKey() { return null; }
+        @Override public Instant createdAt() { return null; }
+        @Override public Instant updatedAt() { return null; }
     }
 }

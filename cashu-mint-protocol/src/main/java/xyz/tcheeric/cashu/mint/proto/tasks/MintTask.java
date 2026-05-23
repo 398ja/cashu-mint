@@ -13,11 +13,19 @@ import xyz.tcheeric.cashu.common.util.SplittingService;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherIssuance;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherIssuanceRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
@@ -189,12 +197,39 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // to prevent double-mint attacks while allowing parallel minting of different quotes
         try (QuoteLockManager.QuoteLock quoteLock = QuoteLockManager.lockQuote(quoteId)) {
 
-            // Voucher tokens use mock payment - no real bitcoin backing needed
-            boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
+            // Spec 003 FR-013 — vouchers are a NON-STANDARD vendor extension
+            // on top of NUT-04 (https://github.com/cashubtc/nuts/blob/main/04.md).
+            // They MUST NOT be advertised under the NUT-06 `nuts` key
+            // (Constitution II; enforced by VoucherNutAdvertisementGuardTest)
+            // and the issuance path here is the divergence from the standard
+            // NUT-04 mint flow: instead of validating a Lightning payment,
+            // we validate against a durable VoucherFunding row.
+            //
+            // Spec 003 FR-003 — voucher classification MUST come from the
+            // durable record when the JPA module is wired. The in-memory
+            // VoucherQuoteRegistry is a read-through cache only and stays
+            // cold after a restart, so it cannot be the source of truth
+            // for write decisions.
+            VoucherQuoteRepository voucherClassifier = MintIntegrityContext.voucherQuoteRepository();
+            boolean isVoucherQuote = (voucherClassifier != null
+                    && voucherClassifier.findById(quoteId).isPresent())
+                    || VoucherQuoteRegistry.isVoucherQuote(quoteId);
+            VoucherFundingContext voucherCtx = null;
 
             if (isVoucherQuote) {
-                // Vouchers are merchant IOUs - skip payment verification
-                log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true", quoteId);
+                // Spec 003 FR-002 — vouchers MUST trace to a durable funding row.
+                // The legacy "skip payment check" path is gone when the JPA module
+                // is wired; legacy unit-test contexts (repo == null) keep working
+                // unchanged. resolveVoucherFunding also enforces the CAS gate
+                // (rejects with quote_already_issued / issuance_in_progress when
+                // the durable lifecycle has already advanced past FUNDED).
+                voucherCtx = resolveVoucherFunding(quoteId);
+                if (voucherCtx == null) {
+                    log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true (legacy context)", quoteId);
+                } else {
+                    log.info("mint_task voucher_quote_funded quote_id={} funding_id={} source={}",
+                            quoteId, voucherCtx.funding.fundingId(), voucherCtx.funding.fundingSource());
+                }
             } else {
                 // Regular tokens require real Lightning payment per NUT-04
                 // First check webhook cache (instant), then fall back to gateway polling
@@ -281,10 +316,17 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
             }
 
-            // Check if this is a voucher quote and validate against face value
-            Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
+            // Spec 003 FR-001/FR-003 — voucher face_value validation reads
+            // from the durable record when wired, falling back to the
+            // in-memory registry only in legacy unit-test contexts. A cold
+            // registry after restart MUST NOT silently skip the sum check.
+            Long voucherFaceValue;
+            if (voucherCtx != null) {
+                voucherFaceValue = voucherCtx.quote.faceValue();
+            } else {
+                voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
+            }
             if (voucherFaceValue != null) {
-                // This is a voucher quote - validate total amount matches face value
                 long totalBlindedAmount = blindedMessages.stream()
                         .mapToLong(BlindedMessage::getAmount)
                         .sum();
@@ -344,6 +386,54 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 int closed = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.ISSUING, LifecycleState.ISSUED);
                 if (closed == 0) {
                     log.warn("mint_task lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                }
+            }
+
+            // Spec 003 FR-002 / FR-005 — append the VoucherIssuance ledger row
+            // and close the voucher lifecycle. Same operator-triage rule as
+            // above: a commit failure leaves ISSUING so reconciliation can
+            // surface it.
+            if (voucherCtx != null) {
+                String voucherOutputsHash = OutputsHash.compute(blindedMessages);
+
+                // Spec 003 review fix — voucher quote_ids live in
+                // voucher_quote, NOT mint_quote. The spec-001
+                // issuance_record table has a FK to mint_quote(quote_id)
+                // so writing a voucher quote_id into issuance_record
+                // throws DataIntegrityViolationException. The voucher
+                // ledger lives in voucher_issuance (below); we deliberately
+                // do NOT touch issuance_record for the voucher path.
+                //
+                // NUT-19 idempotent replay for vouchers is a future
+                // enhancement: a second mint call against an ISSUED
+                // voucher quote is rejected via the CAS gate in
+                // resolveVoucherFunding(), not via signature replay.
+
+                VoucherIssuanceRepository voucherIssuanceRepo = MintIntegrityContext.voucherIssuanceRepository();
+                if (voucherIssuanceRepo != null) {
+                    voucherIssuanceRepo.insertIfAbsent(new VoucherIssuanceRow(
+                            quoteId,
+                            voucherCtx.funding.fundingId(),
+                            quoteId,
+                            voucherOutputsHash,
+                            java.time.Instant.now()));
+                }
+
+                VoucherQuoteRepository voucherRepo = MintIntegrityContext.voucherQuoteRepository();
+                if (voucherRepo != null) {
+                    int closed = voucherRepo.casLifecycle(quoteId,
+                            VoucherLifecycleState.ISSUING, VoucherLifecycleState.ISSUED);
+                    if (closed == 0) {
+                        log.warn("mint_task voucher_lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                    }
+                }
+
+                // Spec 003 FR-014 / T114 — per-funding-source success counter
+                // for operator dashboards (SC-006 liability reconciliation).
+                if (meterRegistry != null) {
+                    meterRegistry.counter("cashu_mint_voucher_issued_total",
+                            "funding_source", voucherCtx.funding.fundingSource().name(),
+                            "path", "mint").increment();
                 }
             }
 
@@ -441,6 +531,117 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         public java.time.Instant issuedAt() {
             return null; // populated by the adapter / DB default
         }
+    }
+
+    /** Spec 003 — inline {@link VoucherIssuance} for the happy-path persistence call. */
+    private record VoucherIssuanceRow(
+            String voucherQuoteId,
+            String fundingId,
+            String issuanceId,
+            String outputsHash,
+            java.time.Instant issuedAt) implements VoucherIssuance {}
+
+    /** Carrier for the voucher branch state after the funding gate clears. */
+    private record VoucherFundingContext(VoucherQuote quote, VoucherFunding funding) {}
+
+    /**
+     * Spec 003 FR-002 / FR-005 — voucher funding gate. Returns the funding
+     * context (quote + funding row) when issuance is allowed; throws
+     * {@code funding_required} when the durable voucher quote exists but
+     * no funding row resolves. Returns {@code null} when the JPA module
+     * is not wired (legacy unit-test contexts).
+     */
+    private VoucherFundingContext resolveVoucherFunding(String quoteId) throws CashuErrorException {
+        VoucherQuoteRepository voucherRepo = MintIntegrityContext.voucherQuoteRepository();
+        if (voucherRepo == null) {
+            return null;
+        }
+
+        VoucherQuote quote = voucherRepo.findById(quoteId).orElse(null);
+        if (quote == null) {
+            log.warn("mint_task voucher_quote_missing quote_id={}", quoteId);
+            throw new CashuErrorException(new ErrorResponse("voucher_quote_not_found").toJson());
+        }
+
+        // Spec 003 review fix — single-issuance invariant. A second mint
+        // request against a voucher quote that has already advanced past
+        // FUNDED MUST NOT re-sign. NUT-19 idempotent signature replay for
+        // vouchers is a future enhancement; today we reject.
+        VoucherLifecycleState state = quote.lifecycleState();
+        if (state == VoucherLifecycleState.ISSUED) {
+            log.info("mint_task voucher_quote_already_issued quote_id={}", quoteId);
+            throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+        }
+        if (state == VoucherLifecycleState.ISSUING) {
+            log.info("mint_task voucher_issuance_in_progress quote_id={}", quoteId);
+            throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+        }
+        if (state == VoucherLifecycleState.EXPIRED || state == VoucherLifecycleState.FAILED) {
+            log.info("mint_task voucher_quote_unavailable quote_id={} state={}", quoteId, state);
+            throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+        }
+
+        VoucherFunding funding = null;
+        if (quote.fundingId() != null) {
+            funding = MintIntegrityContext.voucherFundingRepository() != null
+                    ? MintIntegrityContext.voucherFundingRepository().findById(quote.fundingId()).orElse(null)
+                    : null;
+        } else {
+            VoucherFundingResolver resolver = MintIntegrityContext.voucherFundingResolver();
+            if (resolver != null) {
+                funding = resolver.resolveForQuote(quote).orElse(null);
+                if (funding != null) {
+                    int attached = voucherRepo.attachFundingAndAdvance(quoteId, funding.fundingId());
+                    if (attached == 0) {
+                        // Race: another writer attached. Re-read.
+                        quote = voucherRepo.findById(quoteId).orElse(quote);
+                    } else {
+                        quote = voucherRepo.findById(quoteId).orElse(quote);
+                    }
+                }
+            }
+        }
+
+        if (funding == null) {
+            log.warn("mint_task voucher_funding_required quote_id={}", quoteId);
+            incrementCounter("cashu_mint_voucher_funding_required_total");
+            throw new CashuErrorException(new ErrorResponse("funding_required").toJson());
+        }
+
+        // Spec 003 FR-014 — every IOU issuance generates an operator alert
+        // signal regardless of policy. Production deploys map this counter
+        // to a PagerDuty rule.
+        if (funding.fundingSource() == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.MERCHANT_IOU) {
+            log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
+                    quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
+            incrementCounter("cashu_mint_voucher_iou_issued_total");
+        }
+
+        // CAS FUNDED → ISSUING (matches the durable invariant that signing
+        // only happens once per quote). The pre-FUNDED states (ISSUED /
+        // ISSUING / EXPIRED / FAILED) were already rejected above, so any
+        // path that reaches here either advances cleanly or loses a race
+        // to another writer (in which case the next request will see the
+        // post-advance state and reject).
+        if (quote.lifecycleState() == VoucherLifecycleState.FUNDED) {
+            int advanced = voucherRepo.casLifecycle(quoteId,
+                    VoucherLifecycleState.FUNDED, VoucherLifecycleState.ISSUING);
+            if (advanced == 0) {
+                // Another writer advanced the state between our findById and
+                // the CAS. Re-read and reject — we MUST NOT proceed to sign
+                // because that would violate the single-issuance invariant.
+                VoucherQuote refreshed = voucherRepo.findById(quoteId).orElse(quote);
+                VoucherLifecycleState newState = refreshed.lifecycleState();
+                log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
+                        quoteId, newState);
+                if (newState == VoucherLifecycleState.ISSUED) {
+                    throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                }
+                throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+            }
+        }
+
+        return new VoucherFundingContext(quote, funding);
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
