@@ -1,8 +1,14 @@
 package xyz.tcheeric.cashu.mint.jpa.adapter;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.time.Duration;
@@ -29,19 +35,48 @@ import java.time.Duration;
  * timeout becomes operative.
  */
 @Slf4j
+@Component
+@ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 public class PaymentAdapterLightningPort implements LightningPaymentPort {
 
-    private final Gateway gateway;
+    private final MintProtocolService mintProtocolService;
+    private final PaymentMethod method;
+    private final String unit;
 
-    public PaymentAdapterLightningPort(Gateway gateway) {
-        this.gateway = gateway;
+    /**
+     * Spring-managed constructor. The melt path is single-method-per-quote
+     * today; we resolve the Gateway lazily on every call so the underlying
+     * {@code payment-adapter} loader can apply per-method/unit routing.
+     *
+     * <p>The default {@link PaymentMethod#BOLT11} matches the existing
+     * deployment; future multi-method support would replace this single
+     * bean with a factory keyed on (method, unit) resolved from the quote.
+     */
+    public PaymentAdapterLightningPort(
+            @Value("${cashu.mint.melt.method:BOLT11}") String methodName,
+            @Value("${cashu.mint.melt.unit:sat}") String unit) {
+        this.mintProtocolService = MintProtocolServiceFactory.getInstance();
+        this.method = PaymentMethod.valueOf(methodName);
+        this.unit = unit;
+    }
+
+    private Gateway gateway() {
+        return unit == null
+                ? mintProtocolService.createGateway(method)
+                : mintProtocolService.createGateway(method, unit);
     }
 
     @Override
     public PaymentOutcome pay(String quoteId, Duration timeout) {
+        Gateway gateway;
+        try {
+            gateway = gateway();
+        } catch (RuntimeException e) {
+            return new PaymentOutcome.Unknown("gateway_resolution_threw: " + e.getClass().getSimpleName());
+        }
         try {
             String response = gateway.pay(quoteId);
-            return classifyAfterPay(quoteId, response);
+            return classifyAfterPay(gateway, quoteId, response);
         } catch (RuntimeException e) {
             log.warn("lightning_payment_unknown quote_id={} reason=pay_threw cause={}",
                     quoteId, e.getMessage());
@@ -51,10 +86,16 @@ public class PaymentAdapterLightningPort implements LightningPaymentPort {
 
     @Override
     public PaymentOutcome checkStatus(String quoteId) {
+        Gateway gateway;
+        try {
+            gateway = gateway();
+        } catch (RuntimeException e) {
+            return new PaymentOutcome.Unknown("gateway_resolution_threw: " + e.getClass().getSimpleName());
+        }
         try {
             boolean paid = gateway.checkPaymentStatus(quoteId);
             if (paid) {
-                return success(quoteId);
+                return success(gateway, quoteId);
             }
             // checkPaymentStatus=false isn't itself a definitive failure —
             // it could mean "not yet observed". Surface as Unknown.
@@ -64,11 +105,11 @@ public class PaymentAdapterLightningPort implements LightningPaymentPort {
         }
     }
 
-    private PaymentOutcome classifyAfterPay(String quoteId, String payResponse) {
+    private PaymentOutcome classifyAfterPay(Gateway gateway, String quoteId, String payResponse) {
         try {
             boolean paid = gateway.checkPaymentStatus(quoteId);
             if (paid) {
-                return success(quoteId);
+                return success(gateway, quoteId);
             }
             // pay returned cleanly but the gateway doesn't acknowledge the
             // payment yet. Treat as ambiguous, not definitive failure: a
@@ -80,7 +121,7 @@ public class PaymentAdapterLightningPort implements LightningPaymentPort {
         }
     }
 
-    private PaymentOutcome success(String quoteId) {
+    private PaymentOutcome success(Gateway gateway, String quoteId) {
         String preimage;
         try {
             preimage = gateway.getPaymentPreimage(quoteId);
@@ -99,4 +140,5 @@ public class PaymentAdapterLightningPort implements LightningPaymentPort {
         long amountSettled = amount == null ? 0L : amount.longValue();
         return new PaymentOutcome.Success(preimage, amountSettled, 0L, preimage);
     }
+
 }
