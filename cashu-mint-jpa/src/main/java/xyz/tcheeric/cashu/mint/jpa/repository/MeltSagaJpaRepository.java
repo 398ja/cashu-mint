@@ -105,4 +105,35 @@ public interface MeltSagaJpaRepository extends JpaRepository<MeltSagaEntity, Str
             + "SET s.meltResponseCache = :json, s.updatedAt = CURRENT_TIMESTAMP "
             + "WHERE s.meltSagaId = :id")
     int updateResponseCache(@Param("id") String id, @Param("json") String json);
+
+    /**
+     * Spec 002 — set the provider identifiers on a saga row. {@code COALESCE}
+     * preserves the existing value when the caller passes {@code null} for
+     * a field (used so the Success-branch update doesn't overwrite a
+     * payment_hash recorded by an earlier PAYMENT_SENT transition).
+     */
+    @Modifying
+    @Transactional("mintTransactionManager")
+    @Query("UPDATE MeltSagaEntity s "
+            + "SET s.paymentHash = COALESCE(:paymentHash, s.paymentHash), "
+            + "    s.providerEventId = COALESCE(:providerEventId, s.providerEventId), "
+            + "    s.paymentOutcomeReason = COALESCE(:reason, s.paymentOutcomeReason), "
+            + "    s.updatedAt = CURRENT_TIMESTAMP "
+            + "WHERE s.meltSagaId = :id")
+    int updateProviderMetadata(@Param("id") String id,
+                               @Param("paymentHash") String paymentHash,
+                               @Param("providerEventId") String providerEventId,
+                               @Param("reason") String paymentOutcomeReason);
+
+    /** Spec 002 T215 / FR-013 — persist NUT-08 change-return forensics columns. */
+    @Modifying
+    @Transactional("mintTransactionManager")
+    @Query("UPDATE MeltSagaEntity s "
+            + "SET s.changeOutputsHash = :hash, "
+            + "    s.changeSignaturesJson = :json, "
+            + "    s.updatedAt = CURRENT_TIMESTAMP "
+            + "WHERE s.meltSagaId = :id")
+    int updateChangeOutputs(@Param("id") String id,
+                            @Param("hash") String changeOutputsHash,
+                            @Param("json") String changeSignaturesJson);
 }

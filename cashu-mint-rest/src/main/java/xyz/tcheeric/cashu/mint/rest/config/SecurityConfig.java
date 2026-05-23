@@ -20,9 +20,16 @@ import org.springframework.security.web.SecurityFilterChain;
  * actuator, and static error pages stay open.
  *
  * <p>The admin password comes from {@code cashu.mint.admin.password}. When
- * unset, a startup-time random password is logged (Spring default) — non-
- * local profiles SHOULD set a stable value via environment variable
- * {@code MINT_ADMIN_PASSWORD}.
+ * unset/blank, NO admin user is registered: every {@code /admin/**}
+ * request returns 401 Unauthorized and a WARN log fires at boot. Set
+ * {@code MINT_ADMIN_PASSWORD} (or the equivalent property) to enable
+ * operator access.
+ *
+ * <p>Operators may supply a password with an explicit Spring Security
+ * encoder prefix (e.g. {@code {bcrypt}$2a$10$...}); when present, the
+ * prefix is preserved verbatim so the {@code DelegatingPasswordEncoder}
+ * routes through the named encoder. Plain-text values are wrapped with
+ * {@code {noop}} automatically.
  *
  * <p>"Service-account auth" in the spec sense means a deterministic
  * principal (username/password tuple) that operator tooling can rotate
@@ -70,11 +77,18 @@ public class SecurityConfig {
                     + "Set MINT_ADMIN_PASSWORD to enable operator access.");
             return new InMemoryUserDetailsManager();
         }
+        // Honour an explicit encoder prefix when the operator supplies one
+        // (e.g. {bcrypt}$2a$10$...). Only prefix with {noop} when the
+        // value is plain text — otherwise the {bcrypt}/{argon2}/etc.
+        // hash would be compared literally and admin auth would silently
+        // never accept the correct password.
+        String stored = password.startsWith("{") ? password : "{noop}" + password;
         UserDetails admin = User.withUsername(username)
-                .password("{noop}" + password)
+                .password(stored)
                 .roles("ADMIN")
                 .build();
-        log.info("Admin auth wired: username='{}'", username);
+        log.info("Admin auth wired: username='{}' encoder={}", username,
+                password.startsWith("{") ? password.substring(0, password.indexOf('}') + 1) : "{noop}");
         return new InMemoryUserDetailsManager(admin);
     }
 

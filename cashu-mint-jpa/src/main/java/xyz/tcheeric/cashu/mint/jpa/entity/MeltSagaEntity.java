@@ -23,10 +23,6 @@ import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import java.time.Instant;
 
 /**
- * Spec 002 data-model § MeltSaga. Envers audits {@code current_state},
- * {@code payment_hash}, and {@code provider_event_id}.
- */
-/**
  * Spec 002 data-model § MeltSaga. Envers audits only
  * {@code current_state}, {@code payment_hash}, and {@code provider_event_id};
  * every other field carries {@link NotAudited} so the {@code melt_saga_aud}

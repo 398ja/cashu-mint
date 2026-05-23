@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Spec 002 T312 — DTO for the admin saga query endpoint. JSON shape is
- * pinned by {@code MeltSagaQueryIT} once that IT lands.
+ * pinned by {@code MeltSagaAdminIT#byId_response_pins_the_documented_json_shape_T302}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record MeltSagaResponse(

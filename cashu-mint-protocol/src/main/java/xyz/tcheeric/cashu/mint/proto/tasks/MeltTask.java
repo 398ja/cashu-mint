@@ -332,6 +332,17 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
                 MeltSagaState.PAYMENT_SENT, success.providerEventId(), "system");
+        // Spec 002 — persist provider identifiers on the saga row so the
+        // admin query endpoint / Envers audit history can correlate
+        // saga ↔ provider receipts (payment_hash + provider_event_id are
+        // both Envers-audited).
+        try {
+            meltSagaRepository.updateProviderMetadata(sagaId,
+                    success.paymentHash(), success.providerEventId(), null);
+        } catch (RuntimeException e) {
+            log.warn("melt_saga_provider_metadata_write_failed saga_id={} cause={}",
+                    sagaId, e.getMessage());
+        }
 
         try {
             createInvalidateProofsTask(proofsToMelt).execute();
@@ -441,6 +452,18 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
         response.setChange(changeSignatures);
 
+        // Persist NUT-08 forensics columns explicitly so admin queries
+        // and Envers audit history can correlate change outputs with the
+        // saga without parsing the response-cache JSON.
+        try {
+            String changeOutputsHash = computeChangeOutputsHash(outputs);
+            String changeSignaturesJson = RESPONSE_MAPPER.writeValueAsString(changeSignatures);
+            meltSagaRepository.updateChangeOutputs(sagaId, changeOutputsHash, changeSignaturesJson);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException e) {
+            log.warn("nut08_change forensics_write_failed saga_id={} cause={}",
+                    sagaId, e.getMessage());
+        }
+
         // Persist for NUT-19 cached-response replay (research R7) + forensics.
         try {
             meltSagaRepository.updateResponseCache(sagaId,
@@ -453,6 +476,36 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                 sagaId, quoteId, overpaid, changeSignatures.size());
     }
 
+    /**
+     * Spec 002 T215 — SHA-256 over the sorted {@code (amount, keyset_id, B_)}
+     * tuples of the wallet-supplied change outputs. Same hashing rule as
+     * {@code OutputsHash} for the mint quote path (spec 001), so admin
+     * tooling has one canonical fingerprint shape across both flows.
+     */
+    private static String computeChangeOutputsHash(List<BlindedMessage> outputs) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            // Stable order: sort by (amount, keysetId, B_) to make the hash
+            // independent of wire-order shuffling.
+            List<BlindedMessage> sorted = new java.util.ArrayList<>(outputs);
+            sorted.sort(java.util.Comparator
+                    .<BlindedMessage>comparingInt(BlindedMessage::getAmount)
+                    .thenComparing(b -> b.getKeySetId().toString())
+                    .thenComparing(b -> b.getBlindedMessage().toString()));
+            for (BlindedMessage bm : sorted) {
+                digest.update(Integer.toString(bm.getAmount()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                digest.update((byte) ':');
+                digest.update(bm.getKeySetId().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                digest.update((byte) ':');
+                digest.update(bm.getBlindedMessage().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                digest.update((byte) '\n');
+            }
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
     private PostMeltResponse refundAfterFailure(String sagaId, String quoteId,
                                                 List<Proof<T>> proofsToMelt,
                                                 PaymentOutcome.DefinitiveFailure failure)
@@ -462,6 +515,13 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                 failure.reason() + ":" + failure.providerCode(), "system");
+        try {
+            meltSagaRepository.updateProviderMetadata(sagaId,
+                    null, null, failure.reason() + ":" + failure.providerCode());
+        } catch (RuntimeException e) {
+            log.warn("melt_saga_provider_metadata_write_failed saga_id={} cause={}",
+                    sagaId, e.getMessage());
+        }
         // Spec 002 T011 / FR-006 — proof refund (PENDING → UNSPENT). Flips
         // every proof bound to this saga back to UNSPENT atomically and
         // clears the melt_saga_id binding, so the wallet can retry the
@@ -492,6 +552,12 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.PAYMENT_UNKNOWN);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
                 MeltSagaState.PAYMENT_UNKNOWN, unknown.reason(), "system");
+        try {
+            meltSagaRepository.updateProviderMetadata(sagaId, null, null, unknown.reason());
+        } catch (RuntimeException e) {
+            log.warn("melt_saga_provider_metadata_write_failed saga_id={} cause={}",
+                    sagaId, e.getMessage());
+        }
         throw new CashuErrorException(new ErrorResponse(
                 "payment_unknown",
                 "Payment provider response was ambiguous; saga parked for operator review").toJson());

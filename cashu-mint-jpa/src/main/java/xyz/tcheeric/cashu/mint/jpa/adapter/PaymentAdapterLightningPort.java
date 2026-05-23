@@ -21,11 +21,22 @@ import java.time.Duration;
  * <p>Parsing rules (strict per FR-008):
  * <ul>
  *   <li>Clean gateway success with a non-blank preimage → {@code Success}.</li>
- *   <li>Gateway returns {@code false} from {@code checkPaymentStatus} after
- *       {@code pay} returned cleanly → {@code DefinitiveFailure}.</li>
+ *   <li>Gateway returns {@code false} from {@code checkPaymentStatus} (after
+ *       {@code pay} returned cleanly, or on a standalone status check) →
+ *       {@code Unknown("provider_status_pending")} /
+ *       {@code Unknown("status_not_paid_after_pay")}. The payment-adapter
+ *       doesn't distinguish "not-yet-observed" from "definitely-rejected"
+ *       on a boolean return, and FR-008 strict-parse says ambiguity MUST
+ *       NOT be silently downgraded to {@code Success}; we surface as
+ *       {@code Unknown} and let the reconciler resolve via further
+ *       {@code checkStatus} polls.</li>
  *   <li>Any thrown exception (timeout, 5xx, parsing failure) →
  *       {@code Unknown}. The caller (saga state machine) is responsible
  *       for parking the saga in {@code PAYMENT_UNKNOWN} until reconciled.</li>
+ *   <li>The port never returns {@code DefinitiveFailure} today — that
+ *       branch is reserved for the cross-repo migration where the
+ *       underlying payment-adapter exposes a typed outcome with a known
+ *       provider error code.</li>
  * </ul>
  *
  * <p>The {@code timeout} parameter is currently advisory — the underlying
