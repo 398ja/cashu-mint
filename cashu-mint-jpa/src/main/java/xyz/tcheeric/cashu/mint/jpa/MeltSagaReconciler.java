@@ -17,7 +17,16 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Spec 002 T060 / T212 / T213 — scheduled reconciler that:
+ * Spec references:
+ * <ul>
+ *   <li><a href="https://github.com/cashubtc/nuts/blob/main/05.md">NUT-05</a> —
+ *       melt tokens; the reconciler resolves sagas whose {@code Gateway.pay}
+ *       outcome was ambiguous.</li>
+ * </ul>
+ * Spec URL is pinned to {@code main} per FR-014; commit-hash pinning is
+ * tracked as a follow-up cross-repo alongside spec 001's NUT links.
+ *
+ * <p>Spec 002 T060 / T212 / T213 — scheduled reconciler that:
  * <ol>
  *   <li>polls {@link LightningPaymentPort#checkStatus} for every saga in
  *       {@link MeltSagaState#PAYMENT_UNKNOWN}, advancing the saga to

@@ -19,7 +19,9 @@ import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaTransitionJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.rest.spec001.AbstractMintDurableIT;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +47,27 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
     @org.springframework.beans.factory.annotation.Autowired
     MeltSagaTransitionJpaRepository meltSagaTransitionRepository;
 
+    private static final String ADMIN_USER = "admin-it";
+    private static final String ADMIN_PASS = "it-admin-password";
+
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private HttpHeaders adminHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth(ADMIN_USER, ADMIN_PASS, StandardCharsets.UTF_8);
+        return headers;
+    }
+
+    private ResponseEntity<String> getAdmin(String url) {
+        try {
+            return restTemplate.exchange(url, HttpMethod.GET,
+                    new HttpEntity<String>(null, adminHeaders()), String.class);
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .headers(e.getResponseHeaders())
+                    .body(e.getResponseBodyAsString());
+        }
+    }
 
     @BeforeEach
     void cleanMeltSaga() {
@@ -57,8 +79,8 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
     void byId_returns_saga_with_full_transition_timeline() throws Exception {
         seed("saga-q-1", "quote-q-1", MeltSagaState.PAYMENT_UNKNOWN);
 
-        ResponseEntity<String> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-q-1", String.class);
+        ResponseEntity<String> response = getAdmin(
+                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-q-1");
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = MAPPER.readTree(response.getBody());
@@ -76,8 +98,8 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
     void byQuote_returns_the_same_saga() throws Exception {
         seed("saga-q-2", "quote-q-2", MeltSagaState.COMPLETED);
 
-        ResponseEntity<String> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/admin/melt-saga/by-quote/quote-q-2", String.class);
+        ResponseEntity<String> response = getAdmin(
+                "http://localhost:" + port + "/admin/melt-saga/by-quote/quote-q-2");
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         JsonNode body = MAPPER.readTree(response.getBody());
@@ -89,8 +111,8 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
     void byId_response_pins_the_documented_json_shape_T302() throws Exception {
         seed("saga-shape", "quote-shape", MeltSagaState.COMPLETED);
 
-        ResponseEntity<String> response = restTemplate.getForEntity(
-                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-shape", String.class);
+        ResponseEntity<String> response = getAdmin(
+                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-shape");
 
         JsonNode body = MAPPER.readTree(response.getBody());
         // Spec 002 T302 — pin the public field set so a future rename /
@@ -120,7 +142,7 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
         // (append-only contract; never overwrites current_state).
         seed("saga-t301", "quote-t301", MeltSagaState.PAYMENT_SENT_BURN_FAILED);
 
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = adminHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> entity = new HttpEntity<>(
                 MAPPER.writeValueAsString(Map.of(
@@ -145,9 +167,62 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
 
     @Test
     void byId_unknown_returns_404() {
-        ResponseEntity<String> response = catchHttpStatus(() -> restTemplate.getForEntity(
-                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-missing", String.class));
+        ResponseEntity<String> response = getAdmin(
+                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-missing");
         assertThat(response.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void admin_endpoint_returns_401_without_auth_T300() {
+        seed("saga-401", "quote-401", MeltSagaState.COMPLETED);
+        // Plain RestTemplate (no Basic auth) — expect 401 Unauthorized.
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.getForEntity(
+                    "http://localhost:" + port + "/admin/melt-saga/by-id/saga-401", String.class);
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            response = ResponseEntity.status(e.getStatusCode())
+                    .headers(e.getResponseHeaders())
+                    .body(e.getResponseBodyAsString());
+        }
+        assertThat(response.getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void admin_endpoint_returns_401_with_wrong_password_T300() {
+        seed("saga-401b", "quote-401b", MeltSagaState.COMPLETED);
+        HttpHeaders bad = new HttpHeaders();
+        bad.set(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder()
+                .encodeToString("admin-it:wrong-password".getBytes(StandardCharsets.UTF_8)));
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.exchange(
+                    "http://localhost:" + port + "/admin/melt-saga/by-id/saga-401b",
+                    HttpMethod.GET, new HttpEntity<>(bad), String.class);
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            response = ResponseEntity.status(e.getStatusCode())
+                    .headers(e.getResponseHeaders())
+                    .body(e.getResponseBodyAsString());
+        }
+        assertThat(response.getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void public_NUT_endpoint_remains_open_after_security_config_lands() {
+        // Spec 002 T311 — the SecurityFilterChain must lock /admin/** only.
+        // /v1/info MUST remain reachable without credentials so the mint
+        // contract is preserved for wallet clients.
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.getForEntity(
+                    "http://localhost:" + port + "/v1/info", String.class);
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            response = ResponseEntity.status(e.getStatusCode()).build();
+        }
+        // 200 OK on a configured mint; any non-401 confirms the filter
+        // chain did NOT lock the public endpoint.
+        assertThat(response.getStatusCode().value()).isNotEqualTo(401);
+        assertThat(response.getStatusCode().value()).isNotEqualTo(403);
     }
 
     @Test
@@ -155,7 +230,7 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
         seed("saga-q-3", "quote-q-3", MeltSagaState.PAYMENT_SENT_BURN_FAILED);
         int beforeSize = meltSagaTransitionRepository.findTimeline("saga-q-3").size();
 
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = adminHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> entity = new HttpEntity<>(
                 MAPPER.writeValueAsString(Map.of(

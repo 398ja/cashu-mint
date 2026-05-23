@@ -4,7 +4,9 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 
 /**
- * Spec 002 FR-001: enforces the NUT-05 melt-funding invariant
+ * Spec 002 FR-001: enforces the
+ * <a href="https://github.com/cashubtc/nuts/blob/main/05.md">NUT-05</a>
+ * melt-funding invariant
  * <pre>
  *   sum(proofs.amount) &gt;= invoiceAmount + exactFeeReserve
  * </pre>
@@ -16,6 +18,9 @@ import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
  * <p>Throws a typed {@link CashuErrorException} with the
  * {@code insufficient_input} error code on rejection. Callers MUST NOT
  * proceed to any external payment (FR-007 / SC-001).
+ *
+ * <p>Spec URL is pinned to {@code main} per FR-014; commit-hash pinning is
+ * tracked as a follow-up cross-repo alongside spec 001's NUT links.
  */
 public final class BurnAmountValidator {
 

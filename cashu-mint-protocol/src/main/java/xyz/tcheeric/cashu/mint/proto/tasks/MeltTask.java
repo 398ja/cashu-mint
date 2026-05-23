@@ -40,6 +40,15 @@ import java.util.UUID;
  * NUT-05 melt operation: settles a Lightning invoice using customer-supplied
  * proofs, then burns the proofs.
  *
+ * <p>Spec references (FR-014 — pinned-commit URLs tracked as a follow-up;
+ * current links use {@code main}):
+ * <ul>
+ *   <li>NUT-05: <a href="https://github.com/cashubtc/nuts/blob/main/05.md">cashubtc/nuts §05</a> — melt tokens</li>
+ *   <li>NUT-08: <a href="https://github.com/cashubtc/nuts/blob/main/08.md">cashubtc/nuts §08</a> — Lightning fee return (overpaid melt)</li>
+ *   <li>NUT-15: <a href="https://github.com/cashubtc/nuts/blob/main/15.md">cashubtc/nuts §15</a> — input fees (the {@code feeReserve.inputFees} component)</li>
+ *   <li>NUT-19: <a href="https://github.com/cashubtc/nuts/blob/main/19.md">cashubtc/nuts §19</a> — cached responses (saga {@code melt_response_cache})</li>
+ * </ul>
+ *
  * <p>Spec 002 § Saga state machine (FR-003 / FR-004 / FR-006 / FR-007 /
  * FR-008): when {@link MeltSagaRepository} and {@link LightningPaymentPort}
  * are wired, the task drives the durable saga:
