@@ -86,6 +86,64 @@ class MeltSagaAdminIT extends AbstractMintDurableIT {
     }
 
     @Test
+    void byId_response_pins_the_documented_json_shape_T302() throws Exception {
+        seed("saga-shape", "quote-shape", MeltSagaState.COMPLETED);
+
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/admin/melt-saga/by-id/saga-shape", String.class);
+
+        JsonNode body = MAPPER.readTree(response.getBody());
+        // Spec 002 T302 — pin the public field set so a future rename /
+        // removal trips this contract test. The set MUST match the
+        // README admin-endpoint documentation in cashu-mint-rest/README.md.
+        assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "meltSagaId",
+                "quoteId",
+                "currentState",
+                "invoiceAmount",
+                "exactFeeReserve",
+                "inputAmount",
+                "proofCount",
+                "provider",
+                "createdAt",
+                "updatedAt",
+                "transitions");
+        JsonNode t = body.get("transitions").get(0);
+        assertThat(t.fieldNames()).toIterable().contains("seq", "toState", "actor", "at");
+    }
+
+    @Test
+    void markResolved_records_actor_and_reason_as_operator_action_T301() throws Exception {
+        // Spec 002 T301 — explicit OperatorReconciliationIT-style assertion
+        // sitting on top of the markResolved test. From a PAYMENT_SENT_BURN_FAILED
+        // saga, the operator endpoint appends an operator: actor entry
+        // (append-only contract; never overwrites current_state).
+        seed("saga-t301", "quote-t301", MeltSagaState.PAYMENT_SENT_BURN_FAILED);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> entity = new HttpEntity<>(
+                MAPPER.writeValueAsString(Map.of(
+                        "actor", "operator:carol",
+                        "reason", "T301 — manually reconciled")),
+                headers);
+        restTemplate.exchange(
+                "http://localhost:" + port + "/admin/melt-saga/saga-t301/mark-resolved",
+                HttpMethod.POST, entity, String.class);
+
+        List<MeltSagaTransitionEntity> timeline =
+                meltSagaTransitionRepository.findTimeline("saga-t301");
+        // The mark-resolved entry MUST be the latest in the timeline; older
+        // entries are untouched.
+        MeltSagaTransitionEntity last = timeline.get(timeline.size() - 1);
+        assertThat(last.getActor()).isEqualTo("operator:carol");
+        assertThat(last.getReason()).isEqualTo("T301 — manually reconciled");
+        // current_state has NOT changed.
+        assertThat(meltSagaRepository.findById("saga-t301").orElseThrow()
+                .getCurrentState()).isEqualTo(MeltSagaState.PAYMENT_SENT_BURN_FAILED);
+    }
+
+    @Test
     void byId_unknown_returns_404() {
         ResponseEntity<String> response = catchHttpStatus(() -> restTemplate.getForEntity(
                 "http://localhost:" + port + "/admin/melt-saga/by-id/saga-missing", String.class));

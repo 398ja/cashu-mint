@@ -107,6 +107,34 @@ The `cashu-mint-jpa` module (added in spec 001) hosts three append-only / audit-
 
 Activation is gated by `cashu.mint.jpa.enabled=true`. Unit-test contexts leave it `false` and the relevant protocol tasks fall back to the legacy in-process path. Production deploys flip the flag on along with the datasource and webhook-secret configuration documented in `docs/how-to/configure-webhook-integrity.md`.
 
+### Spec 002 — Melt Path Burn-First Ordering and Saga State Machine
+
+The same `cashu-mint-jpa` module (spec 002) adds two more tables in PostgreSQL plus a typed payment-outcome contract over the gateway:
+
+- `melt_saga` (Envers-audited on `current_state` / `payment_hash` / `provider_event_id`) — durable NUT-05 melt attempt with a state machine `PROOFS_HELD → PAYMENT_SENT → COMPLETED` on the happy path, `FAILED` / `PAYMENT_SENT_BURN_FAILED` / `PAYMENT_UNKNOWN` on the compensation branches. Transitions go through compare-and-set on `current_state` (`MeltSagaJpaRepository#casState`).
+- `melt_saga_transition` — append-only timeline keyed by `(melt_saga_id, seq)` carrying every state change including polling no-ops from the reconciler. Backs the admin query endpoint.
+
+Three new abstractions in `cashu-mint-protocol/.../proto/`:
+
+- `LightningPaymentPort` — typed wrapper around `payment-adapter`'s `Gateway.pay(quoteId)` that surfaces `PaymentOutcome.Success | DefinitiveFailure | Unknown` instead of the legacy boolean/throw signature. Strict-parse rule per FR-008: timeouts, 5xx, missing `payment_hash` → `Unknown` (saga lands in `PAYMENT_UNKNOWN`, never auto-resolves).
+- `PaymentOutcome` (sealed type) — the three concrete cases. `MeltTask` switches on this exhaustively.
+- `MeltSagaReconciler` (`@Scheduled` `@Component`) — polls `LightningPaymentPort.checkStatus` for `PAYMENT_UNKNOWN` sagas and sweeps stale `PROOFS_HELD` sagas. **MUST NEVER call `pay()`** (FR-007 compliance gate enforced by `MeltSagaReconcilerTest#reconciler_NEVER_calls_pay`).
+
+`MeltTask` drives the saga: durable `PROOFS_HELD` + proof `PENDING` commit BEFORE `gateway.pay`, then switches on `PaymentOutcome` to advance to the terminal state. The `MintIntegrityContext` service-locator carries the spec-001 + spec-002 dependencies into the static `NUT04`/`NUT05` helpers; `MintIntegrityContextInstaller` populates it at Spring bootstrap.
+
+Operator visibility: `MeltSagaAdminController` exposes `GET /admin/melt-saga/by-id|by-quote` plus a `POST /{id}/mark-resolved` action that appends a transition without overwriting `current_state`. Endpoint is conditional on the `MeltSagaRepository` bean; protect at the network layer until Spring Security service-account auth lands.
+
+Configuration (`application.properties`):
+
+```properties
+cashu.mint.melt.payment-timeout=PT30S
+cashu.mint.melt.reconcile-interval=PT60S
+cashu.mint.melt.payment-unknown-ttl=PT1H
+cashu.mint.melt.proofs-held-ttl=PT5M
+```
+
+Operator reconciliation queries are embedded as Javadoc on `MeltSagaJpaRepository` (SC-001 / SC-002 / SC-003 / SC-004 + a PAYMENT_SENT_BURN_FAILED hygiene query).
+
 ### NUT Implementation Pattern
 
 Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/`:
