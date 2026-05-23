@@ -10,8 +10,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
+import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+
+import java.time.Duration;
 
 /**
  * Populates {@link MintIntegrityContext} on Spring bootstrap so the static
@@ -29,20 +33,29 @@ public class MintIntegrityContextInstaller {
 
     private final MintQuoteRepository quoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
+    private final MeltSagaRepository meltSagaRepository;
 
     @Autowired(required = false)
     private MeterRegistry meterRegistry;
 
+    @Autowired(required = false)
+    private LightningPaymentPort lightningPaymentPort;
+
     @Value("${cashu.mint.url:}")
     private String mintUrl;
+
+    @Value("${cashu.mint.melt.payment-timeout:PT30S}")
+    private Duration meltPaymentTimeout;
 
     @PostConstruct
     void install() {
         MintIntegrityContext.install(quoteRepository, issuanceRecordRepository, meterRegistry,
                 mintUrl != null ? mintUrl : "");
-        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meterRegistry={}, mintUrl={})",
+        MintIntegrityContext.installMelt(meltSagaRepository, lightningPaymentPort, meltPaymentTimeout);
+        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={})",
                 quoteRepository != null, issuanceRecordRepository != null,
-                meterRegistry != null, mintUrl);
+                meltSagaRepository != null, lightningPaymentPort != null,
+                meterRegistry != null, mintUrl, meltPaymentTimeout);
     }
 
     @PreDestroy
