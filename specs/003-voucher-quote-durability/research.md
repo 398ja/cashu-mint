@@ -250,9 +250,14 @@ timestamp differs on the second call). Same idiom as spec 001's
 
 ## Open items deferred to Phase 2 (/speckit.tasks)
 
-- The cross-repo `imani-bridge` change to pass `funding_ref` /
-  `idempotency_key` from `WalletPluginAdapter.quoteVoucherMint`
-  to the mint — needs a coordinated PR.
+- **UPDATE 2026-05-23**: `imani-bridge` is retired. The successor
+  cross-repo work passes `funding_ref` / `Idempotency-Key` from
+  `imani-gateway-atomic`'s `AtomicPurchaseController` (saga +
+  escrow owner) to cashu-mint. Cashu-mint's resolver lazily
+  creates `CustomerPaymentFunding` from `webhook_event` when the
+  eager path is absent, so this is an operator-visibility /
+  ordering optimisation, not a correctness gate. Tracked as a
+  follow-up spec in `imani-gateway-atomic`.
 - Operator dashboard layout for the new `merchant_iou` liability
   class.
 - The voucher-creation REST API surface — does it stay where it
