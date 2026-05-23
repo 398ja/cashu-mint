@@ -128,12 +128,19 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
             int status = bufferedResponse.getStatus();
             if (status >= 200 && status < 300) {
                 try {
+                    // Spec 004 FR-005 — scrub raw identity fields out of the
+                    // cached response body before persisting. SC-004 lint
+                    // enforces zero raw npubs in voucher_idempotency_key.
+                    String rawBody = new String(
+                            bufferedResponse.getContentAsByteArray(), StandardCharsets.UTF_8);
+                    String scrubbedBody = IdentityFieldScrubber.scrub(rawBody,
+                            xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext.identityHasher());
                     repository.save(new IdempotencyRow(
                             idempotencyKey,
                             principalId,
                             requestHash,
                             status,
-                            new String(bufferedResponse.getContentAsByteArray(), StandardCharsets.UTF_8),
+                            scrubbedBody,
                             Instant.now().plus(properties.getIdempotencyKeyTtl()),
                             Instant.now()));
                 } catch (RuntimeException e) {

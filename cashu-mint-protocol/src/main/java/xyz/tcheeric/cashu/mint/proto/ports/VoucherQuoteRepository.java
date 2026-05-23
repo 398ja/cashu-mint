@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.ports;
 
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -48,4 +49,18 @@ public interface VoucherQuoteRepository {
      * new voucher quote id (FR-009).
      */
     Optional<VoucherQuote> findByIdempotencyKey(String idempotencyKey);
+
+    /**
+     * Spec 004 FR-009 — operator forensic lookup. Returns voucher
+     * quotes where {@code customer_id} matches the given hashed
+     * value. Empty list if no match (including the post-retention
+     * case where the column was nullified).
+     */
+    List<VoucherQuote> findByCustomerIdHash(String customerIdHash);
+
+    /**
+     * Spec 004 FR-009 — operator forensic lookup. Same shape as
+     * {@link #findByCustomerIdHash} but keyed on {@code merchant_id}.
+     */
+    List<VoucherQuote> findByMerchantIdHash(String merchantIdHash);
 }
