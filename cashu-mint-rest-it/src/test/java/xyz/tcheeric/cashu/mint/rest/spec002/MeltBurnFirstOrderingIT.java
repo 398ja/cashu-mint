@@ -199,6 +199,35 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
     }
 
     @Test
+    void burn_failure_after_payment_lands_saga_in_PAYMENT_SENT_BURN_FAILED_T202() throws Exception {
+        // The proof-invalidate call AFTER pay() succeeds must fail to drive
+        // the saga into PAYMENT_SENT_BURN_FAILED with the proofs held in
+        // PENDING. We inject the invalidate failure on the ProofVaultService
+        // mock so MeltTask's createInvalidateProofsTask raises an exception
+        // when the saga is in PAYMENT_SENT.
+        ((MockLightningPaymentPort) paymentPort).enqueuePay(
+                new PaymentOutcome.Success("preimage-burn-fail", 100L, 0L, "evt-burn-fail"));
+        Mockito.doThrow(new RuntimeException("vault_unreachable_for_invalidate"))
+                .when(proofVaultService).invalidate(any());
+
+        ResponseEntity<String> response = postMelt("quote-burn-fail", overFundedProofs());
+
+        // Response is an error (the burn step threw).
+        assertThat(response.getStatusCode().isError()).isTrue();
+        // Saga state machine: PROOFS_HELD → PAYMENT_SENT → PAYMENT_SENT_BURN_FAILED.
+        MeltSagaEntity saga = sagas.findByQuoteId("quote-burn-fail").orElseThrow();
+        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.PAYMENT_SENT_BURN_FAILED);
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
+        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
+                .containsExactly(MeltSagaState.PROOFS_HELD,
+                        MeltSagaState.PAYMENT_SENT,
+                        MeltSagaState.PAYMENT_SENT_BURN_FAILED);
+        // FR-007: no auto-retry of pay() after the burn failure.
+        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-burn-fail"))
+                .isEqualTo(1);
+    }
+
+    @Test
     void payment_port_pay_is_invoked_only_AFTER_PROOFS_HELD_commits_SC_003() {
         // SC-003 spirit at IT level: by the time the LightningPaymentPort.pay
         // is invoked, the PROOFS_HELD saga row MUST already exist in

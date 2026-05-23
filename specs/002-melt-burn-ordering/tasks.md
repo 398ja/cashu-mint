@@ -31,7 +31,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 - [X] **T001** [S] Confirm spec 001's `cashu-mint-jpa` module is on the trunk; abort this spec's branch if not. (Procedural check; no code change.)
 - [X] **T002** [P] [S] Add `payment-adapter-test` dependency (test scope) to `cashu-mint-rest-it` if not already present; if missing from upstream, introduce a local `MockLightningPaymentPort` test double in `cashu-mint-rest-it/src/test/java/.../it/support/MockLightningPaymentPort.java` that can be programmed to return `Success`, `DefinitiveFailure`, or `Unknown` per call.
 - [X] **T003** [P] [S] Wire the `MockLightningPaymentPort` test double via `@TestConfiguration` so integration tests can swap in deterministic outcomes.
-- [ ] **T004** [P] [S] Extend the existing `LongArithmeticArchTest` (spec 001 T050) package scope to cover `cashu-mint-protocol/src/main/java/.../tasks/MeltTask` and `domain/MeltSaga*` (Constitution I).
+- [X] **T004** [P] [S] Extend the existing `LongArithmeticArchTest` (spec 001 T050) package scope to cover `cashu-mint-protocol/src/main/java/.../tasks/MeltTask` and `domain/MeltSaga*` (Constitution I).
 
 ---
 
@@ -95,7 +95,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### Tests for User Story 1
 
-- [ ] **T100** [P] [US1] `MeltBurnAmountIT`: under/exact/over boundary cases. Verify `gateway.pay` is never called for the under case (Mockito verify on the `LightningPaymentPort` test double).
+- [X] **T100** [P] [US1] `MeltBurnAmountIT`: under/exact/over boundary cases. Verify `gateway.pay` is never called for the under case (Mockito verify on the `LightningPaymentPort` test double).
 - [X] **T101** [P] [US1] Unit test `BurnAmountValidatorTest`: pure logic — `sum >= invoice + exactFeeReserve`, all amounts `long`, no overflow on `Long.MAX_VALUE - 1` + `1`.
 - [X] **T102** [P] [US1] Unit test `ExactFeeReserveResolverTest`: research R1's mint-computed reserve plus the cross-check against the caller-asserted value. Cross-check mismatch in `staging`/`prod` ⇒ rejection.
 
@@ -123,11 +123,11 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### Tests for User Story 2
 
-- [ ] **T200** [P] [US2] `MeltBurnFirstOrderingIT`: happy path. Assert `MeltSagaTransition.seq=1` is `null → PROOFS_HELD`, `seq=2` is `PROOFS_HELD → PAYMENT_SENT`. Assert `MockLightningPaymentPort.pay` is invoked only AFTER the `PROOFS_HELD` row exists (test double verifies via timestamp ordering + DB poll).
-- [ ] **T201** [P] [US2] `MeltPaymentFailureIT`: `MockLightningPaymentPort` returns `DefinitiveFailure`. Assert saga ⇒ `FAILED`, proofs returned to `UNSPENT`, `melt_saga_id` cleared on proof rows, no further automatic retry (FR-007).
-- [ ] **T202** [P] [US2] `MeltPaymentSentBurnFailedIT`: `pay` succeeds; the `PENDING → SPENT` commit fails (inject via Mockito on the proof port). Assert saga ⇒ `PAYMENT_SENT_BURN_FAILED`, proofs stay `PENDING`, no auto-retry of `gateway.pay`, structured-log alert emitted.
-- [ ] **T203** [P] [US2] `MeltPaymentUnknownIT`: `pay` returns `Unknown`. Assert saga ⇒ `PAYMENT_UNKNOWN`. Run reconciler against a `MockLightningPaymentPort.checkStatus` that returns `Unknown` for N polls then `Success` — assert saga eventually advances to `COMPLETED`. Run a second variant where `checkStatus` never converges — assert saga stays in `PAYMENT_UNKNOWN` past TTL and an operator alert fires.
-- [ ] **T204** [P] [US2] `MeltConcurrentSameQuoteIT`: two concurrent melt requests for the same `quote_id`. Assert exactly one saga is created; the second receives `melt_in_progress` (FR-005).
+- [X] **T200** [P] [US2] `MeltBurnFirstOrderingIT`: happy path. Assert `MeltSagaTransition.seq=1` is `null → PROOFS_HELD`, `seq=2` is `PROOFS_HELD → PAYMENT_SENT`. Assert `MockLightningPaymentPort.pay` is invoked only AFTER the `PROOFS_HELD` row exists (test double verifies via timestamp ordering + DB poll).
+- [X] **T201** [P] [US2] `MeltPaymentFailureIT`: `MockLightningPaymentPort` returns `DefinitiveFailure`. Assert saga ⇒ `FAILED`, proofs returned to `UNSPENT`, `melt_saga_id` cleared on proof rows, no further automatic retry (FR-007).
+- [X] **T202** [P] [US2] `MeltPaymentSentBurnFailedIT`: `pay` succeeds; the `PENDING → SPENT` commit fails (inject via Mockito on the proof port). Assert saga ⇒ `PAYMENT_SENT_BURN_FAILED`, proofs stay `PENDING`, no auto-retry of `gateway.pay`, structured-log alert emitted.
+- [X] **T203** [P] [US2] `MeltPaymentUnknownIT`: `pay` returns `Unknown`. Assert saga ⇒ `PAYMENT_UNKNOWN`. Run reconciler against a `MockLightningPaymentPort.checkStatus` that returns `Unknown` for N polls then `Success` — assert saga eventually advances to `COMPLETED`. Run a second variant where `checkStatus` never converges — assert saga stays in `PAYMENT_UNKNOWN` past TTL and an operator alert fires.
+- [X] **T204** [P] [US2] `MeltConcurrentSameQuoteIT`: two concurrent melt requests for the same `quote_id`. Assert exactly one saga is created; the second receives `melt_in_progress` (FR-005).
 - [ ] **T205** [P] [US2] `MeltNut08OverpayIT`: proof sum > invoice + fee reserve. Happy path completes; change return computed from the persisted saga record after `COMPLETED` (FR-013).
 - [X] **T206** [P] [US2] Unit test `MeltSagaStateMachineTest` covering every legal transition.
 
@@ -158,14 +158,14 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### Tests for User Story 3
 
-- [ ] **T300** [P] [US3] `MeltSagaQueryIT`: happy path + 401/403 paths + querying by `quote_id` vs `melt_saga_id`.
+- [X] **T300** [P] [US3] `MeltSagaQueryIT`: happy path + 401/403 paths + querying by `quote_id` vs `melt_saga_id`.
 - [X] **T301** [P] [US3] `OperatorReconciliationIT`: from a `PAYMENT_SENT_BURN_FAILED` saga, the operator endpoint accepts a `mark_resolved` action that appends a transition (does NOT overwrite — append-only contract).
 - [X] **T302** [P] [US3] Contract test on the response JSON shape (`/admin/melt-saga/{id}`) — pinned to the OpenAPI doc / Javadoc.
 
 ### Implementation for User Story 3
 
 - [X] **T310** [US3] Add `MeltSagaAdminController` in `cashu-mint-rest/src/main/java/.../rest/admin/MeltSagaAdminController.java`: `GET /admin/melt-saga/by-id/{meltSagaId}`, `GET /admin/melt-saga/by-quote/{quoteId}`, `POST /admin/melt-saga/{id}/mark-resolved`.
-- [ ] **T311** [US3] Apply Spring Security config so the new endpoints are reachable only by admin service-account principals (same mechanism as cashu-mint-admin-rest).
+- [X] **T311** [US3] Apply Spring Security config so the new endpoints are reachable only by admin service-account principals (same mechanism as cashu-mint-admin-rest).
 - [X] **T312** [US3] Response DTO `MeltSagaResponse` includes `currentState`, `quoteId`, `invoiceAmount`, `exactFeeReserve`, `inputAmount`, `proofCount`, `paymentHash`, `providerEventId`, `transitions: List<TransitionEntry>` (each: `seq`, `fromState`, `toState`, `reason`, `actor`, `at`).
 - [X] **T313** [P] [US3] Document the endpoint in `cashu-mint-rest/README.md` (or top-level docs); call out that the endpoint is internal-only.
 
@@ -176,7 +176,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 ## Phase 6: Polish & Cross-Cutting
 
 - [X] **T900** [P] [X] Run `mvn -q verify -P integration-tests`; attach IT report.
-- [ ] **T901** [P] [X] Pin Javadoc on `MeltTask`, `BurnAmountValidator`, `LightningPaymentPort`, `MeltSagaReconciler` to NUT-05 / NUT-08 commit hashes (Constitution II, FR-014).
+- [X] **T901** [P] [X] Pin Javadoc on `MeltTask`, `BurnAmountValidator`, `LightningPaymentPort`, `MeltSagaReconciler` to NUT-05 / NUT-08 commit hashes (Constitution II, FR-014).
 - [X] **T902** [P] [X] Update `CLAUDE.md` `## Architecture` to mention the saga state machine and `LightningPaymentPort` abstraction.
 - [X] **T903** [P] [X] Daily reconciliation queries (operator dashboard SQL) embedded as Javadoc on `MeltSagaJpaRepository`:
   ```sql
