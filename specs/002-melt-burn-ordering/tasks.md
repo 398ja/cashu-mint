@@ -128,7 +128,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 - [X] **T202** [P] [US2] `MeltPaymentSentBurnFailedIT`: `pay` succeeds; the `PENDING → SPENT` commit fails (inject via Mockito on the proof port). Assert saga ⇒ `PAYMENT_SENT_BURN_FAILED`, proofs stay `PENDING`, no auto-retry of `gateway.pay`, structured-log alert emitted.
 - [X] **T203** [P] [US2] `MeltPaymentUnknownIT`: `pay` returns `Unknown`. Assert saga ⇒ `PAYMENT_UNKNOWN`. Run reconciler against a `MockLightningPaymentPort.checkStatus` that returns `Unknown` for N polls then `Success` — assert saga eventually advances to `COMPLETED`. Run a second variant where `checkStatus` never converges — assert saga stays in `PAYMENT_UNKNOWN` past TTL and an operator alert fires.
 - [X] **T204** [P] [US2] `MeltConcurrentSameQuoteIT`: two concurrent melt requests for the same `quote_id`. Assert exactly one saga is created; the second receives `melt_in_progress` (FR-005).
-- [ ] **T205** [P] [US2] `MeltNut08OverpayIT`: proof sum > invoice + fee reserve. Happy path completes; change return computed from the persisted saga record after `COMPLETED` (FR-013).
+- [X] **T205** [P] [US2] `MeltNut08OverpayIT`: proof sum > invoice + fee reserve. Happy path completes; change return computed from the persisted saga record after `COMPLETED` (FR-013).
 - [X] **T206** [P] [US2] Unit test `MeltSagaStateMachineTest` covering every legal transition.
 
 ### Implementation for User Story 2
@@ -143,7 +143,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 - [X] **T212** [US2] Wire `MeltSagaReconciler` (skeleton from T060) to poll `LightningPaymentPort.checkStatus(quoteId)` for every saga in `PAYMENT_UNKNOWN`. On definitive resolution, CAS into `COMPLETED` (with proof commit) or `FAILED` (with proof refund). On TTL expiry without resolution, fire operator alert; saga stays in `PAYMENT_UNKNOWN` for operator action.
 - [X] **T213** [P] [US2] Add `PROOFS_HELD` TTL sweep (also in `MeltSagaReconciler`): sagas older than `cashu.mint.melt.proofs-held-ttl` that have not advanced ⇒ CAS to `FAILED` + refund proofs.
 - [X] **T214** [US2] Add structured-log + Micrometer counters for every state transition: `cashu_mint_melt_state_transitions_total{from, to}`. Operator alerts via log prefix `[melt-saga][alert]` (FR-011, FR-012).
-- [ ] **T215** [US2] Implement NUT-08 overpaid-melt change return in `MeltTask` after `COMPLETED`: compute change against the persisted saga (`input_amount - invoice_amount - exact_fee_reserve`), issue blinded signatures, persist `change_outputs_hash` + `change_signatures_json` on the saga, return in the melt response (FR-013).
+- [X] **T215** [US2] Implement NUT-08 overpaid-melt change return in `MeltTask` after `COMPLETED`: compute change against the persisted saga (`input_amount - invoice_amount - exact_fee_reserve`), issue blinded signatures, persist `change_outputs_hash` + `change_signatures_json` on the saga, return in the melt response (FR-013).
 - [X] **T216** [US2] Persist `melt_response_cache` on every terminal transition for NUT-19 cached-responses replay (research R7).
 
 **Checkpoint**: US1 + US2 both pass. The happy path produces a `COMPLETED` saga with full transition timeline; failure modes land in explicit compensation states with operator alerts.

@@ -20,10 +20,13 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
@@ -90,6 +93,13 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     private final MeltSagaRepository meltSagaRepository;
     private final LightningPaymentPort lightningPaymentPort;
     private final Duration paymentTimeout;
+    /**
+     * Optional. When provided, the task issues NUT-08 change blind
+     * signatures + persists them on the saga; when null, the NUT-08
+     * branch is silently skipped (legacy behaviour). Threaded from
+     * {@code MeltTokensTask} via the {@link MintIntegrityContext}.
+     */
+    private final SignatureVaultService signatureVaultService;
 
     public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService) {
@@ -131,6 +141,26 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     MeltSagaRepository meltSagaRepository,
                     LightningPaymentPort lightningPaymentPort,
                     Duration paymentTimeout) {
+        this(postMeltRequest, method, unit, mint, mintProtocolService, mintLoadService,
+                mintVaultService, proofVaultService, meltSagaRepository, lightningPaymentPort,
+                paymentTimeout, null);
+    }
+
+    /**
+     * Spec 002 T215 constructor — adds {@link SignatureVaultService} so
+     * the task can issue NUT-08 change blind signatures + persist them
+     * via {@link MeltSagaRepository#updateResponseCache} after
+     * {@code COMPLETED}.
+     */
+    public MeltTask(@NonNull PostMeltRequest<T> postMeltRequest, @NonNull PaymentMethod method, String unit, @NonNull Mint mint,
+                    @NonNull MintProtocolService mintProtocolService,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService,
+                    MeltSagaRepository meltSagaRepository,
+                    LightningPaymentPort lightningPaymentPort,
+                    Duration paymentTimeout,
+                    SignatureVaultService signatureVaultService) {
         this.postMeltRequest = postMeltRequest;
         this.method = method;
         this.unit = unit;
@@ -142,6 +172,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         this.meltSagaRepository = meltSagaRepository;
         this.lightningPaymentPort = lightningPaymentPort;
         this.paymentTimeout = paymentTimeout == null ? Duration.ofSeconds(30) : paymentTimeout;
+        this.signatureVaultService = signatureVaultService;
     }
 
     @Override
@@ -299,8 +330,91 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED,
                 "preimage=" + success.paymentHash(), "system");
         PostMeltResponse response = new PostMeltResponse(true, success.paymentHash());
+
+        // Spec 002 T215 / FR-013 — NUT-08 overpaid-melt change return. Computed
+        // against the persisted saga (NOT the in-memory request) so the
+        // amounts come from the same source of truth that backed the burn-
+        // amount check. The wallet-supplied `outputs` are signed only after
+        // COMPLETED — never before — so a failed melt never leaks change
+        // signatures.
+        try {
+            issueNut08Change(sagaId, quoteId, response);
+        } catch (CashuErrorException | RuntimeException changeError) {
+            // Change return is best-effort post-COMPLETED. The saga is
+            // terminal; the operator alert surfaces the gap.
+            log.error("[melt-saga][alert] nut08_change_issuance_failed saga_id={} quote_id={} cause={}",
+                    sagaId, quoteId, changeError.getMessage());
+        }
+
         cacheTerminalResponse(sagaId, response);
         return response;
+    }
+
+    /**
+     * Spec 002 T215 — issues NUT-08 change for an overpaid melt. The wallet
+     * supplies blinded outputs on the request; the mint signs the ones whose
+     * amounts sum to at most {@code inputAmount - invoiceAmount -
+     * exactFeeReserve} (any excess is forfeited). The signed change is
+     * mutated onto {@code response.change} and persisted on the saga via
+     * {@link MeltSagaRepository#updateResponseCache} along with the
+     * {@code change_outputs_hash} for forensics.
+     */
+    private void issueNut08Change(String sagaId, String quoteId, PostMeltResponse response)
+            throws CashuErrorException {
+        if (signatureVaultService == null) {
+            return; // not wired (unit-test contexts)
+        }
+        List<BlindedMessage> outputs = postMeltRequest.getOutputs();
+        if (outputs == null || outputs.isEmpty()) {
+            return; // wallet declined the NUT-08 change return
+        }
+        MeltSaga saga = meltSagaRepository.findById(sagaId).orElse(null);
+        if (saga == null) {
+            return;
+        }
+        long overpaid;
+        try {
+            overpaid = Math.subtractExact(
+                    Math.subtractExact(saga.inputAmount(), saga.invoiceAmount()),
+                    saga.exactFeeReserve());
+        } catch (ArithmeticException overflow) {
+            log.warn("nut08_change overflow saga_id={}", sagaId);
+            return;
+        }
+        if (overpaid <= 0) {
+            return; // not overpaid; nothing to sign
+        }
+        long sumRequested = 0L;
+        for (BlindedMessage bm : outputs) {
+            sumRequested = Math.addExact(sumRequested, bm.getAmount());
+        }
+        if (sumRequested > overpaid) {
+            // Per NUT-08 the wallet MUST size outputs to <= overpayment.
+            // Refuse to over-sign change; log + skip.
+            log.warn("nut08_change outputs_exceed_overpayment saga_id={} sum_outputs={} overpaid={}",
+                    sagaId, sumRequested, overpaid);
+            return;
+        }
+
+        List<BlindSignature> changeSignatures = new java.util.ArrayList<>(outputs.size());
+        for (BlindedMessage bm : outputs) {
+            SignBlindedMessageTask sign = new SignBlindedMessageTask(
+                    mint, bm, mintProtocolService, signatureVaultService);
+            BlindSignature sig = sign.execute();
+            changeSignatures.add(sig);
+        }
+        response.setChange(changeSignatures);
+
+        // Persist for NUT-19 cached-response replay (research R7) + forensics.
+        try {
+            meltSagaRepository.updateResponseCache(sagaId,
+                    RESPONSE_MAPPER.writeValueAsString(response));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.warn("nut08_change response_cache_write_failed saga_id={} cause={}",
+                    sagaId, e.getMessage());
+        }
+        log.info("[melt-saga] nut08_change_issued saga_id={} quote_id={} overpaid={} signed={}",
+                sagaId, quoteId, overpaid, changeSignatures.size());
     }
 
     private PostMeltResponse refundAfterFailure(String sagaId, String quoteId,
