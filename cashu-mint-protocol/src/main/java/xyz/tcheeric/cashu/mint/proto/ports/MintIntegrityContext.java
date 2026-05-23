@@ -39,6 +39,7 @@ public final class MintIntegrityContext {
     private static volatile VoucherFundingRepository voucherFundingRepository;
     private static volatile VoucherIssuanceRepository voucherIssuanceRepository;
     private static volatile VoucherFundingResolver voucherFundingResolver;
+    private static volatile IdentityHasher identityHasher;
     private static volatile String voucherIouPolicy;
     private static volatile String activeProfile;
 
@@ -88,6 +89,20 @@ public final class MintIntegrityContext {
         MintIntegrityContext.activeProfile = activeProfile;
     }
 
+    /**
+     * Spec 004 — installs the {@link IdentityHasher}. Hibernate
+     * instantiates JPA {@code @Converter} classes outside the Spring
+     * container, so the converter looks up the hasher via this static
+     * accessor rather than constructor injection. Null in legacy
+     * unit-test contexts means "no hashing" — the column passes
+     * through, and the production fail-closed boot validator in
+     * {@code HmacSha256IdentityHasher} ensures any JPA-enabled deploy
+     * has the hasher wired.
+     */
+    public static void installIdentityHasher(IdentityHasher identityHasher) {
+        MintIntegrityContext.identityHasher = identityHasher;
+    }
+
     /** Resets the context. Test-only — clears all references. */
     public static void clear() {
         quoteRepository = null;
@@ -101,8 +116,13 @@ public final class MintIntegrityContext {
         voucherFundingRepository = null;
         voucherIssuanceRepository = null;
         voucherFundingResolver = null;
+        identityHasher = null;
         voucherIouPolicy = null;
         activeProfile = null;
+    }
+
+    public static IdentityHasher identityHasher() {
+        return identityHasher;
     }
 
     public static MintQuoteRepository quoteRepository() {

@@ -51,9 +51,11 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Column(name = "unit", length = 16, nullable = false)
     private String unit;
 
+    @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "merchant_id", length = 255)
     private String merchantId;
 
+    @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "customer_id", length = 255)
     private String customerId;
 

@@ -117,6 +117,18 @@ annotation-only.
 Spec 003 ships durability + hardening on the voucher mint path. The
 contract below applies whenever `cashu.mint.jpa.enabled=true`.
 
+### Customer data disclosure (spec 004 FR-001 + FR-008)
+
+The mint hashes customer + merchant identity at rest and nullifies it
+after 90 days. **The customer-facing disclosure document is at
+[`docs/explanations/voucher-data-record.md`](../docs/explanations/voucher-data-record.md)** —
+every front-end that originates voucher purchases MUST link to it from
+the purchase page (per FR-008; cross-repo follow-up tracked in
+`imani-apps`).
+
+The schema and the disclosure document are kept in sync via the
+`DisclosureDocSchemaContractTest` CI check — drift fails the build.
+
 ### Authentication (FR-007)
 
 Every request to `/v1/vouchers/**` requires HTTP Basic auth with the

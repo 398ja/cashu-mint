@@ -17,10 +17,10 @@
 --      iou_terms IS NOT NULL. Marked TODO in the entity Javadoc.
 
 ALTER TABLE merchant_iou_funding
-    ADD COLUMN iou_terms_hash CHAR(64);
+    ADD COLUMN iou_terms_hash VARCHAR(64);
 
 ALTER TABLE merchant_iou_funding_aud
-    ADD COLUMN iou_terms_hash CHAR(64);
+    ADD COLUMN iou_terms_hash VARCHAR(64);
 
 -- Backfill existing rows. encode(...,'hex') yields lowercase hex per
 -- PostgreSQL docs; matches the convention used elsewhere in spec 004.

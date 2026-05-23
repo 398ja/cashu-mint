@@ -51,7 +51,10 @@ public class VoucherIssuanceRepositoryAdapter implements VoucherIssuanceReposito
         VoucherIssuanceEntity e = new VoucherIssuanceEntity();
         e.setVoucherQuoteId(r.voucherQuoteId());
         e.setFundingId(r.fundingId());
-        e.setIssuanceId(r.issuanceId());
+        // Spec 004 V20260601_005 dropped the standalone issuance_id column.
+        // The VoucherIssuance.issuanceId() value is the same as
+        // voucherQuoteId per the R1 namespace invariant; no separate
+        // setter call needed.
         e.setOutputsHash(r.outputsHash());
         e.setIssuedAt(r.issuedAt());
         return e;

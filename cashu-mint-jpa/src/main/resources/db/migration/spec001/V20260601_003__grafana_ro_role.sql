@@ -21,7 +21,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cashu_mint_grafana_ro') THEN
         EXECUTE format('CREATE ROLE cashu_mint_grafana_ro WITH LOGIN PASSWORD %L',
-                       current_setting('flyway.placeholders.grafana_ro_password'));
+                       '${grafana_ro_password}');
     END IF;
 END
 $$;

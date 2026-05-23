@@ -102,6 +102,7 @@ public class MintJpaAutoConfiguration {
         return Flyway.configure()
                 .dataSource(dataSource)
                 .locations(properties.getFlyway().getLocations())
+                .placeholders(properties.getFlyway().getPlaceholders())
                 .baselineOnMigrate(true)
                 .load();
     }
