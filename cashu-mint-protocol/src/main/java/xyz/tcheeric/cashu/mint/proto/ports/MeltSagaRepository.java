@@ -47,4 +47,12 @@ public interface MeltSagaRepository {
 
     /** Returns sagas currently in the given state (for reconciliation sweeps). */
     List<MeltSaga> findByState(MeltSagaState state);
+
+    /**
+     * Spec 002 T216 / research R7 — persist the serialised terminal response
+     * on a saga for NUT-19 cached-response replay. Callers invoke this on
+     * {@code COMPLETED}, {@code FAILED}, and {@code PAYMENT_SENT_BURN_FAILED}.
+     * Idempotent: a non-null cache overwrites; null is a no-op.
+     */
+    void updateResponseCache(String meltSagaId, String responseJson);
 }

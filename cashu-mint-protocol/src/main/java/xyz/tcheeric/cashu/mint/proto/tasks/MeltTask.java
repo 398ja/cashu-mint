@@ -8,6 +8,8 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
@@ -17,6 +19,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -176,7 +179,12 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
 
             // Spec 002 FR-001 / FR-009: sum(proofs) >= invoice + exactFeeReserve, long arithmetic.
             // The validator throws insufficient_input *before* any external payment is attempted (SC-001).
-            BurnAmountValidator.requireFunded(proofSum, invoiceAmount, feeReserve.getTotal());
+            try {
+                BurnAmountValidator.requireFunded(proofSum, invoiceAmount, feeReserve.getTotal());
+            } catch (CashuErrorException rejection) {
+                incrementCounter("cashu_mint_melt_insufficient_input_total");
+                throw rejection;
+            }
 
             // Spec 002 FR-003 — burn-first ordering. When the saga repo and
             // payment port are wired, drive the state machine; otherwise fall
@@ -271,14 +279,19 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     MeltSagaState.PAYMENT_SENT_BURN_FAILED);
             meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT,
                     MeltSagaState.PAYMENT_SENT_BURN_FAILED, invalidateError.getMessage(), "system");
+            ErrorResponse burnError = new ErrorResponse("melt_proof_pending_error",
+                    "payment sent but burn failed: " + invalidateError.getMessage());
+            cacheTerminalError(sagaId, burnError);
             throw invalidateError instanceof CashuErrorException ce ? ce
-                    : new CashuErrorException(new ErrorResponse("melt_proof_pending_error").toJson());
+                    : new CashuErrorException(burnError.toJson());
         }
 
         meltSagaRepository.casState(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED,
                 "preimage=" + success.paymentHash(), "system");
-        return new PostMeltResponse(true, success.paymentHash());
+        PostMeltResponse response = new PostMeltResponse(true, success.paymentHash());
+        cacheTerminalResponse(sagaId, response);
+        return response;
     }
 
     private PostMeltResponse refundAfterFailure(String sagaId, String quoteId,
@@ -301,6 +314,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         log.error("[melt-saga][alert] proof_refund_pending quote_id={} saga_id={} proof_count={} reason={} provider_code={}",
                 quoteId, sagaId, proofsToMelt.size(), failure.reason(), failure.providerCode());
         ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error", failure.reason());
+        cacheTerminalError(sagaId, error);
         throw new CashuErrorException(error.toJson());
     }
 
@@ -340,6 +354,33 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
         createInvalidateProofsTask(proofsToMelt).execute();
         return new PostMeltResponse(true, gateway.getPaymentPreimage(quoteId));
+    }
+
+    private static final ObjectMapper RESPONSE_MAPPER = new ObjectMapper();
+
+    /** Spec 002 T216 — persists a terminal {@link PostMeltResponse} to the saga record. */
+    private void cacheTerminalResponse(String sagaId, PostMeltResponse response) {
+        try {
+            meltSagaRepository.updateResponseCache(sagaId, RESPONSE_MAPPER.writeValueAsString(response));
+        } catch (JsonProcessingException | RuntimeException e) {
+            log.warn("melt_saga_response_cache_write_failed saga_id={} cause={}", sagaId, e.getMessage());
+        }
+    }
+
+    /** Spec 002 T216 — persists a terminal {@link ErrorResponse} to the saga record. */
+    private void cacheTerminalError(String sagaId, ErrorResponse error) {
+        try {
+            meltSagaRepository.updateResponseCache(sagaId, error.toJson());
+        } catch (RuntimeException e) {
+            log.warn("melt_saga_response_cache_write_failed saga_id={} cause={}", sagaId, e.getMessage());
+        }
+    }
+
+    private static void incrementCounter(String name) {
+        io.micrometer.core.instrument.MeterRegistry registry = MintIntegrityContext.meterRegistry();
+        if (registry != null) {
+            registry.counter(name).increment();
+        }
     }
 
     private static String resolveProviderName(xyz.tcheeric.payment.adapter.core.common.Gateway gateway) {

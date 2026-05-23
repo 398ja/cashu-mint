@@ -83,6 +83,14 @@ public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
                 .toList();
     }
 
+    @Override
+    public void updateResponseCache(String meltSagaId, String responseJson) {
+        if (responseJson == null) {
+            return;
+        }
+        sagas.updateResponseCache(meltSagaId, responseJson);
+    }
+
     private static MeltSagaEntity toEntity(MeltSaga s) {
         MeltSagaEntity e = new MeltSagaEntity();
         e.setMeltSagaId(s.meltSagaId());

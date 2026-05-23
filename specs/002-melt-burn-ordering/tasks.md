@@ -29,8 +29,8 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 **Purpose**: Verify spec 001's foundations are in place; add a payment-mock harness usable by failure-injection tests.
 
 - [X] **T001** [S] Confirm spec 001's `cashu-mint-jpa` module is on the trunk; abort this spec's branch if not. (Procedural check; no code change.)
-- [ ] **T002** [P] [S] Add `payment-adapter-test` dependency (test scope) to `cashu-mint-rest-it` if not already present; if missing from upstream, introduce a local `MockLightningPaymentPort` test double in `cashu-mint-rest-it/src/test/java/.../it/support/MockLightningPaymentPort.java` that can be programmed to return `Success`, `DefinitiveFailure`, or `Unknown` per call.
-- [ ] **T003** [P] [S] Wire the `MockLightningPaymentPort` test double via `@TestConfiguration` so integration tests can swap in deterministic outcomes.
+- [X] **T002** [P] [S] Add `payment-adapter-test` dependency (test scope) to `cashu-mint-rest-it` if not already present; if missing from upstream, introduce a local `MockLightningPaymentPort` test double in `cashu-mint-rest-it/src/test/java/.../it/support/MockLightningPaymentPort.java` that can be programmed to return `Success`, `DefinitiveFailure`, or `Unknown` per call.
+- [X] **T003** [P] [S] Wire the `MockLightningPaymentPort` test double via `@TestConfiguration` so integration tests can swap in deterministic outcomes.
 - [ ] **T004** [P] [S] Extend the existing `LongArithmeticArchTest` (spec 001 T050) package scope to cover `cashu-mint-protocol/src/main/java/.../tasks/MeltTask` and `domain/MeltSaga*` (Constitution I).
 
 ---
@@ -109,7 +109,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 - [X] **T111** [US1] Create `ExactFeeReserveResolver` that consults `Gateway.estimateFee(invoice)` (mint-computed per research R1) and cross-checks against `postMeltRequest.getFees()` in `staging`/`prod`. Persists both to the saga (`exact_fee_reserve`, `asserted_fee_reserve`).
 - [X] **T112** [US1] Modify `MeltTask.java` (`cashu-mint-protocol/src/main/java/.../protocol/tasks/MeltTask.java`) entry path to call `BurnAmountValidator.requireFunded(...)` BEFORE any other state mutation. Remove the existing `totalAmount` arithmetic — replace with `sum(proofs.amount)` using `LongStream.mapToLong(Proof::getAmount).sum()` (FR-001, FR-009).
 - [X] **T113** [US1] Wire the typed `InsufficientInputException` to a 400 `insufficient_input` REST response in `cashu-mint-rest`'s exception handler.
-- [ ] **T114** [US1] Add Micrometer counter `cashu_mint_melt_insufficient_input_total` (FR-012).
+- [X] **T114** [US1] Add Micrometer counter `cashu_mint_melt_insufficient_input_total` (FR-012).
 
 **Checkpoint**: US1 is testable in isolation. The under-funded reject path never reaches `gateway.pay`.
 
@@ -144,7 +144,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 - [X] **T213** [P] [US2] Add `PROOFS_HELD` TTL sweep (also in `MeltSagaReconciler`): sagas older than `cashu.mint.melt.proofs-held-ttl` that have not advanced ⇒ CAS to `FAILED` + refund proofs.
 - [X] **T214** [US2] Add structured-log + Micrometer counters for every state transition: `cashu_mint_melt_state_transitions_total{from, to}`. Operator alerts via log prefix `[melt-saga][alert]` (FR-011, FR-012).
 - [ ] **T215** [US2] Implement NUT-08 overpaid-melt change return in `MeltTask` after `COMPLETED`: compute change against the persisted saga (`input_amount - invoice_amount - exact_fee_reserve`), issue blinded signatures, persist `change_outputs_hash` + `change_signatures_json` on the saga, return in the melt response (FR-013).
-- [ ] **T216** [US2] Persist `melt_response_cache` on every terminal transition for NUT-19 cached-responses replay (research R7).
+- [X] **T216** [US2] Persist `melt_response_cache` on every terminal transition for NUT-19 cached-responses replay (research R7).
 
 **Checkpoint**: US1 + US2 both pass. The happy path produces a `COMPLETED` saga with full transition timeline; failure modes land in explicit compensation states with operator alerts.
 
@@ -159,15 +159,15 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 ### Tests for User Story 3
 
 - [ ] **T300** [P] [US3] `MeltSagaQueryIT`: happy path + 401/403 paths + querying by `quote_id` vs `melt_saga_id`.
-- [ ] **T301** [P] [US3] `OperatorReconciliationIT`: from a `PAYMENT_SENT_BURN_FAILED` saga, the operator endpoint accepts a `mark_resolved` action that appends a transition (does NOT overwrite — append-only contract).
-- [ ] **T302** [P] [US3] Contract test on the response JSON shape (`/admin/melt-saga/{id}`) — pinned to the OpenAPI doc / Javadoc.
+- [X] **T301** [P] [US3] `OperatorReconciliationIT`: from a `PAYMENT_SENT_BURN_FAILED` saga, the operator endpoint accepts a `mark_resolved` action that appends a transition (does NOT overwrite — append-only contract).
+- [X] **T302** [P] [US3] Contract test on the response JSON shape (`/admin/melt-saga/{id}`) — pinned to the OpenAPI doc / Javadoc.
 
 ### Implementation for User Story 3
 
 - [X] **T310** [US3] Add `MeltSagaAdminController` in `cashu-mint-rest/src/main/java/.../rest/admin/MeltSagaAdminController.java`: `GET /admin/melt-saga/by-id/{meltSagaId}`, `GET /admin/melt-saga/by-quote/{quoteId}`, `POST /admin/melt-saga/{id}/mark-resolved`.
 - [ ] **T311** [US3] Apply Spring Security config so the new endpoints are reachable only by admin service-account principals (same mechanism as cashu-mint-admin-rest).
 - [X] **T312** [US3] Response DTO `MeltSagaResponse` includes `currentState`, `quoteId`, `invoiceAmount`, `exactFeeReserve`, `inputAmount`, `proofCount`, `paymentHash`, `providerEventId`, `transitions: List<TransitionEntry>` (each: `seq`, `fromState`, `toState`, `reason`, `actor`, `at`).
-- [ ] **T313** [P] [US3] Document the endpoint in `cashu-mint-rest/README.md` (or top-level docs); call out that the endpoint is internal-only.
+- [X] **T313** [P] [US3] Document the endpoint in `cashu-mint-rest/README.md` (or top-level docs); call out that the endpoint is internal-only.
 
 **Checkpoint**: US1 + US2 + US3 all pass independently. Operator reconciliation actions are auditable through the existing `MeltSagaTransition` table.
 
@@ -175,10 +175,10 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] **T900** [P] [X] Run `mvn -q verify -P integration-tests`; attach IT report.
+- [X] **T900** [P] [X] Run `mvn -q verify -P integration-tests`; attach IT report.
 - [ ] **T901** [P] [X] Pin Javadoc on `MeltTask`, `BurnAmountValidator`, `LightningPaymentPort`, `MeltSagaReconciler` to NUT-05 / NUT-08 commit hashes (Constitution II, FR-014).
-- [ ] **T902** [P] [X] Update `CLAUDE.md` `## Architecture` to mention the saga state machine and `LightningPaymentPort` abstraction.
-- [ ] **T903** [P] [X] Daily reconciliation queries (operator dashboard SQL) embedded as Javadoc on `MeltSagaJpaRepository`:
+- [X] **T902** [P] [X] Update `CLAUDE.md` `## Architecture` to mention the saga state machine and `LightningPaymentPort` abstraction.
+- [X] **T903** [P] [X] Daily reconciliation queries (operator dashboard SQL) embedded as Javadoc on `MeltSagaJpaRepository`:
   ```sql
   -- SC-002: every COMPLETED saga has all proofs in SPENT
   SELECT s.melt_saga_id FROM melt_saga s
