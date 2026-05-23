@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
+
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +47,7 @@ class PaymentWebhookControllerTest {
     void handlePaymentWebhook_shouldReturn200OnSuccess() throws Exception {
         // Given
         when(signatureValidator.validate(any(), any())).thenReturn(true);
-        when(quoteStatusUpdater.markAsPaid(any())).thenReturn(true);
+        when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.accepted());
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
         String json = objectMapper.writeValueAsString(notification);
@@ -58,14 +60,14 @@ class PaymentWebhookControllerTest {
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.message").value("Payment recorded"));
 
-        verify(quoteStatusUpdater).markAsPaid(any());
+        verify(quoteStatusUpdater).record(any());
     }
 
     @Test
     void handlePaymentWebhook_shouldReturn200OnDuplicate() throws Exception {
         // Given
         when(signatureValidator.validate(any(), any())).thenReturn(true);
-        when(quoteStatusUpdater.markAsPaid(any())).thenReturn(false); // Duplicate
+        when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.of(Outcome.duplicate));
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
         String json = objectMapper.writeValueAsString(notification);
@@ -96,14 +98,14 @@ class PaymentWebhookControllerTest {
                 .andExpect(jsonPath("$.status").value("error"))
                 .andExpect(jsonPath("$.message").value("Invalid signature"));
 
-        verify(quoteStatusUpdater, never()).markAsPaid(any());
+        verify(quoteStatusUpdater, never()).record(any());
     }
 
     @Test
     void handlePaymentWebhook_shouldReturn500OnError() throws Exception {
         // Given
         when(signatureValidator.validate(any(), any())).thenReturn(true);
-        when(quoteStatusUpdater.markAsPaid(any())).thenThrow(new RuntimeException("DB error"));
+        when(quoteStatusUpdater.record(any())).thenThrow(new RuntimeException("DB error"));
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
         String json = objectMapper.writeValueAsString(notification);
@@ -136,7 +138,7 @@ class PaymentWebhookControllerTest {
     void handlePaymentWebhook_shouldAcceptIdempotencyKeyHeader() throws Exception {
         // Given
         when(signatureValidator.validate(any(), any())).thenReturn(true);
-        when(quoteStatusUpdater.markAsPaid(any())).thenReturn(true);
+        when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.accepted());
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
         String json = objectMapper.writeValueAsString(notification);

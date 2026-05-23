@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteStatusTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteTask;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintTokensTask;
@@ -42,11 +43,17 @@ public final class NUT04 {
     }
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method) throws CashuErrorException {
-        return new MintQuoteTask(amount, method).execute();
+        return new MintQuoteTask(amount, method, null,
+                MintProtocolServiceFactory.getInstance(),
+                MintIntegrityContext.quoteRepository(),
+                MintIntegrityContext.mintUrl()).execute();
     }
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
-        return new MintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance()).execute();
+        return new MintQuoteTask(amount, method, unit,
+                MintProtocolServiceFactory.getInstance(),
+                MintIntegrityContext.quoteRepository(),
+                MintIntegrityContext.mintUrl()).execute();
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {
@@ -74,7 +81,11 @@ public final class NUT04 {
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull MintProtocolService mintProtocolService,
                                                            @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
-        return new MintTokensTask<>(mintId, postMintRequest, method, unit, mintLoadService, mintProtocolService, signatureVaultService).execute();
+        return new MintTokensTask<>(mintId, postMintRequest, method, unit, mintLoadService, mintProtocolService,
+                signatureVaultService,
+                MintIntegrityContext.quoteRepository(),
+                MintIntegrityContext.issuanceRecordRepository(),
+                MintIntegrityContext.meterRegistry()).execute();
     }
 
     /**

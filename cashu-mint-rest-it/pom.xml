@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.15.0</version>
+        <version>0.16.0</version>
     </parent>
     <artifactId>cashu-mint-rest-it</artifactId>
-    <version>0.15.0</version>
+    <version>0.16.0</version>
     <name>cashu-mint-rest-it</name>
     <description>Integration tests for cashu-mint-rest</description>
 
@@ -70,6 +70,31 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spec 001 cashu-mint-jpa under test (durable mint quote / webhook tables) -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-mint-jpa</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Testcontainers Postgres for spec 001 durable-path ITs -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
 

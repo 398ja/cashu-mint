@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.webhook;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 
@@ -10,37 +9,41 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for WebhookSignatureValidator.
+ *
+ * <p>Spec 001 FR-007 removes the legacy skip-pass branch: a missing shared secret
+ * causes validation to fail (the startup validator separately prevents non-local
+ * profiles from booting in that state — see WebhookSecretStartupValidator).
  */
 class WebhookSignatureValidatorTest {
 
+    private WebhookProperties properties;
     private WebhookSignatureValidator validator;
 
     @BeforeEach
     void setUp() {
-        validator = new WebhookSignatureValidator();
+        properties = new WebhookProperties();
+        validator = new WebhookSignatureValidator(properties);
     }
 
     @Test
-    void validate_shouldReturnTrueWhenNoSecretConfigured() {
-        // Given - no secret configured
-        ReflectionTestUtils.setField(validator, "webhookSecret", "");
-        PaymentNotification notification = createNotification();
+    void validate_shouldReturnFalseWhenNoSecretConfigured() {
+        // Given - no secret configured (FR-007 removes skip-pass; local-dev must set the secret)
+        properties.setSharedSecret("");
 
         // When
-        boolean result = validator.validate(notification, null);
+        boolean result = validator.validate(createNotification(), null);
 
         // Then
-        assertTrue(result);
+        assertFalse(result);
     }
 
     @Test
     void validate_shouldReturnFalseWhenSecretConfiguredButNoSignature() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", "mysecret");
-        PaymentNotification notification = createNotification();
+        properties.setSharedSecret("mysecret");
 
         // When
-        boolean result = validator.validate(notification, null);
+        boolean result = validator.validate(createNotification(), null);
 
         // Then
         assertFalse(result);
@@ -49,11 +52,10 @@ class WebhookSignatureValidatorTest {
     @Test
     void validate_shouldReturnFalseWhenSecretConfiguredAndEmptySignature() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", "mysecret");
-        PaymentNotification notification = createNotification();
+        properties.setSharedSecret("mysecret");
 
         // When
-        boolean result = validator.validate(notification, "");
+        boolean result = validator.validate(createNotification(), "");
 
         // Then
         assertFalse(result);
@@ -62,11 +64,10 @@ class WebhookSignatureValidatorTest {
     @Test
     void validate_shouldReturnFalseForInvalidSignature() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", "mysecret");
-        PaymentNotification notification = createNotification();
+        properties.setSharedSecret("mysecret");
 
         // When
-        boolean result = validator.validate(notification, "invalid-signature");
+        boolean result = validator.validate(createNotification(), "invalid-signature");
 
         // Then
         assertFalse(result);
@@ -75,7 +76,7 @@ class WebhookSignatureValidatorTest {
     @Test
     void isEnabled_shouldReturnFalseWhenNoSecret() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", "");
+        properties.setSharedSecret("");
 
         // Then
         assertFalse(validator.isEnabled());
@@ -84,7 +85,7 @@ class WebhookSignatureValidatorTest {
     @Test
     void isEnabled_shouldReturnFalseWhenNullSecret() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", null);
+        properties.setSharedSecret(null);
 
         // Then
         assertFalse(validator.isEnabled());
@@ -93,7 +94,7 @@ class WebhookSignatureValidatorTest {
     @Test
     void isEnabled_shouldReturnTrueWhenSecretConfigured() {
         // Given
-        ReflectionTestUtils.setField(validator, "webhookSecret", "mysecret");
+        properties.setSharedSecret("mysecret");
 
         // Then
         assertTrue(validator.isEnabled());

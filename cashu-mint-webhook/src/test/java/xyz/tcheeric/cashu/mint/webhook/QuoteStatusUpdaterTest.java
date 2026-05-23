@@ -25,14 +25,17 @@ class QuoteStatusUpdaterTest {
 
     @BeforeEach
     void setUp() {
-        // Create with standard config - 1 hour quote TTL, 24 hour idempotency TTL
-        // 10MB max weight, 100k max idempotency keys, no MeterRegistry
+        // Legacy cache-only path: durable repositories null (spec 001 legacy
+        // fallback). Outcome matrix is covered by QuoteStatusUpdaterDurableTest.
         updater = new QuoteStatusUpdater(
                 Duration.ofHours(1),
                 Duration.ofHours(24),
                 10_485_760L,  // 10MB max weight
                 100_000,
-                null  // No MeterRegistry for basic tests
+                null,  // No MeterRegistry for basic tests
+                null,  // No MintQuoteRepository
+                null,  // No WebhookEventRepository
+                null   // No WebhookProperties
         );
     }
 
@@ -188,7 +191,7 @@ class QuoteStatusUpdaterTest {
                 Duration.ofHours(24),
                 2048L,  // 2KB max weight - very small
                 100,
-                null
+                null, null, null, null
         );
 
         // Create notifications with large preimages to exceed weight
@@ -380,7 +383,7 @@ class QuoteStatusUpdaterTest {
                 Duration.ofHours(24),
                 1024L,  // 1KB - very small
                 1000,   // Large idempotency cache
-                null
+                null, null, null, null
         );
 
         String largePreimage = "x".repeat(300);

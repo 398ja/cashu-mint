@@ -72,14 +72,22 @@ class PaymentWebhookIT {
                     Duration.ofHours(24),
                     10_485_760L,  // 10MB max weight
                     100000,
-                    null  // No MeterRegistry for tests
+                    null, null, null, null  // Legacy cache-only path for existing IT
             );
         }
 
         @Bean
         @Primary
         public WebhookSignatureValidator webhookSignatureValidator() {
-            return new WebhookSignatureValidator();
+            // Spec 001 FR-007 made the real validator fail closed when the
+            // secret is blank. These tests target the cache/controller flow,
+            // not signature validation, so stub the validator to accept every
+            // delivery — equivalent to the pre-spec-001 dev-mode behaviour.
+            WebhookSignatureValidator stub = org.mockito.Mockito.mock(WebhookSignatureValidator.class);
+            org.mockito.Mockito.when(stub.validate(org.mockito.Mockito.any(), org.mockito.Mockito.any()))
+                    .thenReturn(true);
+            org.mockito.Mockito.when(stub.isEnabled()).thenReturn(false);
+            return stub;
         }
 
         @Bean

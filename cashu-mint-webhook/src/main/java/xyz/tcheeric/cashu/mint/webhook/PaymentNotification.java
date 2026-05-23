@@ -49,8 +49,30 @@ public class PaymentNotification {
 
     /**
      * Get idempotency key for deduplication.
+     *
+     * @deprecated Spec 001 FR-006: the durable idempotency key is
+     *     {@code (provider, provider_event_id)}, not
+     *     {@code paymentMethod:quoteId}. Retained until {@link QuoteStatusUpdater}'s
+     *     legacy cache-only path is fully retired (T212 follow-up).
      */
+    @Deprecated
     public String getIdempotencyKey() {
         return paymentMethod + ":" + quoteId;
+    }
+
+    /**
+     * Spec 001 FR-006: returns the provider-side event id for the durable
+     * {@code (provider, provider_event_id)} idempotency key. Resolution order:
+     * preimage (Lightning) → receiptId (cash / other) → quoteId (last-resort
+     * fallback so we always have a non-null key).
+     */
+    public String getProviderEventId() {
+        if (preimage != null && !preimage.isBlank()) {
+            return preimage;
+        }
+        if (receiptId != null && !receiptId.isBlank()) {
+            return receiptId;
+        }
+        return quoteId;
     }
 }
