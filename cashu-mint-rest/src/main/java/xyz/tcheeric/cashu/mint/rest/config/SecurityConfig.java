@@ -50,6 +50,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // Spec 002 T311: /admin/** requires the admin role.
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // Spec 003 FR-007: every voucher endpoint requires an
+                        // authenticated principal. Today we accept the admin
+                        // role; a follow-up adds merchant principals (JWT or
+                        // service-account) without changing the contract.
+                        .requestMatchers("/v1/vouchers/**").hasRole("ADMIN")
                         // OPTIONS preflight is always allowed.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // All other paths (NUT endpoints, /webhook/**, /actuator/**,
