@@ -57,19 +57,24 @@ public class SecurityConfig {
     public UserDetailsService adminUserDetails(
             @Value("${cashu.mint.admin.username:admin}") String username,
             @Value("${cashu.mint.admin.password:}") String password) {
-        // When password is blank, Spring Security would generate a random one
-        // and log it. We make the empty-password case explicit by mounting a
-        // user whose password no client could match (avoids the surprise of
-        // the auto-generated password not being persisted across restarts).
-        String effective = password == null || password.isBlank()
-                ? "{noop}__admin_password_unset_set_MINT_ADMIN_PASSWORD__"
-                : "{noop}" + password;
+        // When the admin password is unset/blank we register ZERO users.
+        // The SecurityFilterChain still requires hasRole("ADMIN") on
+        // /admin/**, so requests return 401 Unauthorized — there is no
+        // guessable fallback credential. Prior versions of this code
+        // mounted a sentinel password string ("__admin_password_unset...")
+        // which, while non-random, was still source-visible and therefore
+        // a publicly-guessable credential. Reverted to fail-closed.
+        if (password == null || password.isBlank()) {
+            log.warn("Admin auth NOT wired — cashu.mint.admin.password is unset. "
+                    + "/admin/** endpoints will reject every request with 401. "
+                    + "Set MINT_ADMIN_PASSWORD to enable operator access.");
+            return new InMemoryUserDetailsManager();
+        }
         UserDetails admin = User.withUsername(username)
-                .password(effective)
+                .password("{noop}" + password)
                 .roles("ADMIN")
                 .build();
-        log.info("Admin auth wired: username='{}' password-set={}", username,
-                !(password == null || password.isBlank()));
+        log.info("Admin auth wired: username='{}'", username);
         return new InMemoryUserDetailsManager(admin);
     }
 

@@ -132,11 +132,14 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
     }
 
     @Test
-    void terminal_saga_does_NOT_trigger_melt_in_progress() {
-        // Terminal sagas (COMPLETED) should not block a new attempt at the
-        // melt_in_progress check — they fail later for OTHER reasons (the
-        // melt_saga.quote_id unique constraint), but the early check
-        // doesn't bail out with `melt_in_progress`.
+    void terminal_saga_for_same_quote_is_also_rejected_with_melt_in_progress() {
+        // Terminal sagas (COMPLETED) pass the early non-terminal check
+        // but the `melt_saga.quote_id` UNIQUE constraint catches them
+        // on save. With the Codex-feedback fix on PR #320 (R3) the
+        // DataIntegrityViolationException is translated to the same
+        // `melt_in_progress` response so clients get a deterministic
+        // 400 instead of a 500. Semantically: a quote_id is consumed
+        // for its entire lifetime — no second saga, terminal or not.
         MeltSagaEntity seeded = new MeltSagaEntity();
         seeded.setMeltSagaId(UUID.randomUUID().toString());
         seeded.setQuoteId("quote-terminal");
@@ -152,10 +155,10 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
                 List.of(MeltProofFixture.proofJson(64),
                         MeltProofFixture.proofJson(64)));
 
-        assertThat(response.getBody())
-                .as("status=%s — terminal saga shouldn't trip melt_in_progress",
-                        response.getStatusCode())
-                .doesNotContain("melt_in_progress");
+        assertThat(response.getStatusCode().isError())
+                .as("status=%s body=%s", response.getStatusCode(), response.getBody())
+                .isTrue();
+        assertThat(response.getBody()).contains("melt_in_progress");
     }
 
     private ResponseEntity<String> postMelt(String quoteId, List<Map<String, Object>> proofs) {
