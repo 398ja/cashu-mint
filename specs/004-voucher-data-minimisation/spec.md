@@ -144,6 +144,24 @@ After Stories 2-4 land, an operator with appropriate access MUST still be able t
 
 ---
 
+### User Story 6 — Operator dashboards expose the retained data sensibly (Priority: P2)
+
+The retained financial data MUST be exposed via Grafana dashboards that are glanceable, alert-ready, and **privacy-aware**: aggregate panels read only financial / state columns and work identically before and after retention purge; per-record panels display truncated identity hashes (or a `{purged}` sentinel for purged rows) and never expose raw npubs.
+
+**Why this priority**: spec 003 SC-001 / SC-006 + spec 004 SC-002 already require these queries to run daily. Exposing them in Grafana turns "queries on demand" into "glanceable signals with alert thresholds." Plus, the privacy-aware display pattern is what proves the hashed-at-rest model is operator-usable — without it, operators would reach for the raw DB and circumvent FR-002.
+
+**Independent Test**: Three new Grafana dashboards exist in `cashu-mint-observability/docker/grafana/dashboards/` (Liability, Integrity, IOU). Their queries are inspected and contain zero references to identity columns where aggregate, and only truncated-hash display where per-record. The orphan-issuance alert fires within 5 minutes when a test row is injected with `lifecycle_state='ISSUED' AND funding_id IS NULL`.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Voucher Liability Overview dashboard, **When** the operator loads it, **Then** they see total outstanding liability + per-funding-source stacked breakdown + 30-day trend, with zero identity-column references in any panel query.
+2. **Given** the Token Integrity Reconciliation dashboard, **When** the orphan-issuance count is 0, **Then** the single-stat panel is green; **When** an orphan is injected, **Then** the panel turns red and Grafana fires an alert routed to PagerDuty within 5 minutes.
+3. **Given** the IOU Liability Tracker dashboard, **When** the operator views an in-window IOU row, **Then** the merchant identifier is shown as a truncated hash (e.g. `4f2a1c…`); **When** they view a post-retention IOU row, **Then** the cell displays `{purged}` instead of NULL or an empty string.
+4. **Given** a Grafana user without the `forensic` role, **When** they try to expand a truncated hash, **Then** the dashboard does NOT offer a "reveal" path; identity recovery is exclusively via the FR-009 CLI tool (which holds the salt).
+5. **Given** the existing `cashu-mint-business.json` dashboard's `cashu_mint_vouchers_*` (plural) metrics, **When** the new `cashu_mint_voucher_*` (singular) metrics from PR #321 land, **Then** the naming is reconciled into a single convention and the business dashboard is updated accordingly.
+
+---
+
 ### Edge Cases
 
 - A retention sweep crashes mid-batch. Restart MUST be safe (idempotent on already-nullified rows).
@@ -169,12 +187,113 @@ After Stories 2-4 land, an operator with appropriate access MUST still be able t
 - **FR-010**: A purged Envers revision MUST be recoverable as "purged on date X" so operators can distinguish "row was purged" from "row never existed." Implementation MAY use a sentinel value, a separate `voucher_quote_purge_log` table, or an Envers metadata extension. [US5 / Edge case]
 - **FR-011**: Migration of existing spec-003 rows: on first boot with FR-002 wired, the mint MUST backfill hashes for existing raw-npub rows in a single transaction (or batched, but idempotent). After backfill, no plaintext npub remains. [Edge case]
 - **FR-012**: Performance ceiling: per-request hash overhead MUST be ≤ 1ms at p99. Backfill MUST complete in ≤ 5min for a 10M-row table (offline-safe; brief table lock acceptable).
+- **FR-013**: A PostgreSQL data source MUST be added to the `cashu-mint-observability` Grafana provisioning (`docker/grafana/provisioning/datasources/`) so dashboards can query the durable state directly. The credentials MUST come from environment variables; the data source MUST be read-only at the database role level. [US6]
+- **FR-014**: A `voucher-liability-overview.json` Grafana dashboard MUST exist with at least four panels: (1) outstanding voucher liability single-stat (`SUM(face_value) WHERE lifecycle_state='ISSUED'`); (2) liability per funding source stacked breakdown (`GROUP BY funding_source`); (3) 30-day liability trend; (4) per-funding-source 30-day issuance rate. All four panel queries MUST be inspectable and MUST NOT reference any identity column. [US6]
+- **FR-015**: A `voucher-token-integrity.json` Grafana dashboard MUST exist with: (1) orphan-issuance single-stat (`COUNT WHERE lifecycle_state='ISSUED' AND funding_id IS NULL`) — green at 0, red at >0, with a Grafana alert wired to PagerDuty for sustained >0; (2) issued-vs-funded reconciliation panel (`SUM(face_value) - SUM(funding.amount)` over ISSUED rows) — must stay at 0; (3) stuck-quote count by `lifecycle_state` for non-terminal rows older than 1 hour. [US6 / SC-001 / SC-005]
+- **FR-016**: An `voucher-iou-liability.json` Grafana dashboard MUST exist with: (1) outstanding IOU table with columns `iou_id`, truncated `merchant_id` hash (e.g. first 8 chars + `…`), `policy_profile`, `amount`, `iou_due_at`, `status` (`overdue` / `due_soon` / `ok`); (2) policy-drift count panel (IOUs issued under `policy_profile != current_setting`); (3) overdue-IOU alert wired to Slack `#merchant-finance`. The merchant identifier column MUST render `{purged}` for rows whose retention window has elapsed (i.e. `merchant_id IS NULL`). The dashboard MUST NOT offer a hash-reveal action; identity recovery is exclusively via the FR-009 CLI tool. [US6 / Spec 004 retention boundary]
+- **FR-017**: The metric naming inconsistency between the existing `cashu-mint-business.json` dashboard (`cashu_mint_vouchers_*` plural) and the PR #321 counters (`cashu_mint_voucher_*` singular) MUST be reconciled into a single convention. The reconciliation choice (and the rename direction) is documented in `research.md`. Dashboards updated to the new convention; old metric names retained as Prometheus relabel aliases for one release cycle so existing alerts don't break. [US6]
+- **FR-018**: The Grafana alert rules added by FR-015 + FR-016 MUST have synthetic-trigger integration tests: a test seeds an orphan ISSUED voucher quote and asserts the alert fires through the configured notifier (Alertmanager → webhook → captured in IT). [US6 / Testing Discipline]
 
 ### Key Entities
 
 - **MintIdentitySalt** — a single 256-bit value sourced from configuration (`cashu.mint.voucher.identity-salt`). Used to compute `SHA256(value || salt)` for every identity-bearing column. NOT persisted in any database; held in memory only.
 - **VoucherIdentityPurgeLog** (optional) — append-only record of purge runs, capturing `(purged_at, retention_cutoff, rows_purged)`. Lets operators correlate a "row exists but identity is null" observation to a specific purge event.
 - **VoucherDataDisclosure** (documentation entity) — the `docs/explanations/voucher-data-record.md` document is the source of truth for what's disclosed. Any code-side schema change MUST also update this document.
+- **VoucherOperatorDashboards** (configuration entity) — the three JSON files under `cashu-mint-observability/docker/grafana/dashboards/` (`voucher-liability-overview.json`, `voucher-token-integrity.json`, `voucher-iou-liability.json`) are versioned alongside the schema. Any retained-field change to the schema MUST also update at least one panel in these dashboards (proven by the SC-007 CI check).
+
+## Retention Scope — what stays, what goes, and why
+
+FR-003 says "financial fields are retained" — too coarse to gate on. This section articulates *every* retained column against the purpose it serves, so a future reviewer can challenge any field's presence without re-deriving the rationale from first principles.
+
+### Purged at retention boundary (identity, FR-003)
+
+After `cashu.mint.voucher.identity-retention` (default 90 days) elapses since a voucher quote reached `ISSUED` / `EXPIRED` / `FAILED`, these columns are nullified on the live row AND every Envers revision:
+
+- `voucher_quote.customer_id` (hashed npub)
+- `voucher_quote.merchant_id` (hashed npub)
+- `customer_payment_funding.customer_id` (hashed npub mirror)
+- `merchant_debit_funding.merchant_id` (hashed npub)
+- `merchant_iou_funding.merchant_id` (hashed npub)
+
+Nothing else is nullified by the retention sweep. Every column listed below survives.
+
+### Retained indefinitely (with rationale)
+
+#### A. Token-integrity audit (Constitution I — non-negotiable)
+
+| Field | Purpose |
+|---|---|
+| `voucher_quote.face_value` | What was issued — the spendable value the customer received |
+| `voucher_quote.charged_amount` | What was paid in — the asset side |
+| `voucher_quote.fee` | Mint revenue line; reconciles to the financial ledger |
+| `voucher_quote.unit` | Currency context — `face_value=1000` is meaningless without `sat` vs `usd` |
+| `voucher_quote.funding_id` (FK) | The link itself — without this the issuance is an orphan and SC-001 fires |
+| `voucher_quote.lifecycle_state` | Distinguishes ISSUED from EXPIRED/FAILED; without it an operator cannot tell "issued and outstanding" from "never minted" |
+| `voucher_funding.amount` + `unit` | Asset side — MUST equal `voucher_quote.charged_amount` for FR-005 reconciliation |
+| `voucher_funding.funding_source` | Discriminator — drives liability bucketing across the three variants |
+| `voucher_issuance.*` | Append-only proof of issuance event; backs FR-005 audit query |
+
+These power SC-001 (orphan check) and SC-006 (per-source liability dashboard). Delete any of them and the mint cannot prove its non-inflation invariant.
+
+#### B. Anti-replay (provider event idempotency)
+
+| Field | Purpose |
+|---|---|
+| `customer_payment_funding.provider` + `provider_event_id` (UNIQUE) | Webhook replay protection. Duplicate webhook delivery MUST NOT create a duplicate funding row. Persists at least as long as the provider's own replay window (Lightning providers may retry for days) |
+| `customer_payment_funding.webhook_event_quote_id` | Cross-links the funding row to spec-001's `webhook_event` table. Even after `customer_id` is purged, an operator can trace "this funding came from this provider payment event" without identity |
+
+Not customer identity — external payment-system anchors. Lightning payment hashes are public network data already.
+
+#### C. Merchant-ledger reconciliation (cross-system)
+
+| Field | Purpose |
+|---|---|
+| `merchant_debit_funding.merchant_debit_id` | Reference into the external merchant-ledger system. Operator can prove "the mint issued vouchers backed by this merchant debit" by joining mint records ↔ merchant ledger, **without** holding the merchant's identity (hashed + later purged) |
+| `merchant_debit_funding.merchant_ledger_balance_after` | Optional forensic snapshot. **Minimisation candidate** — see § D below |
+
+#### D. IOU liability tracking (financial instrument)
+
+| Field | Purpose |
+|---|---|
+| `merchant_iou_funding.iou_id` | The IOU is an actual debt instrument; the id is the contract anchor |
+| `merchant_iou_funding.iou_terms` | Free-text contract terms. **Minimisation candidate** — see § H |
+| `merchant_iou_funding.iou_due_at` | When the IOU must settle. Drives "overdue IOU" alerts (FR-016) even after merchant_id is purged |
+| `merchant_iou_funding.policy_profile` | Spring profile in effect at issuance. Detects policy drift: "this IOU was issued under ALLOW; current policy is DENY — investigate" |
+
+#### E. Cryptographic anchors (privacy-preserving)
+
+| Field | Purpose |
+|---|---|
+| `voucher_quote.request_hash` | SHA-256 of canonical request body. Anchors FR-009 tamper detection. Already a hash — not identity-bearing. Past retention, still useful for "did this voucher quote correspond to this exact request?" forensics |
+| `voucher_issuance.outputs_hash` | SHA-256 over blinded outputs. If a customer disputes "I was issued these tokens," they show the outputs and the mint re-computes the hash. Privacy-preserving — the hash doesn't reveal the proofs themselves |
+
+#### F. State-machine integrity
+
+| Field | Purpose |
+|---|---|
+| `voucher_quote.lifecycle_state` | CAS invariant carrier. Without it single-issuance breaks |
+| `voucher_quote.version` | JPA `@Version` — optimistic locking, prevents lost updates under concurrent writers |
+| `voucher_funding.version` | Same |
+
+#### G. Forensic timeline
+
+| Field | Purpose |
+|---|---|
+| `voucher_quote.created_at` / `updated_at` | "When did this happen?" — required for incident timelines, regulatory audits, and pattern analysis. Timestamp alone is not personally identifying once identity is purged. **Minimisation candidate** — see § H |
+| `voucher_funding.created_at` | Same |
+| `voucher_issuance.issued_at` | Same |
+| `voucher_funding_aud` (Envers) | Every state transition. Identity nullified per FR-003 but the financial state machine history is preserved for operator forensics |
+
+#### H. Minimisation candidates (decisions deferred to research.md)
+
+Four retained fields are weaker than the others. The planning phase MUST resolve each as `retain` / `redact` / `drop` with explicit rationale:
+
+| Field | Question | Default proposal |
+|---|---|---|
+| `merchant_debit_funding.merchant_ledger_balance_after` | Is "merchant solvent at issuance" data actually queried? Or speculative? | **Drop** unless an operator confirms a real use case |
+| `merchant_iou_funding.iou_terms` (TEXT) | Are the terms ever read from the mint, or only from the merchant's contract repo? | **Redact**: store `SHA256(terms_document)` + a pointer; mint proves "this is the terms hash that was agreed" without holding sensitive merchant-side pricing |
+| `voucher_issuance.issuance_id` | Pure forward compatibility, no current consumer | **Drop** until the shared issuance ledger materialises; less data > more data |
+| `voucher_quote.created_at` precision | Minute-level helps debugging; day-level helps regulatory audit. Does the threat model include timing correlation attacks? | **Retain** minute-precision; revisit if FR-001 disclosure prompts a customer-facing concern |
 
 ## Success Criteria *(mandatory)*
 
@@ -186,6 +305,10 @@ After Stories 2-4 land, an operator with appropriate access MUST still be able t
 - **SC-004**: The `voucher_idempotency_key.response_body_json` cache contains zero raw npubs. (Daily lint job, applied to live + Envers `_aud`.)
 - **SC-005**: The FR-002 daily reconciliation (spec-003 SC-001) continues to return 0 orphan voucher quotes after Stories 2-4 land. The funding gate is not regressed.
 - **SC-006**: Mean per-request hash overhead < 1ms; p99 < 1ms; measured via Micrometer.
+- **SC-007**: Every retained financial field (per the Retention Scope § A–G above) is referenced by at least one Grafana panel in the three voucher dashboards. (CI check: parse the dashboard JSON, extract SQL/PromQL identifiers, diff against the retained-field list — fail if a field is retained but unsurfaced, fail if a panel references a column not in the retained list.)
+- **SC-008**: Per-record Grafana panels (the IOU Liability Tracker rows) display either a truncated hash (8 chars + `…`) for in-window rows or `{purged}` for post-retention rows; zero panels render raw identity columns. (CI check: dashboard JSON inspection + integration test that seeds both row classes and screenshots / diffs the rendered cells.)
+- **SC-009**: Synthetic-orphan injection test fires the FR-015 PagerDuty alert within 5 minutes (measured via the integration test from FR-018).
+- **SC-010**: The reconciled metric naming convention (FR-017) is enforced — zero references to the deprecated name remain in dashboards after one release cycle. (Lint job over dashboard JSON.)
 
 ## Open Items (deferred to research / planning phase)
 
@@ -199,6 +322,10 @@ These need explicit decisions before tasks.md is generated.
 6. **`imani-apps` UI surface** — does the voucher purchase page link the disclosure, OR embed a summary, OR show a modal pre-purchase? FR-008 mandates "display or link"; the precise UX is for the front-end follow-up spec.
 7. **Backfill strategy detail** — single-transaction (simple, brief table lock) vs batched (no lock, longer overall, more complex). FR-011 currently says "batched, idempotent" but the lock duration calc needs a real-row-count estimate from production.
 8. **Salt rotation post-v1** — FR-007 forbids rotation in v1. If/when rotation is needed (e.g. a salt is leaked), the recovery plan needs to be designed up-front, not improvised under incident pressure.
+9. **Minimisation candidates from Retention Scope § H** — four retained fields are flagged for explicit `retain` / `redact` / `drop` decisions in research.md: `merchant_ledger_balance_after`, `iou_terms`, `voucher_issuance.issuance_id`, and `created_at` precision. The planning phase MUST resolve each with operator input (does anyone actually query this?).
+10. **Metric naming reconciliation (FR-017)** — the existing `cashu-mint-business.json` dashboard uses `cashu_mint_vouchers_*` (plural); PR #321 added `cashu_mint_voucher_*` (singular). Pick one. Recommend the singular form to align with `cashu_mint_quote_*` / `cashu_mint_proof_*` elsewhere in the codebase, but the rename means migrating Grafana queries + leaving relabel aliases for one release cycle.
+11. **Grafana data source security model** — FR-013 says the PostgreSQL data source is read-only at the DB role level. Open question: should it be a *separate* role with a deny-list on identity columns (defence in depth), or just rely on dashboard query review (simpler)? Recommend the separate role.
+12. **Grafana alert routing** — FR-015 and FR-016 specify PagerDuty + Slack respectively. Confirm the actual notifier endpoints + on-call rotation with the SRE owner before tasks.md is generated.
 
 ## Assumptions
 
@@ -208,6 +335,7 @@ These need explicit decisions before tasks.md is generated.
 - `provider_event_id` (e.g. Lightning payment hash) is considered non-identity-bearing — it's a payment artifact, not a customer identifier. Same for `merchant_debit_id` and `iou_id`.
 - Spec-003 ITs in PR #322 do not need to be re-run with hashed identities for correctness (the funding gate doesn't read identity); they will need a separate IT pass once hashing lands, asserting hashes are stored.
 - Spec author judgement: PR #321 + #322 should land first, then this spec is the immediate follow-up. Reverting the funding gate to "fix" the data-custody side would be worse than the gap this spec closes — token-integrity wins.
+- `cashu-mint-observability` is the host for the new Grafana dashboards (FR-013 — FR-016). The module already ships Prometheus + Grafana + Loki + Alertmanager via `docker/docker-compose.observability.yml` and provisions dashboards via JSON files under `docker/grafana/dashboards/`. No new infrastructure is required.
 
 ## Out of Scope
 
