@@ -81,7 +81,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### 2F. Scheduled reconciliation skeleton
 
-- [ ] **T060** [P] [F] Create `MeltSagaReconciler` Spring `@Component` with `@Scheduled(fixedDelayString = "${cashu.mint.melt.reconcile-interval:PT60S}")`. Empty skeleton — wired into US2 implementation but kept in foundational so US2 tests can rely on its presence.
+- [X] **T060** [P] [F] Create `MeltSagaReconciler` Spring `@Component` with `@Scheduled(fixedDelayString = "${cashu.mint.melt.reconcile-interval:PT60S}")`. Empty skeleton — wired into US2 implementation but kept in foundational so US2 tests can rely on its presence.
 
 **Checkpoint**: All entities, ports, types, and the scheduler skeleton in place. US1, US2, US3 may proceed.
 
@@ -133,16 +133,16 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### Implementation for User Story 2
 
-- [ ] **T210** [US2] Add `LightningPaymentTimeout` configuration property (`cashu.mint.melt.payment-timeout`, default `PT30S`) and `ProofsHeldTtl` (default `PT5M`) per research R9.
+- [X] **T210** [US2] Add `LightningPaymentTimeout` configuration property (`cashu.mint.melt.payment-timeout`, default `PT30S`) and `ProofsHeldTtl` (default `PT5M`) per research R9.
 - [X] **T211** [US2] Extend `MeltTask.java` (already modified in T112) to drive the saga machine:
   1. After `BurnAmountValidator.requireFunded`, insert `MeltSagaEntity` (`current_state = PROOFS_HELD`) AND mark all input proofs `UNSPENT → PENDING` with `melt_saga_id = sagaId` in a single `@Transactional` boundary. Append `MeltSagaTransition(seq=1, null → PROOFS_HELD)`.
   2. Call `LightningPaymentPort.pay(quoteId, timeout)`.
   3. On `Success`: CAS `PROOFS_HELD → PAYMENT_SENT` + record transition; commit proofs `PENDING → SPENT` + clear `melt_saga_id` + CAS `PAYMENT_SENT → COMPLETED` in a single transaction. If the final commit fails, CAS into `PAYMENT_SENT_BURN_FAILED` + record transition + fire operator alert.
   4. On `DefinitiveFailure`: CAS `PROOFS_HELD → FAILED` + return proofs `PENDING → UNSPENT` + clear `melt_saga_id`. Record transition.
   5. On `Unknown`: CAS `PROOFS_HELD → PAYMENT_UNKNOWN`. Record transition. Fire operator alert. Return `payment_unknown` response to the client.
-- [ ] **T212** [US2] Wire `MeltSagaReconciler` (skeleton from T060) to poll `LightningPaymentPort.checkStatus(quoteId)` for every saga in `PAYMENT_UNKNOWN`. On definitive resolution, CAS into `COMPLETED` (with proof commit) or `FAILED` (with proof refund). On TTL expiry without resolution, fire operator alert; saga stays in `PAYMENT_UNKNOWN` for operator action.
-- [ ] **T213** [P] [US2] Add `PROOFS_HELD` TTL sweep (also in `MeltSagaReconciler`): sagas older than `cashu.mint.melt.proofs-held-ttl` that have not advanced ⇒ CAS to `FAILED` + refund proofs.
-- [ ] **T214** [US2] Add structured-log + Micrometer counters for every state transition: `cashu_mint_melt_state_transitions_total{from, to}`. Operator alerts via log prefix `[melt-saga][alert]` (FR-011, FR-012).
+- [X] **T212** [US2] Wire `MeltSagaReconciler` (skeleton from T060) to poll `LightningPaymentPort.checkStatus(quoteId)` for every saga in `PAYMENT_UNKNOWN`. On definitive resolution, CAS into `COMPLETED` (with proof commit) or `FAILED` (with proof refund). On TTL expiry without resolution, fire operator alert; saga stays in `PAYMENT_UNKNOWN` for operator action.
+- [X] **T213** [P] [US2] Add `PROOFS_HELD` TTL sweep (also in `MeltSagaReconciler`): sagas older than `cashu.mint.melt.proofs-held-ttl` that have not advanced ⇒ CAS to `FAILED` + refund proofs.
+- [X] **T214** [US2] Add structured-log + Micrometer counters for every state transition: `cashu_mint_melt_state_transitions_total{from, to}`. Operator alerts via log prefix `[melt-saga][alert]` (FR-011, FR-012).
 - [ ] **T215** [US2] Implement NUT-08 overpaid-melt change return in `MeltTask` after `COMPLETED`: compute change against the persisted saga (`input_amount - invoice_amount - exact_fee_reserve`), issue blinded signatures, persist `change_outputs_hash` + `change_signatures_json` on the saga, return in the melt response (FR-013).
 - [ ] **T216** [US2] Persist `melt_response_cache` on every terminal transition for NUT-19 cached-responses replay (research R7).
 
@@ -164,9 +164,9 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### Implementation for User Story 3
 
-- [ ] **T310** [US3] Add `MeltSagaAdminController` in `cashu-mint-rest/src/main/java/.../rest/admin/MeltSagaAdminController.java`: `GET /admin/melt-saga/by-id/{meltSagaId}`, `GET /admin/melt-saga/by-quote/{quoteId}`, `POST /admin/melt-saga/{id}/mark-resolved`.
+- [X] **T310** [US3] Add `MeltSagaAdminController` in `cashu-mint-rest/src/main/java/.../rest/admin/MeltSagaAdminController.java`: `GET /admin/melt-saga/by-id/{meltSagaId}`, `GET /admin/melt-saga/by-quote/{quoteId}`, `POST /admin/melt-saga/{id}/mark-resolved`.
 - [ ] **T311** [US3] Apply Spring Security config so the new endpoints are reachable only by admin service-account principals (same mechanism as cashu-mint-admin-rest).
-- [ ] **T312** [US3] Response DTO `MeltSagaResponse` includes `currentState`, `quoteId`, `invoiceAmount`, `exactFeeReserve`, `inputAmount`, `proofCount`, `paymentHash`, `providerEventId`, `transitions: List<TransitionEntry>` (each: `seq`, `fromState`, `toState`, `reason`, `actor`, `at`).
+- [X] **T312** [US3] Response DTO `MeltSagaResponse` includes `currentState`, `quoteId`, `invoiceAmount`, `exactFeeReserve`, `inputAmount`, `proofCount`, `paymentHash`, `providerEventId`, `transitions: List<TransitionEntry>` (each: `seq`, `fromState`, `toState`, `reason`, `actor`, `at`).
 - [ ] **T313** [P] [US3] Document the endpoint in `cashu-mint-rest/README.md` (or top-level docs); call out that the endpoint is internal-only.
 
 **Checkpoint**: US1 + US2 + US3 all pass independently. Operator reconciliation actions are auditable through the existing `MeltSagaTransition` table.
@@ -186,7 +186,7 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
      AND EXISTS (SELECT 1 FROM proof_entity p WHERE p.melt_saga_id = s.melt_saga_id);
   -- expected: 0 rows
   ```
-- [ ] **T904** [X] Extend `LongArithmeticArchTest` (T004) to cover `MeltTask`, `BurnAmountValidator`, `ExactFeeReserveResolver`, `MeltSagaEntity` — guards FR-009.
+- [X] **T904** [X] Extend `LongArithmeticArchTest` (T004) to cover `MeltTask`, `BurnAmountValidator`, `ExactFeeReserveResolver`, `MeltSagaEntity` — guards FR-009.
 - [ ] **T905** [X] Manual smoke against staging: drive a 100 sat invoice from a paying wallet; observe the saga lifecycle in the operator endpoint.
 
 ---
