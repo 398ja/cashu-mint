@@ -5,6 +5,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
+
 /**
  * Static service-locator that exposes the spec-001 durable repositories and
  * Micrometer registry to the {@link xyz.tcheeric.cashu.mint.proto.nut.NUT04}
@@ -28,10 +30,13 @@ public final class MintIntegrityContext {
 
     private static volatile MintQuoteRepository quoteRepository;
     private static volatile IssuanceRecordRepository issuanceRecordRepository;
+    private static volatile MeltSagaRepository meltSagaRepository;
+    private static volatile LightningPaymentPort lightningPaymentPort;
     private static volatile MeterRegistry meterRegistry;
     private static volatile String mintUrl;
+    private static volatile Duration meltPaymentTimeout;
 
-    /** Installs the context. Called once at Spring bootstrap; idempotent. */
+    /** Installs the spec-001 portion of the context. Idempotent. */
     public static void install(MintQuoteRepository quoteRepository,
                                IssuanceRecordRepository issuanceRecordRepository,
                                MeterRegistry meterRegistry,
@@ -42,12 +47,30 @@ public final class MintIntegrityContext {
         MintIntegrityContext.mintUrl = mintUrl;
     }
 
+    /**
+     * Spec 002 — installs the melt-saga driver components. Idempotent; only
+     * the non-null arguments overwrite. Either the repository or the payment
+     * port being null leaves {@link xyz.tcheeric.cashu.mint.proto.tasks.MeltTask}
+     * on its legacy path; both must be non-null for the saga state machine
+     * to run.
+     */
+    public static void installMelt(MeltSagaRepository meltSagaRepository,
+                                   LightningPaymentPort lightningPaymentPort,
+                                   Duration meltPaymentTimeout) {
+        MintIntegrityContext.meltSagaRepository = meltSagaRepository;
+        MintIntegrityContext.lightningPaymentPort = lightningPaymentPort;
+        MintIntegrityContext.meltPaymentTimeout = meltPaymentTimeout;
+    }
+
     /** Resets the context. Test-only — clears all references. */
     public static void clear() {
         quoteRepository = null;
         issuanceRecordRepository = null;
+        meltSagaRepository = null;
+        lightningPaymentPort = null;
         meterRegistry = null;
         mintUrl = null;
+        meltPaymentTimeout = null;
     }
 
     public static MintQuoteRepository quoteRepository() {
@@ -58,11 +81,23 @@ public final class MintIntegrityContext {
         return issuanceRecordRepository;
     }
 
+    public static MeltSagaRepository meltSagaRepository() {
+        return meltSagaRepository;
+    }
+
+    public static LightningPaymentPort lightningPaymentPort() {
+        return lightningPaymentPort;
+    }
+
     public static MeterRegistry meterRegistry() {
         return meterRegistry;
     }
 
     public static String mintUrl() {
         return mintUrl;
+    }
+
+    public static Duration meltPaymentTimeout() {
+        return meltPaymentTimeout;
     }
 }

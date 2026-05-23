@@ -62,4 +62,26 @@ public class DefaultProofVaultService implements ProofVaultService {
             return null;
         }
     }
+
+    // ---------------------------------------------------------------
+    // cashu-mint spec 002 T011 — melt-saga binding pass-through
+    // ---------------------------------------------------------------
+
+    @Override
+    public int markPendingForSaga(java.util.Collection<String> proofSecrets,
+                                  String meltSagaId,
+                                  java.util.UUID mintId) {
+        return DBProofVault.markPendingForSaga(
+                mintId.toString(), meltSagaId, java.util.List.copyOf(proofSecrets));
+    }
+
+    @Override
+    public int commitSpentForSaga(String meltSagaId) {
+        return DBProofVault.commitSpentForSaga(meltSagaId);
+    }
+
+    @Override
+    public int refundForSaga(String meltSagaId) {
+        return DBProofVault.refundForSaga(meltSagaId);
+    }
 }

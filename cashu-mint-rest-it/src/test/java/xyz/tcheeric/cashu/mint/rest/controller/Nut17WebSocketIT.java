@@ -49,7 +49,12 @@ import static org.junit.jupiter.api.Assertions.*;
         "cashu.websocket.allowed-origins=*",
         "cashu.observability.enabled=false",
         "management.prometheus.metrics.export.enabled=false",
-        "voucher.enabled=false"
+        "voucher.enabled=false",
+        // Spec 001 FR-007: the websocket-test profile is non-local, so
+        // WebhookSecretStartupValidator would refuse to boot without a
+        // shared-secret. Provide a placeholder; this IT doesn't exercise
+        // the webhook path.
+        "cashu.mint.webhook.shared-secret=it-shared-secret"
 })
 class Nut17WebSocketIT {
 

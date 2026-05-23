@@ -74,15 +74,24 @@ public class CashuController<T extends Secret> {
     private final SignatureVaultService signatureVaultService;
     @Nullable
     private final Nut17EventPublisher eventPublisher;
+    // Spec 002: vault services are injected as Spring beans so ITs can
+    // @MockBean them. Previously the melt path instantiated DefaultXxx
+    // directly, which forced ITs to spin up a real cashu-vault.
+    private final xyz.tcheeric.cashu.mint.proto.service.MintVaultService mintVaultService;
+    private final xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService;
 
     public CashuController(NUT06 nut06,
                            MintLoadService mintLoadService,
                            SignatureVaultService signatureVaultService,
-                           @Nullable Nut17EventPublisher eventPublisher) {
+                           @Nullable Nut17EventPublisher eventPublisher,
+                           xyz.tcheeric.cashu.mint.proto.service.MintVaultService mintVaultService,
+                           xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
         this.signatureVaultService = signatureVaultService;
         this.eventPublisher = eventPublisher;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     // Keyset generation is an administrative operation and not part of the public spec.
@@ -313,8 +322,9 @@ public class CashuController<T extends Secret> {
                 null,
                 MintProtocolServiceFactory.getInstance(),
                 mintLoadService,
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+                mintVaultService,
+                proofVaultService,
+                signatureVaultService
         );
 
         // Publish events for NUT-17 WebSocket subscribers
@@ -368,8 +378,8 @@ public class CashuController<T extends Secret> {
                 null,
                 MintProtocolServiceFactory.getInstance(),
                 mintLoadService,
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+                mintVaultService,
+                proofVaultService
         );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
@@ -587,14 +597,31 @@ public class CashuController<T extends Secret> {
             }
         }
 
-        // Decide status using message hints; default to 500 for structured errors in this handler
+        // Decide status from the parsed error code first (typed contract),
+        // then fall back to message hints, then a 500 default.
         HttpStatus status;
-        String message = ex.getMessage();
-        String normalized = message == null ? "" : message.trim();
-        if (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found")) {
-            status = HttpStatus.NOT_FOUND;
-        } else {
-            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        String code = error.code() == null ? "" : error.code();
+        switch (code) {
+            case "insufficient_input":
+            case "amount_mismatch":
+            case "invalid_quote_amount":
+            case "quote_amount_cross_check_failed":
+            case "quote_already_issued":
+            case "issuance_in_progress":
+                status = HttpStatus.BAD_REQUEST;
+                break;
+            case "quote_not_found":
+                status = HttpStatus.NOT_FOUND;
+                break;
+            default:
+                String message = ex.getMessage();
+                String normalized = message == null ? "" : message.trim();
+                if (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found")) {
+                    status = HttpStatus.NOT_FOUND;
+                } else {
+                    status = HttpStatus.INTERNAL_SERVER_ERROR;
+                }
+                break;
         }
 
         return new ResponseEntity<>(error, status);

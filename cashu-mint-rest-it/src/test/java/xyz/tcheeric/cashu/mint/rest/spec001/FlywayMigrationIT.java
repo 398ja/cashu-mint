@@ -33,8 +33,9 @@ class FlywayMigrationIT extends AbstractMintDurableIT {
                 .collect(Collectors.toList());
 
         assertThat(versions)
-                .as("Spec 001 ships V20260522_001 / _002 / _003 — Flyway must apply all three")
-                .contains("20260522.001", "20260522.002", "20260522.003");
+                .as("Spec 001 ships V20260522_001 / _002 / _003 + Spec 002 V20260523_001 / _002")
+                .contains("20260522.001", "20260522.002", "20260522.003",
+                        "20260523.001", "20260523.002");
 
         for (MigrationInfo info : applied) {
             assertThat(info.getState())

@@ -35,7 +35,8 @@ class LongArithmeticArchTest {
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                 .importPackages(
                         "xyz.tcheeric.cashu.mint.proto.tasks",
-                        "xyz.tcheeric.cashu.mint.proto.ports");
+                        "xyz.tcheeric.cashu.mint.proto.ports",
+                        "xyz.tcheeric.cashu.mint.proto.domain"); // spec 002 T904
 
         ArchRule rule = fields()
                 .that(new com.tngtech.archunit.base.DescribedPredicate<>("are amount-bearing") {
