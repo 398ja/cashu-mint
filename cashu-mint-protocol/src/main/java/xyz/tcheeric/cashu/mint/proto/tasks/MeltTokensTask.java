@@ -7,11 +7,13 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -60,8 +62,18 @@ public class MeltTokensTask<T extends Secret> extends InstrumentedTask<PostMeltR
     @Override
     protected PostMeltResponse doExecute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, true);
+        // Spec 002 — pull the saga components from MintIntegrityContext if
+        // they were installed at Spring bootstrap; otherwise MeltTask falls
+        // back to its legacy single-transaction path.
+        Duration timeout = MintIntegrityContext.meltPaymentTimeout();
+        if (timeout == null) {
+            timeout = Duration.ofSeconds(30);
+        }
         MeltTask<T> meltTask = new MeltTask<>(request, method, unit, mint,
-                mintProtocolService, mintLoadService, mintVaultService, proofVaultService);
+                mintProtocolService, mintLoadService, mintVaultService, proofVaultService,
+                MintIntegrityContext.meltSagaRepository(),
+                MintIntegrityContext.lightningPaymentPort(),
+                timeout);
         return meltTask.execute();
     }
 }
