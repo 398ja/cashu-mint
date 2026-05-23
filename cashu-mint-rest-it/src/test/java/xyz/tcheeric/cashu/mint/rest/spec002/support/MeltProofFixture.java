@@ -85,4 +85,25 @@ public final class MeltProofFixture {
         rng.nextBytes(bytes);
         return HexFormat.of().formatHex(bytes);
     }
+
+    /**
+     * NUT-08 helper: build a {@code BlindedMessage} the mint can sign for
+     * the change-return path. The wallet would normally derive {@code B_}
+     * from a fresh secret + blinding factor; for the IT we just need a
+     * valid secp256k1 point, so we use {@code derivePublicKey(priv*N)} for
+     * a deterministic small private key (N picked per-call so the points
+     * differ).
+     */
+    public static xyz.tcheeric.cashu.common.BlindedMessage blindedMessageForChange(int amount, int salt) {
+        java.math.BigInteger scalar = BigInteger.valueOf(amount).add(BigInteger.valueOf(salt))
+                .add(BigInteger.valueOf(257)); // avoid colliding with mint priv keys
+        String hex = String.format("%064x", scalar);
+        PrivateKey priv = PrivateKey.fromString(hex);
+        xyz.tcheeric.cashu.common.PublicKey pub = PrivateKey.derivePublicKey(priv);
+        return xyz.tcheeric.cashu.common.BlindedMessage.builder()
+                .amount(amount)
+                .keySetId(xyz.tcheeric.cashu.common.KeysetId.fromString(KEYSET_ID))
+                .blindedMessage(pub)
+                .build();
+    }
 }

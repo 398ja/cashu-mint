@@ -323,7 +323,8 @@ public class CashuController<T extends Secret> {
                 MintProtocolServiceFactory.getInstance(),
                 mintLoadService,
                 mintVaultService,
-                proofVaultService
+                proofVaultService,
+                signatureVaultService
         );
 
         // Publish events for NUT-17 WebSocket subscribers
