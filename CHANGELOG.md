@@ -11,6 +11,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.16.0] - 2026-05-23
+
+### Added
+
+- **Spec 001 — Mint Quote Amount Binding and Webhook Integrity** (NUT-04 /
+  NUT-19 / FR-001 through FR-014). All P1 + P2 user stories closed. New
+  behaviour is opt-in behind `cashu.mint.jpa.enabled=true` (defaults to
+  `false`); existing deployments are unaffected until the flag is flipped.
+- New `cashu-mint-jpa` Maven module with three append-only / audit-tracked
+  tables in PostgreSQL: `mint_quote` (Envers-audited), `issuance_record`,
+  and `webhook_event`. Ships its own Flyway migrations under
+  `db/migration/spec001/` and an opt-in Spring autoconfig
+  (`MintJpaAutoConfiguration`) that provides DataSource, EntityManagerFactory,
+  and TransactionManager beans from `cashu.mint.jpa.datasource.*` properties.
+- US1: `MintTask` now binds every NUT-04 issuance to the durable quote
+  amount (FR-001), CASes `PAID → ISSUING → ISSUED` (FR-002 / FR-011),
+  cross-checks the gateway via `Gateway.getAmount(quoteId)` (FR-010), and
+  emits `cashu_mint_amount_mismatch_total{path="mint"}` /
+  `cashu_mint_quote_cross_check_failures_total{path="mint"}` counters.
+- US2: `QuoteStatusUpdater.record(...)` rewrite — webhook `PENDING → PAID`
+  transitions now require matching `(amount, unit, payment_method)` and a
+  previously-unseen `(provider, provider_event_id)` (FR-005 / FR-006). Each
+  delivery persists exactly one append-only `webhook_event` row with the
+  resolved outcome (`accepted` / `amount_mismatch` / `unit_mismatch` /
+  `method_mismatch` / `duplicate` / `tamper` / `expired` / `noop` /
+  `orphan` / `unsigned_rejected` / `signature_invalid`, FR-008).
+  `cashu_mint_webhook_event_total{outcome=...}` counter emitted on every
+  classification.
+- US3: NUT-19 idempotent replay — a retry against an `ISSUED` quote with
+  the same blinded outputs returns the previously signed promises; with
+  different outputs, `quote_already_issued`. Bounded-backoff polling
+  (50/100/200/400/800 ms) when a concurrent writer is mid-`ISSUING`.
+  `cashu_mint_idempotent_replay_total{path="mint"}` counter on every replay.
+- FR-007 — `WebhookSecretStartupValidator` fails the Spring context in any
+  non-`local` profile when `cashu.mint.webhook.shared-secret` is unset.
+  Existing `webhook.secret` continues to work; the canonical key going
+  forward is `cashu.mint.webhook.shared-secret`.
+- FR-009 — `LongArithmeticArchTest` (ArchUnit) fails the build if any
+  amount-bearing field in `cashu-mint-protocol`'s `tasks/` or `ports/`
+  packages is typed `int`/`Integer` instead of `long`. Caught and widened
+  one existing regression (`MintQuoteTask.amount`).
+- New port interfaces in `cashu-mint-protocol/.../proto/ports/`:
+  `MintQuote` / `MintQuoteRepository` / `IssuanceRecord` /
+  `IssuanceRecordRepository` / `WebhookEvent` / `WebhookEventRepository` /
+  `ProviderIdentifier` / `MintIntegrityContext`.
+- `OutputsHash` utility — SHA-256 over sorted `(amount, keyset_id, B_)`
+  tuples — backs the NUT-19 idempotent-replay equality check.
+- New docs: `docs/how-to/configure-webhook-integrity.md` covers the
+  mandatory-secret contract, provider key, feature flag, outcome → HTTP
+  status table, and operator reconciliation SQL.
+- `NutAdvertisementContractTest` pins the advertised NUT set in
+  `mint.yaml` against a documented test-backed allow list
+  ({4, 5, 7, 8, 9, 10, 11, 12, 17}); the test fails if a NUT is added or
+  removed without updating the inventory.
+- `MintQuoteJpaRepository` class-level Javadoc ships two operator
+  reconciliation queries (FR-001 + FR-005 daily invariants).
+
+### Changed
+
+- Webhook idempotency is now durably keyed by
+  `(provider, provider_event_id)` per FR-006.
+  `PaymentNotification#getIdempotencyKey()` (the legacy `paymentMethod:quoteId`
+  cache key) is `@Deprecated`. The cache-only path is retained as a
+  fallback when the durable repositories are absent (unit-test contexts).
+- `QuoteStatusUpdater` Caffeine cache is now a read-through accelerator
+  only; write decisions go through the durable repositories when wired.
+- `WebhookSignatureValidator` removed the silent skip-if-blank branch
+  (FR-007). A missing secret now fails validation rather than passing
+  through.
+- `cashu-mint-admin` modules aligned to 0.16.0 to catch up the stale
+  0.14.2 parent reference that lingered after the 0.15.0 bump.
+
+### Fixed
+
+- `MintJpaAutoConfiguration` now wires its own `DataSource`,
+  `EntityManagerFactory`, `JpaTransactionManager`, and Flyway runner —
+  earlier scaffolding declared `@EnableJpaRepositories` without a
+  DataSource bean, so the `cashu.mint.jpa.enabled=true` path was dead
+  code that failed at context startup.
+- `MintQuoteJpaRepository#casLifecycle` is now `@Transactional` —
+  earlier the modifying JPQL CAS threw
+  `InvalidDataAccessApiUsageException` when called from non-transactional
+  code paths.
+- `QuoteStatusUpdater#record` is now `@Transactional` to wrap the
+  combined `webhook_event` insert + `mint_quote` CAS.
+- Spec 001 Flyway migrations moved to `db/migration/spec001/` to avoid
+  V1 collisions with `payment-adapter-model` and `cashu-vault-jpa` on the
+  classpath.
+- All hash columns (`request_hash`, `outputs_hash`, `signature_digest`)
+  switched from `CHAR(64)` to `VARCHAR(64)` so Hibernate's schema validator
+  doesn't reject the mapping.
+- `flyway-database-postgresql` pinned in `dependencyManagement` to match
+  `${flyway.version}` (11.2.0); Spring Boot's transitive resolution was
+  pulling 11.7.2 and crashing the Flyway runner.
+
+### Tests
+
+- `cashu-mint-protocol`: 171 → 190 cases (+19) — `OutputsHashTest`,
+  `MintTaskAmountValidationTest`, `IssuingConcurrencyTest`,
+  `LongArithmeticArchTest`, `NutAdvertisementContractTest`, plus
+  extended `MintQuoteTaskTest`.
+- `cashu-mint-webhook`: 38 → 49 cases (+11) — `QuoteStatusUpdaterDurableTest`
+  exercises the full outcome matrix with mocked durable repositories.
+- `cashu-mint-rest-it`: 5 new spec-001 IT classes (18 cases) under
+  Testcontainers Postgres 16-alpine — `FlywayMigrationIT`,
+  `WebhookSignatureBootIT`, `WebhookAmountBindingIT`,
+  `MintQuoteAmountBindingIT`, `MintQuoteConcurrencyIT`.
+
+---
+
 ## [0.15.0] - 2026-05-22
 
 ### Added

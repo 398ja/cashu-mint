@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Java implementation of the Cashu ecash protocol, organized as a multi-module Maven project. The codebase follows Clean Architecture and Hexagonal Architecture principles with clear separation between protocol logic, persistence, and API layers.
 
 **Main modules:**
-- `cashu-mint-protocol` - Core Cashu protocol implementation (business logic)
+- `cashu-mint-protocol` - Core Cashu protocol implementation (business logic) + port interfaces for durable persistence (`ports/MintQuoteRepository`, `IssuanceRecordRepository`, `WebhookEventRepository`)
+- `cashu-mint-jpa` - PostgreSQL + Hibernate Envers adapter for the spec 001 durable quote / issuance / webhook tables. Activated via `cashu.mint.jpa.enabled=true`; ships Flyway migrations under `db/migration/V20260522_*.sql`
 - `cashu-mint-rest` - Public REST API (port 7777)
-- `cashu-mint-webhook` - Webhook-based payment notifications
+- `cashu-mint-webhook` - Webhook-based payment notifications, durable `(provider, provider_event_id)` idempotency under spec 001 US2
 - `cashu-mint-rest-it` - Integration tests
 - `cashu-mint-tools` - Test data generation utilities
 - `cashu-mint-observability` - Prometheus metrics, Grafana dashboards, health indicators
@@ -89,12 +90,22 @@ NUT APIs (cashu-mint-protocol/nut/)
     ↓
 Tasks (cashu-mint-protocol/tasks/)
     ↓
-Services (cashu-mint-protocol/service/)
+Services (cashu-mint-protocol/service/) and Ports (cashu-mint-protocol/ports/)
     ↓
-Vault/Gateway SPIs (interfaces)
+Vault/Gateway SPIs + Spec-001 repository ports
     ↓
-Infrastructure Adapters (cashu-vault-jpa, payment-adapter-*)
+Infrastructure Adapters (cashu-vault-jpa, cashu-mint-jpa, payment-adapter-*)
 ```
+
+### Spec 001 — Mint Quote and Webhook Integrity
+
+The `cashu-mint-jpa` module (added in spec 001) hosts three append-only / audit-tracked tables in PostgreSQL:
+
+- `mint_quote` (Envers-audited) — durable NUT-04 quote authorisations with a state machine `UNPAID → PENDING → PAID → ISSUING → ISSUED` (+ `EXPIRED` / `FAILED`). Transitions go through compare-and-set on `lifecycle_state` (`MintQuoteJpaRepository#casLifecycle`).
+- `issuance_record` — append-only ledger keyed by `quote_id` carrying the `outputs_hash` (SHA-256 over sorted `(amount, keyset_id, B_)`) and the signed `BlindSignature` list. Backs FR-001 daily invariant and NUT-19 idempotent replay.
+- `webhook_event` — append-only delivery log keyed by `(provider, provider_event_id)`. Backs FR-005/006/008.
+
+Activation is gated by `cashu.mint.jpa.enabled=true`. Unit-test contexts leave it `false` and the relevant protocol tasks fall back to the legacy in-process path. Production deploys flip the flag on along with the datasource and webhook-secret configuration documented in `docs/how-to/configure-webhook-integrity.md`.
 
 ### NUT Implementation Pattern
 

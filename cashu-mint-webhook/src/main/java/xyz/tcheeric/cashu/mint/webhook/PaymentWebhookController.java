@@ -10,6 +10,22 @@ import org.springframework.web.bind.annotation.*;
  * <p>This controller receives real-time payment notifications so the mint
  * can update quote status without polling the gateway.
  *
+ * <p>Spec references (FR-014 — pinned-commit URLs tracked as a follow-up):
+ * <ul>
+ *   <li>NUT-04: <a href="https://github.com/cashubtc/nuts/blob/main/04.md">cashubtc/nuts §04</a> — mint tokens (payment side of the protocol)</li>
+ * </ul>
+ *
+ * <p>Spec 001 contract (US2 / FR-005 / FR-006 / FR-007 / FR-008):
+ * <ul>
+ *   <li>Mandatory HMAC signature in non-{@code local} profiles
+ *       (enforced at boot by {@link WebhookSecretStartupValidator}).</li>
+ *   <li>Delivery is delegated to {@link QuoteStatusUpdater#record}, which
+ *       resolves a {@link WebhookOutcome} against the durable
+ *       {@code mint_quote} and {@code webhook_event} rows. The controller
+ *       maps each outcome to an HTTP status — see
+ *       {@code docs/how-to/configure-webhook-integrity.md} for the table.</li>
+ * </ul>
+ *
  * <p><b>Security:</b> Input validation and signature verification are performed
  * before processing any webhook notification.
  *
@@ -74,18 +90,30 @@ public final class PaymentWebhookController {
         }
 
         try {
-            boolean isNew = quoteStatusUpdater.markAsPaid(notification);
-
-            if (isNew) {
-                log.info("Payment webhook processed: quoteId={}, amount={}",
-                        notification.getQuoteId(), notification.getAmount());
-                return ResponseEntity.ok(WebhookResponse.success("Payment recorded"));
-            } else {
-                log.debug("Duplicate payment webhook ignored: quoteId={}",
-                        notification.getQuoteId());
-                return ResponseEntity.ok(WebhookResponse.success("Duplicate ignored"));
-            }
-
+            WebhookOutcome outcome = quoteStatusUpdater.record(notification);
+            return switch (outcome.outcome()) {
+                case accepted -> {
+                    log.info("Payment webhook processed: quoteId={}, amount={}",
+                            notification.getQuoteId(), notification.getAmount());
+                    yield ResponseEntity.ok(WebhookResponse.success("Payment recorded"));
+                }
+                case duplicate -> ResponseEntity.ok(WebhookResponse.success("Duplicate ignored"));
+                case tamper -> ResponseEntity.status(409)
+                        .body(WebhookResponse.error("Tamper signal recorded"));
+                case amount_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Amount does not match quote"));
+                case unit_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Unit does not match quote"));
+                case method_mismatch -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Payment method does not match quote"));
+                case expired -> ResponseEntity.status(410)
+                        .body(WebhookResponse.error("Quote has expired"));
+                case noop -> ResponseEntity.ok(WebhookResponse.success("No state transition required"));
+                case orphan -> ResponseEntity.status(202)
+                        .body(WebhookResponse.success("Webhook stored; quote not yet known"));
+                case unsigned_rejected, signature_invalid -> ResponseEntity.status(401)
+                        .body(WebhookResponse.error("Signature rejected"));
+            };
         } catch (Exception e) {
             log.error("Failed to process payment webhook: quoteId={}",
                     notification.getQuoteId(), e);
