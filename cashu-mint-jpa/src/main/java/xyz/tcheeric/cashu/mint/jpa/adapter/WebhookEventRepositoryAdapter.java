@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.jpa.adapter;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.WebhookEventEntity;
@@ -17,6 +18,7 @@ import java.util.Optional;
  * can decide between {@code duplicate} and {@code tamper} outcomes.
  */
 @Component
+@ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class WebhookEventRepositoryAdapter implements WebhookEventRepository {
 

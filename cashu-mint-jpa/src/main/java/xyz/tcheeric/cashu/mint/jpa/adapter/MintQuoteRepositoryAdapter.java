@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.jpa.adapter;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
@@ -16,6 +17,7 @@ import java.util.Optional;
  * Hibernate mapping; no business logic lives here.
  */
 @Component
+@ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class MintQuoteRepositoryAdapter implements MintQuoteRepository {
 

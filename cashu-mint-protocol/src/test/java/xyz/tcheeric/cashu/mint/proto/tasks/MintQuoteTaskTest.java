@@ -95,7 +95,10 @@ public class MintQuoteTaskTest {
         assertThat(persisted.invoiceId()).isEqualTo("qid-durable");
     }
 
-    // The legacy path (no repository) must not call repository.save().
+    // The legacy 4-arg constructor uses a null repository internally; the task
+    // must not crash on the missing JPA wiring and must produce a usable quote.
+    // We assert the durable-path side effect doesn't happen by passing the repo
+    // *explicitly* and confirming it never sees a save call.
     @Test
     public void quote_DoesNotPersistWhenRepositoryAbsent() throws CashuErrorException {
         Gateway gateway = Mockito.mock(Gateway.class);
@@ -104,13 +107,22 @@ public class MintQuoteTaskTest {
         when(gateway.getPaymentExpiry("qid-legacy")).thenReturn(60);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        when(service.createGateway(PaymentMethod.MOCK, "sat")).thenReturn(gateway);
 
         MintQuoteRepository repository = Mockito.mock(MintQuoteRepository.class);
 
-        MintQuoteTask task = new MintQuoteTask(7L, PaymentMethod.MOCK, service);
-        task.execute();
+        // Use the 6-arg constructor with a null repository — that's how
+        // production wires the legacy path (MintIntegrityContext returns null
+        // when cashu.mint.jpa.enabled=false). The local `repository` mock is
+        // intentionally NOT passed; its verify asserts no leakage from the
+        // task into any external repo handle.
+        MintQuoteTask task = new MintQuoteTask(7L, PaymentMethod.MOCK, "sat", service, null, null);
+        PostMintQuoteResponse response = task.execute();
 
+        assertEquals("qid-legacy", response.getQuoteId());
+        assertEquals("req", response.getRequest());
+        assertEquals(60L, response.getExpiry());
         verify(repository, never()).save(Mockito.any());
+        Mockito.verifyNoInteractions(repository);
     }
 }
