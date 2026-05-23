@@ -5,6 +5,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.io.InputStream;
 import java.util.Properties;
@@ -12,6 +13,7 @@ import java.util.Properties;
 // Limit component scanning to the mint packages to avoid picking up vault JPA controllers/repos
 @Slf4j
 @SpringBootApplication(scanBasePackages = "xyz.tcheeric.cashu.mint")
+@EnableScheduling
 public class CashuMintRestApplication {
 
     public static void main(String[] args) {

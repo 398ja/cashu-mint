@@ -104,6 +104,23 @@ public final class NUT05 {
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
+        return melt(mintId, request, method, unit, mintProtocolService, mintLoadService,
+                mintVaultService, proofVaultService, null);
+    }
+
+    /**
+     * Spec 002 T215 entry point — threads {@code SignatureVaultService} so
+     * the NUT-08 overpaid-melt change return can issue blind signatures.
+     */
+    public static <T extends Secret> PostMeltResponse melt(@NonNull UUID mintId,
+                                                           @NonNull PostMeltRequest<T> request,
+                                                           @NonNull PaymentMethod method,
+                                                           String unit,
+                                                           @NonNull MintProtocolService mintProtocolService,
+                                                           @NonNull MintLoadService mintLoadService,
+                                                           @NonNull MintVaultService mintVaultService,
+                                                           @NonNull ProofVaultService proofVaultService,
+                                                           xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService signatureVaultService) throws CashuErrorException {
         return new MeltTokensTask<>(
                 mintId,
                 request,
@@ -112,7 +129,8 @@ public final class NUT05 {
                 mintProtocolService,
                 mintLoadService,
                 mintVaultService,
-                proofVaultService
+                proofVaultService,
+                signatureVaultService
         ).execute();
     }
 
