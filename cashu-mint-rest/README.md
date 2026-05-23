@@ -31,14 +31,19 @@ infrastructure is wired in (i.e. `cashu.mint.jpa.enabled=true` and the
 `MeltSagaRepository` bean is present). They are intended for operator
 tooling and reconciliation workflows.
 
-> **Security note:** these endpoints are NOT yet protected by Spring
-> Security service-account authentication (tracked as a follow-up).
-> Until that lands, deployments MUST:
+> **Security:** `/admin/**` is protected by Spring Security HTTP Basic
+> with role `ADMIN`. Credentials come from
+> `cashu.mint.admin.username` (default `admin`) and
+> `cashu.mint.admin.password` (no default — set via the
+> `MINT_ADMIN_PASSWORD` env var). When the password is unset/blank,
+> NO admin user is registered and every request returns 401. Operators
+> may supply an encoded password with an explicit prefix
+> (e.g. `{bcrypt}$2a$10$...`); plain-text values are wrapped with
+> `{noop}` automatically.
 >
-> - bind the mint service to an internal-only network interface, or
-> - front it with a reverse proxy that filters `/admin/**` paths by
->   IP allow-list / mTLS / OIDC, or
-> - apply equivalent network-level protection.
+> A future iteration may replace the in-memory provider with a JWT /
+> OIDC service-account integration without changing the
+> `SecurityFilterChain` contract.
 
 ### `GET /admin/melt-saga/by-id/{meltSagaId}`
 
@@ -46,7 +51,8 @@ Returns the full `MeltSagaResponse` (current state, all amount fields,
 provider metadata, full transition timeline) for a given saga.
 
 ```bash
-curl http://localhost:7777/admin/melt-saga/by-id/4a3e...
+curl -u admin:$MINT_ADMIN_PASSWORD \
+     http://localhost:7777/admin/melt-saga/by-id/4a3e...
 ```
 
 Response shape:

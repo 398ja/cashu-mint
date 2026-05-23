@@ -55,4 +55,26 @@ public interface MeltSagaRepository {
      * Idempotent: a non-null cache overwrites; null is a no-op.
      */
     void updateResponseCache(String meltSagaId, String responseJson);
+
+    /**
+     * Spec 002 — persist provider-supplied identifiers on the saga row when
+     * a {@code PaymentOutcome.Success} (or definitive {@code Failure}) is
+     * observed. These are Envers-audited so the admin / forensics view
+     * can correlate the saga with the provider's records.
+     *
+     * <p>Any argument may be {@code null}; the implementation only writes
+     * the non-null fields.
+     */
+    void updateProviderMetadata(String meltSagaId,
+                                String paymentHash,
+                                String providerEventId,
+                                String paymentOutcomeReason);
+
+    /**
+     * Spec 002 T215 / FR-013 — persist the NUT-08 change-return forensics
+     * columns on the saga row.
+     */
+    void updateChangeOutputs(String meltSagaId,
+                             String changeOutputsHash,
+                             String changeSignaturesJson);
 }

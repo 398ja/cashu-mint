@@ -24,12 +24,15 @@ import java.util.Optional;
  * Loaded only when a {@link MeltSagaRepository} bean is present (i.e.,
  * {@code cashu.mint.jpa.enabled=true}).
  *
- * <p><b>Security note:</b> this controller is intended for internal use
- * only. A future iteration wires it behind Spring Security with the
- * service-account authentication used by {@code cashu-mint-admin-rest}.
- * Until then, deployments MUST protect this endpoint at the network
- * layer (e.g. listen on an internal interface, allow-list specific IPs,
- * front it with a reverse proxy that adds auth).
+ * <p><b>Security:</b> {@code /admin/**} is locked behind Spring Security
+ * HTTP Basic with role {@code ADMIN} (see
+ * {@code SecurityConfig} in cashu-mint-rest). Credentials come from
+ * {@code cashu.mint.admin.{username,password}} — when the password is
+ * unset/blank, no admin user is registered and every request returns
+ * 401 Unauthorized. Operators may supply an encoded password with an
+ * explicit Spring Security encoder prefix
+ * (e.g. {@code {bcrypt}$2a$10$...}); plain text values are wrapped
+ * with {@code {noop}} automatically.
  */
 @Slf4j
 @RestController

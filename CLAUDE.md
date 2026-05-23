@@ -122,7 +122,7 @@ Three new abstractions in `cashu-mint-protocol/.../proto/`:
 
 `MeltTask` drives the saga: durable `PROOFS_HELD` + proof `PENDING` commit BEFORE `gateway.pay`, then switches on `PaymentOutcome` to advance to the terminal state. The `MintIntegrityContext` service-locator carries the spec-001 + spec-002 dependencies into the static `NUT04`/`NUT05` helpers; `MintIntegrityContextInstaller` populates it at Spring bootstrap.
 
-Operator visibility: `MeltSagaAdminController` exposes `GET /admin/melt-saga/by-id|by-quote` plus a `POST /{id}/mark-resolved` action that appends a transition without overwriting `current_state`. Endpoint is conditional on the `MeltSagaRepository` bean; protect at the network layer until Spring Security service-account auth lands.
+Operator visibility: `MeltSagaAdminController` exposes `GET /admin/melt-saga/by-id|by-quote` plus a `POST /{id}/mark-resolved` action that appends a transition without overwriting `current_state`. Endpoint is conditional on the `MeltSagaRepository` bean. `SecurityConfig` locks `/admin/**` behind Spring Security HTTP Basic with role `ADMIN`; credentials come from `cashu.mint.admin.{username,password}` (env vars `MINT_ADMIN_USERNAME`/`MINT_ADMIN_PASSWORD`). When the password is unset/blank, no admin user is registered and every request returns 401.
 
 Configuration (`application.properties`):
 

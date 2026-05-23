@@ -43,7 +43,17 @@ public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
         MeltSagaEntity entity = (saga instanceof MeltSagaEntity existing)
                 ? existing
                 : toEntity(saga);
-        return sagas.save(entity);
+        try {
+            return sagas.save(entity);
+        } catch (org.springframework.dao.DataIntegrityViolationException race) {
+            // Spec 002 FR-005 — concurrent melts for the same quote_id
+            // can both pass MeltTask.findByQuoteId and race to save.
+            // Re-throw with a marker the caller can translate to
+            // melt_in_progress. (The caller in MeltTask catches DIVE
+            // directly; this rethrow keeps the legacy behaviour for any
+            // other callers + adapter implementations.)
+            throw race;
+        }
     }
 
     @Override
@@ -89,6 +99,27 @@ public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
             return;
         }
         sagas.updateResponseCache(meltSagaId, responseJson);
+    }
+
+    @Override
+    public void updateProviderMetadata(String meltSagaId,
+                                       String paymentHash,
+                                       String providerEventId,
+                                       String paymentOutcomeReason) {
+        if (paymentHash == null && providerEventId == null && paymentOutcomeReason == null) {
+            return;
+        }
+        sagas.updateProviderMetadata(meltSagaId, paymentHash, providerEventId, paymentOutcomeReason);
+    }
+
+    @Override
+    public void updateChangeOutputs(String meltSagaId,
+                                    String changeOutputsHash,
+                                    String changeSignaturesJson) {
+        if (changeOutputsHash == null && changeSignaturesJson == null) {
+            return;
+        }
+        sagas.updateChangeOutputs(meltSagaId, changeOutputsHash, changeSignaturesJson);
     }
 
     private static MeltSagaEntity toEntity(MeltSaga s) {
