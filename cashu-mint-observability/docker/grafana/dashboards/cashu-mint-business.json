@@ -255,7 +255,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_fees_collected_total",
+          "expr": "cashu_mint_voucher_fees_collected_total",
           "refId": "A"
         }
       ],
@@ -562,7 +562,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_quotes_active",
+          "expr": "cashu_mint_voucher_quotes_active",
           "refId": "A"
         }
       ],
@@ -843,7 +843,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_issued_total",
+          "expr": "cashu_mint_voucher_issued_total",
           "refId": "A"
         }
       ],
@@ -900,7 +900,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_redeemed_total",
+          "expr": "cashu_mint_voucher_redeemed_total",
           "refId": "A"
         }
       ],
@@ -957,7 +957,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_face_value_issued_total",
+          "expr": "cashu_mint_voucher_face_value_issued_total",
           "refId": "A"
         }
       ],
@@ -1014,7 +1014,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "cashu_mint_vouchers_face_value_redeemed_total",
+          "expr": "cashu_mint_voucher_face_value_redeemed_total",
           "refId": "A"
         }
       ],
@@ -1125,7 +1125,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(cashu_mint_vouchers_issued_total[5m])",
+          "expr": "rate(cashu_mint_voucher_issued_total[5m])",
           "legendFormat": "Issued",
           "refId": "A"
         },
@@ -1134,7 +1134,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(cashu_mint_vouchers_redeemed_total[5m])",
+          "expr": "rate(cashu_mint_voucher_redeemed_total[5m])",
           "legendFormat": "Redeemed",
           "refId": "B"
         }
@@ -1231,7 +1231,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (reason) (rate(cashu_mint_vouchers_rejected_total[5m]))",
+          "expr": "sum by (reason) (rate(cashu_mint_voucher_rejected_total[5m]))",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }

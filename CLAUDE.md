@@ -175,6 +175,39 @@ Caller architecture: in the decomposed-architecture, voucher purchases originate
 
 Operator queries embedded as Javadoc on `VoucherIssuanceJpaRepository` (SC-001 orphan-issuance query + IOU liability dashboard). The full integrator contract — auth, rate-limit, idempotency, funding-required error — is documented in `cashu-mint-rest/README.md`.
 
+### Spec 004 — Voucher Data Minimisation and Customer-Identity Custody
+
+Closes the data-custody gap spec 003 introduced. Cashu's non-custodial promise is *cryptographic* (blind signatures), but spec 003 added a *data* custody surface — the mint started recording customer + merchant npubs durably with Envers history. Spec 004 fixes that without weakening spec 003's funding gate.
+
+**Five pieces of mechanism** (Constitution Principle VII — ratified `1.1.0 → 1.2.0` via this spec):
+
+1. **Hash at rest** — `IdentityHasher` port in `cashu-mint-protocol`, `HmacSha256IdentityHasher` impl in `cashu-mint-jpa/.../jpa/crypto/`. JDK-native `javax.crypto.Mac`; salt sourced from env (`CASHU_MINT_VOUCHER_IDENTITY_SALT`), MUST be ≥ 32 bytes; boot fails closed otherwise. `IdentityHashConverter` applied via `@Convert` on every identity column (`voucher_quote.customer_id+merchant_id`, `customer_payment_funding.customer_id`, `merchant_debit_funding.merchant_id`, `merchant_iou_funding.merchant_id`).
+
+2. **Anonymous purchases** — `customer_id` nullable; null short-circuits the hasher (no enumerable hash-of-empty placeholder). FR-019 covers; `AnonymousPurchaseIT` verifies.
+
+3. **Boot-time backfill** — `VoucherIdentityBackfillService` `@PostConstruct` paginated (1000-row chunks, configurable), idempotent via `customer_id !~ '^[0-9a-f]{64}$'` filter. Updates live + Envers `_aud` rows in one transaction. `VoucherBackfillHealthIndicator` keeps `/actuator/health/readiness` DOWN until every required table has `completed_at IS NOT NULL` in `voucher_identity_backfill_log`.
+
+4. **Retention purge** — `VoucherIdentityRetentionPurgeService` daily `@Scheduled` (cron from `cashu.mint.voucher.identity-purge-cron`, default `0 0 3 * * *`). Nullifies identity columns on voucher_quote + funding tables + `_aud` shadows when lifecycle is terminal AND `updated_at < now() - identity-retention` (default 90 days). Records audit row in `voucher_quote_purge_log` (FR-010 marker for "purged" vs "anonymous").
+
+5. **Idempotency cache scrub** — `IdentityFieldScrubber` walks JSON response bodies before they hit `voucher_idempotency_key.response_body_json`; hashes identity field values so a DB dump of the cache contains zero raw npubs.
+
+**Operator surface**:
+
+- **Forensic lookup** (FR-009): `POST /admin/voucher/forensic/customer-purchases` + `/merchant-purchases`. Operator submits raw npub; mint hashes internally; returns matching voucher_quotes. Salt never leaves the mint.
+- **Grafana dashboards** (3 new): `voucher-liability-overview`, `voucher-token-integrity` (orphan-issuance gauge — SC-001 made glanceable), `voucher-iou-liability`. All run via the dedicated `cashu_mint_grafana_ro` PostgreSQL role with **column-level `GRANT SELECT` that excludes `customer_id` + `merchant_id`** — defence in depth on top of dashboard JSON review (Clarifications Q4). `GrafanaRolePermissionIT` proves the DB-layer enforcement.
+
+**Configuration**:
+
+```properties
+cashu.mint.voucher.identity-salt=<env: CASHU_MINT_VOUCHER_IDENTITY_SALT>  # no default; ≥ 32 bytes
+cashu.mint.voucher.identity-retention=PT2160H                              # 90 days default (Clarifications Q2)
+cashu.mint.voucher.identity-backfill-batch-size=1000
+cashu.mint.voucher.identity-purge-cron=0 0 3 * * *
+cashu.mint.jpa.flyway.placeholders.grafana_ro_password=<env: CASHU_MINT_GRAFANA_RO_PASSWORD>
+```
+
+Customer-facing disclosure document at `docs/explanations/voucher-data-record.md`; CI test `DisclosureDocSchemaContractTest` fails the build on schema-vs-doc drift. Operator runbook at `specs/004-voucher-data-minimisation/quickstart.md`. Minimisation candidates resolved per research R5: dropped `merchant_ledger_balance_after` + `voucher_issuance.issuance_id`; replaced `iou_terms` (TEXT) with `iou_terms_hash` (CHAR(64)).
+
 ### NUT Implementation Pattern
 
 Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/`:

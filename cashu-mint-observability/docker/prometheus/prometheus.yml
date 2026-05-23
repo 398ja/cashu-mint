@@ -30,6 +30,17 @@ scrape_configs:
         target_label: instance
         regex: '([^:]+):\d+'
         replacement: '${1}'
+    # Spec 004 T605 / FR-017 — backward-compat aliases for the
+    # deprecated plural metric names that pre-existed PR #321 (which
+    # introduced singular cashu_mint_voucher_*). Existing alerts /
+    # dashboards keep working while consumers migrate. REMOVE after
+    # one release cycle (tracked by SC-010 lint).
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'cashu_mint_voucher_(face_value_issued_total|face_value_redeemed_total|fees_collected_total|issued_total|quotes_active|redeemed_total|rejected_total)'
+        target_label: __name__
+        replacement: 'cashu_mint_vouchers_${1}'
+        action: replace
 
   # Prometheus self-monitoring
   - job_name: 'prometheus'

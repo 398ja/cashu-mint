@@ -1,5 +1,10 @@
 # Virtual Thread Issues Runbook
 
+> **Other runbooks in this directory**:
+> [voucher-data-minimisation.md](voucher-data-minimisation.md) — operator
+> procedures for spec 004 (salt generation, identity backfill,
+> retention purge, forensic CLI, salt rotation).
+
 This runbook covers diagnosing and resolving issues related to Java 21 virtual threads in the Cashu Mint.
 
 ## Quick Reference

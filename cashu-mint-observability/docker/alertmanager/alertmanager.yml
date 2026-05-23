@@ -85,6 +85,30 @@ route:
       group_wait: 5m
       repeat_interval: 24h
 
+    # Spec 004 T606 / FR-015 / FR-016 — voucher-specific routes.
+    # Receivers below read endpoints from env vars; deploy-time
+    # configuration is per-environment (PagerDuty service key, Slack
+    # webhook URLs).
+    - match:
+        spec: '004'
+        route: pagerduty
+      receiver: 'voucher-pagerduty'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: false
+    - match:
+        spec: '004'
+        route: slack-vouchers-ops
+      receiver: 'voucher-slack-ops'
+      group_wait: 1m
+      repeat_interval: 4h
+    - match:
+        spec: '004'
+        route: slack-merchant-finance
+      receiver: 'voucher-slack-finance'
+      group_wait: 1m
+      repeat_interval: 24h
+
 # Receivers - notification channels
 receivers:
   - name: 'default-receiver'
@@ -155,6 +179,34 @@ receivers:
     webhook_configs:
       - url: 'http://localhost:9999/webhook/info'
         send_resolved: false
+
+  # Spec 004 T606 — voucher receivers. Endpoints sourced from env
+  # vars at deploy time; the placeholders below are the contract for
+  # what each environment must provide. See quickstart.md § 1.
+  - name: 'voucher-pagerduty'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY:-PD_KEY_UNSET}'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          alertname: '{{ .CommonLabels.alertname }}'
+          description: '{{ .CommonAnnotations.description }}'
+          runbook: '{{ .CommonAnnotations.runbook_url }}'
+
+  - name: 'voucher-slack-ops'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_VOUCHERS_OPS:-https://slack.example.invalid/unset}'
+        channel: '#vouchers-ops'
+        title: '[Voucher Ops] {{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+
+  - name: 'voucher-slack-finance'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_MERCHANT_FINANCE:-https://slack.example.invalid/unset}'
+        channel: '#merchant-finance'
+        title: '[Merchant Finance] {{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
 
 # Templates for custom notification formats
 templates:

@@ -112,6 +112,53 @@ actually flip a saga to a different terminal state, a separate
 operator endpoint (TBD) is required; today the resolution is
 annotation-only.
 
+### `POST /admin/voucher/forensic/customer-purchases` (spec 004)
+
+Spec 004 FR-009 — operator-facing salt-aware lookup. The operator
+submits a raw customer npub; the mint hashes it internally with the
+configured `cashu.mint.voucher.identity-salt` and returns matching
+voucher quotes (within the 90-day retention window).
+
+```bash
+curl -u "$MINT_ADMIN_USER:$MINT_ADMIN_PASSWORD" \
+     -H 'Content-Type: application/json' \
+     -d '{"customerNpub":"npub1..."}' \
+     http://localhost:7777/admin/voucher/forensic/customer-purchases
+```
+
+Response:
+
+```json
+{
+  "customer_hash": "9f8a...e5f3a",
+  "match_count": 2,
+  "matches": [
+    {
+      "quote_id": "q-...",
+      "face_value": 1000,
+      "charged_amount": 100,
+      "unit": "sat",
+      "lifecycle_state": "ISSUED",
+      "funding_id": "f-...",
+      "created_at": "2026-04-12T09:15:23Z",
+      "updated_at": "2026-04-12T09:15:25Z",
+      "retention_state": "in_window"
+    }
+  ]
+}
+```
+
+The salt **never leaves the mint**. The operator only sees the hash
+their npub mapped to (useful for confirming which row matched).
+Post-retention rows are not returned — their identity columns are
+NULL so the hash lookup misses them. To distinguish "purged" from
+"never happened," operators query `voucher_quote_purge_log` directly.
+
+### `POST /admin/voucher/forensic/merchant-purchases`
+
+Same shape, keyed on `{"merchantNpub":"npub1..."}`.
+
+
 ## Voucher endpoints (`/v1/vouchers/**`) — integrator contract
 
 Spec 003 ships durability + hardening on the voucher mint path. The
@@ -218,11 +265,32 @@ so operator dashboards see drift.
 | `cashu_mint_voucher_lazy_funding_total` | Resolver fallback created a `CustomerPaymentFunding` row |
 | `cashu_mint_voucher_rate_limit_breach_total{principal=...}` | Per-principal 429 events |
 
-## Spec 001 / 002 / 003 reference
+## Cross-repo follow-ups (spec 004)
+
+Spec 004 introduces a salt that should be **shared** with
+`imani-gateway-atomic` so cross-system forensic queries can join mint
+records to the atomic-side escrow ledger by matching identity hashes.
+Two follow-up tracking issues:
+
+- **`imani-gateway-atomic`** — adopt the same `HMAC-SHA-256(salt, npub)`
+  scheme on its own `escrow_ledger` identity columns; read the salt
+  from the same `CASHU_MINT_VOUCHER_IDENTITY_SALT` env var (or its
+  own equivalent that maps to the same secret). See research R2.
+- **`imani-apps`** — link `docs/explanations/voucher-data-record.md`
+  (rendered on the docs site) from the voucher purchase page header
+  per FR-008.
+
+Neither blocks spec 004 from landing — the cashu-mint side is
+self-contained.
+
+## Spec 001 / 002 / 003 / 004 reference
 
 - Spec 001 spec: `specs/001-mint-quote-webhook-integrity/`
 - Spec 002 spec: `specs/002-melt-burn-ordering/`
 - Spec 003 spec: `specs/003-voucher-quote-durability/`
+- Spec 004 spec: `specs/004-voucher-data-minimisation/` (operator
+  runbook: `specs/004-voucher-data-minimisation/quickstart.md`)
+- Customer-facing disclosure: `docs/explanations/voucher-data-record.md`
 - Operator reconciliation queries: Javadoc on `MintQuoteJpaRepository`,
   `MeltSagaJpaRepository`, and `VoucherIssuanceJpaRepository`.
 - Webhook integrity how-to: `docs/how-to/configure-webhook-integrity.md`.
