@@ -4,8 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.DiscriminatorType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
@@ -43,9 +41,29 @@ public abstract class VoucherFundingEntity implements VoucherFunding {
     @Column(name = "funding_id", length = 64, nullable = false)
     private String fundingId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "funding_source", length = 32, nullable = false, insertable = false, updatable = false)
+    /**
+     * Discriminator value mirrored as a typed field. Hibernate writes the
+     * {@code funding_source} column from {@link jakarta.persistence.DiscriminatorValue}
+     * on each concrete subclass; this field is the same value, populated on
+     * insert by each subclass's {@code @PrePersist} and on load by the
+     * post-load callback.
+     */
+    @jakarta.persistence.Transient
     private VoucherFundingSource fundingSource;
+
+    @jakarta.persistence.PostLoad
+    void resolveFundingSourceFromSubclass() {
+        if (fundingSource != null) {
+            return;
+        }
+        if (this instanceof CustomerPaymentFundingEntity) {
+            fundingSource = VoucherFundingSource.CUSTOMER_PAYMENT;
+        } else if (this instanceof MerchantDebitFundingEntity) {
+            fundingSource = VoucherFundingSource.MERCHANT_DEBIT;
+        } else if (this instanceof MerchantIouFundingEntity) {
+            fundingSource = VoucherFundingSource.MERCHANT_IOU;
+        }
+    }
 
     @Column(name = "amount", nullable = false)
     private long amount;
@@ -67,6 +85,9 @@ public abstract class VoucherFundingEntity implements VoucherFunding {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
+        // Also populate the typed field at insert time so an in-session read
+        // sees the value without a round-trip.
+        resolveFundingSourceFromSubclass();
     }
 
     @Override
