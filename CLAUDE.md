@@ -648,3 +648,9 @@ cd cashu-mint-rest && mvn jib:build
 - Generate preload data: `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate`
 - Verify vault database is up before seeding
 - Check `scripts/preload-test-data.sql` exists
+
+## Active Technologies
+- PostgreSQL 16. New tables `voucher_quote`, (003-voucher-its)
+
+## Recent Changes
+- 003-voucher-its: Added Java 21
