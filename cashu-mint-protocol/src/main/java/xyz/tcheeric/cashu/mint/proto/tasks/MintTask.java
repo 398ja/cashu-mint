@@ -197,7 +197,13 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // to prevent double-mint attacks while allowing parallel minting of different quotes
         try (QuoteLockManager.QuoteLock quoteLock = QuoteLockManager.lockQuote(quoteId)) {
 
-            // Voucher tokens use mock payment - no real bitcoin backing needed
+            // Spec 003 FR-013 — vouchers are a NON-STANDARD vendor extension
+            // on top of NUT-04 (https://github.com/cashubtc/nuts/blob/main/04.md).
+            // They MUST NOT be advertised under the NUT-06 `nuts` key
+            // (Constitution II; enforced by VoucherNutAdvertisementGuardTest)
+            // and the issuance path here is the divergence from the standard
+            // NUT-04 mint flow: instead of validating a Lightning payment,
+            // we validate against a durable VoucherFunding row.
             boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
             VoucherFundingContext voucherCtx = null;
 
@@ -400,6 +406,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     if (closed == 0) {
                         log.warn("mint_task voucher_lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
                     }
+                }
+
+                // Spec 003 FR-014 / T114 — per-funding-source success counter
+                // for operator dashboards (SC-006 liability reconciliation).
+                if (meterRegistry != null) {
+                    meterRegistry.counter("cashu_mint_voucher_issued_total",
+                            "funding_source", voucherCtx.funding.fundingSource().name(),
+                            "path", "mint").increment();
                 }
             }
 

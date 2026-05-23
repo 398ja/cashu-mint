@@ -135,6 +135,46 @@ cashu.mint.melt.proofs-held-ttl=PT5M
 
 Operator reconciliation queries are embedded as Javadoc on `MeltSagaJpaRepository` (SC-001 / SC-002 / SC-003 / SC-004 + a PAYMENT_SENT_BURN_FAILED hygiene query).
 
+### Spec 003 — Voucher Quote Durability and Funding-Source Binding
+
+**Vouchers are a non-standard vendor extension** on top of [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md) and MUST NOT appear under the NUT-06 `nuts` key (Constitution II; enforced by `VoucherNutAdvertisementGuardTest`). Spec 003 closed the "skip payment check" loophole by making every voucher proof traceable to a durable funding row.
+
+The `cashu-mint-jpa` module (spec 003) adds four PostgreSQL tables:
+
+- `voucher_funding` (Envers-audited) — polymorphic parent of three JOINED-inheritance children: `customer_payment_funding`, `merchant_debit_funding`, `merchant_iou_funding`. UNIQUE constraint on `(provider, provider_event_id)` for the customer-payment variant so webhook replay can't double-insert.
+- `voucher_quote` (Envers-audited) — sibling to `mint_quote` (no inheritance); CAS-transitioned through `UNFUNDED → FUNDED → ISSUING → ISSUED` via `VoucherQuoteJpaRepository#casLifecycle` + the atomic `attachFundingAndAdvance` (folds the funding-attach + state transition into one UPDATE).
+- `voucher_issuance` — append-only ledger keyed by `voucher_quote_id`, FK to both `voucher_quote` and `voucher_funding`. Backs the FR-005 audit query (proof → funding in one JOIN).
+- `voucher_idempotency_key` — DB-backed `Idempotency-Key` cache for voucher POSTs. PK `(idempotency_key, principal_id)` so two callers can use the same key. TTL-swept by `VoucherIdempotencyKeySweeper` every 10 min.
+
+Protocol-module abstractions in `cashu-mint-protocol/.../proto/`:
+
+- 8 ports (`VoucherQuote`/`Funding`/`Issuance`/`IdempotencyKey` + their repositories + `VoucherFundingResolver`).
+- `VoucherFundingResolver` — strategy port; default impl (`cashu-mint-jpa/.../service/VoucherFundingResolverImpl`) looks up an existing funding row, falls back to scanning `webhook_event` for an `accepted` event and lazily creates a `CustomerPaymentFunding` row (idempotent on `(provider, provider_event_id)`).
+- `VoucherFundingSource`, `VoucherLifecycleState` enums.
+- `MintIntegrityContext.installVoucher()` extends the service-locator pattern from specs 001/002.
+
+`VoucherMintQuoteTask` persists a `voucher_quote` row at quote-creation time (`lifecycle_state=UNFUNDED`). `MintTask`'s voucher branch loads the durable record, runs the resolver, **rejects with `funding_required` when no funding row resolves**, then CAS-advances through `FUNDED → ISSUING → ISSUED` after signing. `VoucherQuoteRegistry` is demoted to a read-through cache; the durable repository is the source of truth.
+
+Voucher REST hardening lives in `cashu-mint-rest/src/main/java/.../rest/voucher/`:
+
+- `SecurityConfig` requires `ADMIN` role on `/v1/vouchers/**` (FR-007).
+- `VoucherRateLimitFilter` — per-principal Caffeine token bucket; 429 + `Retry-After` + `cashu_mint_voucher_rate_limit_breach_total` counter (FR-008).
+- `VoucherIdempotencyKeyFilter` — DB-backed `Idempotency-Key` replay + 409 tamper detection (FR-009).
+- `VoucherIdempotencyKeySweeper` — scheduled TTL prune.
+
+Configuration (`application.properties`):
+
+```properties
+cashu.mint.voucher.iou-policy=DENY                # ALLOW|DENY; default DENY
+cashu.mint.voucher.idempotency-key-ttl=PT24H
+cashu.mint.voucher.rate-limit-tokens-per-minute=60
+cashu.mint.voucher.idempotency-sweep-interval-ms=600000
+```
+
+Caller architecture: in the decomposed-architecture, voucher purchases originate in `imani-apps/voucher/buy.html` (browser) → `@imani/atomic-purchase` TS package → `imani-gateway-atomic`'s `AtomicPurchaseController` (port 8083, saga + escrow owner) → cashu-mint `POST /v1/vouchers`. The retired `imani-bridge` is no longer in the call graph.
+
+Operator queries embedded as Javadoc on `VoucherIssuanceJpaRepository` (SC-001 orphan-issuance query + IOU liability dashboard). The full integrator contract — auth, rate-limit, idempotency, funding-required error — is documented in `cashu-mint-rest/README.md`.
+
 ### NUT Implementation Pattern
 
 Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/`:
@@ -469,12 +509,15 @@ Vault abstracts proof/signature storage:
 
 ### Voucher System
 
+**Non-standard vendor extension** on top of [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md) — see Constitution II and spec 003. Vouchers MUST NOT appear under the NUT-06 `nuts` key (asserted by `VoucherNutAdvertisementGuardTest`).
+
 Vouchers use structured secrets with Nostr publishing:
 - Domain: `cashu-voucher` module (external dependency)
 - Format: JSON-encoded metadata in secret field
 - Publishing: NIP-33 replaceable events to Nostr relays
-- Controller: `VoucherController` in `cashu-mint-rest`
+- Controller: `VoucherController` in `cashu-mint-rest` (POST `/v1/vouchers`)
 - Enable with `voucher.enabled=true`
+- **Durability + endpoint hardening** (spec 003): every voucher proof traces to a durable `voucher_funding` row; endpoint requires `ADMIN` auth + `Idempotency-Key` header + per-principal rate limit. See the "Spec 003 — Voucher Quote Durability" section above and `cashu-mint-rest/README.md` for the integrator contract.
 
 ## Module Dependencies
 

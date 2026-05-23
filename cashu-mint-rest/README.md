@@ -22,6 +22,12 @@ cashu.mint.melt.payment-timeout=PT30S
 cashu.mint.melt.reconcile-interval=PT60S
 cashu.mint.melt.payment-unknown-ttl=PT1H
 cashu.mint.melt.proofs-held-ttl=PT5M
+
+# Spec 003 — voucher quote durability + endpoint hardening
+cashu.mint.voucher.iou-policy=DENY                 # ALLOW|DENY; DENY rejects IOU-funded issuance
+cashu.mint.voucher.idempotency-key-ttl=PT24H       # voucher_idempotency_key row lifetime
+cashu.mint.voucher.rate-limit-tokens-per-minute=60 # per-principal token bucket
+cashu.mint.voucher.idempotency-sweep-interval-ms=600000  # TTL sweep interval (10m)
 ```
 
 ## Admin endpoints (internal-only)
@@ -106,10 +112,105 @@ actually flip a saga to a different terminal state, a separate
 operator endpoint (TBD) is required; today the resolution is
 annotation-only.
 
-## Spec 001 / 002 reference
+## Voucher endpoints (`/v1/vouchers/**`) — integrator contract
+
+Spec 003 ships durability + hardening on the voucher mint path. The
+contract below applies whenever `cashu.mint.jpa.enabled=true`.
+
+### Authentication (FR-007)
+
+Every request to `/v1/vouchers/**` requires HTTP Basic auth with the
+`ADMIN` role. Same credentials lever as `/admin/**`
+(`cashu.mint.admin.{username,password}` / `MINT_ADMIN_PASSWORD` env).
+Unauthenticated requests return `401`; authenticated requests without
+`ADMIN` return `403`.
+
+> The decomposed-architecture caller is `imani-gateway-atomic`'s
+> `AtomicPurchaseController` (port 8083, voucher purchase saga owner),
+> which holds the service-account credentials. A future iteration may
+> swap the in-memory provider for a merchant-principal JWT verifier;
+> the route contract stays the same.
+
+### Idempotency (FR-009)
+
+Every `POST /v1/vouchers/**` request MUST carry an `Idempotency-Key`
+header. The natural key in the decomposed architecture is the atomic
+saga's `purchaseId`.
+
+| Scenario | Response |
+|---|---|
+| Missing or blank `Idempotency-Key` header | `400 {"error":"idempotency_key_required"}` |
+| Same key + same request hash (replay) | Cached response replayed verbatim |
+| Same key + different request hash (tamper) | `409 {"error":"idempotency_key_conflict"}` |
+
+The cache is durable (`voucher_idempotency_key` table, scoped per
+authenticated principal) and survives restarts. Default TTL is 24 h
+(`cashu.mint.voucher.idempotency-key-ttl`); a scheduled sweeper
+prunes expired rows every 10 min by default
+(`cashu.mint.voucher.idempotency-sweep-interval-ms`).
+
+### Rate limiting (FR-008)
+
+Per-principal Caffeine token bucket; default capacity 60 / minute
+(`cashu.mint.voucher.rate-limit-tokens-per-minute`). On exhaustion:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+X-RateLimit-Remaining: 0
+Content-Type: application/json
+
+{"error":"rate_limit_exceeded"}
+```
+
+The successful path returns `X-RateLimit-Remaining: <n>` so clients
+can implement back-pressure.
+
+### Funding gate (FR-002)
+
+A voucher proof is only issued when the durable `voucher_quote` row
+has a matching `voucher_funding` row attached. The funding row can
+arrive two ways:
+
+1. **Eager** (preferred) — `imani-gateway-atomic` passes a
+   `funding_ref` referencing its `escrow_ledger` row at quote-create
+   time. (Tracked as a follow-up spec in `imani-gateway-atomic`.)
+2. **Lazy fallback** — `VoucherFundingResolverImpl` scans
+   `webhook_event` for an `accepted` event matching the
+   `quote_id` and creates a `CustomerPaymentFunding` row on demand.
+   Idempotent on `(provider, provider_event_id)`.
+
+When neither path resolves a funding row, the mint returns:
+
+```json
+{"error": "funding_required"}
+```
+
+### IOU policy (FR-006)
+
+`cashu.mint.voucher.iou-policy` gates `MERCHANT_IOU` funding. Default
+is `DENY` in every profile; flip to `ALLOW` only when an operator
+liability process exists. **Note**: today the policy is enforced at
+issuance only — there is no IOU creation REST endpoint that would
+allow rejecting at quote-create time. Every IOU issuance fires the
+`cashu_mint_voucher_iou_issued_total` counter regardless of policy
+so operator dashboards see drift.
+
+### Metrics
+
+| Counter | Meaning |
+|---|---|
+| `cashu_mint_voucher_issued_total{funding_source=...}` | Successful voucher issuance per funding source |
+| `cashu_mint_voucher_funding_required_total` | Issuance rejected with `funding_required` |
+| `cashu_mint_voucher_iou_issued_total` | MERCHANT_IOU funding row produced an issuance |
+| `cashu_mint_voucher_lazy_funding_total` | Resolver fallback created a `CustomerPaymentFunding` row |
+| `cashu_mint_voucher_rate_limit_breach_total{principal=...}` | Per-principal 429 events |
+
+## Spec 001 / 002 / 003 reference
 
 - Spec 001 spec: `specs/001-mint-quote-webhook-integrity/`
 - Spec 002 spec: `specs/002-melt-burn-ordering/`
-- Operator reconciliation queries: Javadoc on `MintQuoteJpaRepository`
-  and `MeltSagaJpaRepository`.
+- Spec 003 spec: `specs/003-voucher-quote-durability/`
+- Operator reconciliation queries: Javadoc on `MintQuoteJpaRepository`,
+  `MeltSagaJpaRepository`, and `VoucherIssuanceJpaRepository`.
 - Webhook integrity how-to: `docs/how-to/configure-webhook-integrity.md`.

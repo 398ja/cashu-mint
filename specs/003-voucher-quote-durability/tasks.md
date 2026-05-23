@@ -121,6 +121,8 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 **Checkpoint**: US1 testable in isolation. Every issued voucher traces to a funding row.
 
+**Note on FR-006 (IOU policy at creation time)**: there is no IOU creation REST endpoint today — `VoucherMintQuoteTask` only handles the `customer_paid` path. The `cashu.mint.voucher.iou-policy=DENY` knob is enforced exclusively at *issuance* time via the resolver + `MintTask`, plus alerted via `cashu_mint_voucher_iou_issued_total`. When an operator-facing IOU creation endpoint lands (separate spec), it MUST reject IOU funding at quote-creation time per FR-006. Documented in `VoucherDurabilityProperties.IouPolicy` Javadoc.
+
 ---
 
 ## Phase 4: User Story 2 — Voucher Quote State Survives Restart (Priority: P1)
@@ -165,7 +167,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 - [X] **T312** [P] [US3] Register `VoucherIdempotencyKeyFilter` (T062) for POST routes under `/v1/voucher/**`. Enforce that the `Idempotency-Key` header is REQUIRED on quote-creation and finalization; missing key ⇒ 400.
 - [X] **T313** [US3] Verify NUT-06 info builder (T070) and lock in the smoke test from T304.
 - [X] **T314** [P] [US3] Add `cashu_mint_voucher_rate_limit_breach_total` counter; operator alert on sustained breach (FR-014).
-- [ ] **T315** [P] [US3] Update `cashu-mint-rest/README.md` documenting the new auth / rate-limit / idempotency contract for integrators.
+- [X] **T315** [P] [US3] Update `cashu-mint-rest/README.md` documenting the new auth / rate-limit / idempotency contract for integrators.
 
 **Checkpoint**: All three user stories pass independently.
 
@@ -190,7 +192,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
    AND q.lifecycle_state = 'ISSUED'
   GROUP BY f.funding_source;
   ```
-- [ ] **T903** [P] [X] Update `CLAUDE.md` `## Architecture` and / or `## Voucher System` sections: clarify vouchers are non-NUT vendor extensions; reference this spec.
+- [X] **T903** [P] [X] Update `CLAUDE.md` `## Architecture` and / or `## Voucher System` sections: clarify vouchers are non-NUT vendor extensions; reference this spec.
 - [ ] **T904** [X] Update operator runbook (if it exists) with the new dashboards and the IOU policy lever.
 - [ ] **T905** [X] Manual smoke against staging: create a voucher quote (customer-paid path), settle the payment, mint, verify `voucher_issuance` row + matching `voucher_funding(CustomerPaymentFunding)` row.
 
