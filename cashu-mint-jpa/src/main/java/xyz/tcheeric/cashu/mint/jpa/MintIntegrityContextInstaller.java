@@ -9,11 +9,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.core.env.Environment;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherIssuanceRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 
 import java.time.Duration;
 
@@ -34,6 +39,11 @@ public class MintIntegrityContextInstaller {
     private final MintQuoteRepository quoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
     private final MeltSagaRepository meltSagaRepository;
+    private final VoucherQuoteRepository voucherQuoteRepository;
+    private final VoucherFundingRepository voucherFundingRepository;
+    private final VoucherIssuanceRepository voucherIssuanceRepository;
+    private final VoucherFundingResolver voucherFundingResolver;
+    private final Environment environment;
 
     @Autowired(required = false)
     private MeterRegistry meterRegistry;
@@ -47,15 +57,23 @@ public class MintIntegrityContextInstaller {
     @Value("${cashu.mint.melt.payment-timeout:PT30S}")
     private Duration meltPaymentTimeout;
 
+    @Value("${cashu.mint.voucher.iou-policy:DENY}")
+    private String voucherIouPolicy;
+
     @PostConstruct
     void install() {
         MintIntegrityContext.install(quoteRepository, issuanceRecordRepository, meterRegistry,
                 mintUrl != null ? mintUrl : "");
         MintIntegrityContext.installMelt(meltSagaRepository, lightningPaymentPort, meltPaymentTimeout);
-        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={})",
+        String[] active = environment.getActiveProfiles();
+        String activeProfile = active.length == 0 ? "default" : active[0];
+        MintIntegrityContext.installVoucher(voucherQuoteRepository, voucherFundingRepository,
+                voucherIssuanceRepository, voucherFundingResolver, voucherIouPolicy, activeProfile);
+        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={})",
                 quoteRepository != null, issuanceRecordRepository != null,
                 meltSagaRepository != null, lightningPaymentPort != null,
-                meterRegistry != null, mintUrl, meltPaymentTimeout);
+                meterRegistry != null, mintUrl, meltPaymentTimeout,
+                voucherIouPolicy, activeProfile);
     }
 
     @PreDestroy
