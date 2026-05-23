@@ -88,7 +88,11 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
         String requestHash = sha256Hex(bufferedRequest.getContentAsByteArray());
 
         Optional<VoucherIdempotencyKey> existing = repository.findByKey(idempotencyKey, principalId);
-        if (existing.isPresent()) {
+        // Spec 003 review fix — honour expiresAt at request time. The TTL
+        // sweeper is best-effort and runs every 10m; without this guard a
+        // client retrying with the same key past expiry stays blocked
+        // until the sweep wins the race.
+        if (existing.isPresent() && existing.get().expiresAt().isAfter(Instant.now())) {
             VoucherIdempotencyKey row = existing.get();
             if (!row.requestHash().equals(requestHash)) {
                 response.setStatus(HttpServletResponse.SC_CONFLICT);
@@ -104,26 +108,45 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
                     principalId, idempotencyKey, row.responseStatus());
             return;
         }
-
-        ContentCachingResponseWrapper bufferedResponse = new ContentCachingResponseWrapper(response);
-        chain.doFilter(bufferedRequest, bufferedResponse);
-
-        // Only cache successful responses; client errors should be retryable
-        // without locking in the same payload contract.
-        int status = bufferedResponse.getStatus();
-        if (status >= 200 && status < 300) {
-            String body = new String(bufferedResponse.getContentAsByteArray(), StandardCharsets.UTF_8);
-            repository.save(new IdempotencyRow(
-                    idempotencyKey,
-                    principalId,
-                    requestHash,
-                    status,
-                    body,
-                    Instant.now().plus(properties.getIdempotencyKeyTtl()),
-                    Instant.now()));
+        if (existing.isPresent()) {
+            // Row is past TTL but the sweeper hasn't reached it yet. Treat
+            // as absent and let the new request proceed; the upsert below
+            // overwrites with a fresh TTL.
+            log.debug("voucher_idempotency_expired principal={} key={} treating_as_absent",
+                    principalId, idempotencyKey);
         }
 
-        bufferedResponse.copyBodyToResponse();
+        ContentCachingResponseWrapper bufferedResponse = new ContentCachingResponseWrapper(response);
+        try {
+            chain.doFilter(bufferedRequest, bufferedResponse);
+
+            // Only cache successful responses; client errors should be retryable
+            // without locking in the same payload contract.
+            int status = bufferedResponse.getStatus();
+            if (status >= 200 && status < 300) {
+                try {
+                    repository.save(new IdempotencyRow(
+                            idempotencyKey,
+                            principalId,
+                            requestHash,
+                            status,
+                            new String(bufferedResponse.getContentAsByteArray(), StandardCharsets.UTF_8),
+                            Instant.now().plus(properties.getIdempotencyKeyTtl()),
+                            Instant.now()));
+                } catch (RuntimeException e) {
+                    // Spec 003 review fix — never let an idempotency-cache
+                    // persistence failure swallow the controller's response.
+                    // Log and continue; the worst that happens is the client
+                    // can't replay this exact request and has to re-execute.
+                    log.warn("voucher_idempotency_save_failed principal={} key={}",
+                            principalId, idempotencyKey, e);
+                }
+            }
+        } finally {
+            // Spec 003 review fix — guarantee the downstream response is
+            // delivered to the client regardless of caching outcome.
+            bufferedResponse.copyBodyToResponse();
+        }
     }
 
     private static String resolvePrincipal() {

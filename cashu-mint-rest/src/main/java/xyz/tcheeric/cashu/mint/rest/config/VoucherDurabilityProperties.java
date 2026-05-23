@@ -14,10 +14,11 @@ import java.time.Duration;
  * coexist because they govern unrelated concerns).
  *
  * <ul>
- *   <li>{@code iou-policy} — research R6. Defaults to {@code DENY} so production
- *       deploys reject IOU-funded voucher quotes at creation time (FR-006).
- *       Operators flip to {@code ALLOW} only when they have a corresponding
- *       liability process.</li>
+ *   <li>{@code iou-policy} — research R6. Defaults to {@code DENY}. See the
+ *       {@link IouPolicy} Javadoc for the precise enforcement boundary in
+ *       this release — the class-level summary previously claimed
+ *       creation-time rejection, but PR #321 ships issuance-time
+ *       enforcement only because no IOU REST creation endpoint exists yet.</li>
  *   <li>{@code idempotency-key-ttl} — FR-009 / research R10. How long a
  *       voucher_idempotency_key row lives. Default 24h matches the voucher
  *       quote TTL.</li>

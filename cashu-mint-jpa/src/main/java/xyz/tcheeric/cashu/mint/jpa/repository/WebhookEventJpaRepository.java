@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.jpa.repository;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import xyz.tcheeric.cashu.mint.jpa.entity.WebhookEventEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.WebhookEventId;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,10 +28,20 @@ public interface WebhookEventJpaRepository extends JpaRepository<WebhookEventEnt
      * by {@code VoucherFundingResolverImpl} when the webhook bridge has
      * not yet attached a funding row (e.g. race between webhook delivery
      * and mint request).
+     *
+     * <p>The schema permits multiple {@code accepted} events per quote_id
+     * (the PK is {@code (provider, provider_event_id)}, not quote_id);
+     * the {@link Limit#of(int)} bound prevents Spring Data from raising
+     * {@code NonUniqueResultException} when more than one row matches.
      */
+    default Optional<WebhookEventEntity> findFirstAcceptedByQuoteId(String quoteId) {
+        List<WebhookEventEntity> rows = findAcceptedByQuoteId(quoteId, Limit.of(1));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
     @Query("SELECT e FROM WebhookEventEntity e "
             + "WHERE e.quoteId = :quoteId "
             + "AND e.outcome = xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome.accepted "
             + "ORDER BY e.receivedAt ASC")
-    Optional<WebhookEventEntity> findFirstAcceptedByQuoteId(@Param("quoteId") String quoteId);
+    List<WebhookEventEntity> findAcceptedByQuoteId(@Param("quoteId") String quoteId, Limit limit);
 }

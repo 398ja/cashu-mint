@@ -115,38 +115,54 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                 .build();
     }
 
-    private void persistVoucherQuote(String quoteId, long chargedAmount) {
+    private void persistVoucherQuote(String quoteId, long chargedAmount) throws CashuErrorException {
         VoucherQuoteRepository repo = MintIntegrityContext.voucherQuoteRepository();
         if (repo == null) {
+            // Legacy unit-test context — no JPA repo wired, registry-only.
             return;
         }
         try {
+            // Spec 003 review fix — fee semantics for fee-only voucher
+            // pricing: the gateway invoice is created for the fee
+            // (chargedAmount = voucherPrice = faceValue * feePercent),
+            // which is strictly less than faceValue. So fee == chargedAmount
+            // for this variant — the customer pays the fee, the merchant
+            // covers the face value via the funding row. Recording
+            // max(0, chargedAmount - faceValue) was always 0 and lost the
+            // audit signal.
+            long fee = chargedAmount;
             VoucherQuoteRecord record = new VoucherQuoteRecord(
                     quoteId,
                     VOUCHER_TYPE_CUSTOMER_PAID,
                     faceValue,
                     chargedAmount,
-                    Math.max(0L, chargedAmount - faceValue),
+                    fee,
                     unit != null ? unit : "sat",
                     requestHash(quoteId, faceValue, chargedAmount));
             repo.save(record);
-            log.info("voucher_quote persisted quote_id={} face_value={} charged={} lifecycle=UNFUNDED",
-                    quoteId, faceValue, chargedAmount);
+            log.info("voucher_quote persisted quote_id={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
+                    quoteId, faceValue, chargedAmount, fee);
         } catch (RuntimeException e) {
-            // Non-fatal for the legacy path: the registry still has the face value.
-            // Spec 003 production deploys MUST run with the repo wired, but in
-            // tests / legacy contexts a save failure should not bring down quote
-            // creation. The mint branch will detect the missing durable row and
-            // surface a typed error if it tries to issue.
-            log.warn("voucher_quote persist_failed quote_id={} reason={}", quoteId, e.getMessage());
+            // Spec 003 review fix — when the durable repo is wired and
+            // save fails, the client MUST NOT receive a quote_id that
+            // can't be redeemed. A failure here typically means a
+            // transient DB error; fail closed so the client retries
+            // rather than paying the gateway invoice and discovering
+            // voucher_quote_not_found later.
+            log.error("voucher_quote persist_failed quote_id={}", quoteId, e);
+            throw new CashuErrorException(
+                    "{\"error\":\"voucher_quote_persist_failed\"}");
         }
     }
 
     private static String requestHash(String quoteId, int faceValue, long chargedAmount) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            // Spec 003 review fix — pin charset so request_hash is stable
+            // across environments (default JVM charset is platform-dependent).
             byte[] bytes = digest.digest(
-                    (quoteId + "|" + faceValue + "|" + chargedAmount).getBytes());
+                    (quoteId + "|" + faceValue + "|" + chargedAmount)
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder(bytes.length * 2);
             for (byte b : bytes) {
                 sb.append(String.format("%02x", b));

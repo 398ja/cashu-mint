@@ -204,14 +204,25 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // and the issuance path here is the divergence from the standard
             // NUT-04 mint flow: instead of validating a Lightning payment,
             // we validate against a durable VoucherFunding row.
-            boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
+            //
+            // Spec 003 FR-003 — voucher classification MUST come from the
+            // durable record when the JPA module is wired. The in-memory
+            // VoucherQuoteRegistry is a read-through cache only and stays
+            // cold after a restart, so it cannot be the source of truth
+            // for write decisions.
+            VoucherQuoteRepository voucherClassifier = MintIntegrityContext.voucherQuoteRepository();
+            boolean isVoucherQuote = (voucherClassifier != null
+                    && voucherClassifier.findById(quoteId).isPresent())
+                    || VoucherQuoteRegistry.isVoucherQuote(quoteId);
             VoucherFundingContext voucherCtx = null;
 
             if (isVoucherQuote) {
                 // Spec 003 FR-002 — vouchers MUST trace to a durable funding row.
                 // The legacy "skip payment check" path is gone when the JPA module
                 // is wired; legacy unit-test contexts (repo == null) keep working
-                // unchanged.
+                // unchanged. resolveVoucherFunding also enforces the CAS gate
+                // (rejects with quote_already_issued / issuance_in_progress when
+                // the durable lifecycle has already advanced past FUNDED).
                 voucherCtx = resolveVoucherFunding(quoteId);
                 if (voucherCtx == null) {
                     log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true (legacy context)", quoteId);
@@ -305,10 +316,17 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
             }
 
-            // Check if this is a voucher quote and validate against face value
-            Long voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
+            // Spec 003 FR-001/FR-003 — voucher face_value validation reads
+            // from the durable record when wired, falling back to the
+            // in-memory registry only in legacy unit-test contexts. A cold
+            // registry after restart MUST NOT silently skip the sum check.
+            Long voucherFaceValue;
+            if (voucherCtx != null) {
+                voucherFaceValue = voucherCtx.quote.faceValue();
+            } else {
+                voucherFaceValue = VoucherQuoteRegistry.getFaceValue(quoteId);
+            }
             if (voucherFaceValue != null) {
-                // This is a voucher quote - validate total amount matches face value
                 long totalBlindedAmount = blindedMessages.stream()
                         .mapToLong(BlindedMessage::getAmount)
                         .sum();
@@ -377,17 +395,19 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // surface it.
             if (voucherCtx != null) {
                 String voucherOutputsHash = OutputsHash.compute(blindedMessages);
-                String signaturesJson = encodeSignatures(result.getBlindSignatures());
 
-                IssuanceRecordRepository issuanceRepo = MintIntegrityContext.issuanceRecordRepository();
-                if (issuanceRepo != null) {
-                    issuanceRepo.insertIfAbsent(new IssuanceRecordRow(
-                            quoteId,
-                            voucherOutputsHash,
-                            signaturesJson,
-                            firstKeysetId(blindedMessages),
-                            voucherCtx.quote.faceValue()));
-                }
+                // Spec 003 review fix — voucher quote_ids live in
+                // voucher_quote, NOT mint_quote. The spec-001
+                // issuance_record table has a FK to mint_quote(quote_id)
+                // so writing a voucher quote_id into issuance_record
+                // throws DataIntegrityViolationException. The voucher
+                // ledger lives in voucher_issuance (below); we deliberately
+                // do NOT touch issuance_record for the voucher path.
+                //
+                // NUT-19 idempotent replay for vouchers is a future
+                // enhancement: a second mint call against an ISSUED
+                // voucher quote is rejected via the CAS gate in
+                // resolveVoucherFunding(), not via signature replay.
 
                 VoucherIssuanceRepository voucherIssuanceRepo = MintIntegrityContext.voucherIssuanceRepository();
                 if (voucherIssuanceRepo != null) {
@@ -543,6 +563,24 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throw new CashuErrorException(new ErrorResponse("voucher_quote_not_found").toJson());
         }
 
+        // Spec 003 review fix — single-issuance invariant. A second mint
+        // request against a voucher quote that has already advanced past
+        // FUNDED MUST NOT re-sign. NUT-19 idempotent signature replay for
+        // vouchers is a future enhancement; today we reject.
+        VoucherLifecycleState state = quote.lifecycleState();
+        if (state == VoucherLifecycleState.ISSUED) {
+            log.info("mint_task voucher_quote_already_issued quote_id={}", quoteId);
+            throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+        }
+        if (state == VoucherLifecycleState.ISSUING) {
+            log.info("mint_task voucher_issuance_in_progress quote_id={}", quoteId);
+            throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+        }
+        if (state == VoucherLifecycleState.EXPIRED || state == VoucherLifecycleState.FAILED) {
+            log.info("mint_task voucher_quote_unavailable quote_id={} state={}", quoteId, state);
+            throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+        }
+
         VoucherFunding funding = null;
         if (quote.fundingId() != null) {
             funding = MintIntegrityContext.voucherFundingRepository() != null
@@ -580,13 +618,26 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
 
         // CAS FUNDED → ISSUING (matches the durable invariant that signing
-        // only happens once per quote). Skip when the quote is already ISSUING
-        // or ISSUED (replay path will reconcile).
+        // only happens once per quote). The pre-FUNDED states (ISSUED /
+        // ISSUING / EXPIRED / FAILED) were already rejected above, so any
+        // path that reaches here either advances cleanly or loses a race
+        // to another writer (in which case the next request will see the
+        // post-advance state and reject).
         if (quote.lifecycleState() == VoucherLifecycleState.FUNDED) {
             int advanced = voucherRepo.casLifecycle(quoteId,
                     VoucherLifecycleState.FUNDED, VoucherLifecycleState.ISSUING);
             if (advanced == 0) {
-                log.info("mint_task voucher_lifecycle_advance_lost quote_id={}", quoteId);
+                // Another writer advanced the state between our findById and
+                // the CAS. Re-read and reject — we MUST NOT proceed to sign
+                // because that would violate the single-issuance invariant.
+                VoucherQuote refreshed = voucherRepo.findById(quoteId).orElse(quote);
+                VoucherLifecycleState newState = refreshed.lifecycleState();
+                log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
+                        quoteId, newState);
+                if (newState == VoucherLifecycleState.ISSUED) {
+                    throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                }
+                throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
             }
         }
 
