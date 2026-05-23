@@ -155,7 +155,7 @@ indexed hop.
 |---|---|---|---|
 | `voucher_quote_id` | `VARCHAR(64)` | PK, NOT NULL, FK → `voucher_quote.quote_id` | One issuance per voucher quote |
 | `funding_id` | `VARCHAR(64)` | NOT NULL, FK → `voucher_funding.funding_id` | |
-| `issuance_id` | `VARCHAR(64)` | NOT NULL | The spec-001 `IssuanceRecord.quote_id` — wait, vouchers don't use mint_quote.quote_id… so this references a *voucher-specific* issuance row. **Implementation note**: when voucher issuance lands, it ALSO writes a row to spec-001's `IssuanceRecord` keyed by the *voucher* quote_id (the IssuanceRecord PK is `quote_id` which is unique across the union of mint_quote and voucher_quote since R1's namespace invariant holds). |
+| `issuance_id` | `VARCHAR(64)` | NOT NULL | **DENORMALISED MIRROR** of `voucher_quote_id`. Retained for forward compatibility (e.g. a future shared issuance ledger). **Implementation reality (PR #321 review fix)**: voucher issuance does NOT write to spec-001's `issuance_record`. That table FKs its `quote_id` to `mint_quote(quote_id)` and voucher quoteIds live in `voucher_quote`, so any attempt to write there throws `DataIntegrityViolationException`. `voucher_issuance` IS the voucher ledger; no second-table write. No FK declared on this column because it intentionally references a column that doesn't enforce voucher namespace overlap with `mint_quote`. |
 | `outputs_hash` | `CHAR(64)` | NOT NULL | Mirror of `IssuanceRecord.outputs_hash` for fast voucher audits without joining |
 | `issued_at` | `TIMESTAMPTZ` | NOT NULL, default `now()` | |
 

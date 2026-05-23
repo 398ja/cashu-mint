@@ -33,7 +33,10 @@ public class VoucherIdempotencyKeySweeper {
                 log.info("voucher_idempotency_key_sweep removed={}", removed);
             }
         } catch (RuntimeException e) {
-            log.warn("voucher_idempotency_key_sweep failed: {}", e.getMessage());
+            // Spec 003 review fix — pass the exception object so SLF4J
+            // logs the full stack trace; e.getMessage() alone loses it
+            // and prod debugging needs the cause chain.
+            log.warn("voucher_idempotency_key_sweep failed", e);
         }
     }
 }

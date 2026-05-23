@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.CustomerPaymentFundingEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherFundingEntity;
@@ -97,11 +98,26 @@ public class VoucherFundingResolverImpl implements VoucherFundingResolver {
         funding.setWebhookEventQuoteId(quote.quoteId());
         funding.setCustomerId(quote.customerId());
 
-        CustomerPaymentFundingEntity saved = fundingJpa.save(funding);
-        log.info("voucher_funding lazy_create funding_id={} quote_id={} provider={} provider_event_id={}",
-                saved.getFundingId(), quote.quoteId(), provider, providerEventId);
-        incrementCounter();
-        return saved;
+        try {
+            CustomerPaymentFundingEntity saved = fundingJpa.save(funding);
+            log.info("voucher_funding lazy_create funding_id={} quote_id={} provider={} provider_event_id={}",
+                    saved.getFundingId(), quote.quoteId(), provider, providerEventId);
+            incrementCounter();
+            return saved;
+        } catch (DataIntegrityViolationException conflict) {
+            // Spec 003 review fix — another writer (the webhook bridge,
+            // or a concurrent mint call) inserted the same
+            // (provider, provider_event_id) tuple between our find and
+            // our save. The UNIQUE constraint catches it; re-read and
+            // return the winner's row so the resolver stays idempotent
+            // under concurrency.
+            CustomerPaymentFundingEntity winner = fundingJpa
+                    .findByProviderEventId(provider, providerEventId)
+                    .orElseThrow(() -> conflict);
+            log.info("voucher_funding lazy_create_race_lost funding_id={} quote_id={} provider={} provider_event_id={}",
+                    winner.getFundingId(), quote.quoteId(), provider, providerEventId);
+            return winner;
+        }
     }
 
     private void incrementCounter() {
