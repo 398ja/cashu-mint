@@ -39,8 +39,8 @@ description: "Task list for spec 002 — Melt Path Burn-First Ordering and Burn-
 
 ### 2A. Cross-repo prerequisite (cashu-vault)
 
-- [ ] **T010** [F] Coordinate with the cashu-vault spec backlog (research R3) the `melt_saga_id` nullable column + partial unique index on `proof_entity`. The cashu-vault PR MUST land first; this spec cannot complete US2 without it. (Add the cashu-vault PR link to this spec's PR description.)
-- [ ] **T011** [P] [F] Add `ProofRepository.markPending(proofIds, meltSagaId)` and `clearMeltSaga(proofIds)` helpers on the mint-side `cashu-mint-protocol` proof port (consumed via the existing vault REST adapter); these wrap the cashu-vault calls that set/clear `melt_saga_id`.
+- [X] **T010** [F] Coordinate with the cashu-vault spec backlog (research R3) the `melt_saga_id` nullable column + partial unique index on `proof_entity`. The cashu-vault PR MUST land first; this spec cannot complete US2 without it. (Add the cashu-vault PR link to this spec's PR description.)
+- [X] **T011** [P] [F] Add `ProofRepository.markPending(proofIds, meltSagaId)` and `clearMeltSaga(proofIds)` helpers on the mint-side `cashu-mint-protocol` proof port (consumed via the existing vault REST adapter); these wrap the cashu-vault calls that set/clear `melt_saga_id`.
 
 ### 2B. Database schema (mint side)
 

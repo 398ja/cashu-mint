@@ -273,6 +273,19 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         // FR-003: durable proof PENDING commit BEFORE gateway.pay.
         try {
             persistPendingProofs(proofsToMelt);
+            // Spec 002 T011 — bind every PENDING proof to this saga via
+            // the vault's melt_saga_id column. The application-level CAS in
+            // ProofRepository.markPending refuses to bind any proof that is
+            // already held by another saga, so concurrent melts for
+            // overlapping inputs land here with a partial application.
+            int bound = proofVaultService.markPendingForSaga(
+                    proofsToMelt.stream().map(p -> p.getSecret().toString()).toList(),
+                    sagaId,
+                    java.util.UUID.fromString(mint.getId()));
+            if (bound < proofsToMelt.size()) {
+                log.warn("[melt-saga] saga_binding_partial quote_id={} saga_id={} expected={} bound={}",
+                        quoteId, sagaId, proofsToMelt.size(), bound);
+            }
         } catch (CashuErrorException | RuntimeException e) {
             log.error("melt_saga proof_pending_failed quote_id={} saga_id={}", quoteId, sagaId, e);
             // Saga stays in PROOFS_HELD with no proofs actually held; the
@@ -309,6 +322,16 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
 
         try {
             createInvalidateProofsTask(proofsToMelt).execute();
+            // Spec 002 T011 — commit the saga binding to SPENT atomically
+            // and clear melt_saga_id. The legacy invalidate already
+            // flipped state=SPENT; this call is a no-op on state but
+            // clears the binding for SC-002 reconciliation
+            // (COMPLETED saga must have 0 held proofs).
+            int spent = proofVaultService.commitSpentForSaga(sagaId);
+            if (log.isDebugEnabled()) {
+                log.debug("[melt-saga] saga_binding_committed saga_id={} spent={}",
+                        sagaId, spent);
+            }
         } catch (CashuErrorException | RuntimeException invalidateError) {
             // FR-011 — operator-visible alert: payment is gone but the burn
             // commit failed. Saga lands in PAYMENT_SENT_BURN_FAILED and
@@ -426,16 +449,23 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                 failure.reason() + ":" + failure.providerCode(), "system");
-        // FR-006 proof refund (PENDING → UNSPENT): the cashu-vault SPI does
-        // not yet expose a refund method. Until the cross-repo
-        // ProofVaultService#refundPending(secret) call lands, proofs stay
-        // PENDING on failure. The saga itself is in FAILED so a duplicate
-        // melt for the same quote is rejected, and the PROOFS_HELD TTL
-        // sweep in MeltSagaReconciler surfaces long-pending proofs for
-        // operator action. Tracked alongside the
-        // proof_entity.melt_saga_id FK column dependency.
-        log.error("[melt-saga][alert] proof_refund_pending quote_id={} saga_id={} proof_count={} reason={} provider_code={}",
-                quoteId, sagaId, proofsToMelt.size(), failure.reason(), failure.providerCode());
+        // Spec 002 T011 / FR-006 — proof refund (PENDING → UNSPENT). Flips
+        // every proof bound to this saga back to UNSPENT atomically and
+        // clears the melt_saga_id binding, so the wallet can retry the
+        // same proofs in a future melt.
+        try {
+            int refunded = proofVaultService.refundForSaga(sagaId);
+            log.info("[melt-saga] proof_refund saga_id={} quote_id={} refunded={}",
+                    sagaId, quoteId, refunded);
+        } catch (CashuErrorException | RuntimeException refundError) {
+            // Best-effort: log + alert if the vault is unreachable. The
+            // PROOFS_HELD TTL sweep in MeltSagaReconciler is the safety
+            // net for stuck-in-PENDING proofs (though here the saga is
+            // already terminal FAILED, the sweep won't trigger; operator
+            // tooling addresses this case).
+            log.error("[melt-saga][alert] proof_refund_failed quote_id={} saga_id={} cause={}",
+                    quoteId, sagaId, refundError.getMessage());
+        }
         ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error", failure.reason());
         cacheTerminalError(sagaId, error);
         throw new CashuErrorException(error.toJson());
