@@ -77,6 +77,15 @@
             <artifactId>cashu-mint-webhook</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- Spec 001 durable-state adapter. Runtime scope so MintJpaAutoConfiguration
+             is on the classpath when cashu.mint.jpa.enabled=true is flipped on in
+             staging/prod; the autoconfig stays inert when the flag is off. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>cashu-mint-jpa</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <!-- Cashu Voucher Dependencies -->
         <dependency>
             <groupId>${project.groupId}</groupId>

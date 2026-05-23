@@ -114,9 +114,23 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             return legacyMarkAsPaid(notification);
         }
 
+        // Spec 001 FR-005: a webhook with a missing or non-positive amount can
+        // never legitimately match an authorised quote (amount > 0 is enforced
+        // both at the quote layer and on the webhook_event CHECK constraint).
+        // Bail out with a controlled outcome before reaching the durable
+        // insert — otherwise the constraint would translate to a 500 for the
+        // caller and we'd burn a (provider, provider_event_id) slot for
+        // garbage data.
+        if (notification.getAmount() == null || notification.getAmount() <= 0) {
+            log.warn("webhook_event invalid_amount provider_event_id={} quote_id={} amount={}",
+                    notification.getProviderEventId(), notification.getQuoteId(), notification.getAmount());
+            incrementCounter(Outcome.amount_mismatch);
+            return WebhookOutcome.of(Outcome.amount_mismatch);
+        }
+
         String provider = resolveProvider();
         String providerEventId = notification.getProviderEventId();
-        long amount = toLong(notification.getAmount());
+        long amount = notification.getAmount().longValue();
 
         // Idempotency: check (provider, provider_event_id) first to avoid PK
         // collision races.
@@ -127,26 +141,29 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
 
         MintQuote quote = mintQuoteRepository.findById(notification.getQuoteId()).orElse(null);
         if (quote == null) {
-            return persist(provider, providerEventId, notification, amount, Outcome.orphan);
+            // Spec 001 § WebhookEvent: orphan rows have no matching quote, so
+            // we don't know the unit. Default to "sat" — operator
+            // reconciliation should already cover orphan investigation.
+            return persist(provider, providerEventId, notification, amount, "sat", Outcome.orphan);
         }
 
         if (amount != quote.amount()) {
-            return persist(provider, providerEventId, notification, amount, Outcome.amount_mismatch);
+            return persist(provider, providerEventId, notification, amount, quote.unit(), Outcome.amount_mismatch);
         }
         if (!equalsCaseInsensitive(notification.getPaymentMethod(), quote.paymentMethod())) {
-            return persist(provider, providerEventId, notification, amount, Outcome.method_mismatch);
+            return persist(provider, providerEventId, notification, amount, quote.unit(), Outcome.method_mismatch);
         }
-        // The webhook carries no explicit unit field; we treat it as matching
-        // the durable quote's unit since the gateway is unit-scoped per
-        // payment_method. If a future PaymentNotification carries unit, compare
-        // here and emit unit_mismatch.
+        // The webhook carries no explicit unit field; the persisted row's
+        // unit is the quote's unit since the gateway is unit-scoped per
+        // payment_method. If a future PaymentNotification carries unit,
+        // compare here and emit unit_mismatch.
 
         if (quote.lifecycleState() != LifecycleState.UNPAID
                 && quote.lifecycleState() != LifecycleState.PENDING) {
             Outcome o = (quote.lifecycleState() == LifecycleState.EXPIRED)
                     ? Outcome.expired
                     : Outcome.noop;
-            return persist(provider, providerEventId, notification, amount, o);
+            return persist(provider, providerEventId, notification, amount, quote.unit(), o);
         }
 
         // Move PENDING -> PAID (also accept UNPAID -> PAID for gateways that
@@ -160,10 +177,10 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             Outcome o = (refreshed.lifecycleState() == LifecycleState.EXPIRED)
                     ? Outcome.expired
                     : Outcome.noop;
-            return persist(provider, providerEventId, notification, amount, o);
+            return persist(provider, providerEventId, notification, amount, refreshed.unit(), o);
         }
 
-        WebhookOutcome result = persistAccepted(provider, providerEventId, notification, amount);
+        WebhookOutcome result = persistAccepted(provider, providerEventId, notification, amount, quote.unit());
         if (result.isAccepted()) {
             paidQuotes.put(notification.getQuoteId(), notification);
         }
@@ -189,34 +206,33 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     }
 
     private WebhookOutcome persist(String provider, String providerEventId,
-                                   PaymentNotification notification, long amount, Outcome outcome) {
+                                   PaymentNotification notification, long amount, String unit, Outcome outcome) {
         try {
             webhookEventRepository.insert(new EventRow(
                     provider, providerEventId, notification.getQuoteId(), amount,
-                    "sat", // see comment in record(); unit is inferred today
-                    notification.getPaymentMethod(), null, outcome, Instant.now()));
+                    unit, notification.getPaymentMethod(), null, outcome, Instant.now()));
         } catch (WebhookEventRepository.DuplicateEventException dup) {
             // Another writer beat us to it; surface as duplicate/tamper.
             return classifyReplay(dup.existing(), notification, amount, provider, providerEventId);
         }
         incrementCounter(outcome);
-        log.warn("webhook_event outcome={} provider={} provider_event_id={} quote_id={} amount={}",
-                outcome, provider, providerEventId, notification.getQuoteId(), amount);
+        log.warn("webhook_event outcome={} provider={} provider_event_id={} quote_id={} amount={} unit={}",
+                outcome, provider, providerEventId, notification.getQuoteId(), amount, unit);
         return WebhookOutcome.of(outcome);
     }
 
     private WebhookOutcome persistAccepted(String provider, String providerEventId,
-                                           PaymentNotification notification, long amount) {
+                                           PaymentNotification notification, long amount, String unit) {
         try {
             webhookEventRepository.insert(new EventRow(
                     provider, providerEventId, notification.getQuoteId(), amount,
-                    "sat", notification.getPaymentMethod(), null, Outcome.accepted, Instant.now()));
+                    unit, notification.getPaymentMethod(), null, Outcome.accepted, Instant.now()));
         } catch (WebhookEventRepository.DuplicateEventException dup) {
             return classifyReplay(dup.existing(), notification, amount, provider, providerEventId);
         }
         incrementCounter(Outcome.accepted);
-        log.info("webhook_event accepted provider={} provider_event_id={} quote_id={} amount={}",
-                provider, providerEventId, notification.getQuoteId(), amount);
+        log.info("webhook_event accepted provider={} provider_event_id={} quote_id={} amount={} unit={}",
+                provider, providerEventId, notification.getQuoteId(), amount, unit);
         return WebhookOutcome.accepted();
     }
 
@@ -246,10 +262,6 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
 
     private static boolean equalsCaseInsensitive(String left, String right) {
         return left != null && right != null && left.equalsIgnoreCase(right);
-    }
-
-    private static long toLong(Integer amount) {
-        return amount == null ? 0L : amount.longValue();
     }
 
     private void incrementCounter(Outcome outcome) {
