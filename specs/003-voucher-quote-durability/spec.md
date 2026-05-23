@@ -14,11 +14,17 @@
 - `VoucherQuoteRegistry.java:52`
 
 **Cross-Repo Sibling Spec (out of scope here)**:
-- `imani-bridge` — gateway-side voucher orchestration in
-  `WalletPluginAdapter` (`quoteVoucherMint`,
-  `mintWithQuoteSkipPaymentCheck`, finalization). The
-  matching gateway-side hardening is tracked separately;
-  this spec assumes that work lands in lock-step.
+- **UPDATE 2026-05-23**: `imani-bridge` is retired. Voucher
+  purchase orchestration in the decomposed architecture is owned
+  by `imani-gateway-atomic` (the saga / escrow service at port
+  8083), driven by the `imani-apps` voucher front-end
+  (`voucher/buy.html` → `@imani/atomic-purchase` TS package →
+  `AtomicPurchaseController`). The gateway-side hardening
+  (propagating `Idempotency-Key` + `funding_ref` to cashu-mint's
+  `POST /v1/vouchers`) is tracked as a follow-up spec on
+  `imani-gateway-atomic`. This spec's funding gate works without
+  it via the resolver's lazy webhook-event fallback (see T010
+  for the full retargeted plan).
 
 ## Constitution Alignment
 
@@ -305,7 +311,8 @@ the same response and only one durable record.
   issuance (preferred) or writes a durable outbox record
   before returning, so reconciliation can complete
   issuance exactly once. (Cross-repo coordination with
-  imani-bridge.)
+  imani-gateway-atomic, the post-imani-bridge successor that
+  owns voucher purchase orchestration.)
 - **FR-013**: Javadoc on `VoucherMintQuoteTask` and the
   voucher branch of `MintTask` MUST explicitly note that
   vouchers are a non-standard extension on top of
@@ -362,13 +369,15 @@ the same response and only one durable record.
 
 ## Assumptions
 
-- The gateway-side hardening in `imani-bridge`
-  (`WalletPluginAdapter.quoteVoucherMint`,
-  `mintWithQuoteSkipPaymentCheck`, finalization persistence)
-  is tracked in a sister spec and lands in lock-step. This
-  spec assumes that work delivers a clean way for the
-  gateway to attach a `funding_ref` to the voucher quote
-  at creation time.
+- **UPDATE 2026-05-23**: `imani-bridge` is retired. The successor
+  for voucher purchase orchestration is `imani-gateway-atomic`
+  (`AtomicPurchaseController` at `/api/v1/atomic[-purchase]`),
+  driven from the `imani-apps` voucher front-end via
+  `@imani/atomic-purchase`. Eager `funding_ref` propagation from
+  the atomic saga's escrow ledger is tracked as a follow-up spec
+  in that repo; cashu-mint's resolver lazily creates the funding
+  row from `webhook_event` when the eager path is absent, so
+  correctness does NOT require the sister spec to land first.
 - Hibernate Envers (a known dependency in the stack) is
   the natural audit mechanism for `VoucherQuote` and
   `VoucherIssuance` state transitions.
@@ -383,7 +392,10 @@ the same response and only one durable record.
 - Migration of existing in-memory voucher quotes at
   deploy time will be handled in planning; a maintenance
   window or draining strategy is acceptable.
-- Voucher creation endpoints currently exposed by
-  `imani-bridge` map cleanly to the new auth + rate-limit
-  contract; if not, additional gateway-side adjustments
-  are tracked separately.
+- Voucher creation endpoints in cashu-mint will be consumed by
+  `imani-gateway-atomic`'s `AtomicPurchaseController` in the
+  decomposed architecture. The new auth (FR-007: ADMIN role,
+  follow-up: merchant/service-account JWT) and rate-limit
+  contracts apply to that caller; any additional gateway-side
+  adjustments (e.g. service-account credentials provisioning)
+  are tracked in `imani-gateway-atomic`'s follow-up spec.

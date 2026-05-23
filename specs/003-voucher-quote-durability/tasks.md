@@ -34,9 +34,14 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-### 2A. Cross-repo prerequisite (imani-bridge)
+### 2A. Cross-repo prerequisite (RETARGETED — imani-bridge retired)
 
-- [ ] **T010** [F] Coordinate with imani-bridge spec backlog the gateway-side change in `WalletPluginAdapter` so voucher quote creation forwards `funding_ref` (a `provider_event_id` / `merchant_debit_id` / `iou_id`) AND `idempotency_key` to the mint. The imani-bridge PR MUST land in lock-step. (Add link to PR description.)
+- [~] **T010** [F] **Obsolete as written.** `imani-bridge` is retired; voucher orchestration has moved to the decomposed `imani-gateway-atomic` service (the saga / escrow owner at port 8083). The successor work is:
+  - **imani-gateway-atomic**: extend `AtomicPurchaseController` (`/api/v1/atomic[-purchase]`) so voucher purchases forward `Idempotency-Key` (the saga's `purchaseId`) and a `funding_ref` referencing the escrow_ledger row to cashu-mint's `POST /v1/vouchers`. Owns the authoritative "customer has paid" signal via its escrow ledger (V1 migration).
+  - **imani-apps**: `voucher/buy.html` + `voucher/js/buy.js` already route through the atomic saga via `@imani/atomic-purchase` (USE_ATOMIC_PURCHASE feature flag is on). The front-end already carries the purchase id; surfacing the typed `funding_required` error as a distinct toast is optional UX polish.
+  - **Correctness fallback**: cashu-mint's `VoucherFundingResolverImpl.lazyCreateCustomerPaymentFunding` already scans `webhook_event` for `accepted` events and creates the funding row on demand — works regardless of whether the eager `funding_ref` propagation lands. So this work is an operator-visibility / ordering optimisation, not a correctness gate.
+
+  Tracked as separate follow-up specs in **imani-gateway-atomic** (eager funding_ref propagation) and **imani-apps** (typed-error UX). Neither blocks PR #321 from landing.
 
 ### 2B. Database schema
 
@@ -196,7 +201,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 ### Phase Dependencies
 
 - **Phase 1**: depends on **spec 001 foundational tasks landing**. Spec 001's `cashu-mint-jpa` + `IssuanceRecord` table are required.
-- **Phase 2**: depends on Phase 1. External cross-repo dep on imani-bridge `WalletPluginAdapter` change (T010) — that PR MUST land before US1 implementation can pass IT for `funding_ref` propagation.
+- **Phase 2**: depends on Phase 1. T010 cross-repo dep was originally on imani-bridge; that repo is retired. The successor `imani-gateway-atomic` follow-up does NOT block US1 because cashu-mint's resolver fallback covers the funding lookup via `webhook_event` scan. Eager `funding_ref` propagation is purely an operator-visibility / ordering optimisation.
 - **Phase 3 (US1)**: depends on Phase 2.
 - **Phase 4 (US2)**: depends on Phase 3 (uses `VoucherMintQuoteTask` and `VoucherQuoteEntity`).
 - **Phase 5 (US3)**: depends on Phase 2 middleware; can run in parallel with US1 + US2 once middleware is wired.
@@ -233,7 +238,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 ### Parallel team
 
-- Dev A: US1 + cross-repo imani-bridge coordination (T010).
+- Dev A: US1 + cross-repo coordination (T010, now retargeted to `imani-gateway-atomic`).
 - Dev B: Phase 2 middleware + US3.
 - Joint: foundational entities + US2 restart test.
 
@@ -244,7 +249,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 - The `IssuanceRecord` table from spec 001 is the issuance ledger for both regular mint quotes AND voucher quotes — the namespace invariant from research R1 makes this safe. The audit JOIN in T903 goes `voucher_issuance → voucher_funding` and additionally JOINs `issuance_record` if blinded-output forensics are needed.
 - Voucher endpoints MUST NOT be advertised under NUT-06's `nuts` key (FR-010). Use `vendor_extensions`.
 - IOU policy is profile-level for v1 (research R6). Per-merchant policy is a future enhancement.
-- The cross-repo imani-bridge change (T010) needs `funding_ref` and `idempotency_key` to be passed forward. Without it, US1's `funding_ref` lookup falls back to scanning `WebhookEvent` by quote_id (slower but functional).
+- T010 was originally the imani-bridge `funding_ref` + `Idempotency-Key` propagation. With imani-bridge retired, this is split: (a) backend work moves to `imani-gateway-atomic`'s `AtomicPurchaseController`; (b) front-end already routes through the atomic saga via `@imani/atomic-purchase` in `imani-apps/voucher/buy.html`. Cashu-mint's resolver fallback already handles the no-eager-funding case via `WebhookEvent` scan, so cross-repo work is an optimisation rather than a correctness gate.
 - The voucher state machine (UNFUNDED → FUNDED → ISSUING → ISSUED) mirrors spec 001's MintQuote machine; reuse the CAS idiom.
 - The `policy_profile` column on `MerchantIouFunding` (data-model) lets the operator detect when an IOU was issued under a profile whose policy has since changed; surface in operator dashboard.
 - Cross-link to spec 001: this spec extends `WebhookEvent` flow with the voucher-funding insert (T113). If spec 001 and spec 003 land in different release trains, T113 has to coordinate.

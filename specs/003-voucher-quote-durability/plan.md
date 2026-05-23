@@ -202,6 +202,12 @@ voucher_funding`; the extra join is cheap with the right indexes.
 concrete subclasses — that hierarchy stays inside the voucher
 domain so it doesn't pollute `mint_quote`.
 
+**UPDATE 2026-05-23**: `imani-bridge` is retired; the successor
+voucher purchase orchestration lives in `imani-gateway-atomic`
+(`AtomicPurchaseController`), driven from the `imani-apps`
+voucher front-end (`voucher/buy.html` via `@imani/atomic-purchase`).
+The original text below is preserved for historical context.
+
 The cross-repo coordination with imani-bridge (gateway-side
 `WalletPluginAdapter` orchestration) is **out of scope** for this
 branch but is a prerequisite. It is tracked separately; this spec
