@@ -101,6 +101,10 @@ public class MeltSagaReconciler {
                 int updated = sagaRepository.casState(
                         saga.meltSagaId(), MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.COMPLETED);
                 if (updated == 1) {
+                    // Spec 002 T011 + Codex review — proofs were left PENDING
+                    // when the saga entered PAYMENT_UNKNOWN; on resolve they
+                    // MUST advance with the saga or they'll be stuck.
+                    settleProofs(saga.meltSagaId(), /*spent*/ true);
                     sagaRepository.recordTransition(saga.meltSagaId(),
                             MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.COMPLETED,
                             "reconciled preimage=" + success.paymentHash(), "poll");
@@ -111,6 +115,7 @@ public class MeltSagaReconciler {
                 int updated = sagaRepository.casState(
                         saga.meltSagaId(), MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.FAILED);
                 if (updated == 1) {
+                    settleProofs(saga.meltSagaId(), /*spent*/ false);
                     sagaRepository.recordTransition(saga.meltSagaId(),
                             MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.FAILED,
                             "reconciled " + failure.reason() + ":" + failure.providerCode(), "poll");
@@ -131,6 +136,35 @@ public class MeltSagaReconciler {
                             paymentUnknownTtl);
                 }
             }
+        }
+    }
+
+    /**
+     * Settles the proof rows bound to a saga when the reconciler advances
+     * it out of {@code PAYMENT_UNKNOWN}. Without this call the saga state
+     * would be out of sync with the proof state (PENDING rows stranded).
+     *
+     * @param meltSagaId  saga whose proofs to settle
+     * @param spent       true → {@code commitSpentForSaga} (Success branch);
+     *                    false → {@code refundForSaga} (DefinitiveFailure branch)
+     */
+    private void settleProofs(String meltSagaId, boolean spent) {
+        if (proofVaultService == null) {
+            log.warn("[melt-saga][alert] reconcile_proof_settle_skipped saga_id={} reason=no_proof_vault_service",
+                    meltSagaId);
+            return;
+        }
+        try {
+            int affected = spent
+                    ? proofVaultService.commitSpentForSaga(meltSagaId)
+                    : proofVaultService.refundForSaga(meltSagaId);
+            log.info("[melt-saga] reconcile_proof_settle saga_id={} spent={} affected={}",
+                    meltSagaId, spent, affected);
+        } catch (Exception settleError) {
+            // Operator alert — saga is now terminal but proofs may still
+            // be PENDING. Manual reconciliation required.
+            log.error("[melt-saga][alert] reconcile_proof_settle_failed saga_id={} spent={} cause={}",
+                    meltSagaId, spent, settleError.getMessage());
         }
     }
 

@@ -266,7 +266,20 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         SagaSeed seed = new SagaSeed(sagaId, quoteId, invoiceAmount, feeReserve.getTotal(),
                 feeReserve.getInputFees(), proofSum, proofsToMelt.size(),
                 resolveProviderName(gateway));
-        meltSagaRepository.save(seed);
+        // The findByQuoteId check above is non-atomic with the save: two
+        // concurrent melts for the same quote could both pass the
+        // existing-saga check and race to save. The
+        // melt_saga.quote_id UNIQUE constraint catches the loser; translate
+        // the DataIntegrityViolationException into the same
+        // `melt_in_progress` response the explicit check produces, so
+        // clients never see a 500 on the race.
+        try {
+            meltSagaRepository.save(seed);
+        } catch (org.springframework.dao.DataIntegrityViolationException race) {
+            log.warn("melt_in_progress race_lost quote_id={} attempted_saga_id={} cause={}",
+                    quoteId, sagaId, race.getMessage());
+            throw new CashuErrorException(new ErrorResponse("melt_in_progress").toJson());
+        }
         meltSagaRepository.recordTransition(sagaId, null, MeltSagaState.PROOFS_HELD,
                 "initial transition", "system");
 
