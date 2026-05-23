@@ -54,4 +54,30 @@ public class VoucherDurabilityProperties {
     private Duration idempotencyKeyTtl = Duration.ofHours(24);
 
     private int rateLimitTokensPerMinute = 60;
+
+    /**
+     * Spec 004 FR-002 — HMAC-SHA-256 salt for identity-at-rest hashing.
+     * No default — MUST be set by the operator (env: {@code CASHU_MINT_VOUCHER_IDENTITY_SALT}).
+     * Boot fails when unset or shorter than 32 bytes (256 bits) of entropy.
+     * See {@code HmacSha256IdentityHasher} for validation.
+     */
+    private String identitySalt;
+
+    /**
+     * Spec 004 FR-003 / Clarifications Q2 — how long identity columns
+     * survive after a voucher quote reaches a terminal state. Default 90 days.
+     */
+    private Duration identityRetention = Duration.ofHours(2160);
+
+    /**
+     * Spec 004 FR-011 / Clarifications Q5 — rows per transaction in the
+     * boot-time identity backfill job. Default 1000.
+     */
+    private int identityBackfillBatchSize = 1000;
+
+    /**
+     * Spec 004 FR-003 — Spring cron expression for the daily retention purge job.
+     * Default {@code 0 0 3 * * *} (03:00 mint-local). Override per environment.
+     */
+    private String identityPurgeCron = "0 0 3 * * *";
 }

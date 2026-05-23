@@ -1,14 +1,14 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft
+  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft -> 1.2.0
   Modified principles:
-    - 1.2.0-draft: Principle VII (Data Minimisation and
-      Customer-Identity Custody) added as DRAFT alongside spec
-      004 (004-voucher-data-minimisation). Ratification (bump to
-      1.2.0) is gated on spec 004's plan + tasks being accepted.
-      Until then the principle is proposed guidance, not a
-      blocking gate.
+    - 1.2.0: Principle VII (Data Minimisation and Customer-Identity
+      Custody) RATIFIED. Spec 004's plan + tasks + implementation
+      (T010) demonstrate the principle in action. Promoted from
+      DRAFT to canonical; now a blocking gate for any spec that
+      touches customer or merchant identity in durable storage.
+    - 1.2.0-draft: Principle VII added as DRAFT alongside spec 004.
     - 1.1.0: Principle II (Protocol Compliance) expanded with
       explicit upstream spec links to github.com/cashubtc/nuts,
       per-NUT URLs (NUT-00 through NUT-24), and a requirement
@@ -31,9 +31,7 @@
     - .specify/templates/plan-template.md — ✅ compatible
     - .specify/templates/spec-template.md — ✅ compatible
     - .specify/templates/tasks-template.md — ✅ compatible
-  Follow-up TODOs:
-    - Ratify Principle VII when spec 004 plan + tasks land
-      (1.2.0-draft → 1.2.0).
+  Follow-up TODOs: None (1.2.0 ratified via spec 004 T010).
 -->
 
 # cashu-mint Constitution
@@ -206,13 +204,13 @@ model for I/O-bound work in the mint:
 - YAGNI: no speculative abstractions; three similar lines are
   better than a premature helper
 
-### VII. Data Minimisation and Customer-Identity Custody (DRAFT — pending ratification)
+### VII. Data Minimisation and Customer-Identity Custody
 
-> **STATUS**: This principle is a DRAFT introduced alongside spec
-> 004 (`004-voucher-data-minimisation`). It MUST be ratified
-> (constitution bump 1.1.0 → 1.2.0) when spec 004's plan + tasks
-> are accepted. Until then, treat it as proposed guidance, not a
-> blocking gate.
+> **STATUS**: Ratified in 1.2.0 (spec 004 T010). The reference
+> implementation is in `specs/004-voucher-data-minimisation/` —
+> any new spec that touches customer or merchant identity in
+> durable storage MUST follow the same pattern (hash at rest +
+> time-bound retention + operator-side salt-aware forensics).
 
 Cashu's non-custodiality is cryptographic — blind signatures
 prevent the mint from linking issued proofs to future spends. That
