@@ -1,8 +1,14 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0
+  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft
   Modified principles:
+    - 1.2.0-draft: Principle VII (Data Minimisation and
+      Customer-Identity Custody) added as DRAFT alongside spec
+      004 (004-voucher-data-minimisation). Ratification (bump to
+      1.2.0) is gated on spec 004's plan + tasks being accepted.
+      Until then the principle is proposed guidance, not a
+      blocking gate.
     - 1.1.0: Principle II (Protocol Compliance) expanded with
       explicit upstream spec links to github.com/cashubtc/nuts,
       per-NUT URLs (NUT-00 through NUT-24), and a requirement
@@ -25,7 +31,9 @@
     - .specify/templates/plan-template.md — ✅ compatible
     - .specify/templates/spec-template.md — ✅ compatible
     - .specify/templates/tasks-template.md — ✅ compatible
-  Follow-up TODOs: None
+  Follow-up TODOs:
+    - Ratify Principle VII when spec 004 plan + tasks land
+      (1.2.0-draft → 1.2.0).
 -->
 
 # cashu-mint Constitution
@@ -197,6 +205,50 @@ model for I/O-bound work in the mint:
   type + structured fields)
 - YAGNI: no speculative abstractions; three similar lines are
   better than a premature helper
+
+### VII. Data Minimisation and Customer-Identity Custody (DRAFT — pending ratification)
+
+> **STATUS**: This principle is a DRAFT introduced alongside spec
+> 004 (`004-voucher-data-minimisation`). It MUST be ratified
+> (constitution bump 1.1.0 → 1.2.0) when spec 004's plan + tasks
+> are accepted. Until then, treat it as proposed guidance, not a
+> blocking gate.
+
+Cashu's non-custodiality is cryptographic — blind signatures
+prevent the mint from linking issued proofs to future spends. That
+property covers TOKEN custody. It does NOT automatically cover
+DATA custody: the mint may still record customer identity at
+funding / quote-creation time, and any such record is itself a
+custodial liability.
+
+This principle covers the data side:
+
+- **Disclose what is recorded**: if the mint stores customer or
+  merchant identity in any durable form, that fact MUST be
+  documented in a customer-facing disclosure and linked from the
+  surface where the customer initiates the action.
+- **Hash identity at rest**: customer / merchant identifiers
+  (npubs, principal ids) MUST be stored as salted hashes in
+  every durable table including audit shadows. The mint salt
+  comes from configuration and MUST NOT be hard-coded.
+- **Time-bound retention of PII**: identity-bearing columns MUST
+  decay to NULL after a configurable retention window once the
+  surrounding record reaches a terminal state. Financial fields
+  (amounts, lifecycle, foreign keys) stay; identity does not.
+- **Idempotency caches**: response-body caches MUST NOT preserve
+  raw identity past the cache TTL. Redact, hash, or scrub.
+- **Operator-side recovery**: data minimisation MUST NOT break
+  legitimate operator forensics. Operators with the salt MUST be
+  able to query in-window data by raw identifier without manual
+  hash computation.
+- **Salt rotation is a planned operation**: rotation requires a
+  documented re-hash batch + downtime window; it is not a casual
+  config change.
+
+Token integrity (Principle I) takes precedence: data-minimisation
+measures that would weaken the token-integrity invariants are
+rejected. The two principles are designed to coexist — see spec
+004 for the demonstrated coexistence pattern.
 
 ## Security Requirements
 
