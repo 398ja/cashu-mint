@@ -18,10 +18,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class WebhookProperties {
 
     /**
-     * HMAC shared secret used to validate signatures on incoming webhooks. When
-     * blank, signatures are not enforced (development convenience); in non-local
-     * profiles {@link WebhookSecretStartupValidator} prevents the context from
-     * starting in that state.
+     * HMAC shared secret used to validate signatures on incoming webhooks.
+     *
+     * <p>Spec 001 FR-007 makes signature validation strict: when this value
+     * is blank, {@link WebhookSignatureValidator#validate} fails closed
+     * (returns {@code false}) — unsigned webhooks are NOT accepted.
+     * Non-local Spring profiles refuse to boot at all when the secret is
+     * unset, via {@link WebhookSecretStartupValidator}, so production
+     * deployments never reach the strict-validator path with an empty
+     * secret. The {@code local} profile is exempt from the boot guard so
+     * developers can iterate, but the validator still rejects requests
+     * unless the secret is configured.
      */
     private String sharedSecret = "";
 

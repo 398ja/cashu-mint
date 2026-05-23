@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.jpa.adapter;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.IssuanceRecordEntity;
@@ -16,6 +17,7 @@ import java.util.Optional;
  * row so the caller can serve a NUT-19 replay.
  */
 @Component
+@ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class IssuanceRecordRepositoryAdapter implements IssuanceRecordRepository {
 

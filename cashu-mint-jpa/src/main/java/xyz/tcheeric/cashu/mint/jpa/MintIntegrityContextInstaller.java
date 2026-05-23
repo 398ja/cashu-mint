@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
@@ -22,6 +23,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class MintIntegrityContextInstaller {
 

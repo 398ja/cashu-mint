@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.jpa;
 
 import org.flywaydb.core.Flyway;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.domain.EntityScan;

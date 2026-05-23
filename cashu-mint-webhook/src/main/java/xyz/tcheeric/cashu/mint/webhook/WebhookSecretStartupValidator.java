@@ -12,8 +12,12 @@ import org.springframework.stereotype.Component;
  * startup MUST fail in {@code staging} and {@code prod} profiles when the
  * webhook secret is unset.
  *
- * <p>The {@code local} profile is exempt so developers can iterate without a
- * configured HMAC secret.
+ * <p><b>Local profile</b>: this startup gate is bypassed for {@code local} so
+ * developers can iterate on unrelated code without configuring a secret. The
+ * exemption is for <em>startup only</em> — {@link WebhookSignatureValidator}
+ * itself still fails closed when the secret is blank (signatures cannot
+ * verify against an empty key), so local-mode developers either configure a
+ * test secret or accept that the webhook endpoint will reject every delivery.
  */
 @Slf4j
 @Component

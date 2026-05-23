@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
@@ -12,11 +13,14 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Properties;
 
 /**
  * NUT-04 mint-quote creation: asks the gateway for a payment request and
@@ -104,7 +108,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         Integer expiry = gateway.getPaymentExpiry(quoteId);
 
         if (mintQuoteRepository != null) {
-            String resolvedUnit = unit != null ? unit : "sat";
+            String resolvedUnit = unit != null ? unit : resolveDefaultUnit();
             String resolvedMintUrl = mintUrl != null ? mintUrl : "";
             try {
                 mintQuoteRepository.save(new NewQuote(
@@ -129,6 +133,30 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                 .request(request)
                 .expiry(expiry)
                 .build();
+    }
+
+    /**
+     * Resolve the unit to persist when the caller didn't pass one explicitly.
+     * Reads {@code cashu.units} from {@code proto.properties} — the same
+     * configuration {@link xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil}
+     * uses to pick a gateway when only the method (no unit) is provided. This
+     * keeps the durable {@code mint_quote.unit} aligned with whichever unit
+     * the gateway will actually transact in.
+     *
+     * <p>Falls back to {@code "sat"} if the property is missing.
+     */
+    private static String resolveDefaultUnit() {
+        try (InputStream input = new ClassPathResource("proto.properties").getInputStream()) {
+            Properties props = new Properties();
+            props.load(input);
+            String unit = props.getProperty("cashu.units");
+            if (unit != null && !unit.isBlank()) {
+                return unit.trim();
+            }
+        } catch (IOException ignored) {
+            // fall through to default
+        }
+        return "sat";
     }
 
     private static String requestHash(long amount, String unit, PaymentMethod method) {

@@ -24,11 +24,24 @@ export MINT_WEBHOOK_SECRET="$(openssl rand -hex 32)"
 cashu.mint.webhook.shared-secret=replace-with-32+ bytes of entropy
 ```
 
-The legacy `webhook.secret` property is retained for backwards
-compatibility but the canonical key going forward is
-`cashu.mint.webhook.shared-secret`. Both can be wired to the same
-environment variable (the default `application.properties` in
-`cashu-mint-rest` already does this).
+The canonical key going forward is `cashu.mint.webhook.shared-secret`.
+The legacy `webhook.secret` property still exists in
+`application.properties` for older docs/deployments, but
+**`WebhookSignatureValidator` binds only from
+`cashu.mint.webhook.shared-secret`** — `webhook.secret` is no longer
+consulted at runtime.
+
+For zero-config compatibility, the default `application.properties` in
+`cashu-mint-rest` falls back to the legacy `webhook.secret` value when
+`MINT_WEBHOOK_SECRET` is unset:
+
+```properties
+cashu.mint.webhook.shared-secret=${MINT_WEBHOOK_SECRET:${webhook.secret:}}
+```
+
+so a deployment that still sets `WEBHOOK_SECRET` (mapping to
+`webhook.secret`) keeps working. Production deployments **should**
+migrate to the canonical `MINT_WEBHOOK_SECRET` env var.
 
 If you run the service without the `local` profile and leave the secret
 unset, the Spring context will refuse to start with:
