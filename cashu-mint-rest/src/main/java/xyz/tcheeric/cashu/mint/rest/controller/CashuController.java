@@ -74,15 +74,24 @@ public class CashuController<T extends Secret> {
     private final SignatureVaultService signatureVaultService;
     @Nullable
     private final Nut17EventPublisher eventPublisher;
+    // Spec 002: vault services are injected as Spring beans so ITs can
+    // @MockBean them. Previously the melt path instantiated DefaultXxx
+    // directly, which forced ITs to spin up a real cashu-vault.
+    private final xyz.tcheeric.cashu.mint.proto.service.MintVaultService mintVaultService;
+    private final xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService;
 
     public CashuController(NUT06 nut06,
                            MintLoadService mintLoadService,
                            SignatureVaultService signatureVaultService,
-                           @Nullable Nut17EventPublisher eventPublisher) {
+                           @Nullable Nut17EventPublisher eventPublisher,
+                           xyz.tcheeric.cashu.mint.proto.service.MintVaultService mintVaultService,
+                           xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
         this.signatureVaultService = signatureVaultService;
         this.eventPublisher = eventPublisher;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     // Keyset generation is an administrative operation and not part of the public spec.
@@ -313,8 +322,8 @@ public class CashuController<T extends Secret> {
                 null,
                 MintProtocolServiceFactory.getInstance(),
                 mintLoadService,
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+                mintVaultService,
+                proofVaultService
         );
 
         // Publish events for NUT-17 WebSocket subscribers
@@ -368,8 +377,8 @@ public class CashuController<T extends Secret> {
                 null,
                 MintProtocolServiceFactory.getInstance(),
                 mintLoadService,
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService(),
-                new xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService()
+                mintVaultService,
+                proofVaultService
         );
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
     }
