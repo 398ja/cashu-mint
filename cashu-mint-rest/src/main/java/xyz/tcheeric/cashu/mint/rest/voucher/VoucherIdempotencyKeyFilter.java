@@ -1,9 +1,11 @@
 package xyz.tcheeric.cashu.mint.rest.voucher;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,13 +13,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherIdempotencyKey;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherIdempotencyKeyRepository;
 import xyz.tcheeric.cashu.mint.rest.config.VoucherDurabilityProperties;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -42,8 +46,6 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
 
     private static final String VOUCHER_PATH_PREFIX = "/v1/vouchers";
     private static final String HEADER_IDEMPOTENCY_KEY = "Idempotency-Key";
-
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final VoucherDurabilityProperties properties;
 
@@ -82,10 +84,11 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
             return;
         }
 
-        ContentCachingRequestWrapper bufferedRequest = new ContentCachingRequestWrapper(request);
-        // Force the body to be buffered before we can read it.
-        bufferedRequest.getInputStream().readAllBytes();
-        String requestHash = sha256Hex(bufferedRequest.getContentAsByteArray());
+        // Read the body once for hashing, then forward it via a replayable
+        // wrapper so the downstream controller can still consume it.
+        byte[] bodyBytes = request.getInputStream().readAllBytes();
+        String requestHash = sha256Hex(bodyBytes);
+        ReplayableRequest bufferedRequest = new ReplayableRequest(request, bodyBytes);
 
         Optional<VoucherIdempotencyKey> existing = repository.findByKey(idempotencyKey, principalId);
         // Spec 003 review fix — honour expiresAt at request time. The TTL
@@ -172,5 +175,36 @@ public class VoucherIdempotencyKeyFilter extends OncePerRequestFilter {
             String responseBodyJson,
             Instant expiresAt,
             Instant createdAt) implements VoucherIdempotencyKey {
+    }
+
+    /**
+     * Request wrapper whose {@code getInputStream()} replays a previously
+     * captured byte array. Lets the filter read the body for hashing and
+     * still let the downstream controller consume the same payload.
+     */
+    private static final class ReplayableRequest extends HttpServletRequestWrapper {
+
+        private final byte[] body;
+
+        ReplayableRequest(HttpServletRequest delegate, byte[] body) {
+            super(delegate);
+            this.body = body;
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            ByteArrayInputStream source = new ByteArrayInputStream(body);
+            return new ServletInputStream() {
+                @Override public boolean isFinished() { return source.available() == 0; }
+                @Override public boolean isReady() { return true; }
+                @Override public void setReadListener(ReadListener listener) { /* no-op */ }
+                @Override public int read() { return source.read(); }
+            };
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
+        }
     }
 }

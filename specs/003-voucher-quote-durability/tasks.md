@@ -28,7 +28,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 - [X] **T001** [S] Confirm spec 001's `cashu-mint-jpa` and `IssuanceRecord` table are on the trunk. Abort if not.
 - [X] **T002** [P] [S] Add `org.springframework.boot:spring-boot-starter-security` dependency to `cashu-mint-rest` if not already present (research R3); also add `com.github.ben-manes.caffeine:caffeine` (already a Spring Boot transitive — verify).
 - [X] **T003** [P] [S] Extend the existing `LongArithmeticArchTest` (spec 001 T050) package scope to cover `tasks/VoucherMintQuoteTask`, `domain/Voucher*`, and `jpa/entity/Voucher*`.
-- [ ] **T004** [P] [S] Add a `VoucherTestSupport` test fixture in `cashu-mint-rest-it/src/test/java/.../it/support/VoucherTestSupport.java` providing builders for `CustomerPaymentFunding` / `MerchantDebitFunding` / `MerchantIouFunding` test instances + matching `VoucherQuote` setups.
+- [X] **T004** [P] [S] Add a `VoucherTestSupport` test fixture in `cashu-mint-rest-it/src/test/java/.../it/support/VoucherTestSupport.java` providing builders for `CustomerPaymentFunding` / `MerchantDebitFunding` / `MerchantIouFunding` test instances + matching `VoucherQuote` setups.
 
 ---
 
@@ -98,10 +98,10 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 ### Tests for User Story 1
 
-- [ ] **T100** [P] [US1] `VoucherQuoteDurableIT`: scenarios (no funding, customer-paid funding settled, merchant-funded debit recorded, IOU with policy ALLOW, IOU with policy DENY). Assert correct outcome per scenario; assert `voucher_issuance` row exists with correct `funding_id` on success; assert zero `voucher_issuance` on rejection.
+- [X] **T100** [P] [US1] `VoucherQuoteDurableIT`: scenarios (no funding, customer-paid funding settled, merchant-funded debit recorded, IOU with policy ALLOW, IOU with policy DENY). Assert correct outcome per scenario; assert `voucher_issuance` row exists with correct `funding_id` on success; assert zero `voucher_issuance` on rejection.
 - [X] **T101** [P] [US1] `VoucherFundingResolverTest` (unit): per funding source — happy path + failure modes (funding not found, amount mismatch, unit mismatch).
 - [ ] **T102** [P] [US1] `VoucherFundingPolicyIT` (covers FR-006): `iou-policy=DENY` ⇒ creation of IOU-funded quote rejected at REQUEST time, not at MINT time.
-- [ ] **T103** [P] [US1] `VoucherAuditTraceIT`: given an issued voucher proof, the audit query (`voucher_issuance JOIN voucher_funding`) returns the funding source in one hop (FR-005).
+- [X] **T103** [P] [US1] `VoucherAuditTraceIT`: given an issued voucher proof, the audit query (`voucher_issuance JOIN voucher_funding`) returns the funding source in one hop (FR-005).
 
 ### Implementation for User Story 1
 
@@ -133,7 +133,7 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 ### Tests for User Story 2
 
-- [ ] **T200** [P] [US2] `VoucherQuoteRestartIT`: full happy path with Spring context restart in the middle. Two variants — restart between quote-creation and funding-resolution, and restart between funding-resolution and mint.
+- [X] **T200** [P] [US2] `VoucherQuoteRestartIT`: full happy path with Spring context restart in the middle. Two variants — restart between quote-creation and funding-resolution, and restart between funding-resolution and mint.
 - [X] **T201** [P] [US2] `VoucherQuoteRegistryCacheTest` (unit): cold cache after restart re-hydrates from `VoucherQuoteRepository` on first read.
 
 ### Implementation for User Story 2
@@ -154,9 +154,9 @@ description: "Task list for spec 003 — Voucher Quote Durability and Funding-So
 
 ### Tests for User Story 3
 
-- [ ] **T300** [P] [US3] `VoucherEndpointAuthIT`: 401 / 403 / happy paths (SC-003).
-- [ ] **T301** [P] [US3] `VoucherEndpointRateLimitIT`: exhaust the per-principal bucket; verify 429 + retry-after header; verify the bucket refills.
-- [ ] **T302** [P] [US3] `VoucherEndpointIdempotencyIT`: same key + same hash ⇒ cached response; same key + different hash ⇒ 409.
+- [X] **T300** [P] [US3] `VoucherEndpointAuthIT`: 401 / 403 / happy paths (SC-003).
+- [X] **T301** [P] [US3] `VoucherEndpointRateLimitIT`: exhaust the per-principal bucket; verify 429 + retry-after header; verify the bucket refills.
+- [X] **T302** [P] [US3] `VoucherEndpointIdempotencyIT`: same key + same hash ⇒ cached response; same key + different hash ⇒ 409.
 - [ ] **T303** [P] [US3] `VoucherEndpointBootIT`: in `staging` profile with security misconfigured (e.g. missing JWT issuer), startup fails.
 - [X] **T304** [P] [US3] `VoucherNutAdvertisementIT`: GET `/v1/info` (NUT-06) response's `nuts` key does NOT include voucher (SC-004); `vendor_extensions` MAY include it.
 
