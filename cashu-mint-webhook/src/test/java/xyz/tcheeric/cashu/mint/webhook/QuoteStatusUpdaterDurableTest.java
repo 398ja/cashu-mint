@@ -81,6 +81,63 @@ class QuoteStatusUpdaterDurableTest {
     }
 
     @Test
+    void accepted_persisted_with_quote_unit_not_hardcoded_sat() {
+        // Quote is in EUR; persisted row MUST carry "eur", not the hardcoded "sat".
+        PaymentNotification n = bolt11("q-eur", 10, "preimage-eur");
+        MintQuote eurQuote = new MintQuoteStub("q-eur", 10L, "eur", "https://mint.example",
+                "bolt11", "q-eur", LifecycleState.PENDING, "0".repeat(64));
+        when(mintQuoteRepository.findById("q-eur")).thenReturn(Optional.of(eurQuote));
+        when(mintQuoteRepository.casLifecycle("q-eur", LifecycleState.PENDING, LifecycleState.PAID))
+                .thenReturn(1);
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        ArgumentCaptor<WebhookEvent> captor = ArgumentCaptor.forClass(WebhookEvent.class);
+        verify(webhookEventRepository).insert(captor.capture());
+        assertThat(captor.getValue().unit())
+                .as("persisted unit must match the quote's unit, not be hardcoded")
+                .isEqualTo("eur");
+    }
+
+    @Test
+    void null_amount_is_rejected_before_persisting_any_event() {
+        PaymentNotification n = PaymentNotification.builder()
+                .quoteId("q-null").paymentMethod("bolt11").amount(null).preimage("p-null").build();
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        verify(webhookEventRepository, never()).insert(any());
+        verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
+                "outcome", "amount_mismatch").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void zero_amount_is_rejected_before_persisting_any_event() {
+        PaymentNotification n = bolt11("q-zero", 0, "p-zero");
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        verify(webhookEventRepository, never()).insert(any());
+        verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+    }
+
+    @Test
+    void negative_amount_is_rejected_before_persisting_any_event() {
+        PaymentNotification n = bolt11("q-neg", -5, "p-neg");
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        verify(webhookEventRepository, never()).insert(any());
+    }
+
+    @Test
     void amount_mismatch_persists_with_mismatch_outcome_and_leaves_quote_state_untouched() {
         PaymentNotification n = bolt11("q-amount", 9, "preimage-amount");
         when(mintQuoteRepository.findById("q-amount"))
