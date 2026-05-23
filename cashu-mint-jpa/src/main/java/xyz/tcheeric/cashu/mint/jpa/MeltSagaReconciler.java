@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -51,16 +52,19 @@ public class MeltSagaReconciler {
 
     private final MeltSagaRepository sagaRepository;
     private final LightningPaymentPort lightningPaymentPort;
+    private final ProofVaultService proofVaultService;
     private final Duration paymentUnknownTtl;
     private final Duration proofsHeldTtl;
 
     public MeltSagaReconciler(
             MeltSagaRepository sagaRepository,
             @Autowired(required = false) LightningPaymentPort lightningPaymentPort,
+            @Autowired(required = false) ProofVaultService proofVaultService,
             @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl,
             @Value("${cashu.mint.melt.proofs-held-ttl:PT5M}") Duration proofsHeldTtl) {
         this.sagaRepository = sagaRepository;
         this.lightningPaymentPort = lightningPaymentPort;
+        this.proofVaultService = proofVaultService;
         this.paymentUnknownTtl = paymentUnknownTtl;
         this.proofsHeldTtl = proofsHeldTtl;
     }
@@ -146,6 +150,19 @@ public class MeltSagaReconciler {
             int updated = sagaRepository.casState(
                     saga.meltSagaId(), MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
             if (updated == 1) {
+                // Spec 002 T011 — refund the proofs back to UNSPENT and
+                // clear the saga binding, so the wallet's proofs become
+                // spendable again after the TTL-triggered cleanup.
+                if (proofVaultService != null) {
+                    try {
+                        int refunded = proofVaultService.refundForSaga(saga.meltSagaId());
+                        log.info("[melt-saga] ttl_sweep_refund saga_id={} refunded={}",
+                                saga.meltSagaId(), refunded);
+                    } catch (Exception refundError) {
+                        log.warn("[melt-saga][alert] ttl_sweep_refund_failed saga_id={} cause={}",
+                                saga.meltSagaId(), refundError.getMessage());
+                    }
+                }
                 sagaRepository.recordTransition(saga.meltSagaId(),
                         MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                         "proofs_held_ttl_expired", "sweep");

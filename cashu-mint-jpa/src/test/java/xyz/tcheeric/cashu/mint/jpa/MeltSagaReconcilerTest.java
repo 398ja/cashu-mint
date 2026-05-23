@@ -39,7 +39,7 @@ class MeltSagaReconcilerTest {
         sagaRepo = Mockito.mock(MeltSagaRepository.class);
         paymentPort = Mockito.mock(LightningPaymentPort.class);
         when(sagaRepo.casState(anyString(), any(), any())).thenReturn(1);
-        reconciler = new MeltSagaReconciler(sagaRepo, paymentPort,
+        reconciler = new MeltSagaReconciler(sagaRepo, paymentPort, /*proofVaultService*/ null,
                 Duration.ofHours(1), Duration.ofMinutes(5));
     }
 
@@ -136,7 +136,7 @@ class MeltSagaReconcilerTest {
 
     @Test
     void reconciler_skips_quietly_when_payment_port_is_unwired() {
-        MeltSagaReconciler portless = new MeltSagaReconciler(sagaRepo, null,
+        MeltSagaReconciler portless = new MeltSagaReconciler(sagaRepo, null, /*proofVaultService*/ null,
                 Duration.ofHours(1), Duration.ofMinutes(5));
         portless.reconcileTick();
         // No interactions with sagaRepo.findByState — the reconciler returns early.
