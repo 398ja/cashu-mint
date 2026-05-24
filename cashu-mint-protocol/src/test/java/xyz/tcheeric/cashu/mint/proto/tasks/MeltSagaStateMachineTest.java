@@ -149,11 +149,48 @@ class MeltSagaStateMachineTest {
                 .thenThrow(new RuntimeException("vault_unreachable"));
 
         MeltTask task = f.task(/*proofSum*/ 105L);
+        // Spec 005 fail-closed contract: the client-visible terminal error
+        // is proofs_not_bound (NOT the underlying vault exception), so a
+        // wallet sees the same code regardless of why the bind failed.
         assertThatThrownBy(task::execute)
-                .isInstanceOf(CashuErrorException.class);
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
 
         verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
         verify(f.proofVaultService, times(1)).refundForSaga(anyString());
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void refund_failure_during_fail_closed_leaves_saga_in_PROOFS_HELD() throws CashuErrorException {
+        // Spec 005 (Codex P1): if refundForSaga ALSO throws while releasing a
+        // partial hold, the saga must stay in PROOFS_HELD — not move to
+        // FAILED — so MeltSagaReconciler.sweepStaleProofsHeld can retry the
+        // refund. Forcing FAILED would strand the proofs in PENDING forever.
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        // Partial bind (1 of 2) triggers the fail-closed release...
+        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(1);
+        // ...but the refund itself fails (transient vault outage).
+        when(f.proofVaultService.refundForSaga(anyString()))
+                .thenThrow(new RuntimeException("vault_unreachable_for_refund"));
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
+
+        // Payment never attempted.
+        verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
+        // Saga NOT moved to FAILED — there is no PROOFS_HELD → FAILED CAS.
+        verify(f.sagaRepo, never()).casState(anyString(),
+                eq(MeltSagaState.PROOFS_HELD), eq(MeltSagaState.FAILED));
+        // No terminal error cached on the still-non-terminal saga (the only
+        // transition recorded is the initial null → PROOFS_HELD).
+        ArgumentCaptor<MeltSagaState> to = ArgumentCaptor.forClass(MeltSagaState.class);
+        verify(f.sagaRepo, times(1)).recordTransition(anyString(), any(), to.capture(), any(), anyString());
+        assertThat(to.getAllValues()).containsExactly(MeltSagaState.PROOFS_HELD);
     }
 
     @Test

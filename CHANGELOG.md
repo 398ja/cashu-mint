@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.1] - 2026-05-24
+
+### Fixed
+
+- **PR #328 review follow-ups (spec 005 fail-closed path).**
+  - Refund-failure recovery (Codex P1): if `refundForSaga` throws while
+    releasing a partial hold, the saga is now left in `PROOFS_HELD` (not
+    forced to `FAILED`) so `MeltSagaReconciler.sweepStaleProofsHeld` can
+    retry the refund — forcing `FAILED` would strand the proofs in
+    `PENDING` with no automatic recovery.
+  - Consistent terminal error (Copilot): every bind-failure path
+    (normalize error, vault exception, partial bind) now throws the
+    `proofs_not_bound` terminal error rather than leaking
+    `melt_proof_pending_error` / the raw vault cause.
+  - Renamed `buildNormalisedProofEntities` / `normalisedProofs` to the
+    American spelling used elsewhere in the codebase.
+  - Tests assert the `proofs_not_bound` code on the vault-exception paths
+    (unit + IT) and add a refund-failure-leaves-PROOFS_HELD case.
+
+### Changed
+
+- Updated cashu-vault 0.9.0 → 0.9.1 (insert-or-claim hardening).
+
+---
+
 ## [0.18.0] - 2026-05-24
 
 ### Security

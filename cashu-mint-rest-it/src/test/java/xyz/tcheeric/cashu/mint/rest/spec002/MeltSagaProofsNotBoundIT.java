@@ -202,14 +202,18 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
     @Test
     void vault_exception_during_bind_fails_closed_before_payment_T503() throws Exception {
         // Vault unreachable during insert-or-claim — must not proceed
-        // to external payment. Saga is logged into FAILED via the catch
-        // path; the proofs_not_bound counter is incremented.
+        // to external payment. The client sees the spec-005 terminal
+        // error proofs_not_bound (NOT the underlying vault exception);
+        // any partial hold is released.
         when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
                 .thenThrow(new RuntimeException("vault_unreachable_for_bind"));
 
         ResponseEntity<String> response = postMelt("quote-vault-down", overFundedProofs());
 
         assertThat(response.getStatusCode().isError()).isTrue();
+        // Client-facing terminal error is the same proofs_not_bound code as
+        // the partial / zero-bind cases above — never leaks the vault cause.
+        assertThat(response.getBody()).contains("proofs_not_bound");
 
         // The saga record exists, and lightningPaymentPort.pay was never invoked.
         MeltSagaEntity saga = sagas.findByQuoteId("quote-vault-down").orElseThrow();
