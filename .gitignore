@@ -63,3 +63,4 @@ build/
 # TypeScript build info
 *.tsbuildinfo
 /specs/
+/cashu-mint-jpa/logs/

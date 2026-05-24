@@ -1,5 +1,7 @@
 package xyz.tcheeric.cashu.mint.webhook;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +38,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/webhook")
 public final class PaymentWebhookController {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
+
     private final QuoteStatusUpdater quoteStatusUpdater;
     private final WebhookSignatureValidator signatureValidator;
 
@@ -48,19 +53,40 @@ public final class PaymentWebhookController {
     /**
      * Receive payment notification from payment-adapter.
      *
-     * <p><b>Security:</b> Input validation is performed before processing to ensure
-     * required fields are present (per Oracle Secure Coding Guidelines INPUT-1).
+     * <p>Spec 008 — the controller reads the <b>raw request body bytes</b> and
+     * validates the HMAC signature over those exact bytes (the bytes the
+     * adapter signed) BEFORE deserialising. Authenticating first avoids
+     * parsing untrusted input and is what makes raw-body HMAC possible;
+     * Jackson's {@code @RequestBody PaymentNotification} would otherwise
+     * consume the stream and the original bytes would be lost.
      *
      * @param signature    HMAC signature from X-Webhook-Signature header
      * @param idempotencyKey idempotency key from X-Idempotency-Key header
-     * @param notification the payment notification payload
+     * @param rawBody       the exact request body bytes
      * @return 200 OK if processed, 400 if invalid input, 401 if signature invalid, 500 on error
      */
     @PostMapping("/payment")
     public ResponseEntity<WebhookResponse> handlePaymentWebhook(
             @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody PaymentNotification notification) {
+            @RequestBody(required = false) byte[] rawBody) {
+
+        // Authenticate over the exact bytes the sender signed, before parsing.
+        if (!signatureValidator.validate(rawBody, signature)) {
+            log.warn("Invalid webhook signature");
+            return ResponseEntity.status(401)
+                    .body(WebhookResponse.error("Invalid signature"));
+        }
+
+        // Deserialize the authenticated body.
+        PaymentNotification notification;
+        try {
+            notification = MAPPER.readValue(rawBody, PaymentNotification.class);
+        } catch (Exception e) {
+            log.warn("Webhook body could not be parsed: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(WebhookResponse.error("Malformed notification payload"));
+        }
 
         // Input validation (per Oracle Secure Coding Guidelines INPUT-1)
         if (notification == null) {
@@ -81,13 +107,6 @@ public final class PaymentWebhookController {
 
         log.info("Received payment webhook: quoteId={}, method={}, idempotencyKey={}",
                 notification.getQuoteId(), notification.getPaymentMethod(), idempotencyKey);
-
-        // Validate signature if configured
-        if (!signatureValidator.validate(notification, signature)) {
-            log.warn("Invalid webhook signature for quoteId={}", notification.getQuoteId());
-            return ResponseEntity.status(401)
-                    .body(WebhookResponse.error("Invalid signature"));
-        }
 
         try {
             WebhookOutcome outcome = quoteStatusUpdater.record(notification);

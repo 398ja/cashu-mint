@@ -78,14 +78,15 @@ class PaymentNotificationTest {
         // Given
         Instant now = Instant.now();
 
-        // When
+        // When (spec 008 added the `unit` field → all-args arity is now 7)
         PaymentNotification notification = new PaymentNotification(
-                "q1", "bolt11", 500, "pre123", "receipt456", now);
+                "q1", "bolt11", 500, "sat", "pre123", "receipt456", now);
 
         // Then
         assertEquals("q1", notification.getQuoteId());
         assertEquals("bolt11", notification.getPaymentMethod());
         assertEquals(500, notification.getAmount());
+        assertEquals("sat", notification.getUnit());
         assertEquals("pre123", notification.getPreimage());
         assertEquals("receipt456", notification.getReceiptId());
         assertEquals(now, notification.getPaidAt());
