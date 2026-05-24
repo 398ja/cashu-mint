@@ -141,29 +141,31 @@ WHERE lifecycle_state IN ('ISSUED', 'EXPIRED', 'FAILED')
 
 ## 7. Salt rotation runbook (offline procedure — emergency use only)
 
-FR-007 forbids salt rotation in v1 for the regular path. If a salt leaks and you MUST rotate:
+FR-007 forbids salt rotation in v1 for the regular path. v1 does **not ship a salt-rotation tool**; the previous "one-shot rotation tool" example in this section described software that does not exist (called out in the PR #324 review). The reason: rotation requires re-hashing every identity column under the new salt, but the mint never stored the raw npub — only the HMAC. Without the source-of-truth raw value, the mint mathematically cannot transform `HMAC(OLD_SALT, raw)` into `HMAC(NEW_SALT, raw)`.
 
-1. **Schedule maintenance window** — voucher endpoints will be unavailable for the rotation duration (estimate: ~10s per 100k voucher rows at the backfill rate from § 3).
-2. **Stop the mint** — drain in-flight requests; `kubectl scale deploy/cashu-mint --replicas=0` or equivalent.
-3. **Generate the new salt** as in § 1.
-4. **Run the one-shot rotation tool:**
+### What rotation actually means in v1
 
-   ```bash
-   docker run --rm \
-     -e CASHU_MINT_JPA_DATASOURCE_URL=$CASHU_MINT_DB_URL \
-     -e CASHU_MINT_JPA_DATASOURCE_USERNAME=$CASHU_MINT_DB_USER \
-     -e CASHU_MINT_JPA_DATASOURCE_PASSWORD=$CASHU_MINT_DB_PASSWORD \
-     -e CASHU_MINT_VOUCHER_IDENTITY_SALT_OLD=$OLD_SALT \
-     -e CASHU_MINT_VOUCHER_IDENTITY_SALT_NEW=$NEW_SALT \
-     cashu-mint-rest:latest rotate-identity-salt
-   ```
+> **Salt rotation in v1 is a forward-only operation. You accept loss of forensic-lookup capability for every voucher row issued under the old salt.**
 
-   The tool reads every identity column, computes `OLD_HMAC = HMAC(OLD_SALT, value)`, then writes `NEW_HMAC = HMAC(NEW_SALT, raw_value)` — but **it doesn't have the raw value**. So rotation is only possible if you also have the raw npub source-of-truth, which you typically don't.
+If a salt leaks and you MUST rotate:
 
-   **In practice: salt leak = lose forensic lookup capability for the affected window**. You CAN rotate going forward by deploying the new salt and accepting that pre-rotation rows are no longer salt-aware queryable. Document this in the incident report.
+1. **Decide on rotation scope.** Pre-rotation `voucher_quote`, `customer_payment_funding`, `merchant_debit_funding`, and `merchant_iou_funding` rows will become **forensically opaque** — their stored `customer_id` / `merchant_id` HMACs were computed under the old salt and the FR-009 lookup hashes the operator's raw npub under the new salt. The two will never match. This is the explicit v1 tradeoff; document it in the incident report.
+2. **Schedule a brief maintenance window.** A few seconds of voucher-endpoint downtime during the redeploy. No backfill runs — the rotation is the redeploy, not a data migration.
+3. **Generate the new salt** as in § 1, store it under a new version in the secret manager, leave the old salt entry in place for ≥ 7 days for audit / rollback.
+4. **Stop the mint** — drain in-flight requests; `kubectl scale deploy/cashu-mint --replicas=0` or equivalent.
+5. **Redeploy with the new salt env var.** Update `CASHU_MINT_VOUCHER_IDENTITY_SALT` to point at the new secret version; deploy; verify `/actuator/health` is `UP`.
+6. **Test the FR-009 endpoint with a post-rotation npub** to confirm new lookups work. (Pre-rotation lookups return zero matches — that is expected and is the visible signal that rotation completed.)
+7. **Burn the old salt** from the secret manager after the audit window expires.
 
-5. **Update the secret manager** with the new salt; redeploy with the new env var; verify `/actuator/health` is `UP`.
-6. **Burn the old salt** from secret manager + any backup; document the rotation in the operator log.
+### What rotation does NOT do
+
+- It does NOT re-hash existing rows. There is no `rotate-identity-salt` command, no `--rehash-existing` flag, no batch job.
+- It does NOT preserve cross-rotation forensic lookups. A row issued at 09:00 under salt A and a row issued at 10:00 under salt B for the same customer have unrelated `customer_id` HMACs after rotation; a single operator lookup at 11:00 returns only the 10:00 row.
+- It is NOT routine. v2 may add a salt-versioned column (`identity_salt_version`) so rotation is online and lookups can hash under multiple historical salts — but until then, treat rotation as a one-way break in forensic continuity.
+
+### Why this is acceptable
+
+The salt's job is to make a DB dump non-re-identifiable by an attacker who lacks the salt — the customer-disclosure document (§ 8) is explicit that forensic lookup is a privileged operator path, not a customer-facing guarantee. Losing lookup capability for the pre-rotation window degrades operations (operators answer "we cannot tell" for pre-rotation queries) but does not break any FR — FR-009 binds the post-rotation set, not the historical set.
 
 ---
 

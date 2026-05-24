@@ -133,12 +133,25 @@ public class VoucherIdentityRetentionPurgeService {
         // identity whenever any FK-linked voucher_quote is past retention.
         String liveSql;
         String audSql;
+        Object[] audParams;
         if (target.hasLifecycle()) {
             liveSql = "UPDATE " + target.liveTable() + " SET " + setClause
                     + " WHERE lifecycle_state IN ('ISSUED', 'EXPIRED', 'FAILED')"
                     + " AND updated_at < ? AND (" + identityFilter + ")";
+            // Spec 004 review fix (Copilot PR #324) — scope the audit
+            // purge to revisions of rows whose CURRENT live-table
+            // lifecycle_state is terminal AND updated_at is past the
+            // retention cutoff. Without this predicate, an old
+            // _aud revision of a still-active UNFUNDED/FUNDED row
+            // would be purged even though the row hasn't reached
+            // the retention boundary.
             audSql = "UPDATE " + target.audTable() + " SET " + setClause
-                    + " WHERE updated_at < ? AND (" + identityFilter + ")";
+                    + " WHERE quote_id IN ("
+                    + "  SELECT quote_id FROM " + target.liveTable()
+                    + "   WHERE lifecycle_state IN ('ISSUED', 'EXPIRED', 'FAILED')"
+                    + "     AND updated_at < ?"
+                    + " ) AND (" + identityFilter + ")";
+            audParams = new Object[]{java.sql.Timestamp.from(cutoff)};
         } else {
             liveSql = "UPDATE " + target.liveTable() + " SET " + setClause
                     + " WHERE funding_id IN ("
@@ -152,10 +165,11 @@ public class VoucherIdentityRetentionPurgeService {
                     + "   WHERE lifecycle_state IN ('ISSUED', 'EXPIRED', 'FAILED')"
                     + "     AND updated_at < ?"
                     + " ) AND (" + identityFilter + ")";
+            audParams = new Object[]{java.sql.Timestamp.from(cutoff)};
         }
 
         long live = jdbc.update(liveSql, java.sql.Timestamp.from(cutoff));
-        long aud = jdbc.update(audSql, java.sql.Timestamp.from(cutoff));
+        long aud = jdbc.update(audSql, audParams);
         log.debug("voucher_identity_purge target={} live={} aud={}",
                 target.liveTable(), live, aud);
         return Map.of("live", live, "aud", aud);

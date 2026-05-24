@@ -55,7 +55,41 @@ route:
   repeat_interval: 4h
 
   # Child routes for specific alert handling
+  #
+  # Alertmanager route matching is first-match-wins unless an explicit
+  # `continue: true` is set. PR #324 review fix: spec=004 routes were
+  # listed AFTER the generic severity routes and therefore never
+  # matched — a critical voucher alert was siphoned to
+  # critical-receiver (webhook stub) before the spec=004 +
+  # route=pagerduty composite ever got a chance. Spec=004 routes are
+  # now ordered FIRST so the more-specific match runs before the
+  # severity catch-alls. The severity routes below still fire for any
+  # non-voucher alert.
   routes:
+    # Spec 004 T606 / FR-015 / FR-016 — voucher-specific routes.
+    # Receivers below read endpoints from env vars; deploy-time
+    # configuration is per-environment (PagerDuty service key, Slack
+    # webhook URLs).
+    - match:
+        spec: '004'
+        route: pagerduty
+      receiver: 'voucher-pagerduty'
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: false
+    - match:
+        spec: '004'
+        route: slack-vouchers-ops
+      receiver: 'voucher-slack-ops'
+      group_wait: 1m
+      repeat_interval: 4h
+    - match:
+        spec: '004'
+        route: slack-merchant-finance
+      receiver: 'voucher-slack-finance'
+      group_wait: 1m
+      repeat_interval: 24h
+
     # Critical alerts - send immediately
     - match:
         severity: critical
@@ -83,30 +117,6 @@ route:
         severity: info
       receiver: 'info-receiver'
       group_wait: 5m
-      repeat_interval: 24h
-
-    # Spec 004 T606 / FR-015 / FR-016 — voucher-specific routes.
-    # Receivers below read endpoints from env vars; deploy-time
-    # configuration is per-environment (PagerDuty service key, Slack
-    # webhook URLs).
-    - match:
-        spec: '004'
-        route: pagerduty
-      receiver: 'voucher-pagerduty'
-      group_wait: 10s
-      repeat_interval: 1h
-      continue: false
-    - match:
-        spec: '004'
-        route: slack-vouchers-ops
-      receiver: 'voucher-slack-ops'
-      group_wait: 1m
-      repeat_interval: 4h
-    - match:
-        spec: '004'
-        route: slack-merchant-finance
-      receiver: 'voucher-slack-finance'
-      group_wait: 1m
       repeat_interval: 24h
 
 # Receivers - notification channels

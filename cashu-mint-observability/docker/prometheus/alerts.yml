@@ -252,3 +252,30 @@ groups:
           summary: "Voucher identity backfill stuck"
           description: "/actuator/health/readiness has been DOWN for 1h — backfill may have failed mid-batch"
           runbook_url: "https://github.com/398ja/cashu-mint/blob/master/specs/004-voucher-data-minimisation/quickstart.md#troubleshooting"
+
+  # Spec 004 T605 / FR-017 — backward-compat aliases for the
+  # deprecated plural metric names that pre-existed PR #321 (which
+  # introduced singular cashu_mint_voucher_*). Recording rules CREATE
+  # the alias time-series alongside the singular originals so existing
+  # alerts / dashboards keep working while consumers migrate. REMOVE
+  # this entire group after one release cycle (tracked by SC-010 lint).
+  # PR #324 review fix: previously implemented as metric_relabel_configs
+  # in prometheus.yml — which REWROTE singular → plural, silently
+  # dropping the singular name and breaking the spec-004 dashboards.
+  - name: cashu_mint_voucher_compat
+    interval: 15s
+    rules:
+      - record: cashu_mint_vouchers_face_value_issued_total
+        expr: cashu_mint_voucher_face_value_issued_total
+      - record: cashu_mint_vouchers_face_value_redeemed_total
+        expr: cashu_mint_voucher_face_value_redeemed_total
+      - record: cashu_mint_vouchers_fees_collected_total
+        expr: cashu_mint_voucher_fees_collected_total
+      - record: cashu_mint_vouchers_issued_total
+        expr: cashu_mint_voucher_issued_total
+      - record: cashu_mint_vouchers_quotes_active
+        expr: cashu_mint_voucher_quotes_active
+      - record: cashu_mint_vouchers_redeemed_total
+        expr: cashu_mint_voucher_redeemed_total
+      - record: cashu_mint_vouchers_rejected_total
+        expr: cashu_mint_voucher_rejected_total

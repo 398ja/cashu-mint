@@ -5,6 +5,8 @@ import jakarta.persistence.Converter;
 import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 
+import java.util.regex.Pattern;
+
 /**
  * Spec 004 T200 / FR-002 — JPA {@link AttributeConverter} that hashes
  * customer / merchant identity values on write. Applied via
@@ -36,8 +38,21 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 @Converter
 public class IdentityHashConverter implements AttributeConverter<String, String> {
 
+    /** 64-char lowercase hex — the output shape of HmacSha256IdentityHasher. */
+    private static final Pattern ALREADY_HASHED = Pattern.compile("^[0-9a-f]{64}$");
+
     @Override
     public String convertToDatabaseColumn(String attribute) {
+        if (attribute != null && ALREADY_HASHED.matcher(attribute).matches()) {
+            // Spec 004 review fix (Copilot PR #324) — idempotency. A JPA
+            // load followed by a merge / dirty-check would re-hash the
+            // already-hashed value, breaking the forensic lookup
+            // (which hashes the raw npub once). Skip when the value
+            // already matches the stored hash format. The
+            // VoucherIdentityBackfillService applies the same regex
+            // for the same reason.
+            return attribute;
+        }
         IdentityHasher hasher = MintIntegrityContext.identityHasher();
         if (hasher == null) {
             // Legacy / unit-test path — no hasher wired, pass through.

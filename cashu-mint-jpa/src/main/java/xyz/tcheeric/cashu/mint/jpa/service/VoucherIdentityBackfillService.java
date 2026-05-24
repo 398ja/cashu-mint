@@ -2,19 +2,13 @@ package xyz.tcheeric.cashu.mint.jpa.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherIdentityBackfillLogEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherIdentityBackfillLogJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
-import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 
-import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,30 +33,40 @@ import java.util.Optional;
  * by default); PostgreSQL row-level locking means concurrent writes
  * to non-conflicting rows continue uninterrupted.
  *
- * <h2>Live + Envers shadow</h2>
- * The backfill UPDATEs the live row AND every {@code _aud} revision in
- * the same transaction (per research R9 — deliberate Envers
- * immutability break for identity columns only).
+ * <h2>Atomic per-batch UPDATE pair (review fix)</h2>
+ * Each batch invocation goes through {@link VoucherIdentityBackfillBatch}
+ * — a separate bean — so the {@code @Transactional} boundary on the
+ * batch executor is actually honoured by Spring's proxy. The live
+ * table and Envers shadow UPDATEs commit together (per research R9).
+ *
+ * <h2>Dependency injection (review fix)</h2>
+ * {@link IdentityHasher} is injected directly via the constructor
+ * rather than read from {@code MintIntegrityContext.identityHasher()}.
+ * Spring's DI guarantees the hasher bean is fully initialised before
+ * this service is constructed — there is no init-order failure mode
+ * where the backfill silently no-ops because the static context
+ * hasn't been installed yet.
  *
  * <h2>Sequencing</h2>
  * Runs at {@code @PostConstruct} after the DB schema is in place
  * (Flyway runs before component initialisation). The
- * {@link VoucherBackfillHealthIndicator} keeps the readiness probe
- * DOWN until this completes for every required table.
+ * {@link xyz.tcheeric.cashu.mint.jpa.health.VoucherBackfillHealthIndicator}
+ * keeps the readiness probe DOWN until this completes for every
+ * required table.
  */
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 public class VoucherIdentityBackfillService {
 
-    private final JdbcTemplate jdbcTemplate;
     private final VoucherIdentityBackfillLogJpaRepository backfillLog;
+    private final VoucherIdentityBackfillBatch batch;
+    private final IdentityHasher hasher;
     private final int batchSize;
 
     /**
-     * Map of (live table, _aud table) and the identity column(s) each
-     * table holds. Backfilled in declared order so the test fixture
-     * sees deterministic completion ordering.
+     * Map of live → list of identity columns. Backfilled in declared
+     * order so the test fixture sees deterministic completion ordering.
      */
     private static final Map<String, List<String>> LIVE_TABLES = new LinkedHashMap<>();
     private static final Map<String, String> AUD_OF = new LinkedHashMap<>();
@@ -78,22 +82,18 @@ public class VoucherIdentityBackfillService {
     }
 
     public VoucherIdentityBackfillService(
-            @Qualifier("mintJpaDataSource") DataSource dataSource,
             VoucherIdentityBackfillLogJpaRepository backfillLog,
+            VoucherIdentityBackfillBatch batch,
+            IdentityHasher hasher,
             @Value("${cashu.mint.voucher.identity-backfill-batch-size:1000}") int batchSize) {
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.backfillLog = backfillLog;
+        this.batch = batch;
+        this.hasher = hasher;
         this.batchSize = batchSize;
     }
 
     @PostConstruct
     public void run() {
-        IdentityHasher hasher = MintIntegrityContext.identityHasher();
-        if (hasher == null) {
-            log.warn("voucher_identity_backfill skipped — no IdentityHasher wired "
-                    + "(legacy / unit-test context). Production deploys MUST have one wired.");
-            return;
-        }
         log.info("voucher_identity_backfill start batch_size={}", batchSize);
         long totalRows = 0;
         long start = System.currentTimeMillis();
@@ -101,7 +101,7 @@ public class VoucherIdentityBackfillService {
             String liveTable = entry.getKey();
             String audTable = AUD_OF.get(liveTable);
             for (String column : entry.getValue()) {
-                totalRows += backfillColumn(liveTable, audTable, column, hasher);
+                totalRows += backfillColumn(liveTable, audTable, column);
             }
         }
         long duration = System.currentTimeMillis() - start;
@@ -112,7 +112,7 @@ public class VoucherIdentityBackfillService {
      * Backfill a single identity column across the live table and its
      * Envers shadow. Returns the number of rows hashed.
      */
-    private long backfillColumn(String liveTable, String audTable, String column, IdentityHasher hasher) {
+    private long backfillColumn(String liveTable, String audTable, String column) {
         String tableKey = liveTable + "." + column;
         Optional<VoucherIdentityBackfillLogEntity> existingLog = backfillLog.findById(tableKey);
         if (existingLog.isPresent() && existingLog.get().getCompletedAt() != null) {
@@ -133,7 +133,9 @@ public class VoucherIdentityBackfillService {
 
         long totalHashed = 0L;
         while (true) {
-            long batchHashed = hashOneBatch(liveTable, audTable, column, hasher);
+            // Goes through the Spring-proxied batch bean so the
+            // @Transactional boundary on hashOneBatch is honoured.
+            long batchHashed = batch.hashOneBatch(liveTable, audTable, column, hasher, batchSize);
             if (batchHashed == 0) {
                 break;
             }
@@ -152,40 +154,11 @@ public class VoucherIdentityBackfillService {
     }
 
     /**
-     * Hash one batch of raw (non-hashed) values. Returns rows updated
-     * in the live table. The _aud shadow is updated in the same
-     * transaction.
-     *
-     * <p>"Raw" detected as "value is not 64-char lowercase hex." The
-     * regex match is anchored so an accidental 64-char raw value (an
-     * npub-of-exactly-64-hex-chars) won't false-positive — npubs are
-     * bech32-encoded and contain non-hex characters.
+     * Test-only seam — exposes the per-batch executor so
+     * {@code BackfillResumeIT} can drive it directly. Production code
+     * goes through {@link #run()}.
      */
-    @Transactional("mintTransactionManager")
-    public long hashOneBatch(String liveTable, String audTable, String column, IdentityHasher hasher) {
-        // Find a batch of raw values that need hashing.
-        String selectSql = "SELECT DISTINCT " + column + " FROM " + liveTable
-                + " WHERE " + column + " IS NOT NULL"
-                + "   AND " + column + " !~ '^[0-9a-f]{64}$'"
-                + " LIMIT " + batchSize;
-        List<String> rawValues = jdbcTemplate.queryForList(selectSql, String.class);
-        if (rawValues.isEmpty()) {
-            return 0L;
-        }
-
-        long updated = 0L;
-        for (String raw : rawValues) {
-            String hashed = hasher.hash(raw);
-            if (hashed == null) {
-                continue; // shouldn't happen — we filtered NOT NULL above
-            }
-            updated += jdbcTemplate.update(
-                    "UPDATE " + liveTable + " SET " + column + " = ? WHERE " + column + " = ?",
-                    hashed, raw);
-            jdbcTemplate.update(
-                    "UPDATE " + audTable + " SET " + column + " = ? WHERE " + column + " = ?",
-                    hashed, raw);
-        }
-        return updated;
+    public long hashOneBatch(String liveTable, String audTable, String column, IdentityHasher h) {
+        return batch.hashOneBatch(liveTable, audTable, column, h, batchSize);
     }
 }
