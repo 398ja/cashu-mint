@@ -283,28 +283,46 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.recordTransition(sagaId, null, MeltSagaState.PROOFS_HELD,
                 "initial transition", "system");
 
-        // FR-003: durable proof PENDING commit BEFORE gateway.pay.
+        // FR-003 (spec 005): durable proof PENDING commit BEFORE gateway.pay.
+        //
+        // Single atomic insert-or-claim per proof: the vault either claims an
+        // existing UNSPENT row or inserts a fresh row in PENDING bound to this
+        // saga. Replaces the prior storePending + markPendingForSaga pair,
+        // which could never bind freshly-inserted rows (the row was already
+        // PENDING when the UNSPENT→PENDING CAS ran, so the CAS matched zero
+        // rows and the saga continued to lightningPaymentPort.pay with no
+        // durable hold).
+        List<ProofEntity> normalizedProofs;
         try {
-            persistPendingProofs(proofsToMelt);
-            // Spec 002 T011 — bind every PENDING proof to this saga via
-            // the vault's melt_saga_id column. The application-level CAS in
-            // ProofRepository.markPending refuses to bind any proof that is
-            // already held by another saga, so concurrent melts for
-            // overlapping inputs land here with a partial application.
-            int bound = proofVaultService.markPendingForSaga(
-                    proofsToMelt.stream().map(p -> p.getSecret().toString()).toList(),
-                    sagaId,
-                    java.util.UUID.fromString(mint.getId()));
-            if (bound < proofsToMelt.size()) {
-                log.warn("[melt-saga] saga_binding_partial quote_id={} saga_id={} expected={} bound={}",
-                        quoteId, sagaId, proofsToMelt.size(), bound);
-            }
+            normalizedProofs = buildNormalizedProofEntities(proofsToMelt);
         } catch (CashuErrorException | RuntimeException e) {
+            log.error("melt_saga proof_normalize_failed quote_id={} saga_id={}", quoteId, sagaId, e);
+            // No vault write happened yet — nothing to release. Fail closed
+            // with the spec-005 terminal error before any payment.
+            releaseAndFailClosed(sagaId, quoteId);
+            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
+        }
+        int bound;
+        try {
+            bound = proofVaultService.insertOrClaimForSaga(
+                    normalizedProofs, sagaId, java.util.UUID.fromString(mint.getId()));
+        } catch (CashuErrorException | RuntimeException e) {
+            // Vault unreachable / errored mid-claim. Some proofs may already
+            // be bound; release them and fail closed BEFORE payment. Always
+            // surface proofs_not_bound (the spec-005 terminal contract);
+            // the original cause is logged here.
             log.error("melt_saga proof_pending_failed quote_id={} saga_id={}", quoteId, sagaId, e);
-            // Saga stays in PROOFS_HELD with no proofs actually held; the
-            // TTL sweep in MeltSagaReconciler will move it to FAILED.
-            throw e instanceof CashuErrorException ce ? ce
-                    : new CashuErrorException(new ErrorResponse("melt_proof_pending_error").toJson());
+            releaseAndFailClosed(sagaId, quoteId);
+            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
+        }
+        if (bound < proofsToMelt.size()) {
+            // FR-006 fail-closed: insufficient durable hold (a proof was
+            // already SPENT or held by another saga). Release any partial
+            // claim and bail out BEFORE lightningPaymentPort.pay is reached.
+            log.warn("[melt-saga] proofs_not_bound quote_id={} saga_id={} expected={} bound={}",
+                    quoteId, sagaId, proofsToMelt.size(), bound);
+            releaseAndFailClosed(sagaId, quoteId);
+            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
         }
 
         // FR-008: typed payment outcome.
@@ -667,20 +685,84 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         return false;
     }
 
+    /**
+     * Spec 005 — legacy unit-test entry. The spec-002 saga path no longer
+     * uses this; {@link #buildNormalizedProofEntities} feeds the atomic
+     * {@code insertOrClaimForSaga} call instead. Kept for the legacy
+     * pay-before-burn path used when the saga repository is unwired
+     * ({@link #executeLegacy}). The Y-coordinate normalization prevents
+     * the raw-secret/Y duplicate-row regression even on the legacy path.
+     */
     private void persistPendingProofs(List<Proof<T>> proofsToMelt) throws CashuErrorException {
         MintEntity mintEntity = mintVaultService.retrieveMint(mint.getId());
-        for (Proof<T> proof : proofsToMelt) {
-            ProofEntity proofEntity = new ProofEntity();
-            proofEntity.setAmount(proof.getAmount());
-            proofEntity.setSecret(proof.getSecret().toString());
-            if (proof.getWitness() != null) {
-                proofEntity.setWitness(proof.getWitness().toString());
-            }
-            proofEntity.setUnblindedSignature(proof.getUnblindedSignature().toString());
-            proofEntity.setMint(mintEntity);
+        for (ProofEntity proofEntity : buildNormalizedProofEntities(proofsToMelt, mintEntity)) {
             proofEntity.setState(ProofEntity.STATE_PENDING);
             proofVaultService.storePending(proofEntity);
         }
+    }
+
+    /**
+     * Spec 005 — builds vault rows for the melt-saga atomic insert-or-claim
+     * call with Y-coordinate normalization, matching the canonical identity
+     * used by {@link xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil#toProofEntity}.
+     * Mixing raw secrets and Y values here would let two rows refer to the
+     * same logical proof, defeating the (mint_id, secret) uniqueness
+     * guarantee in the vault.
+     */
+    private List<ProofEntity> buildNormalizedProofEntities(List<Proof<T>> proofsToMelt) throws CashuErrorException {
+        MintEntity mintEntity = mintVaultService.retrieveMint(mint.getId());
+        return buildNormalizedProofEntities(proofsToMelt, mintEntity);
+    }
+
+    private List<ProofEntity> buildNormalizedProofEntities(List<Proof<T>> proofsToMelt, MintEntity mintEntity) {
+        java.util.List<ProofEntity> rows = new java.util.ArrayList<>(proofsToMelt.size());
+        for (Proof<T> proof : proofsToMelt) {
+            rows.add(ProofEntity.fromProof(proof, mintEntity));
+        }
+        return rows;
+    }
+
+    /**
+     * Spec 005 — fail-closed release for the {@code proofs_not_bound} path.
+     * Refunds any proofs already claimed by this saga, then drives the
+     * terminal transition — but ONLY if the refund succeeded.
+     *
+     * <p>If {@code refundForSaga} throws (transient vault outage), the saga
+     * is deliberately left in {@code PROOFS_HELD}: {@code MeltSagaReconciler}'s
+     * {@code sweepStaleProofsHeld} only retries refunds for {@code PROOFS_HELD}
+     * sagas, so forcing {@code FAILED} here would strand any partially-claimed
+     * proofs in {@code PENDING} with no automatic recovery. The caller still
+     * throws {@code proofs_not_bound} to the client; the saga becomes terminal
+     * on a later sweep once the refund succeeds. The counter is incremented in
+     * both cases for visibility.
+     */
+    private void releaseAndFailClosed(String sagaId, String quoteId) {
+        incrementCounter("cashu_mint_melt_proofs_not_bound_total");
+        boolean refunded;
+        try {
+            proofVaultService.refundForSaga(sagaId);
+            refunded = true;
+        } catch (CashuErrorException | RuntimeException refundError) {
+            log.error("[melt-saga][alert] proofs_not_bound refund_failed quote_id={} saga_id={} cause={} "
+                            + "— leaving saga PROOFS_HELD for reconciler sweep",
+                    quoteId, sagaId, refundError.getMessage());
+            refunded = false;
+        }
+        if (!refunded) {
+            // Saga stays PROOFS_HELD; reconciler TTL sweep retries the refund
+            // and drives the terminal transition. Do not cache a terminal
+            // error on a non-terminal saga.
+            return;
+        }
+        try {
+            meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
+            meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
+                    "proofs_not_bound", "system");
+        } catch (RuntimeException e) {
+            log.warn("[melt-saga] proofs_not_bound transition_write_failed quote_id={} saga_id={} cause={}",
+                    quoteId, sagaId, e.getMessage());
+        }
+        cacheTerminalError(sagaId, new ErrorResponse("proofs_not_bound"));
     }
 
     protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {

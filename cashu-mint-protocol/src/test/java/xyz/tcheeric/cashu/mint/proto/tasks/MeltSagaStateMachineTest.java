@@ -58,6 +58,7 @@ class MeltSagaStateMachineTest {
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
+        f.bindAllSubmittedProofs();
 
         MeltTask task = f.task(/*proofSum*/ 105L);
         task.execute();
@@ -69,13 +70,127 @@ class MeltSagaStateMachineTest {
         assertThat(to.getAllValues())
                 .as("happy-path transitions")
                 .containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED);
-        // SC-003: PROOFS_HELD precedes PAYMENT_SENT — verified by the
-        // ordering of recordTransition calls above. The proof PENDING
+        // SC-003 / spec 005: PROOFS_HELD precedes PAYMENT_SENT — verified by
+        // the ordering of recordTransition calls above. The proof PENDING
         // commit must happen BEFORE gateway pay; we verify by interaction
-        // ordering on the proof port + payment port:
+        // ordering on the proof port + payment port. Spec 005 collapses
+        // the prior storePending+markPendingForSaga pair into a single
+        // insertOrClaimForSaga call.
         org.mockito.InOrder order = Mockito.inOrder(f.proofVaultService, f.paymentPort);
-        order.verify(f.proofVaultService, times(2)).storePending(any());
+        order.verify(f.proofVaultService, times(1)).insertOrClaimForSaga(any(), anyString(), any(UUID.class));
         order.verify(f.paymentPort).pay(anyString(), any(Duration.class));
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void partial_bind_fails_closed_with_proofs_not_bound_before_pay() throws CashuErrorException {
+        // Spec 005: when the vault can claim only some of the submitted
+        // proofs (one already held by another saga, or already SPENT),
+        // the saga MUST fail before any external Lightning payment is
+        // attempted. Verifies the lightningPaymentPort is never called,
+        // the saga transitions PROOFS_HELD → FAILED, the cached terminal
+        // error is proofs_not_bound, and the partial hold is released
+        // via refundForSaga.
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        // Two proofs submitted, only one durably bound — the other slipped
+        // away (concurrent saga holds it / already spent).
+        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(1);
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
+
+        // External payment was never attempted.
+        verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
+        // Partial hold released for this saga.
+        verify(f.proofVaultService, times(1)).refundForSaga(anyString());
+        // Saga ended in FAILED.
+        verify(f.sagaRepo).casState(anyString(),
+                eq(MeltSagaState.PROOFS_HELD), eq(MeltSagaState.FAILED));
+        ArgumentCaptor<MeltSagaState> to = ArgumentCaptor.forClass(MeltSagaState.class);
+        verify(f.sagaRepo, times(2)).recordTransition(anyString(), any(), to.capture(), any(), anyString());
+        assertThat(to.getAllValues())
+                .as("fail-closed transitions")
+                .containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void zero_bind_fails_closed_with_proofs_not_bound_before_pay() throws CashuErrorException {
+        // Spec 005: insert-or-claim returning 0 is the most common
+        // failure shape — every proof was already held / already spent.
+        // Same fail-closed contract as partial bind.
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(0);
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
+
+        verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void vault_exception_during_bind_fails_closed_before_pay() throws CashuErrorException {
+        // Spec 005: vault unreachable during insert-or-claim (e.g. network
+        // partition) must NOT proceed to external payment. The saga
+        // surfaces proofs_not_bound, releases any partial hold for this
+        // saga via refundForSaga, and skips pay().
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenThrow(new RuntimeException("vault_unreachable"));
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        // Spec 005 fail-closed contract: the client-visible terminal error
+        // is proofs_not_bound (NOT the underlying vault exception), so a
+        // wallet sees the same code regardless of why the bind failed.
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
+
+        verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
+        verify(f.proofVaultService, times(1)).refundForSaga(anyString());
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void refund_failure_during_fail_closed_leaves_saga_in_PROOFS_HELD() throws CashuErrorException {
+        // Spec 005 (Codex P1): if refundForSaga ALSO throws while releasing a
+        // partial hold, the saga must stay in PROOFS_HELD — not move to
+        // FAILED — so MeltSagaReconciler.sweepStaleProofsHeld can retry the
+        // refund. Forcing FAILED would strand the proofs in PENDING forever.
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        // Partial bind (1 of 2) triggers the fail-closed release...
+        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(1);
+        // ...but the refund itself fails (transient vault outage).
+        when(f.proofVaultService.refundForSaga(anyString()))
+                .thenThrow(new RuntimeException("vault_unreachable_for_refund"));
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
+
+        // Payment never attempted.
+        verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
+        // Saga NOT moved to FAILED — there is no PROOFS_HELD → FAILED CAS.
+        verify(f.sagaRepo, never()).casState(anyString(),
+                eq(MeltSagaState.PROOFS_HELD), eq(MeltSagaState.FAILED));
+        // No terminal error cached on the still-non-terminal saga (the only
+        // transition recorded is the initial null → PROOFS_HELD).
+        ArgumentCaptor<MeltSagaState> to = ArgumentCaptor.forClass(MeltSagaState.class);
+        verify(f.sagaRepo, times(1)).recordTransition(anyString(), any(), to.capture(), any(), anyString());
+        assertThat(to.getAllValues()).containsExactly(MeltSagaState.PROOFS_HELD);
     }
 
     @Test
@@ -84,6 +199,7 @@ class MeltSagaStateMachineTest {
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.DefinitiveFailure("route_not_found", "1001"));
+        f.bindAllSubmittedProofs();
 
         MeltTask task = f.task(/*proofSum*/ 105L);
         assertThatThrownBy(task::execute)
@@ -104,6 +220,7 @@ class MeltSagaStateMachineTest {
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.Unknown("status_not_paid_after_pay"));
+        f.bindAllSubmittedProofs();
 
         MeltTask task = f.task(/*proofSum*/ 105L);
         assertThatThrownBy(task::execute)
@@ -139,6 +256,7 @@ class MeltSagaStateMachineTest {
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
+        f.bindAllSubmittedProofs();
         // Inject the failure on the final invalidate step: the test stub of
         // InvalidateProofsTask runs the Fixture's onInvalidate callback.
         f.onInvalidate = () -> { throw new RuntimeException("vault_unreachable"); };
@@ -190,6 +308,18 @@ class MeltSagaStateMachineTest {
                         .thenReturn(null);
             } catch (Exception ignored) { }
             when(gateway.getName()).thenReturn("test-gateway");
+
+            // Spec 005 — MeltTask's spec-005 bind block calls
+            // mintVaultService.retrieveMint() to build the vault-side
+            // ProofEntity rows submitted to insert-or-claim. Provide a
+            // managed MintEntity so ProofEntity.fromProof(proof, mintEntity)
+            // doesn't NPE on the test mocks.
+            xyz.tcheeric.cashu.vault.db.model.MintEntity mintEntity =
+                    new xyz.tcheeric.cashu.vault.db.model.MintEntity();
+            mintEntity.setId(UUID.fromString(mint.getId()));
+            try {
+                when(vaultService.retrieveMint(anyString())).thenReturn(mintEntity);
+            } catch (Exception ignored) { }
         }
 
         void gatewayReturns(java.util.function.IntFunction<Integer> amountFn, int feeReserve) {
@@ -200,6 +330,25 @@ class MeltSagaStateMachineTest {
 
         void paymentReturns(PaymentOutcome outcome) {
             when(paymentPort.pay(anyString(), any(Duration.class))).thenReturn(outcome);
+        }
+
+        /**
+         * Spec 005 — stubs insertOrClaimForSaga to claim every submitted
+         * proof (return value = list size). Default Mockito returns 0,
+         * which triggers the new fail-closed path; tests that exercise
+         * the happy path must opt in to a successful bind.
+         */
+        @SuppressWarnings("unchecked")
+        void bindAllSubmittedProofs() {
+            try {
+                when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                        .thenAnswer(inv -> {
+                            java.util.List<?> rows = inv.getArgument(0);
+                            return rows.size();
+                        });
+            } catch (CashuErrorException impossible) {
+                throw new RuntimeException(impossible);
+            }
         }
 
         MeltTask task(long proofSum) {
@@ -251,7 +400,11 @@ class MeltSagaStateMachineTest {
             when(p.getAmount()).thenReturn(amount);
             when(p.getKeySetId()).thenReturn("ks-1");
             Secret s = Mockito.mock(Secret.class);
-            when(s.toString()).thenReturn("secret-" + UUID.randomUUID());
+            // Spec 005 — ProofEntity.fromProof Y-normalises via
+            // BDHKEUtils.hashToCurve, which decodes the secret as a hex
+            // string. Use a 64-char hex secret so the test exercises the
+            // real normalisation rather than tripping the hex parser.
+            when(s.toString()).thenReturn(hexSecret());
             when(p.getSecret()).thenReturn(s);
             xyz.tcheeric.cashu.common.Signature sig =
                     Mockito.mock(xyz.tcheeric.cashu.common.Signature.class);
@@ -259,6 +412,11 @@ class MeltSagaStateMachineTest {
             when(sig.getBytes()).thenReturn(bytes);
             when(p.getUnblindedSignature()).thenReturn(sig);
             return p;
+        }
+
+        private static String hexSecret() {
+            return UUID.randomUUID().toString().replace("-", "")
+                    + UUID.randomUUID().toString().replace("-", "");
         }
     }
 }

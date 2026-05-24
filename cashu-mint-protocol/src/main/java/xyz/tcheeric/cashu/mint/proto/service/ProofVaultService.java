@@ -10,6 +10,29 @@ public interface ProofVaultService {
     void storePending(ProofEntity proofEntity) throws CashuErrorException;
 
     /**
+     * Spec 005 — atomic insert-or-claim. Replaces the prior two-step
+     * {@code storePending} + {@link #markPendingForSaga} sequence
+     * which could never bind freshly-inserted PENDING rows.
+     *
+     * <p>Submits Y-normalised {@link ProofEntity} rows; the vault
+     * either claims an existing UNSPENT row or inserts a fresh row in
+     * PENDING bound to {@code meltSagaId}, in one round trip per
+     * proof. Returns the total proof count actually bound. Callers
+     * MUST compare against {@code proofs.size()} and refund any
+     * partial holds before any external payment is attempted.
+     *
+     * <p>The default implementation is a no-op so legacy unit-test
+     * contexts that don't wire a real vault keep compiling; the
+     * production impl ({@code DefaultProofVaultService}) delegates to
+     * the vault REST API.
+     */
+    default int insertOrClaimForSaga(java.util.List<ProofEntity> proofs,
+                                     String meltSagaId,
+                                     java.util.UUID mintId) throws CashuErrorException {
+        return 0;
+    }
+
+    /**
      * Spec 002 T011 — exclusive-hold proof binding for the melt saga
      * state machine. The default implementation is a no-op so legacy
      * callers don't break; the JPA-backed impl
@@ -17,7 +40,11 @@ public interface ProofVaultService {
      * {@code melt_saga_id} on the underlying proof rows.
      *
      * @return number of proof rows actually bound
+     * @deprecated superseded by {@link #insertOrClaimForSaga}; kept for
+     *     in-flight callers and as the underlying primitive used by
+     *     the saga reconciler. New code should use insert-or-claim.
      */
+    @Deprecated
     default int markPendingForSaga(java.util.Collection<String> proofSecrets,
                                    String meltSagaId,
                                    java.util.UUID mintId) throws CashuErrorException {
