@@ -185,6 +185,19 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throw new CashuErrorException(error.toJson());
         }
 
+        // Spec 007 — reject a null output up front, before any stream/amount
+        // computation. The downstream amount-sum / hash streams dereference
+        // each output's amount, so a null element would otherwise NPE into a
+        // 500 instead of the intended deterministic mint_request_contains_null_output.
+        // A null-safe loop (not List.contains(null), which throws on the
+        // immutable List.of(...) lists used by unit-test callers).
+        for (BlindedMessage output : blindedMessages) {
+            if (output == null) {
+                throw new CashuErrorException(
+                        new ErrorResponse("mint_request_contains_null_output").toJson());
+            }
+        }
+
         // If the invoice was not paid yet, Bob responds with a structured error.
         if (log.isDebugEnabled()) {
             log.debug("Starting mint task: method={} unit={} blindedMessages={}", method, unit,

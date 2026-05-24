@@ -608,6 +608,15 @@ public class CashuController<T extends Secret> {
             case "quote_amount_cross_check_failed":
             case "quote_already_issued":
             case "issuance_in_progress":
+            // Spec 007 — deterministic output-shape validation failures
+            // (MintTask.validateDenominations) plus the voucher face-value
+            // output-sum mismatch are client errors, not server faults.
+            case "invalid_output_amount":
+            case "invalid_denominations":
+            case "missing_keyset_id":
+            case "mint_request_missing_outputs":
+            case "mint_request_contains_null_output":
+            case "mint_amount_mismatch":
                 status = HttpStatus.BAD_REQUEST;
                 break;
             case "quote_not_found":

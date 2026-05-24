@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.3] - 2026-05-25
+
+### Fixed
+
+- **PR #330 review follow-up — deterministic output errors now return a
+  clean 4xx (not 500), and a null output no longer NPEs.** Spec 007 made
+  `validateDenominations` throw typed `ErrorResponse` JSON, but
+  `CashuController#handleCashuError` only mapped an allowlist of codes to
+  `400`, so the new codes (and the pre-existing voucher
+  `mint_amount_mismatch`) still surfaced as `internal_error`/500.
+  - Extended the controller's code → HTTP status mapping to include
+    `invalid_output_amount`, `invalid_denominations`, `missing_keyset_id`,
+    `mint_request_missing_outputs`, `mint_request_contains_null_output`,
+    and `mint_amount_mismatch` → `400`.
+  - Added an up-front null-output guard in `MintTask.doExecute` (a
+    null-safe loop, before any amount-sum/hash stream) so a `null` output
+    returns `mint_request_contains_null_output` (4xx) instead of NPE-ing
+    into a 500 in the amount-sum stream.
+  - Tightened the spec-007 ITs to assert `is4xxClientError()` and added a
+    null-output regression case.
+
+---
+
 ## [0.19.2] - 2026-05-24
 
 ### Fixed
