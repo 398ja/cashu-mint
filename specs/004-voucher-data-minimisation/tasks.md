@@ -217,6 +217,25 @@ description: "Task list for spec 004 — Voucher Data Minimisation and Customer-
 
 ---
 
+## Phase 10: PR #324 Review Response
+
+PR #324 collected 10 review comments (8 Copilot, 2 Codex P1) spanning 8 distinct defects. All addressed in commit `065316b`.
+
+| Task | Subject | Status | Commit | Note |
+|------|---------|--------|--------|------|
+| T910 [P1] | `VoucherIdentityBackfillService` — inject `IdentityHasher` instead of static `MintIntegrityContext` lookup (Copilot 3293613817, Codex 3293614163) | [X] | 065316b | Removes init-order race that could silently no-op the backfill. |
+| T911 [P1] | `VoucherIdentityBackfillService` — split per-batch executor into `VoucherIdentityBackfillBatch` so `@Transactional` is honoured by the Spring proxy (Codex 3293614164) | [X] | 065316b | Self-call bypass fix. Live + `_aud` UPDATE pair now atomic per research R9. |
+| T912 | `IdentityHashConverter` — idempotency check via `^[0-9a-f]{64}$` regex (Copilot 3293613809) | [X] | 065316b | JPA load → merge no longer double-hashes the stored HMAC. |
+| T913 | Grafana password env-var consistency — single `CASHU_MINT_GRAFANA_RO_PASSWORD` across mint + Grafana (Copilot 3293613818, 3293613830) | [X] | 065316b | Added Flyway placeholder mapping + renamed datasource env var. |
+| T914 | Prometheus backward-compat aliases — switch from `metric_relabel_configs` (rewrites, drops singular) to recording rules in `alerts.yml` (Copilot 3293613820) | [X] | 065316b | Recording rules CREATE plural alongside live singular; previous config silently broke dashboards. |
+| T915 | Alertmanager route order — spec=004 routes moved BEFORE severity catch-alls (Copilot 3293613826) | [X] | 065316b | First-match-wins router was previously siphoning every voucher alert into the generic critical/warning stubs. |
+| T916 | `quickstart.md` § 7 — replace fictional `rotate-identity-salt` command with v1 forward-only rotation runbook (Copilot 3293613828) | [X] | 065316b | Rotation in v1 explicitly accepts loss of pre-rotation forensic-lookup capability; documented why this is acceptable. |
+| T917 | `VoucherIdentityRetentionPurgeService` — `_aud` purge now scopes by live row's lifecycle_state (Copilot 3293613836) | [X] | 065316b | Prevents purging `_aud` revisions of still-active UNFUNDED/FUNDED rows whose old revisions are past cutoff. |
+
+Verification: `mvn -pl cashu-mint-jpa test` 30/30 green, `mvn -pl cashu-mint-rest test` 72/72 green, `mvn -pl cashu-mint-rest-it -Pintegration-tests verify` 122/122 green (1 skipped).
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
