@@ -10,9 +10,21 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.io.InputStream;
 import java.util.Properties;
 
-// Limit component scanning to the mint packages to avoid picking up vault JPA controllers/repos
+// Scan mint packages + the vault-hashi config/client packages so HashiVaultRegistrar
+// (which flips VaultClientFactory to HASHICORP at startup) and HashiVaultClient get
+// picked up when vault.hashi.enabled=true. Without the wider scan, MintProtocolUtil's
+// VaultClientFactory.keyVault() returns DBKeyVault (no Hashi enrichment) and signing
+// fails with KeyEntity.privateKey=null — the silent refund pattern observed
+// 2026-05-24 on staging. The vault-JPA controllers/repos that the original narrow
+// scan was excluding live under xyz.tcheeric.cashu.vault.db.{controller,repos}, which
+// the mint-rest classpath doesn't have (cashu-vault-jpa is a runtime-only sibling
+// service), so widening doesn't accidentally pull them in here.
 @Slf4j
-@SpringBootApplication(scanBasePackages = "xyz.tcheeric.cashu.mint")
+@SpringBootApplication(scanBasePackages = {
+        "xyz.tcheeric.cashu.mint",
+        "xyz.tcheeric.cashu.vault.api",
+        "xyz.tcheeric.cashu.vault.hashi"
+})
 @EnableScheduling
 public class CashuMintRestApplication {
 
