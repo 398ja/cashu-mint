@@ -119,6 +119,21 @@ class PaymentWebhookControllerTest {
     }
 
     @Test
+    void handlePaymentWebhook_shouldReturn400OnEmptyBody() throws Exception {
+        // Spec 008 review (#331): a missing/empty body is a client mistake
+        // (400), not an auth failure (401) — and the signature validator is
+        // never consulted.
+        mockMvc.perform(post("/webhook/payment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new byte[0]))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Missing notification payload"));
+
+        verify(signatureValidator, never()).validate(any(), any());
+        verify(quoteStatusUpdater, never()).record(any());
+    }
+
+    @Test
     void health_shouldReturnStatus() throws Exception {
         // Given
         when(signatureValidator.isEnabled()).thenReturn(true);

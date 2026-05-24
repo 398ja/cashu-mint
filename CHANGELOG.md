@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.5] - 2026-05-25
+
+### Fixed
+
+- **PR #331 review follow-up.** `PaymentWebhookController`:
+  - A missing/empty request body now returns `400 "Missing notification
+    payload"` (a client mistake) instead of `401` — the signature validator
+    is no longer consulted for an absent body, restoring the documented
+    `400 invalid input` vs `401 auth failure` distinction.
+  - The deserialize-failure log no longer includes the Jackson exception
+    message (which can embed untrusted payload snippets, e.g. a preimage);
+    it logs only the exception type at WARN, with the full stack trace at
+    DEBUG.
+
+---
+
 ## [0.19.4] - 2026-05-25
 
 ### Fixed

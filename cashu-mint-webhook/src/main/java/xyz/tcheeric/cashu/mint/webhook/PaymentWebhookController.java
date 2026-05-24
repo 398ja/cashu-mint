@@ -71,6 +71,14 @@ public final class PaymentWebhookController {
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody(required = false) byte[] rawBody) {
 
+        // A wholly-missing body is a client mistake (400), not an auth failure —
+        // distinguish it from signature rejection (401) below.
+        if (rawBody == null || rawBody.length == 0) {
+            log.warn("Webhook received with empty body");
+            return ResponseEntity.badRequest()
+                    .body(WebhookResponse.error("Missing notification payload"));
+        }
+
         // Authenticate over the exact bytes the sender signed, before parsing.
         if (!signatureValidator.validate(rawBody, signature)) {
             log.warn("Invalid webhook signature");
@@ -78,12 +86,15 @@ public final class PaymentWebhookController {
                     .body(WebhookResponse.error("Invalid signature"));
         }
 
-        // Deserialize the authenticated body.
+        // Deserialize the authenticated body. Log only the exception type — a
+        // Jackson message can embed snippets of the (untrusted) payload, e.g. a
+        // preimage; the full stack trace is available at DEBUG.
         PaymentNotification notification;
         try {
             notification = MAPPER.readValue(rawBody, PaymentNotification.class);
         } catch (Exception e) {
-            log.warn("Webhook body could not be parsed: {}", e.getMessage());
+            log.warn("Webhook body could not be parsed: {}", e.getClass().getSimpleName());
+            log.debug("Webhook body parse failure detail", e);
             return ResponseEntity.badRequest()
                     .body(WebhookResponse.error("Malformed notification payload"));
         }
