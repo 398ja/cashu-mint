@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.5] - 2026-05-25
+
+### Fixed
+
+- **PR #331 review follow-up.** `PaymentWebhookController`:
+  - A missing/empty request body now returns `400 "Missing notification
+    payload"` (a client mistake) instead of `401` — the signature validator
+    is no longer consulted for an absent body, restoring the documented
+    `400 invalid input` vs `401 auth failure` distinction.
+  - The deserialize-failure log no longer includes the Jackson exception
+    message (which can embed untrusted payload snippets, e.g. a preimage);
+    it logs only the exception type at WARN, with the full stack trace at
+    DEBUG.
+
+---
+
+## [0.19.4] - 2026-05-25
+
+### Fixed
+
+- **Spec 008 — conform the mint to the payment-adapter→mint webhook
+  contract.** Closes the High finding in the 2026-05-24 backend token
+  integrity review: a real adapter webhook could not be processed even
+  with a shared HMAC secret.
+  - `PaymentNotification` now maps the adapter's snake_case wire names
+    (`quote_id`, `payment_method`, `receipt_id`, `paid_at`) via
+    `@JsonProperty` (+ `@JsonAlias` for camelCase back-compat), adds a
+    `unit` field, and `@JsonIgnoreProperties(ignoreUnknown = true)`.
+    Previously a real payload deserialized `quoteId`/`paymentMethod`/
+    `paidAt` as null and was rejected with `400 "Missing quoteId"`.
+  - `WebhookSignatureValidator` now HMACs the EXACT raw request body
+    bytes instead of a re-serialised DTO (the camelCase re-serialisation
+    never matched the adapter's snake_case payload).
+    `PaymentWebhookController` reads `@RequestBody byte[]` and authenticates
+    over those bytes before deserialising.
+  - Adds a golden-payload compatibility test + a real-validator end-to-end
+    controller test. No adapter change; no schema change.
+
+---
+
 ## [0.19.3] - 2026-05-25
 
 ### Fixed
