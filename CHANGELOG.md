@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.1] - 2026-05-24
+
+### Fixed
+
+- **PR #329 review follow-up — preserve the FR-014 IOU-attempt alert on
+  policy-denied paths.** `cashu_mint_voucher_iou_issued_total` is now
+  incremented for **every** `MERCHANT_IOU` issuance attempt (before the
+  policy gate), restoring the "regardless of policy" semantics existing
+  dashboards/runbooks rely on. Under `DENY` the attempt still throws
+  `iou_not_permitted` and additionally increments
+  `cashu_mint_voucher_iou_denied_total`. Previously the issued counter
+  fired only on the `ALLOW` path, blinding monitoring exactly in the
+  denied scenario.
+
+---
+
 ## [0.19.0] - 2026-05-24
 
 ### Security

@@ -679,9 +679,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
 
         if (source == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.MERCHANT_IOU) {
-            // Spec 003 FR-014 — operator alert for every IOU issuance attempt.
+            // Spec 003 FR-014 — operator alert for EVERY IOU issuance attempt,
+            // regardless of policy outcome. Emitted BEFORE the policy gate so
+            // existing dashboards / runbooks wired to this counter keep firing
+            // on denied attempts too (the deny path throws below). The
+            // policy-specific subset is tracked by cashu_mint_voucher_iou_denied_total.
             log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
                     quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
+            incrementCounter("cashu_mint_voucher_iou_issued_total");
             // FR-006 — enforce the configured IOU policy (default DENY).
             String iouPolicy = MintIntegrityContext.voucherIouPolicy();
             if (!"ALLOW".equalsIgnoreCase(iouPolicy)) {
@@ -690,7 +695,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 incrementCounter("cashu_mint_voucher_iou_denied_total");
                 throw new CashuErrorException(new ErrorResponse("iou_not_permitted").toJson());
             }
-            incrementCounter("cashu_mint_voucher_iou_issued_total");
         }
 
         // MERCHANT_DEBIT, and MERCHANT_IOU that cleared the policy gate, must
