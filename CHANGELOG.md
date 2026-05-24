@@ -11,6 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.18.0] - 2026-05-24
+
+### Security
+
+- **Spec 005 — Enforce durable melt-saga proof holds before external payment.**
+  Closes the highest-priority finding in the 2026-05-24 backend token
+  integrity review: the melt saga recorded `PROOFS_HELD` but the durable
+  hold was not actually enforced before `lightningPaymentPort.pay`, so a
+  melt could pay externally against zero or partially-bound proof rows.
+  - `MeltTask` now performs a single atomic insert-or-claim per melt via
+    the new `ProofVaultService.insertOrClaimForSaga`, after Y-normalising
+    every proof through `ProofEntity.fromProof` (the canonical identity
+    already used on the burn/SPENT path). This eliminates both the
+    insert-then-claim no-op and the raw-secret/Y duplicate-row class.
+  - **Fail-closed:** if not every submitted proof is durably bound (or the
+    vault call throws), the saga releases any partial hold via
+    `refundForSaga`, transitions `PROOFS_HELD → FAILED`, caches a terminal
+    `proofs_not_bound` error, increments
+    `cashu_mint_melt_proofs_not_bound_total`, and throws **before**
+    `lightningPaymentPort.pay` is reached.
+  - Requires cashu-vault 0.9.0 (additive `insertOrClaimForSaga` primitive).
+
+### Added
+
+- New client-facing error code `proofs_not_bound` (messages.properties).
+- Metric `cashu_mint_melt_proofs_not_bound_total`.
+- `MeltSagaProofsNotBoundIT` (4 cases: partial / zero / vault-exception bind
+  all abort before payment; happy path proves bind-before-pay via the saga
+  ledger) plus 3 new `MeltSagaStateMachineTest` unit cases.
+
+### Deprecated
+
+- `ProofVaultService.markPendingForSaga` — superseded by
+  `insertOrClaimForSaga`. Retained as the underlying primitive used by the
+  saga reconciler.
+
+### Changed
+
+- Updated cashu-vault 0.8.2 → 0.9.0.
+
+---
+
 ## [0.17.0] - 2026-05-24
 
 ### Added
