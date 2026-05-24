@@ -11,6 +11,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.1] - 2026-05-24
+
+### Fixed
+
+- **PR #329 review follow-up — preserve the FR-014 IOU-attempt alert on
+  policy-denied paths.** `cashu_mint_voucher_iou_issued_total` is now
+  incremented for **every** `MERCHANT_IOU` issuance attempt (before the
+  policy gate), restoring the "regardless of policy" semantics existing
+  dashboards/runbooks rely on. Under `DENY` the attempt still throws
+  `iou_not_permitted` and additionally increments
+  `cashu_mint_voucher_iou_denied_total`. Previously the issued counter
+  fired only on the `ALLOW` path, blinding monitoring exactly in the
+  denied scenario.
+
+---
+
+## [0.19.0] - 2026-05-24
+
+### Security
+
+- **Spec 006 — Enforce a reliable value-backing invariant for voucher issuance.**
+  Closes the second Critical finding in the 2026-05-24 backend token
+  integrity review: the mint signed full **face-value** Cashu for the
+  `customer_paid` voucher variant while only the **fee** (`charged_amount`)
+  was backed, and nothing verified the funding amount/unit. The
+  customer-paid path was also operationally broken — a real voucher
+  payment webhook was misclassified as `orphan`.
+  - `MintTask` gains a fail-closed `enforceFaceValueBacking` gate that runs
+    **before** the `FUNDED → ISSUING` CAS and before signing. The funding
+    attached to the quote must cover the face value in the quote's unit:
+    `CUSTOMER_PAYMENT` → `face_value_not_backed` (a fee payment can never
+    back face value); `MERCHANT_DEBIT` → requires `amount >= face_value`
+    and matching unit; `MERCHANT_IOU` → `iou_not_permitted` unless
+    `cashu.mint.voucher.iou-policy == ALLOW`, then must also cover face
+    value. A denied quote stays `FUNDED` and never signs.
+  - `QuoteStatusUpdater` now falls back to `voucher_quote` on a `mint_quote`
+    miss: a voucher payment with `amount == charged_amount` is classified
+    `accepted` (was `orphan`) so the `CUSTOMER_PAYMENT` funding resolver can
+    bind it; wrong amount → `amount_mismatch`.
+
+### Added
+
+- **FR-006 IOU policy enforcement (Medium finding).** `cashu.mint.voucher.iou-policy`
+  was installed into `MintIntegrityContext` but never read; it is now
+  enforced at issuance (`iou_not_permitted` when `DENY`).
+- New typed errors `face_value_not_backed`, `iou_not_permitted`.
+- Metrics `cashu_mint_voucher_face_value_not_backed_total`,
+  `cashu_mint_voucher_iou_denied_total`.
+
+---
+
 ## [0.18.1] - 2026-05-24
 
 ### Fixed
