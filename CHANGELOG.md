@@ -11,6 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.19.2] - 2026-05-24
+
+### Fixed
+
+- **Spec 007 — validate deterministic output shape before the issuance
+  lifecycle CAS.** Closes the High finding in the 2026-05-24 backend token
+  integrity review: `MintTask` advanced the quote into `ISSUING` before
+  running deterministic output validation, so a malformed-but-amount-summing
+  request (e.g. `[11, -1]` for a 10-sat quote, or a non-canonical split)
+  consumed a paid/funded quote into `ISSUING` and stranded it there.
+  - Regular path: `validateDenominations` now runs immediately before the
+    `PAID → ISSUING` CAS (gated on `lifecycleState == PAID`); for an
+    already-advanced quote the CAS still yields `quote_already_issued` /
+    `issuance_in_progress`. `quote_not_found` / `amount_mismatch` precedence
+    is unchanged.
+  - Voucher path: the `FUNDED → ISSUING` CAS is moved out of
+    `resolveVoucherFunding` into `advanceVoucherToIssuing`, called only after
+    the face-value output-sum check.
+  - `validateDenominations` now throws typed `ErrorResponse` JSON, so a
+    deterministic client error surfaces as a clean 4xx
+    (`invalid_output_amount` / `invalid_denominations` / `missing_keyset_id`
+    / `mint_request_missing_outputs` / `mint_request_contains_null_output`)
+    instead of being mapped to `internal_error`/500.
+
+---
+
 ## [0.19.1] - 2026-05-24
 
 ### Fixed
