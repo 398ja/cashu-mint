@@ -302,6 +302,18 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             new ErrorResponse("quote_amount_cross_check_failed").toJson());
                 }
 
+                // Spec 007 — deterministic output validation MUST run before
+                // the quote-consuming PAID → ISSUING CAS, so a malformed-but-
+                // amount-summing request (e.g. a non-positive or non-canonical
+                // output) can never consume a PAID quote into ISSUING and strand
+                // it there. Gated on PAID: for an already-advanced quote the CAS
+                // below fails and yields quote_already_issued / issuance_in_progress
+                // (no stranding risk, and the single-issuance contract is
+                // preserved over output-shape errors).
+                if (durableQuote.lifecycleState() == LifecycleState.PAID) {
+                    validateDenominations(blindedMessages, mint);
+                }
+
                 outputsHash = OutputsHash.compute(blindedMessages);
                 int updated = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.PAID, LifecycleState.ISSUING);
                 if (updated == 0) {
@@ -342,12 +354,23 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
             }
 
-            // Vouchers allow arbitrary denominations (free splitting)
-            // Regular tokens require power-of-2 denominations per NUT-00
+            // Spec 007 — only now (after the deterministic face-value output-sum
+            // check above) consume the voucher quote FUNDED → ISSUING. Done here
+            // rather than inside resolveVoucherFunding so a malformed output set
+            // can never strand the quote in ISSUING.
+            if (voucherCtx != null) {
+                advanceVoucherToIssuing(quoteId, voucherCtx.quote);
+            }
+
+            // Vouchers allow arbitrary denominations (free splitting). Regular
+            // durable quotes were denomination-validated above, before the
+            // PAID → ISSUING CAS (spec 007). The legacy regular path
+            // (mintQuoteRepository == null, unit-test contexts) has no durable
+            // CAS to guard, so it validates here.
             if (isVoucherQuote) {
                 log.info("mint_task voucher_quote amount={} arbitrary_denominations=true",
                         blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
-            } else {
+            } else if (mintQuoteRepository == null) {
                 validateDenominations(blindedMessages, mint);
             }
 
@@ -617,31 +640,41 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // the mint signed full face-value Cashu against a fee-only payment.
         enforceFaceValueBacking(quoteId, quote, funding);
 
-        // CAS FUNDED → ISSUING (matches the durable invariant that signing
-        // only happens once per quote). The pre-FUNDED states (ISSUED /
-        // ISSUING / EXPIRED / FAILED) were already rejected above, so any
-        // path that reaches here either advances cleanly or loses a race
-        // to another writer (in which case the next request will see the
-        // post-advance state and reject).
-        if (quote.lifecycleState() == VoucherLifecycleState.FUNDED) {
-            int advanced = voucherRepo.casLifecycle(quoteId,
-                    VoucherLifecycleState.FUNDED, VoucherLifecycleState.ISSUING);
-            if (advanced == 0) {
-                // Another writer advanced the state between our findById and
-                // the CAS. Re-read and reject — we MUST NOT proceed to sign
-                // because that would violate the single-issuance invariant.
-                VoucherQuote refreshed = voucherRepo.findById(quoteId).orElse(quote);
-                VoucherLifecycleState newState = refreshed.lifecycleState();
-                log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
-                        quoteId, newState);
-                if (newState == VoucherLifecycleState.ISSUED) {
-                    throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
-                }
-                throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
-            }
-        }
-
+        // Spec 007 — the FUNDED → ISSUING CAS is NOT done here. It is the
+        // quote-consuming transition and must run only AFTER the deterministic
+        // face-value output-sum validation in doExecute (otherwise a malformed
+        // output set strands the quote in ISSUING). This method resolves and
+        // backing-gates the funding, then returns; doExecute calls
+        // advanceVoucherToIssuing once the outputs are validated.
         return new VoucherFundingContext(quote, funding);
+    }
+
+    /**
+     * Spec 007 — consume a FUNDED voucher quote into ISSUING. Called from
+     * {@code doExecute} only AFTER the face-value output-sum check, so a
+     * deterministically-invalid request can never strand the quote in
+     * ISSUING. Mirrors the single-issuance race handling that previously
+     * lived at the tail of {@link #resolveVoucherFunding}.
+     */
+    private void advanceVoucherToIssuing(String quoteId, VoucherQuote quote) throws CashuErrorException {
+        VoucherQuoteRepository voucherRepo = MintIntegrityContext.voucherQuoteRepository();
+        if (voucherRepo == null || quote.lifecycleState() != VoucherLifecycleState.FUNDED) {
+            return;
+        }
+        int advanced = voucherRepo.casLifecycle(quoteId,
+                VoucherLifecycleState.FUNDED, VoucherLifecycleState.ISSUING);
+        if (advanced == 0) {
+            // Another writer advanced the state between resolution and this CAS.
+            // Re-read and reject — we MUST NOT sign (single-issuance invariant).
+            VoucherQuote refreshed = voucherRepo.findById(quoteId).orElse(quote);
+            VoucherLifecycleState newState = refreshed.lifecycleState();
+            log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
+                    quoteId, newState);
+            if (newState == VoucherLifecycleState.ISSUED) {
+                throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+            }
+            throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+        }
     }
 
     /**
@@ -710,22 +743,26 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
+        // Spec 007 — these are deterministic client errors (computable from the
+        // request + static keyset config). Throw typed ErrorResponse JSON so the
+        // controller surfaces a clean 4xx with the code rather than mapping a
+        // raw-string exception to a misleading internal_error/500.
         if (blindedMessages == null || blindedMessages.isEmpty()) {
-            throw new CashuErrorException("mint_request_missing_outputs");
+            throw new CashuErrorException(new ErrorResponse("mint_request_missing_outputs").toJson());
         }
 
         // Most mint requests use 1-2 keysets; use small initial capacity
         Map<String, List<Integer>> outputsByKeyset = new HashMap<>(4);
         for (BlindedMessage message : blindedMessages) {
             if (message == null) {
-                throw new CashuErrorException("mint_request_contains_null_output");
+                throw new CashuErrorException(new ErrorResponse("mint_request_contains_null_output").toJson());
             }
             if (message.getKeySetId() == null) {
-                throw new CashuErrorException("missing_keyset_id");
+                throw new CashuErrorException(new ErrorResponse("missing_keyset_id").toJson());
             }
             int amount = message.getAmount();
             if (amount <= 0) {
-                throw new CashuErrorException("invalid_output_amount");
+                throw new CashuErrorException(new ErrorResponse("invalid_output_amount").toJson());
             }
             outputsByKeyset
                     .computeIfAbsent(message.getKeySetId().toString(), ignored -> new ArrayList<>())
@@ -746,12 +783,12 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             try {
                 expected = splittingService.split(total, availableDenoms);
             } catch (IllegalStateException e) {
-                throw new CashuErrorException("invalid_denominations");
+                throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
             }
             List<Integer> actual = new ArrayList<>(entry.getValue());
             actual.sort(Comparator.reverseOrder());
             if (!actual.equals(expected)) {
-                throw new CashuErrorException("invalid_denominations");
+                throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
             }
         }
     }
