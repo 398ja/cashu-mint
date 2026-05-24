@@ -71,7 +71,12 @@ public final class MintProtocolUtil {
         if (kse == null || kse.getId() == null) {
             throw new CashuErrorException("keyset_not_found");
         }
-        xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault keyVault = new xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault();
+        // Route through VaultClientFactory.keyVault() so the active backend
+        // (HASHICORP on staging/prod, DB in tests) is honoured. Directly
+        // instantiating DBKeyVault bypasses HCKeyVault.enrichWithVaultSecret
+        // and leaves KeyEntity.privateKey null even when Hashi has the key —
+        // the silent mint-signing failure pattern observed on 2026-05-24.
+        xyz.tcheeric.cashu.vault.api.KeyVault keyVault = xyz.tcheeric.cashu.vault.api.VaultClientFactory.keyVault();
         xyz.tcheeric.cashu.vault.db.model.KeyEntity keyEntity = keyVault.retrieveByAmount(java.math.BigInteger.valueOf(amount), kse.getId().toString());
         PrivateKey pk = PrivateKey.fromString(keyEntity.getPrivateKey());
         if (log.isDebugEnabled()) {
