@@ -189,3 +189,93 @@ groups:
         annotations:
           summary: "Unusual proof issuance spike"
           description: "Proof issuance rate is 2x higher than previous hour - monitoring for anomalies"
+
+  # ---------------------------------------------------------------
+  # Spec 004 voucher data minimisation alerts (T606 / FR-015 / FR-016)
+  # ---------------------------------------------------------------
+  - name: cashu-mint-voucher-spec004
+    rules:
+      # FR-015 — orphan issuance is a token-integrity violation; page
+      # immediately. The threshold gauge comes from a Grafana
+      # PostgreSQL panel scraping voucher_quote; this alert mirrors
+      # the same query via the Prometheus counter that increments on
+      # each rejection.
+      - alert: VoucherFundingRequiredSpike
+        expr: rate(cashu_mint_voucher_funding_required_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          spec: '004'
+          route: pagerduty
+        annotations:
+          summary: "Sustained voucher funding_required rejections"
+          description: "rate={{ $value | printf \"%.2f\" }}/s for 5m — webhook bridge may be lagging or funding gate is misconfigured"
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/runbooks/voucher-data-minimisation.md"
+
+      # FR-014 — every IOU issuance fires the alert counter regardless
+      # of policy. Increase > 0 in 15m means a new IOU was issued.
+      - alert: VoucherIouIssued
+        expr: increase(cashu_mint_voucher_iou_issued_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          spec: '004'
+          route: slack-merchant-finance
+        annotations:
+          summary: "Voucher issued backed by merchant IOU"
+          description: "An IOU-backed voucher was issued in the last 15 minutes. Operator review required."
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/runbooks/voucher-data-minimisation.md"
+
+      # FR-008 — sustained rate-limit breaches mean a buggy / abusive
+      # client. Single 429 is fine; sustained 10/min is not.
+      - alert: VoucherRateLimitBreachSustained
+        expr: rate(cashu_mint_voucher_rate_limit_breach_total[5m]) > 10/60
+        for: 5m
+        labels:
+          severity: warning
+          spec: '004'
+          route: slack-vouchers-ops
+        annotations:
+          summary: "Sustained voucher rate-limit breaches"
+          description: "Principal {{ $labels.principal }} is breaching the rate limit at {{ $value | printf \"%.2f\" }}/s"
+
+      # Backfill / readiness — if the actuator readiness probe stays
+      # DOWN for an hour, something's wrong with the backfill job.
+      - alert: VoucherBackfillStuck
+        expr: probe_success{job="cashu-mint-readiness"} == 0
+        for: 1h
+        labels:
+          severity: warning
+          spec: '004'
+          route: slack-vouchers-ops
+        annotations:
+          summary: "Voucher identity backfill stuck"
+          description: "/actuator/health/readiness has been DOWN for 1h — backfill may have failed mid-batch"
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/specs/004-voucher-data-minimisation/quickstart.md#troubleshooting"
+
+  # Spec 004 T605 / FR-017 — backward-compat aliases for the
+  # deprecated plural metric names that pre-existed PR #321 (which
+  # introduced singular cashu_mint_voucher_*). Recording rules CREATE
+  # the alias time-series alongside the singular originals so existing
+  # alerts / dashboards keep working while consumers migrate. REMOVE
+  # this entire group after one release cycle (tracked by SC-010 lint).
+  # PR #324 review fix: previously implemented as metric_relabel_configs
+  # in prometheus.yml — which REWROTE singular → plural, silently
+  # dropping the singular name and breaking the spec-004 dashboards.
+  - name: cashu_mint_voucher_compat
+    interval: 15s
+    rules:
+      - record: cashu_mint_vouchers_face_value_issued_total
+        expr: cashu_mint_voucher_face_value_issued_total
+      - record: cashu_mint_vouchers_face_value_redeemed_total
+        expr: cashu_mint_voucher_face_value_redeemed_total
+      - record: cashu_mint_vouchers_fees_collected_total
+        expr: cashu_mint_voucher_fees_collected_total
+      - record: cashu_mint_vouchers_issued_total
+        expr: cashu_mint_voucher_issued_total
+      - record: cashu_mint_vouchers_quotes_active
+        expr: cashu_mint_voucher_quotes_active
+      - record: cashu_mint_vouchers_redeemed_total
+        expr: cashu_mint_voucher_redeemed_total
+      - record: cashu_mint_vouchers_rejected_total
+        expr: cashu_mint_voucher_rejected_total

@@ -107,7 +107,9 @@ public final class VoucherTestSupport {
         VoucherIssuanceEntity issuance = new VoucherIssuanceEntity();
         issuance.setVoucherQuoteId(voucherQuoteId);
         issuance.setFundingId(fundingId);
-        issuance.setIssuanceId(voucherQuoteId);
+        // Spec 004 V20260601_005 dropped the standalone issuance_id column;
+        // VoucherIssuance.issuanceId() now returns the same value as
+        // voucherQuoteId.
         issuance.setOutputsHash(outputsHash);
         issuance.setIssuedAt(Instant.now());
         return issuance;

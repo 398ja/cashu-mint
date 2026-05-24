@@ -4,6 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Binding for {@code cashu.mint.jpa.*}. Drives the opt-in DataSource +
  * Flyway wiring in {@link MintJpaAutoConfiguration}.
@@ -41,5 +44,14 @@ public class MintJpaProperties {
          * (payment-adapter-model, cashu-vault-jpa).
          */
         private String locations = "classpath:db/migration/spec001";
+
+        /**
+         * Spec 004 — Flyway placeholders for migrations that need
+         * deployment-specific values (e.g. the grafana_ro_password used by
+         * V20260601_003__grafana_ro_role.sql). Bound from
+         * {@code cashu.mint.jpa.flyway.placeholders.<key>=<value>} in
+         * application.properties / env vars.
+         */
+        private final Map<String, String> placeholders = new HashMap<>();
     }
 }

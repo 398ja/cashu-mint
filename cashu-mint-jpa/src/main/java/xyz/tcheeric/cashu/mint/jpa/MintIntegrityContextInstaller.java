@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherIssuanceRepository;
@@ -43,6 +44,7 @@ public class MintIntegrityContextInstaller {
     private final VoucherFundingRepository voucherFundingRepository;
     private final VoucherIssuanceRepository voucherIssuanceRepository;
     private final VoucherFundingResolver voucherFundingResolver;
+    private final IdentityHasher identityHasher;
     private final Environment environment;
 
     @Autowired(required = false)
@@ -69,11 +71,12 @@ public class MintIntegrityContextInstaller {
         String activeProfile = active.length == 0 ? "default" : active[0];
         MintIntegrityContext.installVoucher(voucherQuoteRepository, voucherFundingRepository,
                 voucherIssuanceRepository, voucherFundingResolver, voucherIouPolicy, activeProfile);
-        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={})",
+        MintIntegrityContext.installIdentityHasher(identityHasher);
+        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={})",
                 quoteRepository != null, issuanceRecordRepository != null,
                 meltSagaRepository != null, lightningPaymentPort != null,
                 meterRegistry != null, mintUrl, meltPaymentTimeout,
-                voucherIouPolicy, activeProfile);
+                voucherIouPolicy, activeProfile, identityHasher != null);
     }
 
     @PreDestroy

@@ -36,6 +36,20 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
     Optional<VoucherQuoteEntity> findByIdempotencyKey(String idempotencyKey);
 
     /**
+     * Spec 004 FR-009 — operator forensic lookup. Native query bypasses
+     * the IdentityHashConverter (which would otherwise hash the param
+     * on its way to the WHERE clause, double-hashing the operator's
+     * pre-computed lookup value).
+     */
+    @Query(value = "SELECT * FROM voucher_quote WHERE customer_id = :hash",
+            nativeQuery = true)
+    java.util.List<VoucherQuoteEntity> findByCustomerIdHash(@Param("hash") String customerIdHash);
+
+    @Query(value = "SELECT * FROM voucher_quote WHERE merchant_id = :hash",
+            nativeQuery = true)
+    java.util.List<VoucherQuoteEntity> findByMerchantIdHash(@Param("hash") String merchantIdHash);
+
+    /**
      * Conditional UPDATE on {@code lifecycle_state}: only sets {@code to}
      * when the current value is {@code from}. Returns {@code 1} on
      * success, {@code 0} if a concurrent writer already advanced state.

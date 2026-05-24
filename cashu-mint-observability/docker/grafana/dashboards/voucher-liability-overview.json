@@ -1,0 +1,64 @@
+{
+  "uid": "voucher-liability-overview",
+  "title": "Voucher Liability Overview",
+  "tags": ["cashu-mint", "voucher", "spec-004"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {"from": "now-30d", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total outstanding voucher liability",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(face_value) AS liability FROM voucher_quote WHERE lifecycle_state = 'ISSUED'",
+          "format": "table"
+        }
+      ],
+      "options": {"colorMode": "value", "graphMode": "area"}
+    },
+    {
+      "id": 2,
+      "title": "Liability per funding source",
+      "type": "barchart",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 8},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT f.funding_source, SUM(f.amount) AS liability FROM voucher_funding f JOIN voucher_quote q ON q.funding_id = f.funding_id AND q.lifecycle_state = 'ISSUED' GROUP BY f.funding_source",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "30-day liability trend",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', i.issued_at) AS time, f.funding_source AS metric, SUM(f.amount) AS value FROM voucher_issuance i JOIN voucher_funding f ON f.funding_id = i.funding_id WHERE i.issued_at > now() - interval '30 days' GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Issuance rate per funding source",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 8},
+      "datasource": {"type": "prometheus"},
+      "targets": [
+        {
+          "expr": "rate(cashu_mint_voucher_issued_total{path=\"mint\"}[5m])",
+          "legendFormat": "{{funding_source}}"
+        }
+      ]
+    }
+  ]
+}

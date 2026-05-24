@@ -1,0 +1,37 @@
+# Spec 004 T600 / FR-013 / Clarifications Q4 — PostgreSQL data source
+# for the voucher dashboards. Connects as the dedicated
+# cashu_mint_grafana_ro role created by V20260601_003__grafana_ro_role.sql
+# which has column-level GRANT SELECT excluding identity columns
+# (customer_id, merchant_id). An ad-hoc Grafana query that selects an
+# identity column fails at the PostgreSQL layer with
+# `permission denied for column customer_id`.
+#
+# Credentials sourced from environment variables; never hardcoded.
+
+apiVersion: 1
+
+datasources:
+  - name: voucher-postgresql
+    type: postgres
+    uid: voucher-postgresql
+    access: proxy
+    url: ${VOUCHER_PG_HOST:cashu-mint-db}:${VOUCHER_PG_PORT:5432}
+    database: ${VOUCHER_PG_DATABASE:cashu_mint}
+    user: cashu_mint_grafana_ro
+    secureJsonData:
+      # Env var name aligned with the Flyway placeholder
+      # cashu.mint.jpa.flyway.placeholders.grafana_ro_password — both
+      # the mint (which CREATEs / sets the ROLE password at migration
+      # time) and Grafana (which authenticates with it) read from the
+      # same CASHU_MINT_GRAFANA_RO_PASSWORD env var. Stack must source
+      # one value into both processes; mismatched names silently
+      # broke dashboards in the PR #324 review (no fallback default
+      # by design — fail-loud beats fail-quiet for credentials).
+      password: ${CASHU_MINT_GRAFANA_RO_PASSWORD}
+    jsonData:
+      sslmode: ${VOUCHER_PG_SSLMODE:disable}
+      postgresVersion: 1600
+      timescaledb: false
+    # Editable=false so operators can't change credentials through
+    # the Grafana UI; rotation goes through the secret manager + redeploy.
+    editable: false

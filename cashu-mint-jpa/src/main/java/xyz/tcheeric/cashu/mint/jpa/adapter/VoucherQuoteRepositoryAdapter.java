@@ -49,6 +49,20 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
         return jpa.findByIdempotencyKey(idempotencyKey).map(e -> (VoucherQuote) e);
     }
 
+    @Override
+    public java.util.List<VoucherQuote> findByCustomerIdHash(String customerIdHash) {
+        return jpa.findByCustomerIdHash(customerIdHash).stream()
+                .map(e -> (VoucherQuote) e)
+                .toList();
+    }
+
+    @Override
+    public java.util.List<VoucherQuote> findByMerchantIdHash(String merchantIdHash) {
+        return jpa.findByMerchantIdHash(merchantIdHash).stream()
+                .map(e -> (VoucherQuote) e)
+                .toList();
+    }
+
     private VoucherQuoteEntity toEntity(VoucherQuote q) {
         VoucherQuoteEntity e = new VoucherQuoteEntity();
         e.setQuoteId(q.quoteId());

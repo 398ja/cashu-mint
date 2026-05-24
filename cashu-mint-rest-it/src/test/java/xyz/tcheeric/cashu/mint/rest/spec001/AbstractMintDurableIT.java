@@ -70,6 +70,20 @@ public abstract class AbstractMintDurableIT {
         // startup validator runs. Supply a known shared secret + provider.
         registry.add("cashu.mint.webhook.shared-secret", () -> "it-shared-secret");
         registry.add("cashu.mint.webhook.provider", () -> "phoenixd-it");
+
+        // Spec 004 FR-002 — HmacSha256IdentityHasher fail-closes when the
+        // salt is unset OR shorter than 32 bytes. Set a deterministic
+        // 64-char (32-byte) hex salt for ITs so the boot validator passes
+        // and the converter produces stable hashes the assertions can
+        // reproduce.
+        registry.add("cashu.mint.voucher.identity-salt",
+                () -> "9f8a2c1b7e4d6a3f0c5b9d8e7f6a4c2b1d8e9f7a3c5b2d4e6f1a8c0b9d7e5f3a");
+
+        // Spec 004 V20260601_003 — Flyway placeholder for the
+        // cashu_mint_grafana_ro role password (consumed by the
+        // cashu-mint-jpa module's MintJpaProperties.flyway.placeholders).
+        registry.add("cashu.mint.jpa.flyway.placeholders.grafana_ro_password",
+                () -> "it-grafana-ro-password");
     }
 
     @Autowired

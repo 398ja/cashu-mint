@@ -1,0 +1,62 @@
+{
+  "uid": "voucher-iou-liability",
+  "title": "Voucher IOU Liability Tracker",
+  "tags": ["cashu-mint", "voucher", "spec-004", "iou"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {"from": "now-90d", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Outstanding IOUs",
+      "description": "merchant_id column granted to cashu_mint_grafana_ro is NULL because identity columns are excluded from the GRANT (Clarifications Q4). For per-row merchant lookup, use the FR-009 admin forensic endpoint.",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 10},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT i.iou_id, i.policy_profile, vf.amount, i.iou_due_at, CASE WHEN i.iou_due_at < now() THEN 'overdue' WHEN i.iou_due_at < now() + interval '7 days' THEN 'due_soon' ELSE 'ok' END AS status FROM merchant_iou_funding i JOIN voucher_funding vf ON vf.funding_id = i.funding_id JOIN voucher_quote q ON q.funding_id = i.funding_id AND q.lifecycle_state = 'ISSUED' ORDER BY i.iou_due_at ASC LIMIT 200",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "IOU policy drift (issued under DENY-now profile)",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS rogue_iou_count FROM merchant_iou_funding WHERE policy_profile IN ('prod', 'staging')",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Overdue IOU value",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 10, "w": 12, "h": 6},
+      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "targets": [
+        {
+          "rawSql": "SELECT COALESCE(SUM(vf.amount), 0) AS overdue_value FROM merchant_iou_funding i JOIN voucher_funding vf ON vf.funding_id = i.funding_id WHERE i.iou_due_at < now()",
+          "format": "table"
+        }
+      ]
+    }
+  ]
+}

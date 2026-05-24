@@ -33,8 +33,10 @@ public class VoucherIssuanceEntity implements VoucherIssuance {
     @Column(name = "funding_id", length = 64, nullable = false, updatable = false)
     private String fundingId;
 
-    @Column(name = "issuance_id", length = 64, nullable = false, updatable = false)
-    private String issuanceId;
+    // Spec 004 V20260601_005 dropped the issuance_id column (research R5c —
+    // denormalised mirror with no consumer; YAGNI). The VoucherIssuance
+    // port still surfaces issuanceId() for source-compat; this entity
+    // returns voucherQuoteId for that method (they were always equal).
 
     @Column(name = "outputs_hash", length = 64, nullable = false, updatable = false)
     private String outputsHash;
@@ -61,7 +63,11 @@ public class VoucherIssuanceEntity implements VoucherIssuance {
 
     @Override
     public String issuanceId() {
-        return issuanceId;
+        // Spec 004 V20260601_005 dropped the standalone issuance_id column.
+        // voucher_quote_id and issuance_id were always the same value (per
+        // the R1 namespace invariant); return the live PK so existing
+        // callers see no behavioural change.
+        return voucherQuoteId;
     }
 
     @Override

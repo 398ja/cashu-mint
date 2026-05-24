@@ -59,7 +59,10 @@ class VoucherQuoteRestartIT extends AbstractVoucherDurableIT {
         assertThat(reloaded.faceValue()).isEqualTo(1500L);
         assertThat(reloaded.voucherType()).isEqualTo(VoucherTestSupport.VOUCHER_TYPE_CUSTOMER_PAID);
         assertThat(reloaded.lifecycleState()).isEqualTo(VoucherLifecycleState.UNFUNDED);
-        assertThat(reloaded.customerId()).isEqualTo("customer-restart-1");
+        // Spec 004 FR-002 — customer_id is now hashed at rest via
+        // IdentityHashConverter. The 64-char hex digest survives restart
+        // (the converter never reverses).
+        assertThat(reloaded.customerId()).matches("^[0-9a-f]{64}$");
         assertThat(reloaded.fundingId()).isNull();
         // request_hash survives — it's the tamper-detection anchor for FR-009.
         assertThat(reloaded.requestHash()).isNotNull().hasSize(64);
@@ -94,7 +97,8 @@ class VoucherQuoteRestartIT extends AbstractVoucherDurableIT {
         assertThat(reloadedFunding.amount()).isEqualTo(2500L);
         assertThat(reloadedFunding.getProvider()).isEqualTo("phoenixd-it");
         assertThat(reloadedFunding.getProviderEventId()).isEqualTo("evt-restart-2");
-        assertThat(reloadedFunding.getCustomerId()).isEqualTo("customer-restart-2");
+        // Spec 004 FR-002 — customer_id hashed at rest, not raw.
+        assertThat(reloadedFunding.getCustomerId()).matches("^[0-9a-f]{64}$");
     }
 
     @Test

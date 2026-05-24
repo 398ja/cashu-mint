@@ -31,6 +31,7 @@ public class CustomerPaymentFundingEntity extends VoucherFundingEntity {
     @Column(name = "webhook_event_quote_id", length = 64)
     private String webhookEventQuoteId;
 
+    @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "customer_id", length = 255)
     private String customerId;
 

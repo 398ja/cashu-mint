@@ -23,14 +23,17 @@ import org.hibernate.envers.Audited;
 @NoArgsConstructor
 public class MerchantDebitFundingEntity extends VoucherFundingEntity {
 
+    @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "merchant_id", length = 255, nullable = false)
     private String merchantId;
 
     @Column(name = "merchant_debit_id", length = 255, nullable = false)
     private String merchantDebitId;
 
-    @Column(name = "merchant_ledger_balance_after")
-    private Long merchantLedgerBalanceAfter;
+    // Spec 004 V20260601_005 dropped the merchant_ledger_balance_after
+    // column (research R5a — speculative forensic snapshot with no
+    // operator consumer; the merchant's own ledger is the source of
+    // truth for merchant balance).
 
     @Override
     public String merchantId() {
