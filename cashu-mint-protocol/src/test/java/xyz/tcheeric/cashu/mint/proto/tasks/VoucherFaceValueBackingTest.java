@@ -166,6 +166,32 @@ class VoucherFaceValueBackingTest {
     }
 
     // ---------------------------------------------------------------
+    // Spec 007 — output validation before the FUNDED → ISSUING CAS
+    // ---------------------------------------------------------------
+
+    @Test
+    void output_sum_mismatch_is_rejected_before_issuing_cas() throws Exception {
+        // Funding fully backs the face value (spec-006 gate passes), but the
+        // blinded outputs (sum = 100 from task()) do NOT sum to the quote's
+        // face value (200). The mint MUST reject with mint_amount_mismatch
+        // BEFORE consuming the quote FUNDED → ISSUING — otherwise a malformed
+        // output set strands the quote in ISSUING (spec 007).
+        installVoucher("DENY");
+        when(voucherQuoteRepo.findById(QUOTE_ID))
+                .thenReturn(Optional.of(new VoucherQuoteStub(QUOTE_ID, /*face*/ 200L, FEE, "sat", FUNDING_ID,
+                        VoucherLifecycleState.FUNDED)));
+        stubFunding(VoucherFundingSource.MERCHANT_DEBIT, 200L, "sat");
+
+        assertThatThrownBy(() -> task().execute())
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> code((CashuErrorException) ex).equals("mint_amount_mismatch"));
+
+        // The quote was NEVER consumed into ISSUING.
+        verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
+                eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
+    }
+
+    // ---------------------------------------------------------------
     // Fixtures
     // ---------------------------------------------------------------
 

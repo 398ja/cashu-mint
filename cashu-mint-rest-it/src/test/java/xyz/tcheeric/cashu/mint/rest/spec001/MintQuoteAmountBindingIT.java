@@ -155,6 +155,71 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
     }
 
     @Test
+    void invalidOutput_amountSumsButDenominationInvalid_quoteStaysPaid() {
+        // Spec 007 — outputs sum to the quote amount (11 + (-1) = 10) but one
+        // output is deterministically invalid (non-positive). validateDenominations
+        // now runs BEFORE the PAID → ISSUING CAS, so the quote MUST stay PAID
+        // and never be consumed into ISSUING. Pre-fix this stranded the quote.
+        ResponseEntity<String> response = postMint(
+                "q-it-mint-bind",
+                List.of(Map.of("amount", 11, "id", TEST_KEYSET_ID, "B_", B_AMT_8),
+                        Map.of("amount", -1, "id", TEST_KEYSET_ID, "B_", B_AMT_1)));
+
+        assertThat(response.getStatusCode().is4xxClientError())
+                .as("deterministic output error must be a clean 4xx, not 500 — status=%s body=%s",
+                        response.getStatusCode(), response.getBody())
+                .isTrue();
+        assertThat(response.getBody()).contains("invalid_output_amount");
+        assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
+                .as("a deterministically-invalid output set must not consume the quote into ISSUING")
+                .isEqualTo(LifecycleState.PAID);
+        assertThat(issuanceRecordJpaRepository.count())
+                .as("no IssuanceRecord row written when output validation fails")
+                .isEqualTo(0L);
+    }
+
+    @Test
+    void nullOutput_rejectedAsClientError_quoteStaysPaid() {
+        // Spec 007 (PR #330 review) — a null output element must be rejected
+        // up front with mint_request_contains_null_output as a clean 4xx,
+        // not NPE into a 500 in the amount-sum stream. Quote stays PAID.
+        List<Map<String, Object>> outputs = java.util.Arrays.asList(
+                Map.of("amount", 10, "id", TEST_KEYSET_ID, "B_", B_AMT_8),
+                null);
+        ResponseEntity<String> response = postMint("q-it-mint-bind", outputs);
+
+        assertThat(response.getStatusCode().is4xxClientError())
+                .as("null output must be a clean 4xx, not 500 — status=%s body=%s",
+                        response.getStatusCode(), response.getBody())
+                .isTrue();
+        assertThat(response.getBody()).contains("mint_request_contains_null_output");
+        assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
+                .isEqualTo(LifecycleState.PAID);
+        assertThat(issuanceRecordJpaRepository.count()).isEqualTo(0L);
+    }
+
+    @Test
+    void wrongSplit_amountSumsButNotCanonical_quoteStaysPaid() {
+        // Outputs sum to 10 with valid keyset denoms but a non-canonical split
+        // ([4,4,2] vs the NUT-00 minimal [8,2]) → invalid_denominations, before
+        // the CAS. Quote stays PAID.
+        ResponseEntity<String> response = postMint(
+                "q-it-mint-bind",
+                List.of(Map.of("amount", 4, "id", TEST_KEYSET_ID, "B_", B_AMT_8),
+                        Map.of("amount", 4, "id", TEST_KEYSET_ID, "B_", B_AMT_1),
+                        Map.of("amount", 2, "id", TEST_KEYSET_ID, "B_", B_AMT_2)));
+
+        assertThat(response.getStatusCode().is4xxClientError())
+                .as("deterministic output error must be a clean 4xx, not 500 — status=%s body=%s",
+                        response.getStatusCode(), response.getBody())
+                .isTrue();
+        assertThat(response.getBody()).contains("invalid_denominations");
+        assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
+                .isEqualTo(LifecycleState.PAID);
+        assertThat(issuanceRecordJpaRepository.count()).isEqualTo(0L);
+    }
+
+    @Test
     void exactMint_succeeds_quoteIssued_andOneIssuanceRecord() {
         ResponseEntity<String> response = postMint(
                 "q-it-mint-bind",
