@@ -68,6 +68,13 @@ public class DefaultProofVaultService implements ProofVaultService {
     // ---------------------------------------------------------------
 
     @Override
+    public int insertOrClaimForSaga(java.util.List<ProofEntity> proofs,
+                                    String meltSagaId,
+                                    java.util.UUID mintId) {
+        return DBProofVault.insertOrClaimForSaga(mintId.toString(), meltSagaId, proofs);
+    }
+
+    @Override
     public int markPendingForSaga(java.util.Collection<String> proofSecrets,
                                   String meltSagaId,
                                   java.util.UUID mintId) {

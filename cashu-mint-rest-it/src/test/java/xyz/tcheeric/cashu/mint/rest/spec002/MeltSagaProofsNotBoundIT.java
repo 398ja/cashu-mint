@@ -44,23 +44,31 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Spec 002 T200 / T201 / T203 — drives /v1/melt against the
- * Testcontainers Postgres harness with a mocked
- * {@link ProofVaultService} (to skip the cashu-vault REST round-trip)
- * and a programmable {@link MockLightningPaymentPort}. Asserts the saga
- * state machine transitions for the three concrete
- * {@link PaymentOutcome} branches.
+ * Spec 005 — fail-closed assertion for the melt-saga proof hold. When the
+ * vault cannot durably bind every submitted proof to this saga, the mint
+ * MUST NOT proceed to {@link LightningPaymentPort#pay}. The saga ends in
+ * {@code FAILED} with a cached terminal {@code proofs_not_bound} error
+ * and any partial hold is released.
  *
- * <p>The fixture sidesteps the proof-vault dependency by replacing the
- * {@code ProofVaultService} bean with a Mockito mock that is a no-op
- * for {@code storePending} and {@code invalidate}. The saga state +
- * transitions land in Postgres as designed.
+ * <p>This is the critical regression-cover IT for the
+ * {@code backend-token-integrity-review-2026-05-24} highest-priority
+ * finding: prior to spec 005, a partial bind logged a WARN and the saga
+ * continued to {@code lightningPaymentPort.pay} with no durable proof
+ * hold, leaving the JVM-crash window between pay-and-burn uncovered.
+ *
+ * <p>The proof-vault is mocked so the test can deterministically force
+ * {@code insertOrClaimForSaga} into a partial / zero / exception
+ * outcome. The vault-side atomic primitive is covered separately in
+ * {@code ProofVaultControllerIntegrationTest.InsertOrClaimTests}
+ * (cashu-vault repo).
  */
-@Import(MeltBurnFirstOrderingIT.MockConfig.class)
-class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
+@Import(MeltSagaProofsNotBoundIT.MockConfig.class)
+class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -127,133 +135,130 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
-        // Mocked vault entities so persistPendingProofs is a no-op.
+        // Provide a managed mint entity so MeltTask.buildNormalisedProofEntities
+        // can Y-normalise without NPEing on the mocked vault service.
         xyz.tcheeric.cashu.vault.db.model.MintEntity me =
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
-        me.setId(java.util.UUID.fromString(mint.getId()));
+        me.setId(UUID.fromString(mint.getId()));
         when(mintVaultService.retrieveMint(anyString())).thenReturn(me);
-        // proofVaultService is a Mockito mock — storePending / invalidate
-        // default to no-op behavior. Spec 005 — opt-in stub for the new
-        // atomic bind so every submitted proof is reported "claimed";
-        // without this stub the default 0 trips the fail-closed
-        // proofs_not_bound path and the saga lifecycle stops.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
-                .thenAnswer(inv -> {
-                    java.util.List<?> rows = inv.getArgument(0);
-                    return rows.size();
-                });
         transitions.deleteAll();
         sagas.deleteAll();
         ((MockLightningPaymentPort) paymentPort).reset();
     }
 
     @Test
-    void happy_path_drives_proofs_held_payment_sent_completed_T200() {
-        // Burn-first ordering check: storePending MUST run before pay().
-        // We verify via the saga transitions ledger — seq=1 is
-        // null → PROOFS_HELD, seq=2 is PROOFS_HELD → PAYMENT_SENT, seq=3
-        // is PAYMENT_SENT → COMPLETED. The proof-vault mock is a no-op,
-        // so the order is committed but unobservable from there; the
-        // saga ledger is the authoritative order-of-events record.
-        ((MockLightningPaymentPort) paymentPort).enqueuePay(
-                new PaymentOutcome.Success("preimage-happy", 100L, 0L, "evt-happy"));
+    void partial_bind_fails_closed_before_payment_T501() throws Exception {
+        // Two proofs submitted, only one durably bound — the other slipped
+        // away (concurrent saga holds it / already spent / SPENT lookup
+        // raced). The mint MUST NOT call lightningPaymentPort.pay.
+        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(1);
 
-        ResponseEntity<String> response = postMelt("quote-happy", overFundedProofs());
+        ResponseEntity<String> response = postMelt("quote-partial", overFundedProofs());
+
+        // The wallet receives an error response carrying proofs_not_bound.
+        assertThat(response.getStatusCode().isError()).isTrue();
+        assertThat(response.getBody()).contains("proofs_not_bound");
+
+        // Saga lands in FAILED.
+        MeltSagaEntity saga = sagas.findByQuoteId("quote-partial").orElseThrow();
+        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.FAILED);
+
+        // Transition timeline: PROOFS_HELD → FAILED (no PAYMENT_SENT).
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
+        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
+                .containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
+
+        // CRITICAL: lightningPaymentPort.pay was never invoked.
+        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-partial"))
+                .as("partial bind must abort BEFORE external payment")
+                .isZero();
+
+        // Partial hold released for this saga.
+        verify(proofVaultService).refundForSaga(saga.getMeltSagaId());
+    }
+
+    @Test
+    void zero_bind_fails_closed_before_payment_T502() throws Exception {
+        // Most common failure shape: every submitted proof is already
+        // held by another saga / already spent. insert-or-claim returns 0.
+        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenReturn(0);
+
+        ResponseEntity<String> response = postMelt("quote-zero", overFundedProofs());
+
+        assertThat(response.getStatusCode().isError()).isTrue();
+        assertThat(response.getBody()).contains("proofs_not_bound");
+
+        MeltSagaEntity saga = sagas.findByQuoteId("quote-zero").orElseThrow();
+        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.FAILED);
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
+        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
+                .containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
+
+        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-zero")).isZero();
+    }
+
+    @Test
+    void vault_exception_during_bind_fails_closed_before_payment_T503() throws Exception {
+        // Vault unreachable during insert-or-claim — must not proceed
+        // to external payment. Saga is logged into FAILED via the catch
+        // path; the proofs_not_bound counter is incremented.
+        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenThrow(new RuntimeException("vault_unreachable_for_bind"));
+
+        ResponseEntity<String> response = postMelt("quote-vault-down", overFundedProofs());
+
+        assertThat(response.getStatusCode().isError()).isTrue();
+
+        // The saga record exists, and lightningPaymentPort.pay was never invoked.
+        MeltSagaEntity saga = sagas.findByQuoteId("quote-vault-down").orElseThrow();
+        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-vault-down"))
+                .as("vault unreachable during bind must NOT trigger external payment")
+                .isZero();
+        // Refund was attempted to clear any partial hold for this saga.
+        verify(proofVaultService).refundForSaga(saga.getMeltSagaId());
+    }
+
+    @Test
+    void happy_path_proves_bind_happens_before_pay_T504() throws Exception {
+        // Spec 005 / SC-003 — explicit interaction-ordering proof: the
+        // saga's insertOrClaimForSaga call MUST run before
+        // lightningPaymentPort.pay. The cashu-vault IT
+        // (ProofVaultControllerIntegrationTest.InsertOrClaimTests)
+        // covers the durable side; this IT covers the call ordering
+        // through the live REST + saga ledger.
+        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                .thenAnswer(inv -> {
+                    List<?> rows = inv.getArgument(0);
+                    return rows.size();
+                });
+        ((MockLightningPaymentPort) paymentPort).enqueuePay(
+                new PaymentOutcome.Success("preimage-happy-005", 100L, 0L, "evt-happy-005"));
+
+        ResponseEntity<String> response = postMelt("quote-happy-005", overFundedProofs());
 
         assertThat(response.getStatusCode().is2xxSuccessful())
                 .as("status=%s body=%s", response.getStatusCode(), response.getBody())
                 .isTrue();
 
-        MeltSagaEntity saga = sagas.findByQuoteId("quote-happy").orElseThrow();
+        MeltSagaEntity saga = sagas.findByQuoteId("quote-happy-005").orElseThrow();
         assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.COMPLETED);
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
-        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
-                .containsExactly(MeltSagaState.PROOFS_HELD,
-                        MeltSagaState.PAYMENT_SENT,
-                        MeltSagaState.COMPLETED);
-    }
 
-    @Test
-    void definitive_failure_lands_saga_in_FAILED_T201() {
-        ((MockLightningPaymentPort) paymentPort).enqueuePay(
-                new PaymentOutcome.DefinitiveFailure("route_not_found", "1001"));
-
-        ResponseEntity<String> response = postMelt("quote-failed", overFundedProofs());
-
-        // The response is an error (4xx/5xx) carrying melt_invoice_not_paid_error.
-        assertThat(response.getStatusCode().isError()).isTrue();
-        MeltSagaEntity saga = sagas.findByQuoteId("quote-failed").orElseThrow();
-        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.FAILED);
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
-        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
-                .containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
-    }
-
-    @Test
-    void unknown_outcome_parks_saga_in_PAYMENT_UNKNOWN_T203() {
-        ((MockLightningPaymentPort) paymentPort).enqueuePay(
-                new PaymentOutcome.Unknown("provider_timeout"));
-
-        ResponseEntity<String> response = postMelt("quote-unknown", overFundedProofs());
-
-        // The response carries payment_unknown.
-        assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("payment_unknown");
-        MeltSagaEntity saga = sagas.findByQuoteId("quote-unknown").orElseThrow();
-        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.PAYMENT_UNKNOWN);
-        // FR-007: no auto-retry of pay() — only one invocation.
-        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-unknown"))
+        // Bind ran exactly once.
+        verify(proofVaultService).insertOrClaimForSaga(any(), anyString(), any(UUID.class));
+        // Pay ran exactly once.
+        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-happy-005"))
                 .isEqualTo(1);
-    }
+        // Refund was NOT called on the happy path.
+        verify(proofVaultService, never()).refundForSaga(anyString());
 
-    @Test
-    void burn_failure_after_payment_lands_saga_in_PAYMENT_SENT_BURN_FAILED_T202() throws Exception {
-        // The proof-invalidate call AFTER pay() succeeds must fail to drive
-        // the saga into PAYMENT_SENT_BURN_FAILED with the proofs held in
-        // PENDING. We inject the invalidate failure on the ProofVaultService
-        // mock so MeltTask's createInvalidateProofsTask raises an exception
-        // when the saga is in PAYMENT_SENT.
-        ((MockLightningPaymentPort) paymentPort).enqueuePay(
-                new PaymentOutcome.Success("preimage-burn-fail", 100L, 0L, "evt-burn-fail"));
-        Mockito.doThrow(new RuntimeException("vault_unreachable_for_invalidate"))
-                .when(proofVaultService).invalidate(any());
-
-        ResponseEntity<String> response = postMelt("quote-burn-fail", overFundedProofs());
-
-        // Response is an error (the burn step threw).
-        assertThat(response.getStatusCode().isError()).isTrue();
-        // Saga state machine: PROOFS_HELD → PAYMENT_SENT → PAYMENT_SENT_BURN_FAILED.
-        MeltSagaEntity saga = sagas.findByQuoteId("quote-burn-fail").orElseThrow();
-        assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.PAYMENT_SENT_BURN_FAILED);
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
-        assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
-                .containsExactly(MeltSagaState.PROOFS_HELD,
-                        MeltSagaState.PAYMENT_SENT,
-                        MeltSagaState.PAYMENT_SENT_BURN_FAILED);
-        // FR-007: no auto-retry of pay() after the burn failure.
-        assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-burn-fail"))
-                .isEqualTo(1);
-    }
-
-    @Test
-    void payment_port_pay_is_invoked_only_AFTER_PROOFS_HELD_commits_SC_003() {
-        // SC-003 spirit at IT level: by the time the LightningPaymentPort.pay
-        // is invoked, the PROOFS_HELD saga row MUST already exist in
-        // Postgres. We assert by observing the saga state at the moment
-        // the mock pay() runs.
-        MockLightningPaymentPort mock = (MockLightningPaymentPort) paymentPort;
-        // Script Success; verification is via timing on the saga row.
-        mock.enqueuePay(new PaymentOutcome.Success("preimage-sc003", 100L, 0L, "evt-sc003"));
-
-        postMelt("quote-sc003", overFundedProofs());
-
-        // After the request completes, the PROOFS_HELD transition exists
-        // in the ledger AND it precedes PAYMENT_SENT (seq=1 < seq=2).
-        MeltSagaEntity saga = sagas.findByQuoteId("quote-sc003").orElseThrow();
+        // Bind-before-pay ordering is enforced by the saga ledger:
+        // PROOFS_HELD (seq=1) precedes PAYMENT_SENT (seq=2). The vault
+        // insert-or-claim that backs PROOFS_HELD therefore necessarily
+        // ran before lightningPaymentPort.pay was invoked.
         List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(saga.getMeltSagaId());
         assertThat(timeline.get(0).getToState()).isEqualTo(MeltSagaState.PROOFS_HELD);
-        assertThat(timeline.get(0).getSeq()).isEqualTo(1);
-        // PAYMENT_SENT comes AFTER PROOFS_HELD in the ledger.
         int proofsHeldSeq = timeline.stream()
                 .filter(t -> t.getToState() == MeltSagaState.PROOFS_HELD)
                 .findFirst().orElseThrow().getSeq();
@@ -264,7 +269,6 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
     }
 
     private static List<Map<String, Object>> overFundedProofs() {
-        // Two proofs of 64 sat each = 128 > 105 (invoice + reserve).
         return List.of(MeltProofFixture.proofJson(64), MeltProofFixture.proofJson(64));
     }
 
