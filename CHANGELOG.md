@@ -11,6 +11,144 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.17.0] - 2026-05-24
+
+### Added
+
+- **Spec 003 — Voucher Quote Durability and Funding-Source Binding** (FR-001
+  through FR-013). Every voucher proof is now traceable to a durable
+  `voucher_funding` row; the "skip payment check" loophole is closed.
+  - Four new PostgreSQL tables in `cashu-mint-jpa`: `voucher_funding`
+    (Envers-audited, JOINED-inheritance parent of `customer_payment_funding`
+    / `merchant_debit_funding` / `merchant_iou_funding`), `voucher_quote`
+    (Envers-audited, CAS-transitioned `UNFUNDED → FUNDED → ISSUING →
+    ISSUED`), `voucher_issuance` (append-only ledger), and
+    `voucher_idempotency_key` (DB-backed `Idempotency-Key` cache).
+  - 8 protocol ports in `cashu-mint-protocol/.../proto/` for the voucher
+    domain plus `VoucherFundingResolver` strategy + default impl that scans
+    `webhook_event` for an `accepted` event and lazily creates a
+    `CustomerPaymentFunding` row (idempotent on
+    `(provider, provider_event_id)`).
+  - `VoucherMintQuoteTask` persists a `voucher_quote` row at quote-creation
+    time. `MintTask`'s voucher branch loads the durable record, runs the
+    resolver, rejects with `funding_required` when no funding row resolves,
+    then CAS-advances through `FUNDED → ISSUING → ISSUED` after signing.
+  - `VoucherQuoteRegistry` demoted to a read-through cache; the durable
+    repository is the source of truth.
+  - REST hardening: `/v1/vouchers/**` now requires `ADMIN` role (FR-007),
+    per-principal Caffeine rate-limit + 429 + `Retry-After` +
+    `cashu_mint_voucher_rate_limit_breach_total` counter (FR-008),
+    DB-backed idempotency replay + 409 tamper detection (FR-009), and a
+    scheduled TTL prune for the idempotency cache.
+  - Operator queries embedded as Javadoc on `VoucherIssuanceJpaRepository`
+    (SC-001 orphan-issuance query + IOU liability dashboard).
+- **Spec 004 — Voucher Data Minimisation and Customer-Identity Custody**
+  (FR-001 through FR-019, plus Constitution Principle VII ratification
+  `1.1.0 → 1.2.0`). Closes the data-custody gap spec 003 introduced — the
+  mint no longer stores raw customer / merchant npubs.
+  - **Hash at rest**: HMAC-SHA-256 via `javax.crypto.Mac`; salt from env
+    `CASHU_MINT_VOUCHER_IDENTITY_SALT` (≥ 32 bytes; boot fails closed
+    otherwise). `IdentityHashConverter` applied via `@Convert` on every
+    identity column on `voucher_quote`, `customer_payment_funding`,
+    `merchant_debit_funding`, and `merchant_iou_funding`.
+  - **Anonymous purchases**: `customer_id` nullable; null short-circuits
+    the hasher so no enumerable hash-of-empty placeholder appears.
+  - **Boot-time backfill**: `VoucherIdentityBackfillService` paginated
+    (1000-row chunks, configurable), idempotent via
+    `customer_id !~ '^[0-9a-f]{64}$'` filter. Updates live + Envers
+    `_aud` rows in one transaction via `VoucherIdentityBackfillBatch`.
+    `VoucherBackfillHealthIndicator` keeps `/actuator/health/readiness`
+    DOWN until every required table has `completed_at IS NOT NULL`.
+  - **Retention purge**: `VoucherIdentityRetentionPurgeService` daily
+    `@Scheduled` (cron from `cashu.mint.voucher.identity-purge-cron`,
+    default `0 0 3 * * *`). Nullifies identity columns on terminal-state
+    rows past the retention boundary (default 90 days). Records audit row
+    in `voucher_quote_purge_log` for the "purged" vs "anonymous"
+    distinction.
+  - **Idempotency cache scrub**: `IdentityFieldScrubber` walks JSON
+    response bodies before they hit `voucher_idempotency_key.
+    response_body_json`; hashes identity field values so a DB dump of
+    the cache contains zero raw npubs.
+  - **Forensic lookup** (FR-009): `POST /admin/voucher/forensic/
+    customer-purchases` + `/merchant-purchases`. Operator submits raw
+    npub; mint hashes internally; returns matching voucher_quotes. Salt
+    never leaves the mint.
+  - **Three new Grafana dashboards**: `voucher-liability-overview`,
+    `voucher-token-integrity` (orphan-issuance gauge — SC-001 made
+    glanceable), `voucher-iou-liability`. All run via a dedicated
+    `cashu_mint_grafana_ro` PostgreSQL role with **column-level
+    `GRANT SELECT` that excludes `customer_id` + `merchant_id`** —
+    defence in depth on top of dashboard JSON review.
+    `GrafanaRolePermissionIT` proves the DB-layer enforcement.
+  - Customer-facing disclosure document at `docs/explanations/voucher-
+    data-record.md`; CI test `DisclosureDocSchemaContractTest` fails the
+    build on schema-vs-doc drift.
+
+### Changed
+
+- Bumped `cashu-mint` aggregator and all internal modules from `0.16.0`
+  to `0.17.0`. No breaking API changes; additive only.
+- `MintIntegrityContext` service-locator gained `.installVoucher()` +
+  `.identityHasher()` accessors, extending the pattern from specs
+  001/002/003 to the spec-004 surface.
+
+### Security
+
+- Customer + merchant npubs are now stored as HMAC-SHA-256 digests on
+  every voucher-related table. A DB dump no longer reveals raw
+  identifiers. Salt rotation in v1 is forward-only and explicitly
+  accepts loss of pre-rotation forensic-lookup capability (see
+  `specs/004-voucher-data-minimisation/quickstart.md` § 7).
+- Grafana DB role `cashu_mint_grafana_ro` is provisioned with
+  column-level grants that EXCLUDE identity columns — an ad-hoc
+  Grafana query against `customer_id` fails at the PostgreSQL layer
+  with `permission denied for column customer_id`.
+
+### Fixed (PR #324 review round)
+
+- `IdentityHashConverter` is now idempotent on already-hashed values
+  (regex `^[0-9a-f]{64}$`). A JPA load → merge no longer double-hashes
+  the stored HMAC, which would have broken every forensic lookup.
+- `VoucherIdentityBackfillService` injects `IdentityHasher` directly
+  instead of pulling from the static `MintIntegrityContext` at
+  `@PostConstruct`; removes init-order race that could silently no-op
+  the backfill.
+- Per-batch backfill execution extracted to `VoucherIdentityBackfillBatch`
+  so the `@Transactional` boundary is honoured by the Spring proxy
+  (live + `_aud` UPDATEs commit together per research R9).
+- `VoucherIdentityRetentionPurgeService` audit-table UPDATE now scopes
+  by the live row's `lifecycle_state`; previously could purge `_aud`
+  revisions of still-active UNFUNDED / FUNDED rows.
+- Grafana datasource + Flyway placeholder now read the same env var
+  (`CASHU_MINT_GRAFANA_RO_PASSWORD`) — previously the two diverged and
+  silently broke dashboards.
+- Prometheus backward-compat aliases switched from
+  `metric_relabel_configs` (which REWROTE singular → plural and dropped
+  the singular) to recording rules in `alerts.yml` (which CREATE the
+  plural alongside the live singular).
+- Alertmanager spec=004 routes moved BEFORE the severity catch-alls so
+  the first-match-wins router actually reaches the voucher-pagerduty /
+  voucher-slack-* receivers.
+- `quickstart.md` § 7: replaced fictional `rotate-identity-salt`
+  command with the actual v1 forward-only rotation runbook.
+
+### Migration notes
+
+- The new voucher / data-minimisation behaviour is gated on
+  `cashu.mint.jpa.enabled=true`. Existing deployments are unaffected
+  until the flag is flipped.
+- When flipping the flag, populate the new env vars per
+  `specs/004-voucher-data-minimisation/quickstart.md` § 1–2: at minimum
+  `CASHU_MINT_VOUCHER_IDENTITY_SALT` (≥ 32 bytes) and
+  `CASHU_MINT_GRAFANA_RO_PASSWORD`. Boot fails closed when the salt is
+  unset or too short.
+- First boot after flag flip runs the identity backfill (idempotent,
+  paginated). `/actuator/health/readiness` stays DOWN until every
+  identity column completes; mint stays out of the load balancer
+  rotation during that window.
+
+---
+
 ## [0.16.0] - 2026-05-23
 
 ### Added
