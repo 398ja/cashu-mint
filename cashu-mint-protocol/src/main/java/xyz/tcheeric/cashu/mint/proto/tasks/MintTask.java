@@ -608,14 +608,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throw new CashuErrorException(new ErrorResponse("funding_required").toJson());
         }
 
-        // Spec 003 FR-014 — every IOU issuance generates an operator alert
-        // signal regardless of policy. Production deploys map this counter
-        // to a PagerDuty rule.
-        if (funding.fundingSource() == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.MERCHANT_IOU) {
-            log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
-                    quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
-            incrementCounter("cashu_mint_voucher_iou_issued_total");
-        }
+        // Spec 006 — fail-closed value-backing invariant + FR-006 IOU policy.
+        // The funding row attached to this quote MUST cover the FACE VALUE
+        // (in the quote's unit) before any promise is signed; a customer
+        // fee-payment can never back face value. Runs BEFORE the
+        // FUNDED → ISSUING CAS so a denied quote stays FUNDED (triageable)
+        // and never advances or signs. Closes the over-issuance hole where
+        // the mint signed full face-value Cashu against a fee-only payment.
+        enforceFaceValueBacking(quoteId, quote, funding);
 
         // CAS FUNDED → ISSUING (matches the durable invariant that signing
         // only happens once per quote). The pre-FUNDED states (ISSUED /
@@ -642,6 +642,67 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
 
         return new VoucherFundingContext(quote, funding);
+    }
+
+    /**
+     * Spec 006 — fail-closed face-value backing gate (+ FR-006 IOU policy).
+     *
+     * <p>Before a voucher is signed, the funding row attached to its quote
+     * must durably back the <b>face value</b> in the quote's unit:
+     * <ul>
+     *   <li>{@code CUSTOMER_PAYMENT} — a customer fee-payment
+     *       ({@code amount == charged_amount = fee}) can never back the face
+     *       value. Rejected with {@code face_value_not_backed}.</li>
+     *   <li>{@code MERCHANT_IOU} — permitted only when
+     *       {@code cashu.mint.voucher.iou-policy} is {@code ALLOW}; otherwise
+     *       rejected with {@code iou_not_permitted} (the policy was installed
+     *       into {@link MintIntegrityContext} but previously never read). When
+     *       allowed it must still cover the face value.</li>
+     *   <li>{@code MERCHANT_DEBIT} (and policy-allowed {@code MERCHANT_IOU}) —
+     *       must satisfy {@code amount >= face_value} and matching unit.</li>
+     * </ul>
+     *
+     * <p>Throws before the {@code FUNDED → ISSUING} CAS, so a denied quote
+     * stays {@code FUNDED} and no promises are signed.
+     */
+    private void enforceFaceValueBacking(String quoteId, VoucherQuote quote, VoucherFunding funding)
+            throws CashuErrorException {
+        xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource source = funding.fundingSource();
+
+        if (source == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.CUSTOMER_PAYMENT) {
+            // A customer fee-payment funds only the fee, never the face value.
+            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
+                            + "face_value={} funding_amount={}",
+                    quoteId, quote.faceValue(), funding.amount());
+            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
+        }
+
+        if (source == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.MERCHANT_IOU) {
+            // Spec 003 FR-014 — operator alert for every IOU issuance attempt.
+            log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
+                    quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
+            // FR-006 — enforce the configured IOU policy (default DENY).
+            String iouPolicy = MintIntegrityContext.voucherIouPolicy();
+            if (!"ALLOW".equalsIgnoreCase(iouPolicy)) {
+                log.error("[voucher][alert] iou_not_permitted quote_id={} funding_id={} policy={}",
+                        quoteId, funding.fundingId(), iouPolicy);
+                incrementCounter("cashu_mint_voucher_iou_denied_total");
+                throw new CashuErrorException(new ErrorResponse("iou_not_permitted").toJson());
+            }
+            incrementCounter("cashu_mint_voucher_iou_issued_total");
+        }
+
+        // MERCHANT_DEBIT, and MERCHANT_IOU that cleared the policy gate, must
+        // cover the full face value in the quote's unit.
+        if (funding.amount() < quote.faceValue()
+                || !java.util.Objects.equals(funding.unit(), quote.unit())) {
+            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source={} "
+                            + "face_value={} funding_amount={} quote_unit={} funding_unit={}",
+                    quoteId, source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
+            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
+        }
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {

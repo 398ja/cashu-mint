@@ -5,9 +5,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEventRepository;
@@ -36,6 +39,7 @@ class QuoteStatusUpdaterDurableTest {
 
     private QuoteStatusUpdater updater;
     private MintQuoteRepository mintQuoteRepository;
+    private VoucherQuoteRepository voucherQuoteRepository;
     private WebhookEventRepository webhookEventRepository;
     private WebhookProperties webhookProperties;
     private SimpleMeterRegistry meterRegistry;
@@ -43,6 +47,7 @@ class QuoteStatusUpdaterDurableTest {
     @BeforeEach
     void setUp() {
         mintQuoteRepository = Mockito.mock(MintQuoteRepository.class);
+        voucherQuoteRepository = Mockito.mock(VoucherQuoteRepository.class);
         webhookEventRepository = Mockito.mock(WebhookEventRepository.class);
         webhookProperties = new WebhookProperties();
         webhookProperties.setProvider(PROVIDER);
@@ -50,7 +55,8 @@ class QuoteStatusUpdaterDurableTest {
 
         updater = new QuoteStatusUpdater(
                 Duration.ofHours(1), Duration.ofHours(24), 10_485_760L, 100_000,
-                meterRegistry, mintQuoteRepository, webhookEventRepository, webhookProperties);
+                meterRegistry, mintQuoteRepository, voucherQuoteRepository,
+                webhookEventRepository, webhookProperties);
     }
 
     @Test
@@ -178,6 +184,58 @@ class QuoteStatusUpdaterDurableTest {
     }
 
     @Test
+    void voucher_payment_accepted_when_amount_matches_charged_amount() {
+        // Spec 006 — a voucher-quote payment (mint_quote misses, voucher_quote
+        // hits) with amount == charged_amount is now classified accepted (was
+        // orphan), so VoucherFundingResolverImpl can bind the CUSTOMER_PAYMENT.
+        PaymentNotification n = bolt11("v-accept", 50, "preimage-v-accept");
+        when(mintQuoteRepository.findById("v-accept")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-accept"))
+                .thenReturn(Optional.of(voucherStub("v-accept", /*face*/ 1000L, /*charged*/ 50L, "sat")));
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        ArgumentCaptor<WebhookEvent> captor = ArgumentCaptor.forClass(WebhookEvent.class);
+        verify(webhookEventRepository).insert(captor.capture());
+        assertThat(captor.getValue().outcome()).isEqualTo(Outcome.accepted);
+        assertThat(captor.getValue().quoteId()).isEqualTo("v-accept");
+        // unit inherited from the voucher quote, not hardcoded "sat" default.
+        assertThat(captor.getValue().unit()).isEqualTo("sat");
+        // No mint_quote lifecycle CAS — vouchers have their own state machine.
+        verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+    }
+
+    @Test
+    void voucher_payment_amount_mismatch_when_amount_differs_from_charged_amount() {
+        // The customer must pay exactly the voucher's charged_amount (the fee).
+        PaymentNotification n = bolt11("v-mismatch", 49, "preimage-v-mismatch");
+        when(mintQuoteRepository.findById("v-mismatch")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-mismatch"))
+                .thenReturn(Optional.of(voucherStub("v-mismatch", 1000L, 50L, "sat")));
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+    }
+
+    @Test
+    void orphan_when_neither_mint_quote_nor_voucher_quote_matches() {
+        PaymentNotification n = bolt11("v-orphan", 10, "p-v-orphan");
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(mintQuoteRepository.findById("v-orphan")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-orphan")).thenReturn(Optional.empty());
+
+        WebhookOutcome outcome = updater.record(n);
+        assertThat(outcome.outcome()).isEqualTo(Outcome.orphan);
+    }
+
+    @Test
     void duplicate_when_same_provider_event_id_with_matching_body() {
         PaymentNotification n = bolt11("q-dup", 10, "p-dup");
         when(webhookEventRepository.findById(PROVIDER, "p-dup"))
@@ -299,6 +357,24 @@ class QuoteStatusUpdaterDurableTest {
     private static WebhookEvent eventRow(String quoteId, long amount, String paymentMethod, Outcome outcome) {
         return new EventStub("phoenixd", "stored-event-id", quoteId, amount, "sat",
                 paymentMethod, null, outcome, Instant.now());
+    }
+
+    private static VoucherQuote voucherStub(String quoteId, long faceValue, long chargedAmount, String unit) {
+        return new VoucherQuoteStub(quoteId, faceValue, chargedAmount, unit);
+    }
+
+    private record VoucherQuoteStub(String quoteId, long faceValue, long chargedAmount, String unit)
+            implements VoucherQuote {
+        @Override public String voucherType() { return "customer_paid"; }
+        @Override public long fee() { return chargedAmount; }
+        @Override public String merchantId() { return null; }
+        @Override public String customerId() { return null; }
+        @Override public String fundingId() { return null; }
+        @Override public VoucherLifecycleState lifecycleState() { return VoucherLifecycleState.UNFUNDED; }
+        @Override public String idempotencyKey() { return null; }
+        @Override public String requestHash() { return "0".repeat(64); }
+        @Override public Instant createdAt() { return null; }
+        @Override public Instant updatedAt() { return null; }
     }
 
     private record MintQuoteStub(String quoteId, long amount, String unit, String mintUrl,

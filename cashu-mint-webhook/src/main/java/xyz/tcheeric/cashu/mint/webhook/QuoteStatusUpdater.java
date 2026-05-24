@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEventRepository;
@@ -53,6 +55,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     private final Cache<String, PaymentNotification> paidQuotes;
     private final Cache<String, Boolean> processedNotifications;
     private final MintQuoteRepository mintQuoteRepository;
+    private final VoucherQuoteRepository voucherQuoteRepository;
     private final WebhookEventRepository webhookEventRepository;
     private final WebhookProperties webhookProperties;
     private final MeterRegistry meterRegistry;
@@ -64,6 +67,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             @Value("${webhook.cache.max-idempotency-keys:100000}") int maxIdempotencyKeys,
             @Autowired(required = false) MeterRegistry meterRegistry,
             @Autowired(required = false) MintQuoteRepository mintQuoteRepository,
+            @Autowired(required = false) VoucherQuoteRepository voucherQuoteRepository,
             @Autowired(required = false) WebhookEventRepository webhookEventRepository,
             @Autowired(required = false) WebhookProperties webhookProperties) {
 
@@ -83,6 +87,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
                 .build();
 
         this.mintQuoteRepository = mintQuoteRepository;
+        this.voucherQuoteRepository = voucherQuoteRepository;
         this.webhookEventRepository = webhookEventRepository;
         this.webhookProperties = webhookProperties;
         this.meterRegistry = meterRegistry;
@@ -141,6 +146,18 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
 
         MintQuote quote = mintQuoteRepository.findById(notification.getQuoteId()).orElse(null);
         if (quote == null) {
+            // Not a regular mint_quote. Spec 006 — it may be a durable
+            // voucher_quote: the customer pays the quote's charged_amount
+            // (the fee) against a voucher quote id. Classify against
+            // voucher_quote BEFORE falling back to orphan, so the
+            // CUSTOMER_PAYMENT funding resolver (which consumes accepted
+            // events) can bind the payment. Previously every voucher payment
+            // landed as orphan, leaving customer-paid vouchers unfundable.
+            WebhookOutcome voucherOutcome =
+                    classifyVoucherQuote(provider, providerEventId, notification, amount);
+            if (voucherOutcome != null) {
+                return voucherOutcome;
+            }
             // Spec 001 § WebhookEvent: orphan rows have no matching quote, so
             // we don't know the unit. Default to "sat" — operator
             // reconciliation should already cover orphan investigation.
@@ -185,6 +202,40 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             paidQuotes.put(notification.getQuoteId(), notification);
         }
         return result;
+    }
+
+    /**
+     * Spec 006 — classify a payment notification against the durable
+     * {@code voucher_quote} table when the {@code mint_quote} lookup misses.
+     *
+     * <p>Returns {@code null} when voucher durability is unwired or the id is
+     * not a voucher quote (so {@link #record} falls back to {@code orphan}).
+     * When it IS a voucher quote, binds the customer payment's amount to the
+     * quote's {@code charged_amount} (the fee) and records an {@code accepted}
+     * (or {@code amount_mismatch}) {@code webhook_event}, inheriting the
+     * quote's unit (the {@link PaymentNotification} carries none, mirroring
+     * the mint_quote path). It deliberately does NOT advance any lifecycle —
+     * the voucher {@code FUNDED → ISSUING} machine is driven by {@code MintTask}
+     * via {@code VoucherFundingResolverImpl}, which consumes the accepted event.
+     */
+    private WebhookOutcome classifyVoucherQuote(String provider, String providerEventId,
+                                                PaymentNotification notification, long amount) {
+        if (voucherQuoteRepository == null) {
+            return null;
+        }
+        VoucherQuote voucher = voucherQuoteRepository.findById(notification.getQuoteId()).orElse(null);
+        if (voucher == null) {
+            return null;
+        }
+        if (amount != voucher.chargedAmount()) {
+            log.warn("webhook_event voucher_amount_mismatch quote_id={} expected_charged={} actual={}",
+                    notification.getQuoteId(), voucher.chargedAmount(), amount);
+            return persist(provider, providerEventId, notification, amount, voucher.unit(), Outcome.amount_mismatch);
+        }
+        // The voucher_quote row stores no payment_method (the gateway is
+        // unit-scoped per method), so there is no method to cross-check here;
+        // the persisted event still records the notification's method.
+        return persistAccepted(provider, providerEventId, notification, amount, voucher.unit());
     }
 
     private WebhookOutcome classifyReplay(WebhookEvent existing, PaymentNotification notification,

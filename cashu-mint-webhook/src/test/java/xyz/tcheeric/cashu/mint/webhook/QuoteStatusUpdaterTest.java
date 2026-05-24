@@ -34,6 +34,7 @@ class QuoteStatusUpdaterTest {
                 100_000,
                 null,  // No MeterRegistry for basic tests
                 null,  // No MintQuoteRepository
+                null,  // No VoucherQuoteRepository
                 null,  // No WebhookEventRepository
                 null   // No WebhookProperties
         );
@@ -191,7 +192,7 @@ class QuoteStatusUpdaterTest {
                 Duration.ofHours(24),
                 2048L,  // 2KB max weight - very small
                 100,
-                null, null, null, null
+                null, null, null, null, null
         );
 
         // Create notifications with large preimages to exceed weight
@@ -383,7 +384,7 @@ class QuoteStatusUpdaterTest {
                 Duration.ofHours(24),
                 1024L,  // 1KB - very small
                 1000,   // Large idempotency cache
-                null, null, null, null
+                null, null, null, null, null
         );
 
         String largePreimage = "x".repeat(300);
