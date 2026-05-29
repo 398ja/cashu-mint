@@ -457,10 +457,22 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
                 VoucherQuoteRepository voucherRepo = MintIntegrityContext.voucherQuoteRepository();
                 if (voucherRepo != null) {
-                    int closed = voucherRepo.casLifecycle(quoteId,
-                            VoucherLifecycleState.ISSUING, VoucherLifecycleState.ISSUED);
+                    // Spec 035 — capture the original sat-denominated proof
+                    // sum atomically with the lifecycle close. The wallet's
+                    // receive-side endpoints downstream surface this as
+                    // issuance_ratio = face_value / original_token_amount,
+                    // letting the partial-spend correction fire on the
+                    // receiver side without needing the sender to forward
+                    // the ratio.
+                    long originalTokenAmount = blindedMessages.stream()
+                            .mapToLong(BlindedMessage::getAmount)
+                            .sum();
+                    int closed = voucherRepo.recordIssuance(quoteId, originalTokenAmount);
                     if (closed == 0) {
                         log.warn("mint_task voucher_lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                    } else {
+                        log.info("mint_task voucher_issued quote_id={} face_value={} original_token_amount={}",
+                                quoteId, voucherCtx.quote.faceValue(), originalTokenAmount);
                     }
                 }
 

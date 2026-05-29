@@ -39,6 +39,7 @@ that backs it).
 | `face_value` | The spendable value of the voucher (e.g. 1000 sats) | No |
 | `charged_amount` | What you paid (face value + fees, or fee-only depending on the variant) | No |
 | `fee` | The mint's revenue from this purchase | No |
+| `original_token_amount` | Sum of blinded message amounts captured at voucher issuance — the original sat-denominated proof sum. Surfaced via `GET /v1/vouchers/{voucherId}/provenance` so a receiving wallet can compute `issuance_ratio = face_value / original_token_amount` and display the correct value of a partial-spend portion rather than the embedded original face value. Null for rows issued before this column existed. | No |
 | `unit` | Currency (`sat`, etc.) | No |
 | `customer_id` | **Hashed** version of your npub. Null if you purchased anonymously. Nullified after 90 days regardless. | **Yes (hashed)** |
 | `merchant_id` | **Hashed** version of the merchant's npub. Nullified after 90 days. | **Yes (hashed)** |

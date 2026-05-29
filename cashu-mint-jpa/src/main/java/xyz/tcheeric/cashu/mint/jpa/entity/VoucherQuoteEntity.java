@@ -48,6 +48,17 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Column(name = "fee", nullable = false)
     private long fee;
 
+    /**
+     * Spec 035 — sum of blinded message amounts captured at voucher
+     * issuance time. Nullable because rows issued before V20260601_007
+     * have no captured value; the provenance endpoint surfaces null
+     * for those and the wallet falls back to the embedded face_value
+     * path. Set atomically with the FUNDED → ISSUED CAS via
+     * {@link xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository#recordIssuance}.
+     */
+    @Column(name = "original_token_amount", nullable = true)
+    private Long originalTokenAmount;
+
     @Column(name = "unit", length = 16, nullable = false)
     private String unit;
 
@@ -124,6 +135,11 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Override
     public long fee() {
         return fee;
+    }
+
+    @Override
+    public Long originalTokenAmount() {
+        return originalTokenAmount;
     }
 
     @Override

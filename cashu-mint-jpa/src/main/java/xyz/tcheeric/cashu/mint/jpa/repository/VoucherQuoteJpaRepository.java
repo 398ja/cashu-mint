@@ -78,4 +78,23 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
             + "  AND q.lifecycleState = xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState.UNFUNDED")
     int attachFundingAndAdvance(@Param("id") String id,
                                 @Param("fundingId") String fundingId);
+
+    /**
+     * Spec 035 — atomic ISSUING → ISSUED CAS that ALSO sets
+     * {@code original_token_amount}. Combining the lifecycle close and
+     * the amount capture into one UPDATE prevents a half-state where a
+     * row is ISSUED with NULL amount (which would mis-flag it as
+     * pre-migration legacy and silently disable the wallet's
+     * partial-spend correction for that voucher).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional("mintTransactionManager")
+    @Query("UPDATE VoucherQuoteEntity q "
+            + "SET q.lifecycleState = xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState.ISSUED, "
+            + "    q.originalTokenAmount = :amount, "
+            + "    q.updatedAt = CURRENT_TIMESTAMP "
+            + "WHERE q.quoteId = :id "
+            + "  AND q.lifecycleState = xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState.ISSUING")
+    int recordIssuance(@Param("id") String id,
+                       @Param("amount") long originalTokenAmount);
 }

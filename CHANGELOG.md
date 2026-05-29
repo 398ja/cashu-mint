@@ -11,6 +11,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.20.0] - 2026-05-29
+
+### Added
+
+- **Spec 035 — voucher provenance lookup for the wallet's partial-spend
+  display correction.** A cashu V4 voucher token's embedded
+  `SignedVoucher.face_value` is frozen at original issuance and does not
+  reflect partial spends. To let a receiving wallet correct the display
+  for a partial-spend portion, the mint now exposes the original
+  sat-denominated proof sum so the wallet can compute
+  `derived = round(current_token_amount × face_value / original_token_amount)`.
+  - **New REST endpoint** `GET /v1/vouchers/{voucherId}/provenance`
+    returning `{ voucherId, faceValue, unit, originalTokenAmount,
+    issuanceRatio, lifecycleState }`. `issuanceRatio` is computed
+    strictly as `face_value / original_token_amount` (never from a
+    current proof sum, which would reconstruct the frozen original).
+    Returns `null` for both `originalTokenAmount` and `issuanceRatio`
+    on legacy rows issued before this release; the wallet's source-chain
+    resolution already accepts null and falls back to the embedded
+    face_value path.
+  - **New `voucher_quote.original_token_amount BIGINT NULL` column**
+    (Flyway `V20260601_007`). Captured at voucher issuance time as
+    `sum(blindedMessages)` in `MintTask`, written atomically with the
+    `ISSUING → ISSUED` CAS via the new
+    `VoucherQuoteRepository.recordIssuance(quoteId, originalTokenAmount)`
+    port method. No backfill from `voucher_issuance.outputs_hash` —
+    null cleanly means "legacy / unavailable" and is the documented
+    fallback.
+
+### Changed
+
+- **`VoucherQuoteRepository` port** gains
+  `int recordIssuance(String quoteId, long originalTokenAmount)`. Adapters
+  must implement; in-memory test fixtures already get a no-op via the
+  default `originalTokenAmount()` method on the `VoucherQuote` interface.
+- **`MintTask`** voucher branch now calls `recordIssuance` instead of a
+  bare `casLifecycle(ISSUING → ISSUED)`, so the lifecycle close and the
+  amount capture commit together in a single UPDATE (no half-state with
+  ISSUED but NULL amount, which would silently mis-flag the row as
+  pre-migration legacy).
+
+### Documentation
+
+- `docs/explanations/voucher-data-record.md` adds a row for
+  `original_token_amount` to keep the disclosure-doc schema-contract
+  test green.
+
+---
+
 ## [0.19.5] - 2026-05-25
 
 ### Fixed
