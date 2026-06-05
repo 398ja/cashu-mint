@@ -32,6 +32,27 @@ public interface VoucherQuote {
     /** {@code chargedAmount - faceValue} or 0; persisted for audit. */
     long fee();
 
+    /**
+     * Spec 035 — sum of blinded message amounts captured at voucher
+     * issuance time (the original sat-denominated proof sum, before any
+     * partial spends consume proofs). Used by
+     * {@code /v1/vouchers/{voucherId}/provenance} to compute
+     * {@code issuance_ratio = face_value / original_token_amount} so the
+     * wallet can correct partial-spend display on the receive side.
+     *
+     * <p>Nullable. Returns {@code null} for legacy rows issued before
+     * the V20260601_007 migration; the provenance endpoint surfaces a
+     * {@code null} {@code issuance_ratio} in that case and the wallet
+     * falls back to the embedded face_value path (spec-035 iter-6
+     * frontend already handles this).
+     *
+     * <p>Default {@code null} so non-JPA test fixtures (in-memory or
+     * builder-style) compile without forced override.
+     */
+    default Long originalTokenAmount() {
+        return null;
+    }
+
     String unit();
 
     /** npub / principal of the merchant when merchant-funded or IOU. */

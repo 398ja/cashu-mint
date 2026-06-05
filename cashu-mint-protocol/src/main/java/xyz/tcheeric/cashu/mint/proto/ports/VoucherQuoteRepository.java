@@ -33,6 +33,22 @@ public interface VoucherQuoteRepository {
     int casLifecycle(String quoteId, VoucherLifecycleState expected, VoucherLifecycleState target);
 
     /**
+     * Spec 035 — atomic ISSUING → ISSUED transition that ALSO records
+     * the original sat-denominated proof sum. Single conditional UPDATE
+     * so the lifecycle close and the {@code original_token_amount}
+     * capture commit together (no half-state where a row is ISSUED but
+     * still has {@code NULL} amount, which would mis-flag it as legacy).
+     *
+     * <p>{@code originalTokenAmount} MUST be {@code > 0}; the provenance
+     * endpoint downstream returns {@code issuance_ratio: null} for
+     * non-positive values per the documented contract.
+     *
+     * @return {@code 1} on success, {@code 0} if the row was not in
+     *         ISSUING (already issued, expired, or missing).
+     */
+    int recordIssuance(String quoteId, long originalTokenAmount);
+
+    /**
      * Atomically attaches a {@code funding_id} to a row currently in
      * {@code UNFUNDED}, advancing the state to {@code FUNDED}. Single
      * conditional UPDATE so the funding-attach + state-transition are

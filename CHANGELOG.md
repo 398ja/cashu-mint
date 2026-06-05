@@ -11,6 +11,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.21.0] - 2026-06-05
+
+### Added
+
+- **Spec 041 Phase 1 — bare `GET /v1/keys` NUT-01 listing.** Aggregates per-keyset
+  NUT-02 lookups so cashu-ts 4.x's `Wallet.loadMint()` bootstrap call resolves
+  cleanly. Prior versions only exposed the NUT-02 two-step pattern
+  (`/v1/keysets` + `/v1/keys/{id}`), which broke any client using cashu-ts as the
+  high-level wallet surface. See `imani-apps/packages/client-mint/CASHU_TS_API.md`
+  §5 Finding 1 for the integration trace.
+- **Spec 041 Phase 0 REQ-MINT-3 — strict NUT-04 quote expiry.** `MintTask` now
+  computes `createdAt + getPaymentExpiry()` via the new `Gateway.getCreatedAt`
+  port (payment-adapter 0.13.0) and throws a deterministic `quote_expired` error
+  when the call lands past that instant. Falls through permissively when the
+  gateway returns null `createdAt` (backward compatibility for rows persisted
+  before the column was added). Phase 0 sign-off issued 2026-06-05 against
+  staging running this code — see
+  `imani-apps/specs/041-client-side-voucher-minting/contracts/abandoned-mint-recovery.contract.md`.
+
+### Changed
+
+- Updated `payment-adapter` to `0.13.0` (picks up the new `Gateway.getCreatedAt`
+  port and the `GatewayQuote.createdAt` JPA column required by the expiry
+  enforcement above).
+- **Spec 041 T001 — CORS configuration for the public NUT surface.** Added a
+  `CorsConfigurationSource` bean to `SecurityConfig` that allows GET/POST/OPTIONS
+  on `/v1/**` and `/webhook/**` from origins configured via
+  `cashu.mint.cors.allowed-origins` (env var
+  `CASHU_MINT_CORS_ALLOWED_ORIGINS`, comma-separated). Falls back to wildcard
+  when unset (safe for the unauthenticated public NUT surface; operators MUST
+  set the env var to their wallet origin(s) on production). Required for
+  browser-side cashu-ts to reach the mint at all.
+
+---
+
+## [0.20.0] - 2026-05-29
+
+### Added
+
+- **Spec 035 — voucher provenance lookup for the wallet's partial-spend
+  display correction.** A cashu V4 voucher token's embedded
+  `SignedVoucher.face_value` is frozen at original issuance and does not
+  reflect partial spends. To let a receiving wallet correct the display
+  for a partial-spend portion, the mint now exposes the original
+  sat-denominated proof sum so the wallet can compute
+  `derived = round(current_token_amount × face_value / original_token_amount)`.
+  - **New REST endpoint** `GET /v1/vouchers/{voucherId}/provenance`
+    returning `{ voucherId, faceValue, unit, originalTokenAmount,
+    issuanceRatio, lifecycleState }`. `issuanceRatio` is computed
+    strictly as `face_value / original_token_amount` (never from a
+    current proof sum, which would reconstruct the frozen original).
+    Returns `null` for both `originalTokenAmount` and `issuanceRatio`
+    on legacy rows issued before this release; the wallet's source-chain
+    resolution already accepts null and falls back to the embedded
+    face_value path.
+  - **New `voucher_quote.original_token_amount BIGINT NULL` column**
+    (Flyway `V20260601_007`). Captured at voucher issuance time as
+    `sum(blindedMessages)` in `MintTask`, written atomically with the
+    `ISSUING → ISSUED` CAS via the new
+    `VoucherQuoteRepository.recordIssuance(quoteId, originalTokenAmount)`
+    port method. No backfill from `voucher_issuance.outputs_hash` —
+    null cleanly means "legacy / unavailable" and is the documented
+    fallback.
+
+### Changed
+
+- **`VoucherQuoteRepository` port** gains
+  `int recordIssuance(String quoteId, long originalTokenAmount)`. Adapters
+  must implement; in-memory test fixtures already get a no-op via the
+  default `originalTokenAmount()` method on the `VoucherQuote` interface.
+- **`MintTask`** voucher branch now calls `recordIssuance` instead of a
+  bare `casLifecycle(ISSUING → ISSUED)`, so the lifecycle close and the
+  amount capture commit together in a single UPDATE (no half-state with
+  ISSUED but NULL amount, which would silently mis-flag the row as
+  pre-migration legacy).
+
+### Documentation
+
+- `docs/explanations/voucher-data-record.md` adds a row for
+  `original_token_amount` to keep the disclosure-doc schema-contract
+  test green.
+
+---
+
 ## [0.19.5] - 2026-05-25
 
 ### Fixed

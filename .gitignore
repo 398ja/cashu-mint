@@ -64,3 +64,9 @@ build/
 *.tsbuildinfo
 /specs/
 /cashu-mint-jpa/logs/
+
+# Spec 041 — admin-web vite cache
+cashu-mint-admin/mint-admin-web/.vite/
+
+# downloaded node binary tree (vite-plugin or similar)
+cashu-mint-admin/mint-admin-web/node/

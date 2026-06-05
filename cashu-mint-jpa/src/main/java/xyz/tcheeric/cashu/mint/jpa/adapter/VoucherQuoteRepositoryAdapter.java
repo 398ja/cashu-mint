@@ -40,6 +40,11 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
     }
 
     @Override
+    public int recordIssuance(String quoteId, long originalTokenAmount) {
+        return jpa.recordIssuance(quoteId, originalTokenAmount);
+    }
+
+    @Override
     public int attachFundingAndAdvance(String quoteId, String fundingId) {
         return jpa.attachFundingAndAdvance(quoteId, fundingId);
     }
@@ -77,6 +82,9 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
         e.setLifecycleState(q.lifecycleState());
         e.setIdempotencyKey(q.idempotencyKey());
         e.setRequestHash(q.requestHash());
+        // Spec 035 — propagate the new field through builder/in-memory
+        // VoucherQuote sources. Null is the legacy value and is honored.
+        e.setOriginalTokenAmount(q.originalTokenAmount());
         return e;
     }
 }

@@ -104,6 +104,31 @@ public class CashuController<T extends Secret> {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Spec 041 Phase 1 — NUT-01 bare keys listing.
+     *
+     * <p>Returns one {@link KeySet} per currently-active keyset. Required by
+     * {@code @cashu/cashu-ts} ({@code Wallet.loadMint()} calls
+     * {@code GET /v1/keys} as the bootstrap step). Prior to this, the mint
+     * exposed only the NUT-02 two-step pattern
+     * ({@code /v1/keysets} + {@code /v1/keys/{id}}), which cashu-ts
+     * 4.x clients cannot consume.
+     *
+     * <p>Implementation: aggregate the per-keyset NUT-02 lookups instead of
+     * touching the inner protocol layer — keeps blast radius minimal and
+     * reuses the proven {@code LoadKeySetTask} path.
+     */
+    @GetMapping("/keys")
+    public ResponseEntity<KeySetResponse> allActiveKeys() throws CashuErrorException {
+        List<ActiveKeySet> active = NUT02.activeKeySets(mintLoadService);
+        List<KeySet> keysets = new java.util.ArrayList<>(active.size());
+        for (ActiveKeySet aks : active) {
+            keysets.add(NUT02.keys(aks.getId(), mintLoadService));
+        }
+        log.debug("keys() returned {} active keysets", keysets.size());
+        return ResponseEntity.ok(new KeySetResponse(keysets));
+    }
+
     @GetMapping("/keysets")
     public ResponseEntity<ActiveKeySetResponse> keysets() throws CashuErrorException {
         List<ActiveKeySet> activeKeySets = NUT02.activeKeySets(mintLoadService);
