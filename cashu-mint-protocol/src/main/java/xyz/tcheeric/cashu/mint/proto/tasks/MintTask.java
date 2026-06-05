@@ -39,6 +39,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 
+import java.time.Instant;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -206,6 +208,36 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
         String quoteId = postMintRequest.getQuoteId();
 
+        // Spec 041 REQ-MINT-3 (recovery contract) — strict quote-expiry
+        // enforcement. Computes the absolute expiry from the gateway's
+        // createdAt + TTL and rejects requests past it. Runs BEFORE the
+        // per-quote lock and BEFORE the durable-quote branch so it fires
+        // regardless of whether the JPA module is wired. Best-effort
+        // (skipped silently) when the gateway can't return the timestamps;
+        // the spec-041 ClientMintExpiryJob is the canonical gateway-side
+        // authority either way.
+        try {
+            Gateway expiryGateway = unit == null
+                    ? mintProtocolService.createGateway(method)
+                    : mintProtocolService.createGateway(method, unit);
+            Integer ttlSeconds = expiryGateway.getPaymentExpiry(quoteId);
+            Instant createdAt = expiryGateway.getCreatedAt(quoteId);
+            if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
+                Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
+                if (Instant.now().isAfter(expiresAt)) {
+                    log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
+                            quoteId, createdAt, ttlSeconds, expiresAt);
+                    incrementCounter("cashu_mint_quote_expired_total");
+                    throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+                }
+            }
+        } catch (CashuErrorException ce) {
+            throw ce;
+        } catch (RuntimeException e) {
+            log.warn("mint_task expiry_check_skipped quote_id={} reason={}",
+                    quoteId, e.getMessage());
+        }
+
         // Per-quote lock: serializes concurrent requests for the same quote
         // to prevent double-mint attacks while allowing parallel minting of different quotes
         try (QuoteLockManager.QuoteLock quoteLock = QuoteLockManager.lockQuote(quoteId)) {
@@ -298,6 +330,40 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 Gateway crossCheckGateway = unit == null
                         ? mintProtocolService.createGateway(method)
                         : mintProtocolService.createGateway(method, unit);
+
+                // Spec 041 REQ-MINT-3 (recovery contract): strict quote-expiry
+                // enforcement. The gateway returns the quote's TTL (seconds)
+                // and the durable quote carries its createdAt instant; compute
+                // the absolute expiry and reject `quote_expired` once we're
+                // past it. Without this, the gateway's ClientMintExpiryJob
+                // is the only authority — fine as a fallback but the mint
+                // shouldn't itself accept stale quotes.
+                try {
+                    Integer ttlSeconds = crossCheckGateway.getPaymentExpiry(quoteId);
+                    Instant createdAt = durableQuote.createdAt();
+                    if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
+                        Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
+                        if (Instant.now().isAfter(expiresAt)) {
+                            log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
+                                    quoteId, createdAt, ttlSeconds, expiresAt);
+                            incrementCounter("cashu_mint_quote_expired_total");
+                            throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+                        }
+                    }
+                } catch (CashuErrorException ce) {
+                    throw ce;
+                } catch (RuntimeException e) {
+                    // getPaymentExpiry can throw if the quote lookup fails;
+                    // log and fall through (downstream amount cross-check
+                    // will catch a genuinely-missing quote with a clearer
+                    // error). REQ-MINT-3 enforcement is best-effort when
+                    // the gateway is uncooperative; the contract's gateway-
+                    // side ClientMintExpiryJob remains the canonical
+                    // authority.
+                    log.warn("mint_task expiry_check_skipped quote_id={} reason={}",
+                            quoteId, e.getMessage());
+                }
+
                 Integer gatewayAmount;
                 try {
                     gatewayAmount = crossCheckGateway.getAmount(quoteId);

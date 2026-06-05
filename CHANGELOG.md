@@ -11,6 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.21.0] - 2026-06-05
+
+### Added
+
+- **Spec 041 Phase 1 — bare `GET /v1/keys` NUT-01 listing.** Aggregates per-keyset
+  NUT-02 lookups so cashu-ts 4.x's `Wallet.loadMint()` bootstrap call resolves
+  cleanly. Prior versions only exposed the NUT-02 two-step pattern
+  (`/v1/keysets` + `/v1/keys/{id}`), which broke any client using cashu-ts as the
+  high-level wallet surface. See `imani-apps/packages/client-mint/CASHU_TS_API.md`
+  §5 Finding 1 for the integration trace.
+- **Spec 041 Phase 0 REQ-MINT-3 — strict NUT-04 quote expiry.** `MintTask` now
+  computes `createdAt + getPaymentExpiry()` via the new `Gateway.getCreatedAt`
+  port (payment-adapter 0.13.0) and throws a deterministic `quote_expired` error
+  when the call lands past that instant. Falls through permissively when the
+  gateway returns null `createdAt` (backward compatibility for rows persisted
+  before the column was added). Phase 0 sign-off issued 2026-06-05 against
+  staging running this code — see
+  `imani-apps/specs/041-client-side-voucher-minting/contracts/abandoned-mint-recovery.contract.md`.
+
+### Changed
+
+- Updated `payment-adapter` to `0.13.0` (picks up the new `Gateway.getCreatedAt`
+  port and the `GatewayQuote.createdAt` JPA column required by the expiry
+  enforcement above).
+- **Spec 041 T001 — CORS configuration for the public NUT surface.** Added a
+  `CorsConfigurationSource` bean to `SecurityConfig` that allows GET/POST/OPTIONS
+  on `/v1/**` and `/webhook/**` from origins configured via
+  `cashu.mint.cors.allowed-origins` (env var
+  `CASHU_MINT_CORS_ALLOWED_ORIGINS`, comma-separated). Falls back to wildcard
+  when unset (safe for the unauthenticated public NUT surface; operators MUST
+  set the env var to their wallet origin(s) on production). Required for
+  browser-side cashu-ts to reach the mint at all.
+
+---
+
 ## [0.20.0] - 2026-05-29
 
 ### Added
