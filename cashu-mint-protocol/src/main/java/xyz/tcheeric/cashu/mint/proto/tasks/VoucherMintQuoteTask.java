@@ -108,9 +108,21 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         log.debug("Voucher mint quote created: quoteId={}, request={}, expiry={}",
             quoteId, request, expiry);
 
+        // NUT-04 v1 — modern wallets require amount/unit/state on the response.
+        // The mintable amount for a voucher quote is the voucher FACE VALUE (what
+        // the blinded outputs sum to and what MintTask validates against), NOT the
+        // charged fee — the invoice/request still charges only `voucherPrice`.
+        // Emitting the fee here would make wallets size outputs to the fee and the
+        // subsequent mint would fail with mint_amount_mismatch. A fresh quote is
+        // always UNPAID. Expiry (a relative TTL) is passed through; the client
+        // normalizes relative-vs-absolute itself. faceValue is already an int, so
+        // no narrowing cast is needed.
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
                 .request(request)
+                .amount(faceValue)
+                .unit(unit != null && !unit.isBlank() ? unit : "sat")
+                .state("UNPAID")
                 .expiry(expiry)
                 .build();
     }
