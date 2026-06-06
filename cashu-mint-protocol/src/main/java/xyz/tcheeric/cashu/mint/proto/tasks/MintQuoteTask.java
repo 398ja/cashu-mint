@@ -96,8 +96,12 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
 
     @Override
     protected PostMintQuoteResponse doExecute() throws CashuErrorException {
-        Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
-                : mintProtocolService.createGateway(method, unit);
+        // Treat blank/whitespace unit the same as absent so we never select a
+        // gateway with — or persist — an invalid unit string (the JPA column is
+        // NOT NULL and v1 clients expect a real unit, never blank).
+        String requestedUnit = (unit == null || unit.isBlank()) ? null : unit;
+        Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
+                : mintProtocolService.createGateway(method, requestedUnit);
         if (amount > Integer.MAX_VALUE || amount <= 0) {
             throw new CashuErrorException("invalid_quote_amount");
         }
@@ -106,7 +110,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         String quoteId = gateway.createMintQuote((int) amount, null);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
-        String resolvedUnit = unit != null ? unit : resolveDefaultUnit();
+        String resolvedUnit = requestedUnit != null ? requestedUnit : resolveDefaultUnit();
 
         if (mintQuoteRepository != null) {
             String resolvedMintUrl = mintUrl != null ? mintUrl : "";
