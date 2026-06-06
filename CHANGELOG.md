@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.22.0] - 2026-06-06
+
+### Fixed
+
+- **NUT-04 v1 mint-quote responses** — `MintQuoteTask`,
+  `MintQuoteStatusTask`, and `VoucherMintQuoteTask` now emit `amount`,
+  `unit`, and `state` on the mint-quote response. Modern wallets
+  (cashu-ts `>= 4.x`) normalize every response and threw
+  `AmountError: Unsupported amount input type` on the legacy v0 shape,
+  blocking all client-side minting (imani spec 041). `state` is derived
+  from the durable `mint_quote.lifecycle_state` (with a payment-flag
+  fallback when no quote repository is wired); the deprecated `paid`
+  boolean is still emitted for v0 consumers. Relative `expiry` is passed
+  through unchanged — the client normalizes relative-vs-absolute itself.
+
+### Changed
+
+- Bumped `cashu-lib` `0.17.0` → `0.18.0` for the NUT-04 v1
+  `PostMintQuoteResponse` fields (`amount`/`unit`/`state`).
+
 ## [0.21.0] - 2026-06-05
 
 ### Added

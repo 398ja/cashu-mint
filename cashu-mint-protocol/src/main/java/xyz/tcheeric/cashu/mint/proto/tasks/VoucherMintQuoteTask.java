@@ -108,9 +108,16 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         log.debug("Voucher mint quote created: quoteId={}, request={}, expiry={}",
             quoteId, request, expiry);
 
+        // NUT-04 v1 — modern wallets require amount/unit/state on the response.
+        // The mintable amount for a voucher quote is the charged price; a fresh
+        // quote is always UNPAID. Expiry (a relative TTL) is passed through; the
+        // client normalizes relative-vs-absolute itself.
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
                 .request(request)
+                .amount((int) voucherPrice)
+                .unit(unit != null ? unit : "sat")
+                .state("UNPAID")
                 .expiry(expiry)
                 .build();
     }
