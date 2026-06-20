@@ -64,10 +64,22 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/v1")
-public class CashuController<T extends Secret> {
+public class CashuController<T extends Secret> implements org.springframework.context.ApplicationEventPublisherAware {
 
     // Request ID header for tracing (matches gateway's AbstractRequestBase)
     public static final String REQUEST_ID_HEADER = "X-Request-ID";
+
+    // Spec 036 — trace producer seam. Spring injects this via the aware callback
+    // (no constructor change). Trace application events are published here at
+    // post-success seams; the @Async TraceMintProducer turns them into signed
+    // kind-9079 events. When tracing is disabled there is no listener, so these
+    // publishes are no-ops and mint behaviour is unchanged.
+    private org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+
+    @Override
+    public void setApplicationEventPublisher(org.springframework.context.ApplicationEventPublisher publisher) {
+        this.applicationEventPublisher = publisher;
+    }
 
     private final NUT06 nut06;
     private final MintLoadService mintLoadService;
@@ -193,6 +205,7 @@ public class CashuController<T extends Secret> {
     public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request,
                                                            @PathVariable("method") String method) throws CashuErrorException {
         var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
+        publishTraceMintQuoteRequested(response);
         return ResponseEntity.ok(response);
     }
 
@@ -313,6 +326,7 @@ public class CashuController<T extends Secret> {
     public ResponseEntity<PostMeltQuoteResponse> quoteMelt(@RequestBody PostMeltQuoteRequest request,
                                                            @PathVariable("method") String method) {
         PostMeltQuoteResponse response = NUT05.quote(request, PaymentMethod.valueOf(method.toUpperCase()));
+        publishTraceMeltQuoteRequested(request, response);
         return ResponseEntity.ok(response);
     }
 
@@ -430,6 +444,50 @@ public class CashuController<T extends Secret> {
     public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
         PostRestoreResponse response = NUT09.restore(request, signatureVaultService);
         return ResponseEntity.ok(response);
+    }
+
+    // ---- Spec 036 trace producer seams ----
+
+    /**
+     * Publish a MINT_QUOTE_REQUESTED trace application event after a mint quote
+     * is created. No-op when no publisher/listener is wired (tracing disabled).
+     * The response already reflects the durably-created quote, so this fires
+     * only for committed quotes (FR-006).
+     */
+    private void publishTraceMintQuoteRequested(PostMintQuoteResponse response) {
+        if (applicationEventPublisher == null || response == null) {
+            return;
+        }
+        applicationEventPublisher.publishEvent(new xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent(
+                this,
+                response.getQuoteId(),
+                response.getRequest(),
+                null,
+                response.getAmount(),
+                response.getUnit(),
+                response.getExpiry(),
+                java.time.Instant.now()));
+    }
+
+    /**
+     * Publish a MELT_QUOTE_REQUESTED trace application event after a melt quote
+     * is created. The melt response carries amount/feeReserve/expiry; the bolt11
+     * request comes from the request body.
+     */
+    private void publishTraceMeltQuoteRequested(PostMeltQuoteRequest request, PostMeltQuoteResponse response) {
+        if (applicationEventPublisher == null || response == null) {
+            return;
+        }
+        String bolt11 = request == null ? null : request.getRequest();
+        applicationEventPublisher.publishEvent(new xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent(
+                this,
+                response.getQuoteId(),
+                bolt11,
+                response.getAmount(),
+                response.getFeeReserve(),
+                null,
+                response.getExpiry(),
+                java.time.Instant.now()));
     }
 
     // ---- Helpers ----

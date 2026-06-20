@@ -684,6 +684,8 @@ cd cashu-mint-rest && mvn jib:build
 
 ## Active Technologies
 - PostgreSQL 16. New tables `voucher_quote`, (003-voucher-its)
+- Java 21 (Virtual Threads enabled) + Spring Boot 3.5.x; `cashu-ledger-trace-publisher` (new, Spring Boot starter); `cashu-ledger-trace-core` (`TransactionEvent`, `OperationInvariants`, `ProofRef`, `LightningRef`); nostr-java **2.0.7** (upgrade from 1.3.0, transport for the SDK); `cashu-lib-common` 0.18.1 (`SecretUtil.toY`) (036-trace-producer-integration)
+- SDK-owned durable SQLite **outbox** (file path, configured); **no new mint DB tables, no Flyway migrations** (036-trace-producer-integration)
 
 ## Recent Changes
 - 003-voucher-its: Added Java 21

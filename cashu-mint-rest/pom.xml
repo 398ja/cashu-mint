@@ -87,6 +87,12 @@
             <artifactId>cashu-mint-webhook</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- Spec 036 trace producer SDK (Spring Boot starter). Auto-config stays
+             inert unless cashu.trace.publisher.enabled=true. -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-ledger-trace-publisher</artifactId>
+        </dependency>
         <!-- Spec 001 durable-state adapter. Runtime scope so MintJpaAutoConfiguration
              is on the classpath when cashu.mint.jpa.enabled=true is flipped on in
              staging/prod; the autoconfig stays inert when the flag is off. -->
