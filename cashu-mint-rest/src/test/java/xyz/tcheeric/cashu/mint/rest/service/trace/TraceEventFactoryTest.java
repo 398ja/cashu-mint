@@ -8,9 +8,13 @@ import xyz.tcheeric.cashu.ledger.trace.core.OperationInvariants;
 import xyz.tcheeric.cashu.ledger.trace.core.OperationKind;
 import xyz.tcheeric.cashu.ledger.trace.core.TransactionEvent;
 import xyz.tcheeric.cashu.ledger.trace.publisher.InMemoryOperationIdRegistry;
+import java.util.List;
 import xyz.tcheeric.cashu.ledger.trace.publisher.TraceEventSigner;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceProofInput;
 
 /**
  * Spec 036 US1 — verifies the factory produces structurally valid
@@ -70,6 +74,42 @@ class TraceEventFactoryTest {
         assertThat(ev.feeAmount()).contains(5L);
         assertThat(ev.lightning()).isPresent();
         assertThat(ev.lightning().get().quoteOperation()).isEqualTo(OperationKind.MELT_QUOTE_REQUESTED);
+    }
+
+    // MINT_FAILED is valid with no proofs (corrected invariant) and an error code.
+    @Test
+    void mintFailed_isValidWithNoProofs() {
+        TraceMintFailedEvent in = new TraceMintFailedEvent(
+                this, "quote-4", 100L, "sat", "mint_invoice_not_paid_error",
+                "invoice not paid", Instant.now());
+
+        TransactionEvent ev = factory().buildMintFailed(in);
+
+        assertThat(OperationInvariants.validate(ev)).isEmpty();
+        assertThat(ev.kind()).isEqualTo(OperationKind.MINT_FAILED);
+        assertThat(ev.inputs()).isEmpty();
+        assertThat(ev.outputs()).isEmpty();
+        assertThat(ev.errorCode()).contains("mint_invoice_not_paid_error");
+    }
+
+    // MELT_FAILED is valid with >=1 input (Y only, no secret) and 0 outputs.
+    @Test
+    void meltFailed_isValidWithInputYsAndNoSecret() {
+        String y = "02" + "a".repeat(64); // 66-char lowercase hex compressed point
+        TraceMeltFailedEvent in = new TraceMeltFailedEvent(
+                this, "quote-5", 8L, "sat",
+                List.of(new TraceProofInput(8L, "00ad268c4d1f5826", y)),
+                "melt_invoice_not_paid_error", "payment failed", Instant.now());
+
+        TransactionEvent ev = factory().buildMeltFailed(in);
+
+        assertThat(OperationInvariants.validate(ev)).isEmpty();
+        assertThat(ev.kind()).isEqualTo(OperationKind.MELT_FAILED);
+        assertThat(ev.inputs()).hasSize(1);
+        assertThat(ev.outputs()).isEmpty();
+        assertThat(ev.inputs().get(0).y()).isEqualTo(y);
+        assertThat(ev.inputs().get(0).secret()).isEmpty(); // Principle VII
+        assertThat(ev.errorCode()).contains("melt_invoice_not_paid_error");
     }
 
     // The same quoteId resolves to the same operationId (idempotency anchor, FR-008).

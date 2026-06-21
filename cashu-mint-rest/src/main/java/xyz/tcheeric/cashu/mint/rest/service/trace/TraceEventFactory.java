@@ -15,8 +15,11 @@ import xyz.tcheeric.cashu.ledger.trace.core.ProofRef;
 import xyz.tcheeric.cashu.ledger.trace.core.TransactionEvent;
 import xyz.tcheeric.cashu.ledger.trace.publisher.OperationIdRegistry;
 import xyz.tcheeric.cashu.ledger.trace.publisher.TraceEventSigner;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceProofInput;
 
 /**
  * Spec 036 — maps internal trace application events to the SDK's
@@ -58,7 +61,7 @@ public class TraceEventFactory {
                 e.getAmount(), e.getExpiry(), OperationKind.MINT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MINT_QUOTE_REQUESTED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), List.of(), List.of(), lightning,
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /** Build a {@code MELT_QUOTE_REQUESTED} event (0 inputs, 0 outputs, carries fee reserve). */
@@ -68,10 +71,43 @@ public class TraceEventFactory {
                 e.getAmount(), e.getExpiry(), OperationKind.MELT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MELT_QUOTE_REQUESTED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), List.of(), List.of(), lightning,
-                Optional.of(e.getFeeReserve()), Optional.empty());
+                Optional.of(e.getFeeReserve()), Optional.empty(), Optional.empty());
+    }
+
+    /** Build a {@code MINT_FAILED} event (0 inputs, 0 outputs, carries error code). */
+    public TransactionEvent buildMintFailed(TraceMintFailedEvent e) {
+        String operationId = operationIdRegistry.resolve("mint_failed", e.getQuoteId());
+        LightningRef lightning = lightningRef(e.getQuoteId(), null, null,
+                e.getAmount(), 0, OperationKind.MINT_QUOTE_REQUESTED);
+        return base(operationId, OperationKind.MINT_FAILED, unitOrDefault(e.getUnit()),
+                e.getTransitionAt(), List.of(), List.of(), lightning,
+                Optional.empty(), Optional.ofNullable(emptyToNull(e.getErrorCode())),
+                Optional.ofNullable(emptyToNull(e.getErrorMessage())));
+    }
+
+    /** Build a {@code MELT_FAILED} event (>=1 released inputs as Y only, 0 outputs). */
+    public TransactionEvent buildMeltFailed(TraceMeltFailedEvent e) {
+        String operationId = operationIdRegistry.resolve("melt_failed", e.getQuoteId());
+        List<ProofRef> inputs = e.getInputs() == null ? List.of()
+                : e.getInputs().stream().map(TraceEventFactory::inputProofRef).toList();
+        LightningRef lightning = lightningRef(e.getQuoteId(), null, null,
+                e.getAmount(), 0, OperationKind.MELT_QUOTE_REQUESTED);
+        return base(operationId, OperationKind.MELT_FAILED, unitOrDefault(e.getUnit()),
+                e.getTransitionAt(), inputs, List.of(), lightning,
+                Optional.empty(), Optional.ofNullable(emptyToNull(e.getErrorCode())),
+                Optional.ofNullable(emptyToNull(e.getErrorMessage())));
     }
 
     // --- shared helpers -----------------------------------------------------
+
+    /**
+     * Map a released melt input to a {@link ProofRef} carrying the public
+     * {@code Y} only — the plaintext secret is never emitted (Principle VII).
+     */
+    private static ProofRef inputProofRef(TraceProofInput in) {
+        return new ProofRef(in.amount(), in.keysetId(), in.y(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+    }
 
     private LightningRef lightningRef(String quoteId, String bolt11, String paymentHash,
                                       long amount, int expiry, OperationKind quoteOperation) {
@@ -96,7 +132,8 @@ public class TraceEventFactory {
     private TransactionEvent base(String operationId, OperationKind kind, String unit,
                                   Instant transitionAt, List<ProofRef> inputs,
                                   List<ProofRef> outputs, LightningRef lightning,
-                                  Optional<Long> feeAmount, Optional<String> errorCode) {
+                                  Optional<Long> feeAmount, Optional<String> errorCode,
+                                  Optional<String> errorMessage) {
         Instant createdAt = Instant.ofEpochSecond(transitionAt.getEpochSecond());
         return new TransactionEvent(
                 Optional.empty(),                 // eventId — SDK fills
@@ -119,7 +156,7 @@ public class TraceEventFactory {
                 Optional.empty(),                 // transferId
                 feeAmount,
                 errorCode,
-                Optional.empty(),                 // errorMessage
+                errorMessage,
                 Optional.empty(),                 // correctionOf
                 PrivacyMode.FULL,
                 Optional.empty(),                 // redactionKeyId

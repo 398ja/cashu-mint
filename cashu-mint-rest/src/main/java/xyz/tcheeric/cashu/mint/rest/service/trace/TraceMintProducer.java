@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.ledger.trace.core.OperationInvariants;
 import xyz.tcheeric.cashu.ledger.trace.core.TransactionEvent;
 import xyz.tcheeric.cashu.ledger.trace.publisher.TraceabilityPublisher;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
 
 /**
@@ -51,6 +53,20 @@ public class TraceMintProducer {
     @EventListener
     public void onMeltQuoteRequested(TraceMeltQuoteRequestedEvent event) {
         emit(factory.buildMeltQuoteRequested(event), event.getQuoteId());
+    }
+
+    /** US2 — emit MINT_FAILED (no proofs). */
+    @Async
+    @EventListener
+    public void onMintFailed(TraceMintFailedEvent event) {
+        emit(factory.buildMintFailed(event), event.getQuoteId());
+    }
+
+    /** US2 — emit MELT_FAILED (released inputs only). */
+    @Async
+    @EventListener
+    public void onMeltFailed(TraceMeltFailedEvent event) {
+        emit(factory.buildMeltFailed(event), event.getQuoteId());
     }
 
     /**

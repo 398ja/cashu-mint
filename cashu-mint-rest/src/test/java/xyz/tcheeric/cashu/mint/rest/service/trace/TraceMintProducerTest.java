@@ -13,9 +13,13 @@ import org.mockito.ArgumentCaptor;
 import xyz.tcheeric.cashu.ledger.trace.core.OperationKind;
 import xyz.tcheeric.cashu.ledger.trace.core.TransactionEvent;
 import xyz.tcheeric.cashu.ledger.trace.publisher.InMemoryOperationIdRegistry;
+import java.util.List;
 import xyz.tcheeric.cashu.ledger.trace.publisher.TraceEventSigner;
 import xyz.tcheeric.cashu.ledger.trace.publisher.TraceabilityPublisher;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
+import xyz.tcheeric.cashu.mint.rest.event.TraceProofInput;
 
 /**
  * Spec 036 US1 / US3 — verifies the producer publishes exactly one valid event
@@ -48,6 +52,29 @@ class TraceMintProducerTest {
         ArgumentCaptor<TransactionEvent> captor = ArgumentCaptor.forClass(TransactionEvent.class);
         verify(publisher, times(1)).publish(captor.capture());
         assert captor.getValue().kind() == OperationKind.MINT_QUOTE_REQUESTED;
+    }
+
+    // MINT_FAILED carries no proofs; MELT_FAILED carries the released input Ys.
+    @Test
+    void failedEvents_haveExpectedProofShape() {
+        TraceabilityPublisher publisher = mock(TraceabilityPublisher.class);
+        TraceMintProducer producer = producer(publisher);
+
+        producer.onMintFailed(new TraceMintFailedEvent(
+                this, "q-mf", 10L, "sat", "mint_invoice_not_paid_error", "x", Instant.now()));
+        String y = "02" + "b".repeat(64);
+        producer.onMeltFailed(new TraceMeltFailedEvent(
+                this, "q-Mf", 5L, "sat", List.of(new TraceProofInput(5L, "00ad268c4d1f5826", y)),
+                "melt_invoice_not_paid_error", "x", Instant.now()));
+
+        ArgumentCaptor<TransactionEvent> captor = ArgumentCaptor.forClass(TransactionEvent.class);
+        verify(publisher, times(2)).publish(captor.capture());
+        TransactionEvent mintFailed = captor.getAllValues().get(0);
+        TransactionEvent meltFailed = captor.getAllValues().get(1);
+        assert mintFailed.kind() == OperationKind.MINT_FAILED;
+        assert mintFailed.inputs().isEmpty();
+        assert meltFailed.kind() == OperationKind.MELT_FAILED;
+        assert meltFailed.inputs().size() == 1;
     }
 
     // A throwing publisher must never propagate out of the listener (FR-007) —

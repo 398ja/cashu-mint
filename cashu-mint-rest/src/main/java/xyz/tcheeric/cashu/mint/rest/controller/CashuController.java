@@ -22,6 +22,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
@@ -280,15 +281,32 @@ public class CashuController<T extends Secret> implements org.springframework.co
         if (log.isDebugEnabled()) {
             log.debug("Delegating mint: mintId={} method={} quoteId={}", mintId, paymentMethod, request.getQuoteId());
         }
-        PostMintResponse response = NUT04.mint(
-                mintId,
-                request,
-                paymentMethod,
-                null, // unit resolved by service
-                mintLoadService, // use injected loader (preload in dev)
-                MintProtocolServiceFactory.getInstance(),
-                signatureVaultService
-        );
+        PostMintResponse response;
+        try {
+            response = NUT04.mint(
+                    mintId,
+                    request,
+                    paymentMethod,
+                    null, // unit resolved by service
+                    mintLoadService, // use injected loader (preload in dev)
+                    MintProtocolServiceFactory.getInstance(),
+                    signatureVaultService
+            );
+        } catch (CashuErrorException e) {
+            // Spec 036 — emit MINT_FAILED for the unpaid/invalid-invoice rejection,
+            // then rethrow unchanged so the existing @ExceptionHandler produces the
+            // same HTTP response (FR-014). Other reject codes are not traced here.
+            if (isInvoiceNotPaid(e.getMessage())) {
+                publishTraceMintFailed(request, "mint_invoice_not_paid_error", e.getMessage());
+            }
+            throw e;
+        } catch (InvoiceNotPaidException e) {
+            publishTraceMintFailed(request, "mint_invoice_not_paid_error", e.getMessage());
+            throw e;
+        } catch (HttpClientErrorException.NotFound e) {
+            publishTraceMintFailed(request, "mint_invoice_not_paid_error", e.getMessage());
+            throw e;
+        }
 
         // Publish mint quote state change for NUT-17 WebSocket subscribers
         if (response != null && eventPublisher != null) {
@@ -354,17 +372,30 @@ public class CashuController<T extends Secret> implements org.springframework.co
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
-        PostMeltResponse response = NUT05.melt(
-                mintId,
-                request,
-                paymentMethod,
-                null,
-                MintProtocolServiceFactory.getInstance(),
-                mintLoadService,
-                mintVaultService,
-                proofVaultService,
-                signatureVaultService
-        );
+        PostMeltResponse response;
+        try {
+            response = NUT05.melt(
+                    mintId,
+                    request,
+                    paymentMethod,
+                    null,
+                    MintProtocolServiceFactory.getInstance(),
+                    mintLoadService,
+                    mintVaultService,
+                    proofVaultService,
+                    signatureVaultService
+            );
+        } catch (CashuErrorException e) {
+            // Spec 036 — emit MELT_FAILED only for the payment-failure/refund path
+            // (MeltTask.refundAfterFailure throws melt_invoice_not_paid_error after
+            // releasing the proofs), carrying the released inputs the controller
+            // already holds. Then rethrow unchanged (FR-014). Validation rejects
+            // and the parked-unknown path (payment_unknown) are not traced here.
+            if (isMeltInvoiceNotPaid(e.getMessage())) {
+                publishTraceMeltFailed(request, "melt_invoice_not_paid_error", e.getMessage());
+            }
+            throw e;
+        }
 
         // Publish events for NUT-17 WebSocket subscribers
         if (response != null && eventPublisher != null) {
@@ -488,6 +519,73 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 null,
                 response.getExpiry(),
                 java.time.Instant.now()));
+    }
+
+    /**
+     * Publish a MINT_FAILED trace event after an unpaid/invalid issuance attempt
+     * is rejected. No inputs/outputs; the amount is the sum of the requested
+     * blinded-message amounts (what the wallet attempted to mint).
+     */
+    private void publishTraceMintFailed(PostMintRequest<T> request, String errorCode, String errorMessage) {
+        if (applicationEventPublisher == null || request == null) {
+            return;
+        }
+        long amount = 0L;
+        if (request.getBlindedMessages() != null) {
+            amount = request.getBlindedMessages().stream()
+                    .mapToLong(BlindedMessage::getAmount)
+                    .sum();
+        }
+        applicationEventPublisher.publishEvent(new xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent(
+                this,
+                request.getQuoteId(),
+                amount,
+                null,
+                errorCode,
+                errorMessage,
+                java.time.Instant.now()));
+    }
+
+    /**
+     * Publish a MELT_FAILED trace event after a melt payment fails and the input
+     * proofs are released. The released inputs are the request's input proofs;
+     * each is carried by its public Y only (never the plaintext secret).
+     */
+    private void publishTraceMeltFailed(PostMeltRequest<T> request, String errorCode, String errorMessage) {
+        if (applicationEventPublisher == null || request == null || request.getInputs() == null) {
+            return;
+        }
+        java.util.List<xyz.tcheeric.cashu.mint.rest.event.TraceProofInput> inputs = new java.util.ArrayList<>();
+        long amount = 0L;
+        for (Proof<T> proof : request.getInputs()) {
+            if (proof == null) {
+                continue;
+            }
+            amount += proof.getAmount();
+            inputs.add(new xyz.tcheeric.cashu.mint.rest.event.TraceProofInput(
+                    proof.getAmount(),
+                    proof.getKeySetId(),
+                    proof.getSecret() != null ? SecretUtil.toY(proof.getSecret()) : null));
+        }
+        applicationEventPublisher.publishEvent(new xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent(
+                this,
+                request.getQuoteId(),
+                amount,
+                null,
+                inputs,
+                errorCode,
+                errorMessage,
+                java.time.Instant.now()));
+    }
+
+    /** True when the error payload carries the NUT-04 unpaid-invoice code. */
+    private static boolean isInvoiceNotPaid(String message) {
+        return message != null && message.contains("mint_invoice_not_paid_error");
+    }
+
+    /** True when the error payload carries the NUT-05 melt payment-failure code. */
+    private static boolean isMeltInvoiceNotPaid(String message) {
+        return message != null && message.contains("melt_invoice_not_paid_error");
     }
 
     // ---- Helpers ----
