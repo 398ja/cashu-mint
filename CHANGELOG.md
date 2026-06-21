@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.23.0] - 2026-06-21
+
 ### Added
 
 - **Traceability producer (spec 036)** — the mint can emit signed `kind-9079`
