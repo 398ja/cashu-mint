@@ -34,12 +34,15 @@ class TraceEventFactoryTest {
     }
 
     // A fresh mint-quote event maps to a valid MINT_QUOTE_REQUESTED: 0 in/0 out,
-    // lightning present, no invariant violations.
+    // lightning present, no invariant violations, and the relative TTL expiry is
+    // converted to an absolute expiresAt (transitionAt + ttl).
     @Test
     void mintQuoteRequested_isValidAndShaped() {
+        Instant transitionAt = Instant.parse("2026-06-21T00:00:00Z");
+        int relativeTtlSeconds = 900;
         TraceMintQuoteRequestedEvent in = new TraceMintQuoteRequestedEvent(
                 this, "quote-1", "lnbc100n1...", null, 100L, "sat",
-                (int) Instant.parse("2026-06-21T00:00:00Z").getEpochSecond(), Instant.now());
+                relativeTtlSeconds, transitionAt);
 
         TransactionEvent ev = factory().buildMintQuoteRequested(in);
 
@@ -55,6 +58,21 @@ class TraceEventFactoryTest {
         assertThat(ev.lightning().get().quoteId()).isEqualTo("quote-1");
         assertThat(ev.lightning().get().amount()).contains(100L);
         assertThat(ev.lightning().get().quoteOperation()).isEqualTo(OperationKind.MINT_QUOTE_REQUESTED);
+        // Codex P2 — relative TTL converted to absolute, not Instant.ofEpochSecond(900) (1970).
+        assertThat(ev.lightning().get().expiresAt()).contains(transitionAt.plusSeconds(relativeTtlSeconds));
+    }
+
+    // An absolute epoch expiry (already a future timestamp) is passed through unchanged.
+    @Test
+    void mintQuoteRequested_absoluteExpiryPassedThrough() {
+        Instant transitionAt = Instant.parse("2026-06-21T00:00:00Z");
+        int absoluteExpiry = (int) transitionAt.plusSeconds(900).getEpochSecond();
+        TraceMintQuoteRequestedEvent in = new TraceMintQuoteRequestedEvent(
+                this, "quote-1", "lnbc100n1...", null, 100L, "sat", absoluteExpiry, transitionAt);
+
+        TransactionEvent ev = factory().buildMintQuoteRequested(in);
+
+        assertThat(ev.lightning().get().expiresAt()).contains(Instant.ofEpochSecond(absoluteExpiry));
     }
 
     // A fresh melt-quote event maps to a valid MELT_QUOTE_REQUESTED carrying the

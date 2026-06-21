@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.rest.service.trace;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -52,7 +53,7 @@ class TraceMintProducerTest {
 
         ArgumentCaptor<TransactionEvent> captor = ArgumentCaptor.forClass(TransactionEvent.class);
         verify(publisher, times(1)).publish(captor.capture());
-        assert captor.getValue().kind() == OperationKind.MINT_QUOTE_REQUESTED;
+        assertThat(captor.getValue().kind()).isEqualTo(OperationKind.MINT_QUOTE_REQUESTED);
     }
 
     // MINT_FAILED carries no proofs; MELT_FAILED carries the released input Ys.
@@ -72,10 +73,10 @@ class TraceMintProducerTest {
         verify(publisher, times(2)).publish(captor.capture());
         TransactionEvent mintFailed = captor.getAllValues().get(0);
         TransactionEvent meltFailed = captor.getAllValues().get(1);
-        assert mintFailed.kind() == OperationKind.MINT_FAILED;
-        assert mintFailed.inputs().isEmpty();
-        assert meltFailed.kind() == OperationKind.MELT_FAILED;
-        assert meltFailed.inputs().size() == 1;
+        assertThat(mintFailed.kind()).isEqualTo(OperationKind.MINT_FAILED);
+        assertThat(mintFailed.inputs()).isEmpty();
+        assertThat(meltFailed.kind()).isEqualTo(OperationKind.MELT_FAILED);
+        assertThat(meltFailed.inputs()).hasSize(1);
     }
 
     // A throwing publisher must never propagate out of the listener (FR-007) —

@@ -386,11 +386,13 @@ public class CashuController<T extends Secret> implements org.springframework.co
                     signatureVaultService
             );
         } catch (CashuErrorException e) {
-            // Spec 036 — emit MELT_FAILED only for the payment-failure/refund path
-            // (MeltTask.refundAfterFailure throws melt_invoice_not_paid_error after
-            // releasing the proofs), carrying the released inputs the controller
-            // already holds. Then rethrow unchanged (FR-014). Validation rejects
-            // and the parked-unknown path (payment_unknown) are not traced here.
+            // Spec 036 — emit MELT_FAILED only for the CONFIRMED payment-failure/refund
+            // path: MeltTask.refundAfterFailure throws melt_invoice_not_paid_error only
+            // after the proof refund is confirmed. The unconfirmed-refund variant throws
+            // melt_proof_refund_failed (proofs may still be PENDING) and is deliberately
+            // NOT traced as released. Carries the released inputs the controller already
+            // holds, then rethrows unchanged (FR-014). Validation rejects and the
+            // parked-unknown path (payment_unknown) are not traced here either.
             if (isMeltInvoiceNotPaid(e.getMessage())) {
                 publishTraceMeltFailed(request, "melt_invoice_not_paid_error", e.getMessage());
             }

@@ -91,7 +91,9 @@ public class TraceMintProducer {
             }
             publisher.publish(event);
         } catch (Exception e) {
-            log.error("trace_publish_error quote_id={} error={}", quoteId, e.getMessage());
+            // Log the full exception (stack trace) — a tracing outage must not fail the
+            // mint op, but it must be diagnosable in production.
+            log.error("trace_publish_error quote_id={}", quoteId, e);
         }
     }
 }

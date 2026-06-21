@@ -26,10 +26,11 @@ import xyz.tcheeric.cashu.mint.rest.event.TraceProofInput;
  * {@link TransactionEvent} wire shape. Pure mapping; performs no I/O.
  *
  * <p>Mint-side rules (see {@code specs/036-.../contracts/trace-events.md}):
- * {@code producerPubkey} left blank (the SDK signer overwrites it),
- * {@code initiatorPubkey} omitted (Principle VII — no customer identity),
- * outputs always empty, and any input {@code ProofRef} carries the public
- * {@code Y} only — never the plaintext secret.
+ * {@code producerPubkey} is set to the signer's public key
+ * ({@code TraceEventSigner.publicKeyHex()}) because the signer rejects a
+ * mismatching event; {@code initiatorPubkey} is omitted (Principle VII — no
+ * customer identity); outputs are always empty; and any input {@code ProofRef}
+ * carries the public {@code Y} only — never the plaintext secret.
  *
  * <p>Only instantiated when {@code cashu.trace.publisher.enabled=true}; the
  * {@link OperationIdRegistry} it depends on is provided under the same gate.
@@ -58,7 +59,7 @@ public class TraceEventFactory {
     public TransactionEvent buildMintQuoteRequested(TraceMintQuoteRequestedEvent e) {
         String operationId = operationIdRegistry.resolve("mint_quote", e.getQuoteId());
         LightningRef lightning = lightningRef(e.getQuoteId(), e.getRequest(), e.getPaymentHash(),
-                e.getAmount(), e.getExpiry(), OperationKind.MINT_QUOTE_REQUESTED);
+                e.getAmount(), e.getExpiry(), e.getTransitionAt(), OperationKind.MINT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MINT_QUOTE_REQUESTED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), List.of(), List.of(), lightning,
                 Optional.empty(), Optional.empty(), Optional.empty());
@@ -68,7 +69,7 @@ public class TraceEventFactory {
     public TransactionEvent buildMeltQuoteRequested(TraceMeltQuoteRequestedEvent e) {
         String operationId = operationIdRegistry.resolve("melt_quote", e.getQuoteId());
         LightningRef lightning = lightningRef(e.getQuoteId(), e.getRequest(), null,
-                e.getAmount(), e.getExpiry(), OperationKind.MELT_QUOTE_REQUESTED);
+                e.getAmount(), e.getExpiry(), e.getTransitionAt(), OperationKind.MELT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MELT_QUOTE_REQUESTED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), List.of(), List.of(), lightning,
                 Optional.of(e.getFeeReserve()), Optional.empty(), Optional.empty());
@@ -78,7 +79,7 @@ public class TraceEventFactory {
     public TransactionEvent buildMintFailed(TraceMintFailedEvent e) {
         String operationId = operationIdRegistry.resolve("mint_failed", e.getQuoteId());
         LightningRef lightning = lightningRef(e.getQuoteId(), null, null,
-                e.getAmount(), 0, OperationKind.MINT_QUOTE_REQUESTED);
+                e.getAmount(), 0, e.getTransitionAt(), OperationKind.MINT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MINT_FAILED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), List.of(), List.of(), lightning,
                 Optional.empty(), Optional.ofNullable(emptyToNull(e.getErrorCode())),
@@ -91,7 +92,7 @@ public class TraceEventFactory {
         List<ProofRef> inputs = e.getInputs() == null ? List.of()
                 : e.getInputs().stream().map(TraceEventFactory::inputProofRef).toList();
         LightningRef lightning = lightningRef(e.getQuoteId(), null, null,
-                e.getAmount(), 0, OperationKind.MELT_QUOTE_REQUESTED);
+                e.getAmount(), 0, e.getTransitionAt(), OperationKind.MELT_QUOTE_REQUESTED);
         return base(operationId, OperationKind.MELT_FAILED, unitOrDefault(e.getUnit()),
                 e.getTransitionAt(), inputs, List.of(), lightning,
                 Optional.empty(), Optional.ofNullable(emptyToNull(e.getErrorCode())),
@@ -110,18 +111,34 @@ public class TraceEventFactory {
     }
 
     private LightningRef lightningRef(String quoteId, String bolt11, String paymentHash,
-                                      long amount, int expiry, OperationKind quoteOperation) {
-        Optional<Instant> expiresAt = expiry > 0
-                ? Optional.of(Instant.ofEpochSecond(expiry)) : Optional.empty();
+                                      long amount, int expiry, Instant transitionAt,
+                                      OperationKind quoteOperation) {
         return new LightningRef(
                 quoteId,
                 mintUrl,
                 Optional.ofNullable(emptyToNull(bolt11)),
                 Optional.ofNullable(emptyToNull(paymentHash)),
                 Optional.of(amount),
-                expiresAt,
+                resolveExpiresAt(expiry, transitionAt),
                 quoteOperation,
                 false);
+    }
+
+    /**
+     * The mint's gateways return {@code expiry} as a <strong>relative</strong> TTL in seconds
+     * (e.g. {@code cashu.expiry=15} or a 900s invoice timeout), not an absolute epoch. Convert it to
+     * the absolute {@link Instant} the ledger expects: any value below the current epoch second is a
+     * relative offset from {@code transitionAt}; a value that already looks like an absolute future
+     * timestamp is passed through unchanged. {@code <= 0} means "no expiry".
+     */
+    private static Optional<Instant> resolveExpiresAt(int expiry, Instant transitionAt) {
+        if (expiry <= 0) {
+            return Optional.empty();
+        }
+        if (expiry < transitionAt.getEpochSecond()) {
+            return Optional.of(transitionAt.plusSeconds(expiry));
+        }
+        return Optional.of(Instant.ofEpochSecond(expiry));
     }
 
     /**

@@ -544,8 +544,10 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         // every proof bound to this saga back to UNSPENT atomically and
         // clears the melt_saga_id binding, so the wallet can retry the
         // same proofs in a future melt.
+        boolean refundConfirmed = false;
         try {
             int refunded = proofVaultService.refundForSaga(sagaId);
+            refundConfirmed = true;
             log.info("[melt-saga] proof_refund saga_id={} quote_id={} refunded={}",
                     sagaId, quoteId, refunded);
         } catch (CashuErrorException | RuntimeException refundError) {
@@ -557,7 +559,15 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             log.error("[melt-saga][alert] proof_refund_failed quote_id={} saga_id={} cause={}",
                     quoteId, sagaId, refundError.getMessage());
         }
-        ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error", failure.reason());
+        // Distinguish a confirmed release from an unconfirmed one. Only the
+        // confirmed path is a clean "payment failed, proofs released" outcome
+        // (melt_invoice_not_paid_error). If the refund could not be confirmed
+        // (vault outage), surface a distinct code: the proofs may still be stuck
+        // PENDING, so downstream consumers (e.g. the spec 036 forensic trace)
+        // MUST NOT record them as released/retryable — operator tooling reconciles
+        // the terminal-FAILED saga. HTTP status is unchanged (both map to 5xx).
+        String code = refundConfirmed ? "melt_invoice_not_paid_error" : "melt_proof_refund_failed";
+        ErrorResponse error = new ErrorResponse(code, failure.reason());
         cacheTerminalError(sagaId, error);
         throw new CashuErrorException(error.toJson());
     }
