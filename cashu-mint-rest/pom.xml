@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.22.0</version>
+        <version>0.23.0</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.22.0</version>
+    <version>0.23.0</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
@@ -86,6 +86,12 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-mint-webhook</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <!-- Spec 036 trace producer SDK (Spring Boot starter). Auto-config stays
+             inert unless cashu.trace.publisher.enabled=true. -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-ledger-trace-publisher</artifactId>
         </dependency>
         <!-- Spec 001 durable-state adapter. Runtime scope so MintJpaAutoConfiguration
              is on the classpath when cashu.mint.jpa.enabled=true is flipped on in

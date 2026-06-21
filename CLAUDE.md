@@ -208,6 +208,26 @@ cashu.mint.jpa.flyway.placeholders.grafana_ro_password=<env: CASHU_MINT_GRAFANA_
 
 Customer-facing disclosure document at `docs/explanations/voucher-data-record.md`; CI test `DisclosureDocSchemaContractTest` fails the build on schema-vs-doc drift. Operator runbook at `specs/004-voucher-data-minimisation/quickstart.md`. Minimisation candidates resolved per research R5: dropped `merchant_ledger_balance_after` + `voucher_issuance.issuance_id`; replaced `iou_terms` (TEXT) with `iou_terms_hash` (CHAR(64)).
 
+### Spec 036 — Traceability Producer (Mint Side)
+
+The mint is a **producer** for the `cashu-ledger` forensic trace ledger: when enabled it emits signed `kind-9079` trace events that the ledger joins by proof identity `Y` into a mint→swap→melt DAG. The mint emits only what it legitimately knows; it can **never** emit output (minted-token) proof identities (they are blinded), so the proof-level token-flow chain is produced wallet-side (separate repo). Trace events are a **non-standard observability extension** — MUST NOT be advertised under the NUT-06 `nuts` key (Constitution II; enforced by `TraceNutAdvertisementGuardTest`).
+
+All code lives in **`cashu-mint-rest`** (infra layer) — no `cashu-mint-protocol` / domain / DB changes. It consumes the pre-built `cashu-ledger-trace-publisher` Spring Boot starter (durable SQLite outbox + signer + relay transport, auto-configured, gated on `cashu.trace.publisher.enabled=true`). Required the cross-cutting **nostr-java 1.3.0 → 2.0.7** bump (2.x consolidated the module set into `core/event/client/identity`).
+
+- `TraceMint/MeltQuoteRequestedEvent` + `TraceMint/MeltFailedEvent` are Spring `ApplicationEvent`s published from the `CashuController` seams via `ApplicationEventPublisherAware` (no constructor change), mirroring the NUT-17 `Nut17EventPublisher` pattern. Quote events fire on the success branch; failure events fire from a try/catch around `NUT04.mint` / `NUT05.melt` that **rethrows unchanged** (FR-014). `MINT_FAILED` → `mint_invoice_not_paid_error` (no proofs); `MELT_FAILED` → `melt_invoice_not_paid_error` only (the refund-after-payment-failure path; carries released inputs as public `Y` only, never the secret — Principle VII), excluding the parked `payment_unknown` path.
+- `TraceEventFactory` maps events to the SDK `TransactionEvent` (FULL privacy, no initiator pubkey, `producerPubkey` stamped from `TraceEventSigner.publicKeyHex()` — `sign()` rejects a mismatch), validated against `OperationInvariants`. `TraceMintProducer` (`@Async @EventListener`) is fire-and-forget: invariant failures and publish faults are logged and swallowed so a tracing outage can never fail a mint op (FR-007). `TraceProducerGuard` fails startup closed when enabled but the signing key / relays / `cashu.mint.url` are unset.
+
+Config (`application.properties`, disabled by default):
+
+```properties
+cashu.trace.publisher.enabled=${CASHU_TRACE_PUBLISHER_ENABLED:false}
+cashu.trace.publisher.private-key-hex=${CASHU_TRACE_PUBLISHER_PRIVATE_KEY_HEX:}   # secret; fail-closed if enabled & blank
+cashu.trace.publisher.relays=${CASHU_TRACE_PUBLISHER_RELAYS:}
+cashu.trace.publisher.outbox-jdbc-url=${CASHU_TRACE_PUBLISHER_OUTBOX_JDBC_URL:jdbc:sqlite::memory:}  # use a file path in prod
+```
+
+Operator guide at `docs/how-to/enable-trace-producer.md`. The producer pubkey must be authorised on the ledger side (`trace.ingest.producers`) or its events are dropped at ingest.
+
 ### NUT Implementation Pattern
 
 Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/`:
@@ -684,6 +704,8 @@ cd cashu-mint-rest && mvn jib:build
 
 ## Active Technologies
 - PostgreSQL 16. New tables `voucher_quote`, (003-voucher-its)
+- Java 21 (Virtual Threads enabled) + Spring Boot 3.5.x; `cashu-ledger-trace-publisher` (new, Spring Boot starter); `cashu-ledger-trace-core` (`TransactionEvent`, `OperationInvariants`, `ProofRef`, `LightningRef`); nostr-java **2.0.7** (upgrade from 1.3.0, transport for the SDK); `cashu-lib-common` 0.18.1 (`SecretUtil.toY`) (036-trace-producer-integration)
+- SDK-owned durable SQLite **outbox** (file path, configured); **no new mint DB tables, no Flyway migrations** (036-trace-producer-integration)
 
 ## Recent Changes
 - 003-voucher-its: Added Java 21

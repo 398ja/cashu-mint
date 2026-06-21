@@ -95,6 +95,19 @@ Actuator exposure defaults:
 - `management.endpoint.health.probes.enabled=true`
 - Histogram buckets for request/task/crypto latency are pre-configured under `management.metrics.distribution.slo.*`.
 
+## Trace producer (spec 036)
+
+Emits signed `kind-9079` trace events to the `cashu-ledger` forensic ledger. Disabled by default;
+see [Enable the trace producer](../how-to/enable-trace-producer.md) for the full guide.
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `cashu.trace.publisher.enabled` | `false` | Master switch. When `false` no trace beans are created and mint behaviour is unchanged. |
+| `cashu.trace.publisher.private-key-hex` | _(empty)_ | Producer signing key (secret — env only). Boot fails closed if enabled and blank. |
+| `cashu.trace.publisher.relays` | _(empty)_ | Comma-separated ledger relays. Boot fails closed if enabled and empty. |
+| `cashu.trace.publisher.outbox-jdbc-url` | `jdbc:sqlite::memory:` | Durable outbox + operation-id registry. Use a file path in production for restart survival. |
+| `cashu.mint.url` | _(empty)_ | Mint identity events are attributed to. Required (and boot fails closed) when tracing is enabled. |
+
 ## Logging
 
 | Property | Default | Description |

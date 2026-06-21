@@ -23,6 +23,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Deploy to production](how-to/deploy-production.md) - Production deployment checklist with TLS, secrets, monitoring.
 - [Install a staging mint with Docker](how-to/install-staging-docker.md) - Deploy the dev stack on a staging host with published images.
 - [Enable observability](how-to/enable-observability.md) - Start Prometheus/Grafana/Jaeger and tune metrics/traces.
+- [Enable the trace producer](how-to/enable-trace-producer.md) - Emit signed kind-9079 trace events to the cashu-ledger forensic ledger (spec 036).
 - [Troubleshoot common issues](how-to/troubleshoot-common-issues.md) - Solutions for build, Docker, gateway, and test problems.
 
 ## Reference

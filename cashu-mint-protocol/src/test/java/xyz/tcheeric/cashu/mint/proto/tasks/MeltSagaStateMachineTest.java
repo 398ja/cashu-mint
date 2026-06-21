@@ -216,6 +216,27 @@ class MeltSagaStateMachineTest {
 
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
+    void definitive_failure_with_unconfirmed_refund_throws_distinct_code() throws CashuErrorException {
+        // Spec 036 (Codex P2): when the definitive-failure refund itself fails (vault
+        // outage), the proofs may still be stuck PENDING, so the task throws a DISTINCT
+        // code (melt_proof_refund_failed) instead of melt_invoice_not_paid_error. The
+        // trace producer keys MELT_FAILED on the latter only, so an unconfirmed refund is
+        // never recorded as a clean release.
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        f.paymentReturns(new PaymentOutcome.DefinitiveFailure("route_not_found", "1001"));
+        f.bindAllSubmittedProofs();
+        when(f.proofVaultService.refundForSaga(anyString()))
+                .thenThrow(new RuntimeException("vault_unreachable_for_refund"));
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> errorCode((CashuErrorException) ex).equals("melt_proof_refund_failed"));
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
     void unknown_outcome_parks_saga_in_PAYMENT_UNKNOWN() throws CashuErrorException {
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
