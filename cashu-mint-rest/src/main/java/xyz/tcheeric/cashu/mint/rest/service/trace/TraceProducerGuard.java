@@ -26,17 +26,17 @@ public class TraceProducerGuard {
     public TraceProducerGuard(TracePublisherProperties properties,
                               @Value("${cashu.mint.url:}") String mintUrl) {
         if (isBlank(properties.getPrivateKeyHex())) {
-            throw new IllegalStateException(
-                    "cashu.trace.publisher.private-key-hex must be set when cashu.trace.publisher.enabled=true");
+            throw new IllegalStateException("cashu.trace.publisher.private-key-hex must be set"
+                    + " when cashu.trace.publisher.enabled=true");
         }
         List<String> relays = properties.getRelays();
         if (relays == null || relays.stream().allMatch(TraceProducerGuard::isBlank)) {
-            throw new IllegalStateException(
-                    "cashu.trace.publisher.relays must list at least one relay when cashu.trace.publisher.enabled=true");
+            throw new IllegalStateException("cashu.trace.publisher.relays must list at least one relay"
+                    + " when cashu.trace.publisher.enabled=true");
         }
         if (isBlank(mintUrl)) {
-            throw new IllegalStateException(
-                    "cashu.mint.url must be set when cashu.trace.publisher.enabled=true (trace events are attributed to it)");
+            throw new IllegalStateException("cashu.mint.url must be set when"
+                    + " cashu.trace.publisher.enabled=true (trace events are attributed to it)");
         }
     }
 
