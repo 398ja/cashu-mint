@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.rest.service.trace;
 
 import java.util.List;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
@@ -45,38 +46,43 @@ public class TraceMintProducer {
     @Async
     @EventListener
     public void onMintQuoteRequested(TraceMintQuoteRequestedEvent event) {
-        emit(factory.buildMintQuoteRequested(event), event.getQuoteId());
+        emit(() -> factory.buildMintQuoteRequested(event), event.getQuoteId());
     }
 
     /** US1 — emit MELT_QUOTE_REQUESTED. */
     @Async
     @EventListener
     public void onMeltQuoteRequested(TraceMeltQuoteRequestedEvent event) {
-        emit(factory.buildMeltQuoteRequested(event), event.getQuoteId());
+        emit(() -> factory.buildMeltQuoteRequested(event), event.getQuoteId());
     }
 
     /** US2 — emit MINT_FAILED (no proofs). */
     @Async
     @EventListener
     public void onMintFailed(TraceMintFailedEvent event) {
-        emit(factory.buildMintFailed(event), event.getQuoteId());
+        emit(() -> factory.buildMintFailed(event), event.getQuoteId());
     }
 
     /** US2 — emit MELT_FAILED (released inputs only). */
     @Async
     @EventListener
     public void onMeltFailed(TraceMeltFailedEvent event) {
-        emit(factory.buildMeltFailed(event), event.getQuoteId());
+        emit(() -> factory.buildMeltFailed(event), event.getQuoteId());
     }
 
     /**
-     * Validate-then-publish. Invariant violations (including the ≤64 input/output
-     * and ≤64 KB caps the SDK enforces) are logged and the single event dropped —
-     * never truncated, never propagated (FR-013). Any other fault is swallowed
-     * (FR-007).
+     * Build-validate-publish, all inside one try/catch. The build itself resolves the
+     * operation id through the SQLite registry, so a registry/storage fault MUST be
+     * caught here too — taking the {@link Supplier} (not a pre-built event) keeps the
+     * build inside the guard. Invariant violations (including the ≤64 input/output and
+     * ≤64 KB caps) are logged and the single event dropped — never truncated, never
+     * propagated (FR-013). Any other fault is swallowed (FR-007), so a tracing problem
+     * can never fail or block a mint/melt operation regardless of whether this runs on
+     * a virtual thread or synchronously.
      */
-    private void emit(TransactionEvent event, String quoteId) {
+    private void emit(Supplier<TransactionEvent> builder, String quoteId) {
         try {
+            TransactionEvent event = builder.get();
             List<OperationInvariants.Violation> violations = OperationInvariants.validate(event);
             if (!violations.isEmpty()) {
                 log.error("trace_event_invalid kind={} quote_id={} violations={}",
@@ -85,8 +91,7 @@ public class TraceMintProducer {
             }
             publisher.publish(event);
         } catch (Exception e) {
-            log.error("trace_publish_error kind={} quote_id={} error={}",
-                    event.kind(), quoteId, e.getMessage());
+            log.error("trace_publish_error quote_id={} error={}", quoteId, e.getMessage());
         }
     }
 }

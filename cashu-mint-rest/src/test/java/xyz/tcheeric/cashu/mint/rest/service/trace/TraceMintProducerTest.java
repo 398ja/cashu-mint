@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -86,5 +87,19 @@ class TraceMintProducerTest {
 
         assertThatCode(() -> producer(publisher).onMintQuoteRequested(mintQuoteEvent()))
                 .doesNotThrowAnyException();
+    }
+
+    // A fault in the event build itself (e.g. the SQLite operation-id registry) is
+    // inside the guard too and must not propagate — the build runs via a Supplier.
+    @Test
+    void buildFault_isSwallowed() {
+        TraceabilityPublisher publisher = mock(TraceabilityPublisher.class);
+        TraceEventFactory factory = mock(TraceEventFactory.class);
+        doThrow(new RuntimeException("registry down")).when(factory).buildMintQuoteRequested(any());
+        TraceMintProducer producer = new TraceMintProducer(publisher, factory);
+
+        assertThatCode(() -> producer.onMintQuoteRequested(mintQuoteEvent()))
+                .doesNotThrowAnyException();
+        verify(publisher, never()).publish(any());
     }
 }

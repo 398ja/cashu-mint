@@ -578,13 +578,13 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 java.time.Instant.now()));
     }
 
-    /** True when the error payload carries the NUT-04 unpaid-invoice code. */
-    private static boolean isInvoiceNotPaid(String message) {
+    /** True when the error payload carries the NUT-04 unpaid-invoice code. Package-private for tests. */
+    static boolean isInvoiceNotPaid(String message) {
         return message != null && message.contains("mint_invoice_not_paid_error");
     }
 
-    /** True when the error payload carries the NUT-05 melt payment-failure code. */
-    private static boolean isMeltInvoiceNotPaid(String message) {
+    /** True when the error payload carries the NUT-05 melt payment-failure code. Package-private for tests. */
+    static boolean isMeltInvoiceNotPaid(String message) {
         return message != null && message.contains("melt_invoice_not_paid_error");
     }
 

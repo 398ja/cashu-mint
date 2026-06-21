@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Traceability producer (spec 036)** — the mint can emit signed `kind-9079`
+  trace events to the `cashu-ledger` forensic ledger: `MINT_QUOTE_REQUESTED` /
+  `MELT_QUOTE_REQUESTED` on quote creation, and `MINT_FAILED` (no proofs) /
+  `MELT_FAILED` (released inputs by public `Y` only) on the two failures the
+  mint owns. Disabled by default (`cashu.trace.publisher.enabled=false`); when
+  enabled, boot fails closed unless the signing key, relays, and `cashu.mint.url`
+  are set. Fire-and-forget — a tracing fault never fails or blocks a mint
+  operation. New code is confined to `cashu-mint-rest`; see
+  `docs/how-to/enable-trace-producer.md`. Consumes the
+  `cashu-ledger-trace-publisher` starter.
+
+### Changed
+
+- Bumped `nostr-java` `1.3.0` → `2.0.7` (the trace publisher signs over
+  `nostr-java-core` 2.x; 2.x consolidated the module set into
+  `core`/`event`/`client`/`identity`).
+- `AsyncConfig` now enables `@Async` unconditionally (only the virtual-thread
+  executor stays conditional), so disabling virtual threads no longer turns
+  `@Async` methods into synchronous calls on the request thread.
+
 ---
 
 ## [0.22.0] - 2026-06-06
