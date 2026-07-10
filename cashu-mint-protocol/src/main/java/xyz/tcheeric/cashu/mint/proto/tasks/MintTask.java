@@ -281,7 +281,11 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             quoteId, voucherCtx.funding.fundingId(), voucherCtx.funding.fundingSource());
                 }
             } else if (isIouMint) {
-                // Dalia Phase 9: zero-value IOU issuance is payment-exempt (nothing to pay).
+                // Dalia Phase 9: zero-value IOU issuance is payment-exempt and quote-less (nothing to
+                // pay, no value quote). It carries no monetary value, but it IS unbounded issuance —
+                // gated only by the (engine-only, rate-limited) /v1/mint endpoint. The Dalia trust
+                // layer must not treat an IOU marker as proof of anything beyond "the mint blind-signed
+                // this"; authorization/anti-spam is the engine's + rate limiter's responsibility.
                 log.info("mint_task iou_issuance quote_id={} zero_value=true", quoteId);
             } else {
                 // Regular tokens require real Lightning payment per NUT-04

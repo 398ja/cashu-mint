@@ -169,6 +169,31 @@ public class P2PKSpendingConditionTest {
         assertDoesNotThrow(() -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
     }
 
+    /**
+     * NUT-11: a single key's signature duplicated must NOT satisfy a 2-of-3 — the threshold counts
+     * distinct public keys, not raw signatures. Guards against unilateral escrow theft.
+     */
+    @Test
+    public void twoOfThree_duplicateSignatureFromOneKey_rejected() throws Exception {
+        PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
+                Schnorr.genPubKey(l.toBytes()), null, null);
+
+        String sigB = signSecret(secret, b);
+        Witness witness = new Witness();
+        witness.addSignature(sigB);
+        witness.addSignature(sigB); // the SAME signature twice — must not count as two
+
+        P2PKProof proof = new P2PKProof();
+        proof.setSecret(secret);
+        proof.setWitness(witness);
+
+        assertThrows(CashuErrorException.class,
+                () -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
+    }
+
     /** Refund: BEFORE the locktime, the refund key cannot reclaim (no early refund). */
     @Test
     public void refundKey_beforeLocktime_rejected() throws Exception {

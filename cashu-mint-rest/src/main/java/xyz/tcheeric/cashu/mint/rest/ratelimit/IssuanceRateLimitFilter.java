@@ -25,6 +25,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * engine-supplied identity header when present, else the caller's remote address (NUT endpoints carry
  * no authenticated principal). On exhaustion the filter writes a 429 with {@code Retry-After} and a
  * JSON body, and fires the Micrometer counter {@code cashu_mint_issuance_rate_limit_breach_total}.
+ *
+ * <p><b>Security / deployment note.</b> The identity header is <em>client-supplied</em> and therefore
+ * spoofable: a caller who can reach {@code /v1/mint} directly can rotate the header to mint a fresh
+ * bucket per request and bypass the limit (the remote-address fallback only applies when the header is
+ * absent). This is acceptable <em>only</em> when {@code /v1/mint} is not exposed to untrusted clients —
+ * in the Dalia pilot the authenticated engine is the sole caller and sets the header. Do NOT rely on
+ * this limit alone if the endpoint is reachable by untrusted callers; front it with real auth
+ * (e.g. NUT-22 blind auth) or a network boundary.
  */
 @Slf4j
 @Component
