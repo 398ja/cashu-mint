@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.util.SplittingService;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
+import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
@@ -261,6 +262,10 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     || VoucherQuoteRegistry.isVoucherQuote(quoteId);
             VoucherFundingContext voucherCtx = null;
 
+            // Dalia Phase 9: a pure IOU issuance (every output on the zero-value IOU keyset) is
+            // payment-exempt and quote-less — there is nothing to pay and no durable value quote.
+            boolean isIouMint = isIouMint(blindedMessages, mint);
+
             if (isVoucherQuote) {
                 // Spec 003 FR-002 — vouchers MUST trace to a durable funding row.
                 // The legacy "skip payment check" path is gone when the JPA module
@@ -275,6 +280,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     log.info("mint_task voucher_quote_funded quote_id={} funding_id={} source={}",
                             quoteId, voucherCtx.funding.fundingId(), voucherCtx.funding.fundingSource());
                 }
+            } else if (isIouMint) {
+                // Dalia Phase 9: zero-value IOU issuance is payment-exempt (nothing to pay).
+                log.info("mint_task iou_issuance quote_id={} zero_value=true", quoteId);
             } else {
                 // Regular tokens require real Lightning payment per NUT-04
                 // First check webhook cache (instant), then fall back to gateway polling
@@ -307,7 +315,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // behavior.
             String outputsHash = null;
             MintQuote durableQuote = null;
-            if (!isVoucherQuote && mintQuoteRepository != null) {
+            if (!isVoucherQuote && !isIouMint && mintQuoteRepository != null) {
                 durableQuote = mintQuoteRepository.findById(quoteId).orElse(null);
                 if (durableQuote == null) {
                     log.warn("mint_task missing_durable_quote quote_id={}", quoteId);
@@ -852,6 +860,15 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 throw new CashuErrorException(new ErrorResponse("missing_keyset_id").toJson());
             }
             int amount = message.getAmount();
+            // Dalia Phase 9: the zero-value IOU keyset issues only amount==0 markers and is exempt
+            // from the standard positive-denomination split; every other keyset keeps rejecting 0.
+            KeySet messageKeySet = findKeySet(mint, message.getKeySetId().toString());
+            if (IouKeysets.isIouKeyset(messageKeySet)) {
+                if (amount != 0) {
+                    throw new CashuErrorException(new ErrorResponse("invalid_iou_amount").toJson());
+                }
+                continue;
+            }
             if (amount <= 0) {
                 throw new CashuErrorException(new ErrorResponse("invalid_output_amount").toJson());
             }
@@ -882,6 +899,26 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
             }
         }
+    }
+
+    /** Whether every blinded message targets the zero-value IOU keyset (Dalia Phase 9). */
+    private boolean isIouMint(List<BlindedMessage> blindedMessages, Mint mint) {
+        if (blindedMessages == null || blindedMessages.isEmpty()) {
+            return false;
+        }
+        for (BlindedMessage message : blindedMessages) {
+            if (message == null || message.getKeySetId() == null) {
+                return false;
+            }
+            KeySet keySet = mint.getKeySets().stream()
+                    .filter(ks -> message.getKeySetId().toString().equals(ks.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (!IouKeysets.isIouKeyset(keySet)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private KeySet findKeySet(Mint mint, String keysetId) throws CashuErrorException {
