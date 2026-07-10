@@ -14,8 +14,11 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
+import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
@@ -201,6 +204,15 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     ErrorResponse error = new ErrorResponse(
                         "iou_not_meltable", "Zero-value IOU tokens cannot be melted.");
                     throw new CashuErrorException(error.toJson());
+                }
+
+                // Dalia Phase 9: enforce NUT-11 P2PK spend conditions at redemption (melt), not just at
+                // swap — otherwise an escrow proof could be cashed out with no witness check. Escrow
+                // secrets use SIG_INPUTS, so the melt change outputs are only consulted under SIG_ALL.
+                if (proof.getSecret() instanceof P2PKSecret) {
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    SpendingCondition condition = new P2PKSpendingCondition(postMeltRequest.getOutputs());
+                    condition.verify(proof);
                 }
 
                 if (!verify(proof)) {
