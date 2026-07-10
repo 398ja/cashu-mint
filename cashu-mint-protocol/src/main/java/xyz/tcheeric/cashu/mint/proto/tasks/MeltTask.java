@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
+import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
@@ -190,6 +191,15 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                         "Vouchers cannot be melted at mint (Model B). " +
                         "Please redeem with issuing merchant."
                     );
+                    throw new CashuErrorException(error.toJson());
+                }
+
+                // Dalia Phase 9: zero-value IOU proofs cannot be melted (cashed out). Checked per
+                // proof, so a mixed IOU+value melt cannot slip an IOU proof past a first-proof check.
+                var proofKeySet = mintLoadService.keySet(proof.getKeySetId());
+                if (IouKeysets.isIouKeyset(proofKeySet)) {
+                    ErrorResponse error = new ErrorResponse(
+                        "iou_not_meltable", "Zero-value IOU tokens cannot be melted.");
                     throw new CashuErrorException(error.toJson());
                 }
 

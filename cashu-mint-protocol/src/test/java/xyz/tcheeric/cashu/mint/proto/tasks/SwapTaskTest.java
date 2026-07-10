@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigInteger;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -8,6 +9,8 @@ import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeysetId;
+import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.PublicKey;
@@ -385,6 +388,46 @@ public class SwapTaskTest {
             try {
                 ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
                 assertEquals("voucher_split_amount_mismatch", error.code());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    /**
+     * Dalia Phase 9: a zero-value IOU proof cannot be swapped — the mint refuses it before verification.
+     */
+    @Test
+    public void execute_IouInputProof_Refused() throws Exception {
+        String iouKeysetId = "0011aa22bb33cc44";
+        RSSProof proof = new RSSProof();
+        proof.setAmount(0);
+        proof.setKeySetId(iouKeysetId);
+        proof.setSecret(RandomStringSecret.create());
+        proof.setUnblindedSignature(SignatureTestData.sampleSignature());
+
+        PostSwapRequest<RandomStringSecret> request = new PostSwapRequest<>();
+        request.setInputs(List.of(proof));
+        request.setBlindedMessages(List.of());
+
+        Mint mint = new Mint();
+        Keys iouKeys = new Keys();
+        iouKeys.put(BigInteger.ZERO, PublicKey.fromString(
+                "02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+        mint.addKeySet(KeySet.builder().id(iouKeysetId).unit("iou").keys(iouKeys).build());
+
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mockito.when(mintLoadService.load(any(UUID.class), Mockito.eq(false))).thenReturn(mint);
+
+        try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class)) {
+            factory.when(MintProtocolServiceFactory::getInstance).thenReturn(Mockito.mock(MintProtocolService.class));
+
+            SwapTask<RandomStringSecret> task = new SwapTask<>(
+                    UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
+            CashuErrorException ex = assertThrows(CashuErrorException.class, task::execute);
+            try {
+                ErrorResponse error = new ObjectMapper().readValue(ex.getMessage(), ErrorResponse.class);
+                assertEquals("iou_not_swappable", error.code());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
