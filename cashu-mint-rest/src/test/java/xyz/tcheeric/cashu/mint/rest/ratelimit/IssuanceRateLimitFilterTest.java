@@ -89,6 +89,20 @@ class IssuanceRateLimitFilterTest {
     }
 
     @Test
+    void identityHeaderControlCharsStripped() throws Exception {
+        // Control chars in the identity header are stripped, so an injected variant maps to the SAME bucket
+        // (defends against CR/LF log injection and bucket-bypass via cosmetic header variation).
+        TestableFilter filter = new TestableFilter(props(2, 100));
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("dave", "9.9.9.9"), response(), chain);   // dave #1 allowed
+        filter.run(request("dave", "9.9.9.9"), response(), chain);   // dave #2 allowed (burst = 2)
+        HttpServletResponse blocked = response();
+        filter.run(request("da\r\nve", "9.9.9.9"), blocked, chain);  // sanitizes to "dave" → same bucket → refused
+        verify(chain, times(2)).doFilter(any(), any());
+        verify(blocked).setStatus(429);
+    }
+
+    @Test
     void keyedByRemoteAddrWhenNoHeader() throws Exception {
         // Absent the identity header, the bucket is keyed by remote address.
         TestableFilter filter = new TestableFilter(props(1, 100));

@@ -33,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worked. **NUT-11 P2PK is now enforced at melt (redemption)**, not only at swap —
   previously melt performed a BDHKE check only, so a P2PK-locked proof could be
   cashed out without a valid witness.
+- **NUT-11 P2PK determinism + error handling** (review hardening) — the secret is
+  now hashed as **UTF-8** (was the platform default charset) on both the primary
+  and refund paths, so witness verification is portable across environments. A
+  malformed `sigFlag` and missing/unsigned outputs under `SIG_ALL` are now rejected
+  as **protocol errors** (`CashuErrorException`) instead of surfacing as HTTP 500s.
+
+### Security
+
+- **Issuance rate-limit identity hardening** (review) — the client-supplied identity
+  header is stripped of control characters (CR/LF log-injection defense) and capped
+  in length before use as a cache key + log field, bounding per-identity memory.
 
 ---
 

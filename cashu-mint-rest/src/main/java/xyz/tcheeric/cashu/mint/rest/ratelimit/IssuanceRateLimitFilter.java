@@ -41,6 +41,8 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
     private static final String MINT_PATH_PREFIX = "/v1/mint";
     private static final String HEADER_RETRY_AFTER = "Retry-After";
     private static final String COUNTER_BREACH = "cashu_mint_issuance_rate_limit_breach_total";
+    /** Cap on the client-supplied identity used as a cache key + log field (bounds memory + log-injection surface). */
+    private static final int MAX_IDENTITY_LEN = 128;
 
     private final IssuanceRateLimitProperties properties;
     private final MeterRegistry meterRegistry;
@@ -88,10 +90,19 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
     private String resolveIdentity(HttpServletRequest request) {
         String header = request.getHeader(properties.getIdentityHeader());
         if (header != null && !header.isBlank()) {
-            return "id:" + header;
+            return "id:" + sanitizeIdentity(header);
         }
         String remote = request.getRemoteAddr();
         return "ip:" + (remote != null ? remote : "unknown");
+    }
+
+    /**
+     * Bound + sanitize a client-controlled identity before it is used as a cache key and log field: strip
+     * control characters (CR/LF ⇒ log-injection defense) and cap the length (bounds per-identity memory).
+     */
+    private static String sanitizeIdentity(String raw) {
+        String cleaned = raw.replaceAll("\\p{Cntrl}", "");
+        return cleaned.length() > MAX_IDENTITY_LEN ? cleaned.substring(0, MAX_IDENTITY_LEN) : cleaned;
     }
 
     /** A per-identity token bucket with two windows: a per-minute burst and a per-day quota. */

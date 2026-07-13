@@ -90,7 +90,8 @@ public class P2PKSpendingConditionTest {
     // ----- Dalia Phase 9: 2-of-3 escrow + locktime-refund semantics -----
 
     private static String signSecret(P2PKSecret secret, PrivateKey priv) throws Exception {
-        return Hex.toHexString(Schnorr.sign(Utils.sha256(secret.toString().getBytes()), priv.toBytes()));
+        return Hex.toHexString(Schnorr.sign(
+                Utils.sha256(secret.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)), priv.toBytes()));
     }
 
     /** Builds a 2-of-3 secret with data=A, pubkeys tag=[B,L], optional refund + locktime. */
@@ -144,6 +145,25 @@ public class P2PKSpendingConditionTest {
         proof.setSecret(secret);
         proof.setWitness(witness);
 
+        assertThrows(CashuErrorException.class,
+                () -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
+    }
+
+    /** SIG_ALL with no outputs is rejected as a protocol error (CashuErrorException), not IllegalStateException/500. */
+    @Test
+    public void sigAll_missingOutputs_protocolError() throws Exception {
+        PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        P2PKSecret secret = new P2PKSecret(Schnorr.genPubKey(a.toBytes()));
+        secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_ALL);
+
+        Witness witness = new Witness();
+        witness.addSignature(signSecret(secret, a));
+
+        P2PKProof proof = new P2PKProof();
+        proof.setSecret(secret);
+        proof.setWitness(witness);
+
+        // No blinded messages supplied under SIG_ALL → protocol error, not a 500.
         assertThrows(CashuErrorException.class,
                 () -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
     }

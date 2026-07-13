@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.crypto.Schnorr;
 import xyz.tcheeric.cashu.crypto.util.Utils;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,8 +71,37 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             return false;
         }
         List<String> signatures = proof.getWitness().getSignatures();
-        byte[] data = secret.toString().getBytes();
+        byte[] data = secret.toString().getBytes(StandardCharsets.UTF_8);
         return getValidSignatureCount(primaryPublicKeys(secret), signatures, data) >= n_sigs;
+    }
+
+    /** Whether the sig flag requests SIG_ALL. An unrecognized flag is a protocol error (rejected), not a 500. */
+    private static boolean isSigAll(String sigFlag) throws CashuErrorException {
+        if (sigFlag == null) {
+            return false;
+        }
+        try {
+            return P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1;
+        } catch (IllegalArgumentException e) {
+            log.error("invalid signature flag: {}", sigFlag);
+            throw new CashuErrorException(new ErrorResponse("invalid_signature_flag").toJson());
+        }
+    }
+
+    /** SIG_ALL requires the outputs to be present; a missing/empty output set is a protocol error, not a 500. */
+    private static void requireSigAllOutputs(List<BlindedMessage> outputs) throws CashuErrorException {
+        if (outputs == null || outputs.isEmpty()) {
+            log.error("SIG_ALL requires signed outputs but none were provided");
+            throw new CashuErrorException(new ErrorResponse("output_witness_signature").toJson());
+        }
+    }
+
+    /** SIG_ALL requires each output to carry a witness; a missing one is a protocol error, not a 500. */
+    private static void requireOutputWitness(BlindedMessage bm) throws CashuErrorException {
+        if (bm.getWitness() == null) {
+            log.error("SIG_ALL output is missing its witness");
+            throw new CashuErrorException(new ErrorResponse("output_witness_signature").toJson());
+        }
     }
 
     /** The authorized primary public keys: the {@code data} key plus the {@code pubkeys} tag. */
@@ -92,19 +122,12 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
      */
     private void verifyOutputsUnderSigAll(@NonNull Proof<P2PKSecret> proof, @NonNull List<String> authorizedKeys)
             throws CashuErrorException {
-        String sigFlag = proof.getSecret().getSigFlag();
-        if (sigFlag == null || P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() < 1) {
+        if (!isSigAll(proof.getSecret().getSigFlag())) {
             return; // SIG_INPUTS — outputs are not constrained
         }
-        if (blindedMessages == null || blindedMessages.isEmpty()) {
-            log.error("BlindedMessage list is null or empty");
-            throw new IllegalStateException("BlindedMessage list is null or empty");
-        }
+        requireSigAllOutputs(blindedMessages);
         for (BlindedMessage bm : blindedMessages) {
-            if (bm.getWitness() == null) {
-                log.error("BlindedMessage witness is null");
-                throw new IllegalStateException("BlindedMessage witness is null");
-            }
+            requireOutputWitness(bm);
             byte[] outData = bm.getBlindedMessage().toBytes();
             if (getValidSignatureCount(authorizedKeys, bm.getWitness().getSignatures(), outData) == 0) {
                 log.error("output_witness_signature");
@@ -118,7 +141,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             throws CashuErrorException {
 
         log.debug("verifyRefundPath {}", proof);
-        byte[] secretBytes = proof.getSecret().toString().getBytes();
+        byte[] secretBytes = proof.getSecret().toString().getBytes(StandardCharsets.UTF_8);
         List<String> signatures = proof.getWitness() != null ? proof.getWitness().getSignatures() : null;
         String sigFlag = proof.getSecret().getSigFlag();
 
@@ -126,17 +149,11 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
             rejectInvalidRefundSignature("proof_refund_signature");
         }
 
-        if (sigFlag != null && P2PKSecret.SignatureFlag.valueOf(sigFlag).ordinal() >= 1) {
-            if (blindedMessages == null || blindedMessages.isEmpty()) {
-                log.error("BlindedMessage list is null or empty");
-                throw new IllegalStateException("BlindedMessage list is null or empty");
-            }
+        if (isSigAll(sigFlag)) {
+            requireSigAllOutputs(blindedMessages);
 
             for (BlindedMessage bm : blindedMessages) {
-                if (bm.getWitness() == null) {
-                    log.error("BlindedMessage witness is null");
-                    throw new IllegalStateException("BlindedMessage witness is null");
-                }
+                requireOutputWitness(bm);
                 List<String> outSigs = bm.getWitness().getSignatures();
                 byte[] outData = bm.getBlindedMessage().toBytes();
                 if (getValidSignatureCount(refundPublicKeys, outSigs, outData) == 0) {
