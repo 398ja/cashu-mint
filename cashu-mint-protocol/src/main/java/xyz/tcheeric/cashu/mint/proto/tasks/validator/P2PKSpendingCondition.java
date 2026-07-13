@@ -144,8 +144,11 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         byte[] secretBytes = proof.getSecret().toString().getBytes(StandardCharsets.UTF_8);
         List<String> signatures = proof.getWitness() != null ? proof.getWitness().getSignatures() : null;
         String sigFlag = proof.getSecret().getSigFlag();
+        // NUT-11: refund threshold (defaults to 1 — cashu-lib already defaults getNSigsRefund() to 1
+        // when the tag is absent; the > 0 check here is belt-and-suspenders).
+        int nSigsRefund = proof.getSecret().getNSigsRefund() > 0 ? proof.getSecret().getNSigsRefund() : 1;
 
-        if (signatures == null || getValidSignatureCount(refundPublicKeys, signatures, secretBytes) == 0) {
+        if (signatures == null || getValidSignatureCount(refundPublicKeys, signatures, secretBytes) < nSigsRefund) {
             rejectInvalidRefundSignature("proof_refund_signature");
         }
 
@@ -156,7 +159,7 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                 requireOutputWitness(bm);
                 List<String> outSigs = bm.getWitness().getSignatures();
                 byte[] outData = bm.getBlindedMessage().toBytes();
-                if (getValidSignatureCount(refundPublicKeys, outSigs, outData) == 0) {
+                if (getValidSignatureCount(refundPublicKeys, outSigs, outData) < nSigsRefund) {
                     rejectInvalidRefundSignature("output_witness_signature");
                 }
             }
