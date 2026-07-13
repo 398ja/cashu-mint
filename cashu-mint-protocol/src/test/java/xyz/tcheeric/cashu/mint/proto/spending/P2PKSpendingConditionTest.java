@@ -214,6 +214,70 @@ public class P2PKSpendingConditionTest {
                 () -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
     }
 
+    /**
+     * NUT-11 {@code n_sigs_refund}: a 2-of-3 refund key set requires TWO valid refund signatures,
+     * not just one — the refund path now honors the same threshold semantics as the primary path.
+     */
+    @Test
+    public void refundThreshold_twoOf_requiresTwoRefundSigs() throws Exception {
+        PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey r1 = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey r2 = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey r3 = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+
+        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
+                Schnorr.genPubKey(l.toBytes()), 1000, null); // locktime in the past
+        secret.setRefund(List.of(
+                Hex.toHexString(Schnorr.genPubKey(r1.toBytes())),
+                Hex.toHexString(Schnorr.genPubKey(r2.toBytes())),
+                Hex.toHexString(Schnorr.genPubKey(r3.toBytes()))));
+        secret.setNSigsRefund(2);
+
+        // One valid refund signature is not enough for a 2-of-3 refund threshold.
+        Witness oneSig = new Witness();
+        oneSig.addSignature(signSecret(secret, r1));
+        P2PKProof oneSigProof = new P2PKProof();
+        oneSigProof.setSecret(secret);
+        oneSigProof.setWitness(oneSig);
+        assertThrows(CashuErrorException.class,
+                () -> new P2PKSpendingCondition(Collections.emptyList()).verify(oneSigProof));
+
+        // Two valid refund signatures satisfy the threshold.
+        Witness twoSigs = new Witness();
+        twoSigs.addSignature(signSecret(secret, r1));
+        twoSigs.addSignature(signSecret(secret, r2));
+        P2PKProof twoSigsProof = new P2PKProof();
+        twoSigsProof.setSecret(secret);
+        twoSigsProof.setWitness(twoSigs);
+        assertDoesNotThrow(() -> new P2PKSpendingCondition(Collections.emptyList()).verify(twoSigsProof));
+    }
+
+    /**
+     * Backward compat: an escrow with NO {@code n_sigs_refund} set (default threshold 1) still
+     * reclaims with a single refund signature — existing escrows are unaffected by the change.
+     */
+    @Test
+    public void refundDefault_oneSigStillReclaims() throws Exception {
+        PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        PrivateKey refund = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
+        // Locktime in the past; refund key is distinct from the primary set; n_sigs_refund unset.
+        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
+                Schnorr.genPubKey(l.toBytes()), 1000, Schnorr.genPubKey(refund.toBytes()));
+
+        Witness witness = new Witness();
+        witness.addSignature(signSecret(secret, refund));
+
+        P2PKProof proof = new P2PKProof();
+        proof.setSecret(secret);
+        proof.setWitness(witness);
+
+        assertDoesNotThrow(() -> new P2PKSpendingCondition(Collections.emptyList()).verify(proof));
+    }
+
     /** Refund: BEFORE the locktime, the refund key cannot reclaim (no early refund). */
     @Test
     public void refundKey_beforeLocktime_rejected() throws Exception {

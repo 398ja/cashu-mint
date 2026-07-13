@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and refund paths, so witness verification is portable across environments. A
   malformed `sigFlag` and missing/unsigned outputs under `SIG_ALL` are now rejected
   as **protocol errors** (`CashuErrorException`) instead of surfacing as HTTP 500s.
+- **NUT-11 refund path now honors `n_sigs_refund`** (multi-sig refund threshold),
+  consuming cashu-lib 0.19.0 — an escrow with `n_sigs_refund > 1` now requires that
+  many valid refund signatures to reclaim, instead of any single one. Backward
+  compatible: escrows without `n_sigs_refund` set default to a threshold of 1,
+  identical to the prior behavior.
 
 ### Security
 
