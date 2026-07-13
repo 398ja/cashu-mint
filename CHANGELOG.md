@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-13
+
+### Added
+
+- **NUT-11 refund path now honors `n_sigs_refund`** (multi-sig refund threshold),
+  consuming cashu-lib 0.19.0 — an escrow with `n_sigs_refund > 1` now requires that
+  many valid refund signatures to reclaim, instead of any single one. Enforced only
+  after `locktime` and counted over **distinct** refund pubkeys, on both the input
+  refund signatures and `SIG_ALL` output witnesses. Backward compatible: escrows
+  without `n_sigs_refund` set default to a threshold of 1, identical to the prior
+  behavior. **`n_sigs_refund` is a Dalia extension to NUT-11** (not in the published
+  spec): it is a structurally valid NUT-10/11 tag and backward compatible, but the
+  multi-sig refund guarantee is enforced only by mints that implement this tag — a
+  standard mint would ignore it and permit a single-signature (1-of-N) refund.
+
 ## [0.24.0] - 2026-07-13
 
 ### Added
@@ -38,11 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and refund paths, so witness verification is portable across environments. A
   malformed `sigFlag` and missing/unsigned outputs under `SIG_ALL` are now rejected
   as **protocol errors** (`CashuErrorException`) instead of surfacing as HTTP 500s.
-- **NUT-11 refund path now honors `n_sigs_refund`** (multi-sig refund threshold),
-  consuming cashu-lib 0.19.0 — an escrow with `n_sigs_refund > 1` now requires that
-  many valid refund signatures to reclaim, instead of any single one. Backward
-  compatible: escrows without `n_sigs_refund` set default to a threshold of 1,
-  identical to the prior behavior.
 
 ### Security
 
