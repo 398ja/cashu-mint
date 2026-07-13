@@ -35,6 +35,25 @@ class MintPreloadDataGeneratorTest {
     }
 
     /**
+     * Dalia Phase 9: the IOU keyset generates with unit "iou" and a single zero-value denomination.
+     */
+    @Test
+    void generatesZeroValueIouKeyset() {
+        UUID mintId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        // The private key must be a valid non-zero scalar even for the amount-0 denomination.
+        Function<Integer, String> privateKeySource = amount -> String.format("%064x", amount + 7);
+
+        MintPreloadDataGenerator generator = new MintPreloadDataGenerator(
+                mintId, MintPreloadDataGenerator.IOU_UNIT, MintPreloadDataGenerator.IOU_DENOMINATIONS, privateKeySource);
+        MintPreloadData data = generator.data();
+
+        assertEquals("iou", data.unit());
+        assertEquals(1, data.keys().size());
+        assertEquals(0, data.keys().get(0).amount());
+        assertTrue(data.keySetId() != null && !data.keySetId().isEmpty());
+    }
+
+    /**
      * Verifies that writeJson persists the generated JSON to the specified file.
      */
     @Test

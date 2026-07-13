@@ -355,4 +355,88 @@ public class MintTaskTest {
         // The error could be "invalid_denominations" or similar
         assertNotNull(exception.getMessage());
     }
+
+    // ----- Dalia Phase 9: zero-value IOU keyset issuance -----
+
+    private static final String IOU_KEYSET_ID = "0011aa22bb33cc44";
+
+    private Mint createMintWithIouKeyset() {
+        Mint mint = createMintWithKeys(); // adds the standard "sat" keyset
+        Keys iouKeys = new Keys();
+        // The IOU keyset carries a single zero-value denomination (Dalia Phase 9).
+        iouKeys.put(BigInteger.ZERO, PrivateKey.derivePublicKey(PrivateKey.fromString(
+                "0000000000000000000000000000000000000000000000000000000000000003")));
+        mint.addKeySet(KeySet.builder().id(IOU_KEYSET_ID).unit("iou").keys(iouKeys).build());
+        return mint;
+    }
+
+    private BlindedMessage createIouBlindedMessage(int amount) {
+        String pubkey = DISTINCT_PUBKEYS[pubkeyIndex.getAndIncrement() % DISTINCT_PUBKEYS.length];
+        return new BlindedMessage(amount, KeysetId.fromString(IOU_KEYSET_ID), PublicKey.fromString(pubkey), null);
+    }
+
+    /**
+     * Dalia Phase 9: a zero-value IOU issuance mints an amount==0 marker and skips the Lightning
+     * payment check entirely (like a voucher quote); the mint signs the blinded point only.
+     */
+    @Test
+    public void execute_IouKeyset_ZeroAmount_SkipsPaymentAndMints() throws CashuErrorException {
+        BlindedMessage iou = createIouBlindedMessage(0);
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId("iou-quote-1");
+        request.setBlindedMessages(List.of(iou));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+
+        Mint mint = createMintWithIouKeyset();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+
+        try (MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(
+                SignBlindedMessageTask.class,
+                (mock, ctx) -> when(mock.execute()).thenReturn(new BlindSignature(
+                        ((BlindedMessage) ctx.arguments().get(1)).getAmount(),
+                        KeysetId.fromString(IOU_KEYSET_ID),
+                        SignatureTestData.sampleSignature(),
+                        null)))) {
+
+            MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service, signatureVaultService);
+            PostMintResponse response = task.execute();
+
+            // Zero-value IOU issuance never checks Lightning payment.
+            verify(mockGateway, never()).checkPaymentStatus(anyString());
+            assertNotNull(response);
+            assertEquals(1, response.getBlindSignatures().size());
+            assertEquals(0, response.getBlindSignatures().get(0).getAmount());
+        }
+    }
+
+    /**
+     * Dalia Phase 9: the value ("sat") keyset must still reject amount==0 — zero-value is IOU-only.
+     */
+    @Test
+    public void execute_SatKeyset_ZeroAmount_Rejected() {
+        BlindedMessage zero = createBlindedMessage(0); // sat keyset
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId("regular-zero");
+        request.setBlindedMessages(List.of(zero));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.checkPaymentStatus("regular-zero")).thenReturn(true);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+
+        Mint mint = createMintWithKeys();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+        MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service, signatureVaultService);
+
+        CashuErrorException ex = assertThrows(CashuErrorException.class, task::execute);
+        try {
+            ErrorResponse error = new ObjectMapper().readValue(ex.getMessage(), ErrorResponse.class);
+            assertEquals("invalid_output_amount", error.code());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

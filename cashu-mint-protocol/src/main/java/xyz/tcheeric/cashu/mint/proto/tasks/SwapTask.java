@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
@@ -81,6 +82,10 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             throw new CashuErrorException(error.toJson());
         }
 
+        // Dalia Phase 9: zero-value IOU proofs cannot be swapped (issuance + checkstate only), and
+        // nothing may be swapped into the IOU keyset. Checked across ALL inputs and outputs.
+        refuseIouSwap(mint, inputProofs, outputMessages);
+
         // Acquire per-proof locks to prevent concurrent swaps of the same proofs.
         // This serializes access similar to SERIALIZABLE transaction isolation.
         List<Proof<T>> proofsToSwap = request.getInputs();
@@ -128,6 +133,38 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      * @return true if all proofs are voucher proofs (voucher swap), false otherwise
      * @throws CashuErrorException if mixed proof types are detected
      */
+    /** Refuse any swap that touches the zero-value IOU keyset (input proofs or output denominations). */
+    private void refuseIouSwap(Mint mint, List<Proof<T>> inputs, List<BlindedMessage> outputs)
+            throws CashuErrorException {
+        if (inputs != null) {
+            for (Proof<T> proof : inputs) {
+                if (isIouKeysetId(mint, String.valueOf(proof.getKeySetId()))) {
+                    throw new CashuErrorException(new ErrorResponse(
+                            "iou_not_swappable", "Zero-value IOU tokens cannot be swapped.").toJson());
+                }
+            }
+        }
+        if (outputs != null) {
+            for (BlindedMessage output : outputs) {
+                if (isIouKeysetId(mint, String.valueOf(output.getKeySetId()))) {
+                    throw new CashuErrorException(new ErrorResponse(
+                            "iou_not_swappable", "Cannot swap into the zero-value IOU keyset.").toJson());
+                }
+            }
+        }
+    }
+
+    private boolean isIouKeysetId(Mint mint, String keySetId) {
+        if (keySetId == null || mint.getKeySets() == null) {
+            return false;
+        }
+        return mint.getKeySets().stream()
+                .filter(ks -> keySetId.equals(ks.getId()))
+                .findFirst()
+                .map(IouKeysets::isIouKeyset)
+                .orElse(false);
+    }
+
     private boolean validateNoMixedProofTypes(List<Proof<T>> proofs) throws CashuErrorException {
         if (proofs == null || proofs.isEmpty()) {
             return false;

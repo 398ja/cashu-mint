@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-13
+
+### Added
+
+- **Dalia zero-value IOU keyset (Phase 9)** — a dedicated keyset (`unit="iou"`)
+  whose issuance is blind, payment-exempt, and allows `amount==0` markers, while
+  all melt/swap of IOU proofs is refused (issuance + checkstate only; IOU tokens
+  are non-transferable). The mint never inspects the IOU secret. Marked by
+  convention via `IouKeysets`.
+- **Per-identity mint issuance rate limit (Phase 9)** — a `/v1/mint/**` filter with
+  a per-minute burst (default 10) + per-day quota (default 60) per identity, keyed
+  by the engine-supplied `X-Dalia-Identity` header else the remote address. 429 +
+  `Retry-After` + a Micrometer breach counter. Configurable under
+  `cashu.mint.issuance.rate-limit.*`.
+
+### Fixed
+
+- **NUT-11 locktime semantics** — the primary n-of-m multisig is now spendable at
+  any time (before/after locktime); the refund keys reclaim only after the
+  locktime (or, absent refund keys, the proof unlocks). Previously a valid
+  multisig spend was rejected during the lock window and the refund path never
+  worked. **NUT-11 P2PK is now enforced at melt (redemption)**, not only at swap —
+  previously melt performed a BDHKE check only, so a P2PK-locked proof could be
+  cashed out without a valid witness.
+- **NUT-11 P2PK determinism + error handling** (review hardening) — the secret is
+  now hashed as **UTF-8** (was the platform default charset) on both the primary
+  and refund paths, so witness verification is portable across environments. A
+  malformed `sigFlag` and missing/unsigned outputs under `SIG_ALL` are now rejected
+  as **protocol errors** (`CashuErrorException`) instead of surfacing as HTTP 500s.
+
+### Security
+
+- **Issuance rate-limit identity hardening** (review) — the client-supplied identity
+  header is stripped of control characters (CR/LF log-injection defense) and capped
+  in length before use as a cache key + log field, bounding per-identity memory.
+
 ---
 
 ## [0.23.0] - 2026-06-21

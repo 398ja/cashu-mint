@@ -32,6 +32,10 @@ public final class MintPreloadDataGenerator {
 
     public static final List<Integer> DEFAULT_DENOMINATIONS = List.of(1, 2, 4, 8, 16, 32, 64, 128);
     public static final String DEFAULT_UNIT = "sat";
+
+    /** Dalia Phase 9: the zero-value IOU keyset — a single {@code 0} denomination, unit {@code "iou"}. */
+    public static final String IOU_UNIT = "iou";
+    public static final List<Integer> IOU_DENOMINATIONS = List.of(0);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
 
@@ -98,6 +102,14 @@ public final class MintPreloadDataGenerator {
         MintPreloadData data = generator.data();
         log.info("Generated preload JSON for mint {} and keyset {} at {}", data.mintId(), data.keySetId(),
                 output.toAbsolutePath());
+
+        // Dalia Phase 9: also emit the zero-value IOU keyset (single 0 denomination) alongside "sat".
+        MintPreloadDataGenerator iouGenerator = new MintPreloadDataGenerator(mintId, IOU_UNIT, IOU_DENOMINATIONS);
+        Path iouOutput = output.resolveSibling("iou-" + output.getFileName());
+        iouGenerator.writeJson(iouOutput);
+        MintPreloadData iouData = iouGenerator.data();
+        log.info("Generated IOU preload JSON for mint {} and keyset {} at {}", iouData.mintId(),
+                iouData.keySetId(), iouOutput.toAbsolutePath());
     }
 
     private MintPreloadData createData() {

@@ -5,12 +5,12 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.23.0</version>
+        <version>0.24.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>cashu-mint-admin</artifactId>
-    <version>0.23.0</version>
+    <version>0.24.0</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint-admin</name>
