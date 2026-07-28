@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> Next release should be a **minor** bump: both entries below change client-visible behaviour.
+
+### Fixed
+
+- **P2PK spends were rejected for every spec-conformant public key.** `P2PKSpendingCondition`
+  passed the 33-byte compressed key straight to `Schnorr.verify`, which requires the 32-byte
+  BIP-340 x-only form and throws on anything else. That throw landed in a `catch (Exception)` that
+  logged and continued, so the key silently counted as *no valid signature* and the spend failed as
+  under-signed. The mint therefore only worked against 32-byte x-only keys — the form NUT-11
+  forbids, and the form its own test fixtures built. The parity prefix is now stripped via the
+  `xCoordinate` helper that already sat one method away (it was used for dedup counting but not for
+  the verify call). Wallets sending compressed keys — cashu-ts, CDK, imani-wallet-lib — were
+  affected.
+
+### Added
+
+- **A malformed P2PK lock returns an unspendable-proof error instead of a 500.** NUT-11 frames a
+  malformed P2PK secret as a Proof that MUST be rejected as unspendable — a client error, not a
+  server fault. Two handlers on `CashuController`: one for `MalformedP2PKSecretException` itself
+  (service-layer parsing), and one unwrapping it from `HttpMessageNotReadableException`, since
+  Jackson wraps deserializer exceptions during `@RequestBody` binding and it never arrives as
+  itself from a request body. Both return `verify_proof_failed_error` with HTTP 400; an unrelated
+  unreadable body stays an ordinary 400.
+
+### Changed
+
+- Updated cashu-lib to 0.21.0 (NUT-11 P2PK secret validation). Validation is fail-closed: a
+  malformed lock is now rejected at parse time rather than accepted and misbehaving later. Test
+  fixtures that built locks from 32-byte x-only keys were corrected to compressed keys.
+
 ## [0.25.0] - 2026-07-13
 
 ### Added
