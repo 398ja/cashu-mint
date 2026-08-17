@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> Next release should be a **minor** bump: both entries below change client-visible behaviour.
+## [0.26.0] - 2026-08-18
 
 ### Fixed
 
