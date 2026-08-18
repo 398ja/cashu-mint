@@ -117,6 +117,8 @@ The poller assumes a single mint instance.
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `cashu_mint_melt_stuck_payment_unknown` | Gauge | — | Melt sagas in `PAYMENT_UNKNOWN` for longer than `cashu.mint.melt.payment-unknown-ttl` |
+| `cashu_mint_melt_payment_sent_burn_failed` | Gauge | — | Melt sagas whose payment settled while their proofs stayed spendable |
+| `cashu_mint_voucher_orphan_issuance` | Gauge | — | Issued voucher quotes with no funding row |
 | `cashu_mint_invariant_poll_failures_total` | Counter | — | Invariant polls that threw; a non-zero rate means the gauges are stale |
 
 The SQL behind each gauge is documented on the repository that owns the table
@@ -128,6 +130,14 @@ Alerts:
 - `MeltStuckPaymentUnknown` (`critical`) — the age threshold lives in the SQL,
   bound from `cashu.mint.melt.payment-unknown-ttl`, so shortening the property
   shortens time to detection. The rule's `for: 5m` is only a scrape-debounce.
+- `MeltPaymentSentBurnFailed` (`critical`, `for: 0m`) — the payment settled
+  and the proofs stayed spendable. There is no benign instance and no in-flight
+  state that looks like this, so it pages on the first occurrence. Contrast
+  with `MeltStuckPaymentUnknown`, which is an *ambiguous* payment that may
+  still resolve; this one is already a loss.
+- `VoucherOrphanIssuance` (`critical`, `for: 5m`) — issued voucher value with
+  no funding row. The five minutes exist so a transient read during a
+  legitimate issuance does not page anyone.
 - `InvariantGaugePollerStale` (`warning`) — the gauges fail open, so this rule
   watches for the series going absent or the poll-failure counter rising;
   without it a broken poll would leave a stale zero and disarm the page.

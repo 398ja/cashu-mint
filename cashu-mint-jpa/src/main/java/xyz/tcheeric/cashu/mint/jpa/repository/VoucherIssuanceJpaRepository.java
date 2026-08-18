@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.jpa.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherIssuanceEntity;
 
@@ -28,4 +29,23 @@ import xyz.tcheeric.cashu.mint.jpa.entity.VoucherIssuanceEntity;
  */
 @Repository
 public interface VoucherIssuanceJpaRepository extends JpaRepository<VoucherIssuanceEntity, String> {
+
+    /**
+     * Issue #345 / ADR 0002 — Orphan Issuance invariant, exported as a
+     * DB-derived gauge by {@code InvariantGaugePoller}.
+     *
+     * <p>The predicate is the SC-001 operator query above, unmodified; only a
+     * {@code count(*)} wrapper is added so the poller reads a bounded scalar
+     * instead of the full row set. A non-zero value means the mint has issued
+     * value it cannot trace to a funding row — it owes money with no record of
+     * who is owed.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*) FROM (
+                SELECT q.quote_id FROM voucher_quote q
+                 WHERE q.lifecycle_state = 'ISSUED'
+                   AND q.funding_id IS NULL
+            ) orphan_issuance
+            """)
+    long countOrphanIssuance();
 }

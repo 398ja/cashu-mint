@@ -168,4 +168,20 @@ public interface MeltSagaJpaRepository extends JpaRepository<MeltSagaEntity, Str
               AND s.created_at < :ttlBoundary
             """)
     long countStuckPaymentUnknown(@Param("ttlBoundary") Instant ttlBoundary);
+
+    /**
+     * Issue #345 / ADR 0002 — {@code PAYMENT_SENT_BURN_FAILED} sagas, exported
+     * as a DB-derived gauge by {@code InvariantGaugePoller}.
+     *
+     * <p>The predicate is the hygiene query documented above, unmodified; only
+     * a {@code count(*)} wrapper is added. Every row means a payment settled
+     * while its proofs stayed spendable — direct loss, with no benign
+     * instance, which is why the alert has no sustain period.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_SENT_BURN_FAILED'
+            """)
+    long countPaymentSentBurnFailed();
 }
