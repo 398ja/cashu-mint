@@ -98,7 +98,7 @@ groups:
           slo: error_budget
         annotations:
           summary: "Error budget burning too fast"
-          description: "Error rate is 10x the allowed rate - will exhaust monthly budget in {{ 30 / 10 }} days"
+          description: "Error rate is 10x the allowed rate — a 30-day error budget burns out in ~3 days at this rate"
           runbook_url: "https://github.com/your-org/cashu-mint/wiki/runbooks#error-budget"
 
   - name: cashu-mint-capacity-alerts
