@@ -80,6 +80,14 @@ public final class MetricRecorders {
         }
 
         @Override
+        public void bindPaymentSentBurnFailed(java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
+        public void bindOrphanIssuance(java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
         public void pollFailed() {
         }
     };

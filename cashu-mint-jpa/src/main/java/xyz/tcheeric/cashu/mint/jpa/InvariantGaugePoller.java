@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaJpaRepository;
+import xyz.tcheeric.cashu.mint.jpa.repository.VoucherIssuanceJpaRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
@@ -37,6 +38,14 @@ import java.util.concurrent.atomic.AtomicLong;
  *       ({@link MeltSagaJpaRepository#countStuckPaymentUnknown(Instant)}).
  *       Non-zero means the Lightning payment may have left the mint while the
  *       proofs were never burned; nothing resolves it without a human.</li>
+ *   <li>{@code cashu_mint_melt_payment_sent_burn_failed} — sagas whose
+ *       payment settled while their proofs stayed spendable
+ *       ({@link MeltSagaJpaRepository#countPaymentSentBurnFailed()}). Direct
+ *       loss; there is no benign instance of this.</li>
+ *   <li>{@code cashu_mint_voucher_orphan_issuance} — issued voucher quotes
+ *       with no funding row
+ *       ({@link VoucherIssuanceJpaRepository#countOrphanIssuance()}). The mint
+ *       has issued value it cannot trace to what backs it.</li>
  *   <li>{@code cashu_mint_invariant_poll_failures_total} — polls that threw.
  *       Without it a failing query would park the gauge on a stale zero and
  *       silently disarm the alert; the companion alert rule watches this
@@ -55,9 +64,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class InvariantGaugePoller {
 
     private final MeltSagaJpaRepository meltSagas;
+    private final VoucherIssuanceJpaRepository voucherIssuances;
     private final Duration paymentUnknownTtl;
     private final InvariantMetricsRecorder recorder;
     private final AtomicLong stuckPaymentUnknown = new AtomicLong();
+    private final AtomicLong paymentSentBurnFailed = new AtomicLong();
+    private final AtomicLong orphanIssuance = new AtomicLong();
 
     /**
      * The recorder is injected rather than read off {@link MetricRecorders}
@@ -68,27 +80,46 @@ public class InvariantGaugePoller {
      * observability module at all.
      */
     public InvariantGaugePoller(MeltSagaJpaRepository meltSagas,
+                                VoucherIssuanceJpaRepository voucherIssuances,
                                 ObjectProvider<InvariantMetricsRecorder> recorderProvider,
                                 @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl) {
         this.meltSagas = meltSagas;
+        this.voucherIssuances = voucherIssuances;
         this.paymentUnknownTtl = paymentUnknownTtl;
         this.recorder = recorderProvider.getIfAvailable(MetricRecorders::invariant);
         // Bound eagerly so the series is scrapeable before the first poll: a
         // meter that only materialises once something breaks is
         // indistinguishable from a broken exporter on a dashboard.
         recorder.bindStuckPaymentUnknown(stuckPaymentUnknown::get);
+        recorder.bindPaymentSentBurnFailed(paymentSentBurnFailed::get);
+        recorder.bindOrphanIssuance(orphanIssuance::get);
     }
 
     @Scheduled(fixedDelayString = "${cashu.mint.invariant.poll-interval:PT60S}")
     public void pollTick() {
+        poll("stuck_payment_unknown", stuckPaymentUnknown,
+                () -> meltSagas.countStuckPaymentUnknown(Instant.now().minus(paymentUnknownTtl)));
+        poll("payment_sent_burn_failed", paymentSentBurnFailed, meltSagas::countPaymentSentBurnFailed);
+        poll("orphan_issuance", orphanIssuance, voucherIssuances::countOrphanIssuance);
+    }
+
+    /**
+     * Runs one invariant query into its gauge. Each is polled independently so
+     * one failing query cannot stop the others from refreshing.
+     *
+     * @param name  invariant name, for the failure log line
+     * @param gauge holder the bound gauge reads
+     * @param query the operator query
+     */
+    private void poll(String name, AtomicLong gauge, java.util.function.LongSupplier query) {
         try {
-            stuckPaymentUnknown.set(meltSagas.countStuckPaymentUnknown(Instant.now().minus(paymentUnknownTtl)));
+            gauge.set(query.getAsLong());
         } catch (RuntimeException e) {
             // Hold the last known value rather than reporting a false zero —
             // a zero here would silently clear a firing alert. The counter is
             // what makes the staleness itself alertable.
             recorder.pollFailed();
-            log.warn("invariant_poll stuck_payment_unknown_failed cause={}", e.getMessage());
+            log.warn("invariant_poll {}_failed cause={}", name, e.getMessage());
         }
     }
 }

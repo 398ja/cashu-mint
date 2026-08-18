@@ -30,6 +30,25 @@ public interface InvariantMetricsRecorder {
     void bindStuckPaymentUnknown(Supplier<Number> value);
 
     /**
+     * Binds the burn-failure gauge to {@code value}. Emits
+     * {@code cashu_mint_melt_payment_sent_burn_failed}: sagas whose payment
+     * settled while their proofs stayed spendable. Direct loss with no benign
+     * instance, so the alert on it has no sustain period.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindPaymentSentBurnFailed(Supplier<Number> value);
+
+    /**
+     * Binds the Orphan Issuance gauge to {@code value}. Emits
+     * {@code cashu_mint_voucher_orphan_issuance}: issued voucher quotes with
+     * no funding row — value issued with no record of what backs it.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindOrphanIssuance(Supplier<Number> value);
+
+    /**
      * An invariant poll threw. Emits
      * {@code cashu_mint_invariant_poll_failures_total} — without it a failing
      * poll would hold a stale gauge value and silently disarm the alert.

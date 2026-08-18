@@ -32,6 +32,22 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindPaymentSentBurnFailed(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_melt_payment_sent_burn_failed", value)
+                .description("Melt sagas whose payment settled but whose proofs were never burned "
+                        + "(see MeltSagaJpaRepository#countPaymentSentBurnFailed)")
+                .register(registry);
+    }
+
+    @Override
+    public void bindOrphanIssuance(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_voucher_orphan_issuance", value)
+                .description("Issued voucher quotes with no funding row "
+                        + "(see VoucherIssuanceJpaRepository#countOrphanIssuance)")
+                .register(registry);
+    }
+
+    @Override
     public void pollFailed() {
         pollFailures.increment();
     }

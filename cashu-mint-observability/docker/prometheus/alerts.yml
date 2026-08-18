@@ -208,6 +208,53 @@ groups:
             ORDER BY s.created_at;
           runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
 
+      # Burn failure: the payment settled and the proofs stayed spendable.
+      # That is money out of the mint with the token still live — there is no
+      # benign instance and no in-flight state that looks like this, so it
+      # pages on the first occurrence with no sustain period. Contrast with
+      # MeltStuckPaymentUnknown, which is an *ambiguous* payment: that one may
+      # still resolve, this one is already a loss.
+      - alert: MeltPaymentSentBurnFailed
+        expr: cashu_mint_melt_payment_sent_burn_failed > 0
+        for: 0m
+        labels:
+          severity: critical
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Melt payment settled but proofs were never burned"
+          description: "{{ $value }} melt saga(s) in PAYMENT_SENT_BURN_FAILED. The Lightning payment left the mint and the inputs are still spendable — direct loss. Never auto-resolved (FR-007 / FR-011); an operator must settle it."
+          query: |
+            SELECT s.melt_saga_id, s.quote_id, s.created_at,
+                   (SELECT count(*) FROM melt_saga_transition t
+                     WHERE t.melt_saga_id = s.melt_saga_id
+                       AND t.actor LIKE 'operator:%') AS operator_actions
+              FROM melt_saga s
+             WHERE s.current_state = 'PAYMENT_SENT_BURN_FAILED'
+             ORDER BY s.created_at;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
+      # Orphan Issuance: a voucher proof that cannot be traced to a funding
+      # row — the mint has issued value with no record of what backs it.
+      # Five minutes of sustain because the issuance path briefly holds a
+      # quote in ISSUED before the funding row is attached, so a transient
+      # read during a legitimate issuance must not page anyone.
+      - alert: VoucherOrphanIssuance
+        expr: cashu_mint_voucher_orphan_issuance > 0
+        for: 5m
+        labels:
+          severity: critical
+          spec: '003'
+          route: pagerduty
+        annotations:
+          summary: "Voucher issued with no funding row"
+          description: "{{ $value }} issued voucher quote(s) have no funding_id, sustained over 5m — this is no longer an in-flight issuance. The mint has issued value it cannot trace to a funding source."
+          query: |
+            SELECT q.quote_id FROM voucher_quote q
+             WHERE q.lifecycle_state = 'ISSUED'
+               AND q.funding_id IS NULL;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
       # The invariant gauges fail open: a poll that throws holds the last
       # value, and a poller that never started publishes no series at all —
       # either way `> 0` above can never match. Alert on the staleness itself.
