@@ -106,6 +106,34 @@ port in `cashu-mint-protocol`.
 
 ---
 
+## Invariant Metrics
+
+Operational invariants are exported as gauges re-derived from the database by
+`cashu-mint-jpa`'s `InvariantGaugePoller` every 60 seconds, not as counters
+incremented on a state transition — see
+[ADR 0002](../../docs/adr/0002-db-derived-gauges-for-operational-invariants.md).
+The poller assumes a single mint instance.
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `cashu_mint_melt_stuck_payment_unknown` | Gauge | — | Melt sagas in `PAYMENT_UNKNOWN` for longer than `cashu.mint.melt.payment-unknown-ttl` |
+| `cashu_mint_invariant_poll_failures_total` | Counter | — | Invariant polls that threw; a non-zero rate means the gauges are stale |
+
+The SQL behind each gauge is documented on the repository that owns the table
+(`MeltSagaJpaRepository`), and is repeated in the alert's `query` annotation so
+the first diagnostic step ships with the page.
+
+Alerts:
+
+- `MeltStuckPaymentUnknown` (`critical`) — the age threshold lives in the SQL,
+  bound from `cashu.mint.melt.payment-unknown-ttl`, so shortening the property
+  shortens time to detection. The rule's `for: 5m` is only a scrape-debounce.
+- `InvariantGaugePollerStale` (`warning`) — the gauges fail open, so this rule
+  watches for the series going absent or the poll-failure counter rising;
+  without it a broken poll would leave a stale zero and disarm the page.
+
+---
+
 ## Health Indicators
 
 Custom health indicators exposed via `/actuator/health`.

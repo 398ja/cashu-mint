@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -136,4 +137,35 @@ public interface MeltSagaJpaRepository extends JpaRepository<MeltSagaEntity, Str
     int updateChangeOutputs(@Param("id") String id,
                             @Param("hash") String changeOutputsHash,
                             @Param("json") String changeSignaturesJson);
+
+    /**
+     * Issue #344 / ADR 0002 — Stuck Payment invariant, exported as a
+     * DB-derived gauge by {@code InvariantGaugePoller}: melt sagas parked in
+     * {@code PAYMENT_UNKNOWN} for longer than
+     * {@code cashu.mint.melt.payment-unknown-ttl}.
+     *
+     * <p><strong>Deliberate divergence from the SC-004 block above.</strong>
+     * The documented SC-004 query additionally excludes sagas with an
+     * {@code actor='poll'} transition in the last five minutes. That clause
+     * makes it a <em>reconciler-liveness</em> check, not a stuck-payment
+     * check: {@link xyz.tcheeric.cashu.mint.jpa.MeltSagaReconciler} appends a
+     * {@code poll} row on <em>every</em> tick for exactly the sagas whose
+     * provider status is still {@code Unknown}, so a saga stuck for a week
+     * would never be counted while the reconciler is alive — the alert would
+     * only fire once the reconciler itself stopped. Since the whole point of
+     * this gauge is a condition that by design never resolves itself, the
+     * {@code NOT EXISTS} clause is dropped and the age predicate kept.
+     *
+     * <p>The TTL is bound as a parameter rather than hard-coded as
+     * {@code INTERVAL '1 hour'} so that shortening
+     * {@code cashu.mint.melt.payment-unknown-ttl} actually shortens time to
+     * detection instead of silently leaving the alert at one hour.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_UNKNOWN'
+              AND s.created_at < :ttlBoundary
+            """)
+    long countStuckPaymentUnknown(@Param("ttlBoundary") Instant ttlBoundary);
 }
