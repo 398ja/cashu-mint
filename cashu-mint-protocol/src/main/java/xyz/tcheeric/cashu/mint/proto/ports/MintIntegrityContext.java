@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.ports;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,8 +20,17 @@ import java.time.Duration;
  * consult the durable repos.
  *
  * <p>All fields are nullable on purpose: any subset of the dependencies may
- * be wired (e.g. observability-only deploys could provide just the
- * {@link MeterRegistry}). Consumers MUST null-check.
+ * be wired (a mint booted without {@code cashu.mint.jpa.enabled} has none of
+ * them). Consumers MUST null-check.
+ *
+ * <p>Metrics are deliberately absent. This context used to hand out a raw
+ * {@link io.micrometer.core.instrument.MeterRegistry}, which let any call site
+ * invent a metric name with nothing tying the declaration to a consumer — the
+ * root defect behind issue #337. Metrics now reach domain code only through
+ * the typed recorder ports in
+ * {@code xyz.tcheeric.cashu.mint.proto.metrics}; the accessor was deleted
+ * rather than deprecated (issue #343), because a deprecated one preserves the
+ * exact hole this work exists to close.
  */
 @Getter
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -32,7 +40,6 @@ public final class MintIntegrityContext {
     private static volatile IssuanceRecordRepository issuanceRecordRepository;
     private static volatile MeltSagaRepository meltSagaRepository;
     private static volatile LightningPaymentPort lightningPaymentPort;
-    private static volatile MeterRegistry meterRegistry;
     private static volatile String mintUrl;
     private static volatile Duration meltPaymentTimeout;
     private static volatile VoucherQuoteRepository voucherQuoteRepository;
@@ -46,11 +53,9 @@ public final class MintIntegrityContext {
     /** Installs the spec-001 portion of the context. Idempotent. */
     public static void install(MintQuoteRepository quoteRepository,
                                IssuanceRecordRepository issuanceRecordRepository,
-                               MeterRegistry meterRegistry,
                                String mintUrl) {
         MintIntegrityContext.quoteRepository = quoteRepository;
         MintIntegrityContext.issuanceRecordRepository = issuanceRecordRepository;
-        MintIntegrityContext.meterRegistry = meterRegistry;
         MintIntegrityContext.mintUrl = mintUrl;
     }
 
@@ -109,7 +114,6 @@ public final class MintIntegrityContext {
         issuanceRecordRepository = null;
         meltSagaRepository = null;
         lightningPaymentPort = null;
-        meterRegistry = null;
         mintUrl = null;
         meltPaymentTimeout = null;
         voucherQuoteRepository = null;
@@ -139,10 +143,6 @@ public final class MintIntegrityContext {
 
     public static LightningPaymentPort lightningPaymentPort() {
         return lightningPaymentPort;
-    }
-
-    public static MeterRegistry meterRegistry() {
-        return meterRegistry;
     }
 
     public static String mintUrl() {

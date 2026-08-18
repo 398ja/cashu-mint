@@ -70,7 +70,7 @@ class MintQuoteStatusTaskTest {
         when(quote.unit()).thenReturn("sat");
         when(quote.lifecycleState()).thenReturn(LifecycleState.PAID);
         when(repo.findById("qid")).thenReturn(Optional.of(quote));
-        MintIntegrityContext.install(repo, null, null, "https://mint.example");
+        MintIntegrityContext.install(repo, null, "https://mint.example");
 
         PostMintQuoteResponse response = new MintQuoteStatusTask("qid", PaymentMethod.MOCK, service).execute();
 
@@ -88,7 +88,7 @@ class MintQuoteStatusTaskTest {
         when(quote.unit()).thenReturn("sat");
         when(quote.lifecycleState()).thenReturn(LifecycleState.ISSUED);
         when(repo.findById("qid")).thenReturn(Optional.of(quote));
-        MintIntegrityContext.install(repo, null, null, null);
+        MintIntegrityContext.install(repo, null, null);
 
         PostMintQuoteResponse response = new MintQuoteStatusTask("qid", PaymentMethod.MOCK, service).execute();
 
@@ -100,7 +100,7 @@ class MintQuoteStatusTaskTest {
     @Test
     void status_voucherQuote_resolvesFromVoucherRepository() throws CashuErrorException {
         MintProtocolService service = service(gateway("vqid", true));
-        MintIntegrityContext.install(Mockito.mock(MintQuoteRepository.class), null, null, null);
+        MintIntegrityContext.install(Mockito.mock(MintQuoteRepository.class), null, null);
 
         VoucherQuoteRepository voucherRepo = Mockito.mock(VoucherQuoteRepository.class);
         VoucherQuote vq = Mockito.mock(VoucherQuote.class);
@@ -128,7 +128,7 @@ class MintQuoteStatusTaskTest {
         when(quote.unit()).thenReturn("sat");
         when(quote.lifecycleState()).thenReturn(LifecycleState.UNPAID);
         when(repo.findById("qid")).thenReturn(Optional.of(quote));
-        MintIntegrityContext.install(repo, null, null, null);
+        MintIntegrityContext.install(repo, null, null);
 
         PostMintQuoteResponse response = new MintQuoteStatusTask("qid", PaymentMethod.MOCK, service).execute();
 

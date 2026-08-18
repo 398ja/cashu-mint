@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.mint.proto.metrics.CountingIssuanceRecorder;
@@ -85,7 +83,6 @@ class MintTaskAmountValidationTest {
     private SignatureVaultService signatureVaultService;
     private Mint mint;
     private Gateway gateway;
-    private MeterRegistry meterRegistry;
     private CountingIssuanceRecorder issuanceRecorder;
 
     @BeforeEach
@@ -104,7 +101,6 @@ class MintTaskAmountValidationTest {
 
         signatureVaultService = new DefaultSignatureVaultService();
         mint = createMintWithKeys();
-        meterRegistry = new SimpleMeterRegistry();
         issuanceRecorder = new CountingIssuanceRecorder();
         MetricRecorders.registerIssuance(issuanceRecorder);
     }
@@ -296,8 +292,7 @@ class MintTaskAmountValidationTest {
 
     private MintTask<Secret> newMeteredTask(PostMintRequest<Secret> request) {
         return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
-                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository,
-                meterRegistry);
+                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository);
     }
 
     private MockedConstruction<SignBlindedMessageTask> signBlindedConstruction() {

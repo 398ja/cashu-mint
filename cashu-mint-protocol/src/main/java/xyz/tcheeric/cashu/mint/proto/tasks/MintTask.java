@@ -38,7 +38,6 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.MeterRegistry;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
 
@@ -95,7 +94,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final PaymentStatusChecker paymentStatusChecker;
     private final MintQuoteRepository mintQuoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
-    private final MeterRegistry meterRegistry;
     private final SplittingService splittingService = new SplittingService();
 
 
@@ -104,7 +102,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null, null);
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -113,7 +111,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -123,20 +121,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null, null);
-    }
-
-    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
-                    @NonNull PaymentMethod method,
-                    String unit,
-                    @NonNull Mint mint,
-                    @NonNull MintProtocolService mintProtocolService,
-                    @NonNull SignatureVaultService signatureVaultService,
-                    PaymentStatusChecker paymentStatusChecker,
-                    MintQuoteRepository mintQuoteRepository,
-                    IssuanceRecordRepository issuanceRecordRepository) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService,
-                paymentStatusChecker, mintQuoteRepository, issuanceRecordRepository, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null);
     }
 
     /**
@@ -145,10 +130,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
      * (sum of output amounts == quote.amount), FR-002 (single-use via
      * compare-and-set lifecycle transitions), FR-010 (Gateway.getAmount
      * cross-check before the PAID→ISSUING transition), and FR-011 (one
-     * IssuanceRecord per quote). When {@code meterRegistry} is non-null, the
-     * task emits {@code cashu_mint_amount_mismatch_total} and
-     * {@code cashu_mint_quote_cross_check_failures_total} counters tagged with
-     * {@code path="mint"}. Production wires all four when
+     * IssuanceRecord per quote). Metrics are emitted through the typed
+     * {@code IssuanceMetricsRecorder} port, not from here. Production wires
+     * both repositories when
      * {@code cashu.mint.jpa.enabled=true}; legacy unit-test constructors leave
      * them null so the existing test surface keeps working.
      */
@@ -160,8 +144,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker,
                     MintQuoteRepository mintQuoteRepository,
-                    IssuanceRecordRepository issuanceRecordRepository,
-                    MeterRegistry meterRegistry) {
+                    IssuanceRecordRepository issuanceRecordRepository) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.unit = unit;
@@ -171,7 +154,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         this.paymentStatusChecker = paymentStatusChecker;
         this.mintQuoteRepository = mintQuoteRepository;
         this.issuanceRecordRepository = issuanceRecordRepository;
-        this.meterRegistry = meterRegistry;
     }
 
     @Override

@@ -16,7 +16,6 @@ import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 
-import io.micrometer.core.instrument.MeterRegistry;
 
 import java.util.UUID;
 
@@ -35,7 +34,6 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
     private final SignatureVaultService signatureVaultService;
     private final MintQuoteRepository mintQuoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
-    private final MeterRegistry meterRegistry;
 
     public MintTokensTask(@NonNull UUID mintId,
                           @NonNull PostMintRequest<T> postMintRequest,
@@ -45,7 +43,7 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
                 new DefaultMintLoadService(),
                 MintProtocolServiceFactory.getInstance(),
                 signatureVaultService,
-                null, null, null);
+                null, null);
     }
 
     public MintTokensTask(@NonNull UUID mintId,
@@ -56,7 +54,7 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
                           @NonNull MintProtocolService mintProtocolService,
                           @NonNull SignatureVaultService signatureVaultService) {
         this(mintId, postMintRequest, method, unit, mintLoadService, mintProtocolService, signatureVaultService,
-                null, null, null);
+                null, null);
     }
 
     // Backward-compatible constructor used by tests: no unit parameter
@@ -67,7 +65,7 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
                           @NonNull MintProtocolService mintProtocolService,
                           @NonNull SignatureVaultService signatureVaultService) {
         this(mintId, postMintRequest, method, null, mintLoadService, mintProtocolService, signatureVaultService,
-                null, null, null);
+                null, null);
     }
 
     /**
@@ -83,8 +81,7 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
                           @NonNull MintProtocolService mintProtocolService,
                           @NonNull SignatureVaultService signatureVaultService,
                           MintQuoteRepository mintQuoteRepository,
-                          IssuanceRecordRepository issuanceRecordRepository,
-                          MeterRegistry meterRegistry) {
+                          IssuanceRecordRepository issuanceRecordRepository) {
         this.mintId = mintId;
         this.postMintRequest = postMintRequest;
         this.method = method;
@@ -94,13 +91,12 @@ public class MintTokensTask<T extends Secret> extends InstrumentedTask<PostMintR
         this.signatureVaultService = signatureVaultService;
         this.mintQuoteRepository = mintQuoteRepository;
         this.issuanceRecordRepository = issuanceRecordRepository;
-        this.meterRegistry = meterRegistry;
     }
 
     @Override
     protected PostMintResponse doExecute() throws CashuErrorException {
         Mint mint = mintLoadService.load(mintId, false);
         return new MintTask<>(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService,
-                null, mintQuoteRepository, issuanceRecordRepository, meterRegistry).execute();
+                null, mintQuoteRepository, issuanceRecordRepository).execute();
     }
 }

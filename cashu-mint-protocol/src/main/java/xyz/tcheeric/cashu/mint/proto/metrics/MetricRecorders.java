@@ -74,6 +74,16 @@ public final class MetricRecorders {
     private static final WebhookMetricsRecorder NO_OP_WEBHOOK =
             outcome -> { };
 
+    private static final InvariantMetricsRecorder NO_OP_INVARIANT = new InvariantMetricsRecorder() {
+        @Override
+        public void bindStuckPaymentUnknown(java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
+        public void pollFailed() {
+        }
+    };
+
     private static volatile MeltMetricsRecorder melt = NO_OP_MELT;
 
     private static volatile VoucherMetricsRecorder voucher = NO_OP_VOUCHER;
@@ -81,6 +91,8 @@ public final class MetricRecorders {
     private static volatile IssuanceMetricsRecorder issuance = NO_OP_ISSUANCE;
 
     private static volatile WebhookMetricsRecorder webhook = NO_OP_WEBHOOK;
+
+    private static volatile InvariantMetricsRecorder invariant = NO_OP_INVARIANT;
 
     private MetricRecorders() {
     }
@@ -151,5 +163,23 @@ public final class MetricRecorders {
      */
     public static void registerWebhook(WebhookMetricsRecorder recorder) {
         webhook = recorder != null ? recorder : NO_OP_WEBHOOK;
+    }
+
+    /**
+     * The operational-invariant gauge recorder. Never {@code null}.
+     *
+     * @return the registered recorder, or a no-op when none is wired
+     */
+    public static InvariantMetricsRecorder invariant() {
+        return invariant;
+    }
+
+    /**
+     * Registers the invariant recorder. Passing {@code null} resets to the no-op.
+     *
+     * @param recorder the recorder to use, or {@code null} to disable reporting
+     */
+    public static void registerInvariant(InvariantMetricsRecorder recorder) {
+        invariant = recorder != null ? recorder : NO_OP_INVARIANT;
     }
 }
