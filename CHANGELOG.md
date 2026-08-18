@@ -50,9 +50,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aliases; external consumers of `cashu_mint_vouchers_issued_total` lose that
   series with no deprecation window.
 
+### Fixed
+
+- **The JPA context could not boot at all when `cashu.mint.jpa.enabled=true`.**
+  `V20260601_007` (spec 035, shipped in 0.26.0) added `original_token_amount` to
+  `voucher_quote` but not to its Envers shadow `voucher_quote_aud`, while
+  `VoucherQuoteEntity` is `@Audited` at class level. Hibernate's schema
+  validator expects the column on both, so `mintEntityManagerFactory` failed to
+  build and took the whole application context down — every integration test
+  that boots the stack errored on `Unable to start embedded Tomcat`. Added
+  `V20260601_008` to bring the shadow table in line. Audited by the same check
+  across all seven `@Audited` entities; this was the only drift (the `version`
+  columns are `@Version`, which Envers excludes by design).
+
 ### Changed
 
 - Updated `cashu-voucher` to 0.10.0 (from 0.6.1).
+- Integration tests raise `cashu.mint.issuance.rate-limit.per-minute-burst`
+  in the shared `test` profile. Spring's `ApplicationContext` cache is shared
+  across IT classes in a JVM fork, so `IssuanceRateLimitFilter`'s token bucket
+  is shared too and later classes hit `POST /v1/mint` against an already-drained
+  bucket. The filter stays enabled so it is still exercised.
 - `cashu-mint-observability/docs/metrics-reference.md`, `docs/reference/configuration.md`,
   `docs/reference/module-layers.md`, `docs/how-to/enable-observability.md` and the
   Observability section of `CLAUDE.md` now describe only metrics the mint emits.
