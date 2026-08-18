@@ -15,12 +15,15 @@ import xyz.tcheeric.cashu.mint.observability.aspect.TaskTimingAspect;
 import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.LockMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerLockMetricsAdapter;
 import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsAdapter;
 import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 
@@ -119,6 +122,22 @@ public class ObservabilityAutoConfiguration {
         LockMetricsAdapter adapter = new MicrometerLockMetricsAdapter(lockMetrics);
         LockMetricsRecorder.register(adapter);
         return adapter;
+    }
+
+    /**
+     * Registers the melt-area recorder so {@code MeltTask} emits its counters
+     * through a typed port instead of a raw registry (ADR 0001).
+     *
+     * @param registry the Micrometer registry
+     * @return the melt metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public MeltMetricsRecorder meltMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering melt metrics recorder for protocol melt instrumentation");
+        MeltMetricsRecorder recorder = new MicrometerMeltMetricsRecorder(registry);
+        MetricRecorders.registerMelt(recorder);
+        return recorder;
     }
 
     /**
