@@ -175,3 +175,50 @@ groups:
           summary: "Voucher identity backfill stuck"
           description: "/actuator/health/readiness has been DOWN for 1h — backfill may have failed mid-batch"
           runbook_url: "https://github.com/398ja/cashu-mint/blob/master/specs/004-voucher-data-minimisation/quickstart.md#troubleshooting"
+
+  # ---------------------------------------------------------------
+  # Issue #344 / ADR 0002 — operational invariants exported as
+  # DB-derived gauges by cashu-mint-jpa's InvariantGaugePoller.
+  # ---------------------------------------------------------------
+  - name: cashu-mint-invariants
+    rules:
+      # Stuck Payment: a melt saga parked in PAYMENT_UNKNOWN for longer than
+      # cashu.mint.melt.payment-unknown-ttl. The Lightning payment may have
+      # left the mint while the proofs were never burned, and by design
+      # nothing resolves it without a human.
+      #
+      # The TTL lives in the SQL (bound from the property), so `for:` here is
+      # only a scrape-debounce — do NOT set it to the TTL as well or the page
+      # arrives at twice the intended age.
+      - alert: MeltStuckPaymentUnknown
+        expr: cashu_mint_melt_stuck_payment_unknown > 0
+        for: 5m
+        labels:
+          severity: critical
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Melt saga stuck in PAYMENT_UNKNOWN past TTL"
+          description: "{{ $value }} melt saga(s) have been in PAYMENT_UNKNOWN longer than cashu.mint.melt.payment-unknown-ttl. Payment may have settled with the provider while the proofs were never burned; this never self-resolves."
+          query: |
+            SELECT s.melt_saga_id, s.created_at, now() - s.created_at AS age
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_UNKNOWN'
+              AND s.created_at < now() - INTERVAL '1 hour'   -- = payment-unknown-ttl
+            ORDER BY s.created_at;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
+      # The invariant gauges fail open: a poll that throws holds the last
+      # value, and a poller that never started publishes no series at all —
+      # either way `> 0` above can never match. Alert on the staleness itself.
+      - alert: InvariantGaugePollerStale
+        expr: absent(cashu_mint_melt_stuck_payment_unknown) or increase(cashu_mint_invariant_poll_failures_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Invariant gauge poller is not reporting"
+          description: "The melt invariant gauge is absent or its poll is failing, so MeltStuckPaymentUnknown cannot fire. Check the mint logs for invariant_poll warnings."
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"

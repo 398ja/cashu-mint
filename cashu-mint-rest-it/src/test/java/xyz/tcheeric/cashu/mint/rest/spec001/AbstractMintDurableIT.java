@@ -53,7 +53,14 @@ public abstract class AbstractMintDurableIT {
         POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("cashu_mint_it")
                 .withUsername("cashu")
-                .withPassword("cashu");
+                .withPassword("cashu")
+                // Every cached Spring context holds its own Hikari pool
+                // against this one container, so the connection budget grows
+                // with the number of distinct IT context configurations. The
+                // stock max_connections=100 is already close; raise it rather
+                // than making each new IT contort its properties to reuse an
+                // existing context.
+                .withCommand("postgres", "-c", "max_connections=500");
         POSTGRES.start();
     }
 
