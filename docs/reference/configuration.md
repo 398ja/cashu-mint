@@ -13,6 +13,8 @@ Default values are sourced from `cashu-mint-rest/src/main/resources/application.
 | Property | Default | Description |
 | --- | --- | --- |
 | `server.port` | `${CASHU_MINT_PORT:7777}` | HTTP port for the REST API. |
+| `management.server.port` | `${CASHU_MINT_MANAGEMENT_PORT:9000}` | Actuator port. Separate from the API port so metrics are not publicly readable. |
+| `management.server.address` | `${CASHU_MINT_MANAGEMENT_ADDRESS:127.0.0.1}` | Interface actuator binds to. Containers set `0.0.0.0` and leave the port unpublished. |
 | `server.address` | `0.0.0.0` | Bind address for the REST API. |
 | `cashu.units` | `sat` | Default unit advertised in NUT-06. |
 | `cashu.expiry` | `15` | Token expiry window in minutes (protocol default). |
@@ -86,6 +88,19 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | `cashu.observability.tracing.sampling-ratio` | `1.0` | Sampling ratio (0.0–1.0). |
 
 Actuator exposure defaults:
+- Actuator is served on `management.server.port` (default `9000`), **not** the public API
+  port. Nothing under `/actuator/**` answers on `server.port`. Point scrapers and container
+  health checks at the management port. `ManagementPortGuard` fails startup if the two ports
+  are ever set equal, so the separation cannot be undone by configuration alone.
+- Isolation comes from **not publishing** the management port, not from the bind address.
+  `management.server.address` defaults to `0.0.0.0` so that Prometheus can scrape from a
+  sibling container and Kubernetes `httpGet` probes — which the kubelet issues against the
+  pod IP, never loopback — succeed. Do not set it to `127.0.0.1` in Kubernetes: pods would
+  never become ready. Set it to `127.0.0.1` only when running the jar directly on a host
+  where you want loopback-only access.
+- `docker-compose.dev.yml` publishes the management port on host loopback
+  (`127.0.0.1:9000:9000`) so local `curl localhost:9000/actuator/...` works.
+  `docker-compose.prod.yml` deliberately does not publish it at all.
 - `management.endpoints.web.exposure.include=health,info,prometheus,metrics`
 - `management.prometheus.metrics.export.enabled=true`
 - `management.endpoint.health.probes.enabled=true`

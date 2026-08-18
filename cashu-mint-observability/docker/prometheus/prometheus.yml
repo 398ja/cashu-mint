@@ -21,7 +21,8 @@ scrape_configs:
     scrape_interval: 15s
     scrape_timeout: 10s
     static_configs:
-      - targets: ['cashu-mint-rest-dev:7777']
+      # Issue #346 — actuator is on the management port, not the public API port.
+      - targets: ['cashu-mint-rest-dev:9000']
         labels:
           env: 'development'
           service: 'cashu-mint'
