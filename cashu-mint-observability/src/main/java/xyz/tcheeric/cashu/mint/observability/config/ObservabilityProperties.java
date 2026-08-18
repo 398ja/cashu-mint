@@ -29,21 +29,6 @@ public class ObservabilityProperties {
     private HealthProperties health = new HealthProperties();
 
     /**
-     * Metrics settings.
-     */
-    private MetricsProperties metrics = new MetricsProperties();
-
-    /**
-     * Voucher metrics settings.
-     */
-    private VouchersProperties vouchers = new VouchersProperties();
-
-    /**
-     * Gateway metrics settings.
-     */
-    private GatewayProperties gateway = new GatewayProperties();
-
-    /**
      * Tracing settings.
      */
     private TracingProperties tracing = new TracingProperties();
@@ -105,54 +90,6 @@ public class ObservabilityProperties {
          * Timeout in milliseconds for vault health check.
          */
         private long timeoutMs = 5000;
-    }
-
-    /**
-     * Configuration for metrics collection.
-     */
-    @Data
-    public static class MetricsProperties {
-        /**
-         * Common tags to apply to all metrics.
-         */
-        private String application = "cashu-mint";
-
-        /**
-         * Environment tag value.
-         */
-        private String environment = "local";
-
-        /**
-         * Whether to track individual keyset metrics (may increase cardinality).
-         */
-        private boolean trackKeysets = true;
-
-        /**
-         * Whether to include unit tag in business metrics.
-         */
-        private boolean includeUnitTag = true;
-    }
-
-    /**
-     * Configuration for voucher metrics.
-     */
-    @Data
-    public static class VouchersProperties {
-        /**
-         * Whether voucher metrics collection is enabled.
-         */
-        private boolean enabled = true;
-    }
-
-    /**
-     * Configuration for gateway metrics.
-     */
-    @Data
-    public static class GatewayProperties {
-        /**
-         * Whether gateway metrics collection is enabled.
-         */
-        private boolean enabled = true;
     }
 
     /**

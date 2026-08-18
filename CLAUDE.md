@@ -624,11 +624,16 @@ docker compose -f cashu-mint-observability/docker/docker-compose.observability.y
 |--------|-------------|
 | `cashu_mint_requests_total` | HTTP requests by endpoint/status |
 | `cashu_mint_requests_duration_seconds` | Request latency histogram |
-| `cashu_mint_proofs_issued_total` | Proofs issued |
-| `cashu_mint_sats_outstanding` | Current liability (gauge) |
+| `cashu_mint_requests_errors_total` | Failed requests by endpoint/error type |
 | `cashu_mint_task_duration_seconds` | Task execution time |
-| `cashu_mint_quotes_active` | Active quotes by type |
-| `cashu_mint_vouchers_fees_collected_total` | Voucher fees |
+| `cashu_mint_task_success_total` / `_failure_total` | Task outcomes by task name |
+| `cashu_mint_lock_wait_seconds` / `_hold_seconds` / `_active` | Quote/proof lock contention |
+
+`TaskMetrics` and `LockMetrics` are the only metric families this module owns;
+domain code reaches them through the `TaskMetricsAdapter` / `LockMetricsAdapter`
+recorder ports in `cashu-mint-protocol`. Everything else under the
+`cashu_mint_*` prefix is an ad-hoc counter incremented at its call site (see
+`docs/adr/0001-typed-metric-recorders.md`).
 
 ### Configuration
 
@@ -639,9 +644,6 @@ cashu.observability.enabled=true
 # Enable task instrumentation
 cashu.observability.tasks.enabled=true
 
-# Enable voucher metrics
-cashu.observability.vouchers.enabled=true
-
 # Health indicators
 cashu.observability.health.gateway.enabled=true
 cashu.observability.health.vault.enabled=true
@@ -649,10 +651,11 @@ cashu.observability.health.vault.enabled=true
 
 ### Grafana Dashboards
 
-Three pre-built dashboards in `cashu-mint-observability/docker/grafana/dashboards/`:
-- **Cashu Mint Overview** - Health, request rate, outstanding sats
-- **Cashu Mint Operations** - Task metrics, proof operations, HTTP details
-- **Cashu Mint Business** - Quotes, vouchers, financial overview
+Pre-built dashboards in `cashu-mint-observability/docker/grafana/dashboards/`:
+- **Cashu Mint Overview** - Health, request rate/latency, task metrics
+- **Cashu Mint Operations** - Task metrics, HTTP request details
+- **Cashu Mint Business** - Voucher issuance
+- **Cashu Mint SLO/SLI**, **Cashu Mint Virtual Threads**, plus three voucher dashboards
 
 See `cashu-mint-observability/docs/metrics-reference.md` for complete metrics documentation.
 

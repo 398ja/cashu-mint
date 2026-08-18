@@ -31,7 +31,7 @@ Administrative surfaces are published from the separate `cashu-mint-admin` repos
 ## `cashu-mint-observability`
 
 - **Auto-configuration.** `ObservabilityAutoConfiguration` wires Micrometer registries, task timing aspects, request interceptors, and health indicators when `cashu.observability.enabled=true`.
-- **Metrics.** `MintMetrics`, `TaskMetrics`, `QuoteMetrics`, `GatewayMetrics`, and `VoucherMetrics` register counters/timers with the `cashu_mint_*` prefix; configuration is driven by `ObservabilityProperties`.
+- **Metrics.** `TaskMetrics` and `LockMetrics` register counters/timers with the `cashu_mint_*` prefix; domain code reaches them through the `TaskMetricsAdapter` / `LockMetricsAdapter` recorder ports declared in `cashu-mint-protocol`. Configuration is driven by `ObservabilityProperties`.
 - **Tracing.** Optional OTLP export is configured via `TracingAutoConfiguration` when tracing is enabled.
 - **Web wiring.** `MetricsHandlerInterceptor` instruments HTTP requests; health indicators check gateway/vault connectivity.
 

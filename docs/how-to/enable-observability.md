@@ -54,17 +54,11 @@ cashu.observability.enabled=true
 # Task instrumentation - instruments all task classes with timing
 cashu.observability.tasks.enabled=true
 
-# Voucher metrics
-cashu.observability.vouchers.enabled=true
-
 # Health indicators
 cashu.observability.health.gateway.enabled=true
 cashu.observability.health.gateway.timeout-ms=5000
 cashu.observability.health.vault.enabled=true
 cashu.observability.health.vault.timeout-ms=5000
-
-# Track metrics per keyset (may increase cardinality)
-cashu.observability.metrics.track-keysets=true
 ```
 
 ### Prometheus Endpoint
@@ -90,32 +84,28 @@ management.metrics.distribution.slo.cashu_mint_task_duration_seconds=0.001,0.005
 
 ## Grafana Dashboards
 
-Five pre-built dashboards are automatically provisioned:
+Pre-built dashboards are automatically provisioned:
 
 ### Cashu Mint Overview
 
 High-level service health and key metrics:
 - Service status (UP/DOWN)
-- Outstanding sats liability
 - Request rate and error rate
-- Active keysets
+- Request latency percentiles
+- Task execution time and success/failure rate
 
 ### Cashu Mint Operations
 
 Detailed operational metrics:
 - Task execution rates and durations
-- Proof issuance vs spending
-- Double-spend attempt monitoring
-- Signature operations
+- Task error rate by type
 - HTTP request breakdown by endpoint
 
 ### Cashu Mint Business
 
-Business and financial metrics:
-- Sats issued/redeemed over time
-- Quote lifecycle (created → completed/expired/failed)
-- Voucher issuance and redemption
-- Fee collection tracking
+Business metrics:
+- Vouchers issued
+- Voucher issuance rate
 
 ### Cashu Mint SLO/SLI
 
@@ -126,15 +116,11 @@ Service level objectives and indicators:
 - Task success rates by type
 - Historical SLO compliance timeline
 
-### Cashu Mint Cost Analysis
+### Cashu Mint Virtual Threads
 
-Financial analysis and cost tracking:
-- Outstanding liability
-- Routing fees vs fees collected
-- Net profit/loss over time
-- Gateway cost breakdown
-- Volume analysis by type
-- Invoice conversion rate
+Lock contention under virtual threads:
+- Active locks
+- Lock wait and hold time distributions
 
 ## Custom Prometheus Queries
 
@@ -152,18 +138,14 @@ sum(rate(cashu_mint_requests_total{status=~"4xx|5xx"}[5m]))
   / sum(rate(cashu_mint_requests_total[5m])) * 100
 ```
 
-### Business Metrics
+### Voucher Metrics
 
 ```promql
-# Outstanding liability
-cashu_mint_sats_outstanding
+# Vouchers issued per hour
+increase(cashu_mint_voucher_issued_total[1h])
 
-# Hourly issuance
-increase(cashu_mint_sats_issued_total[1h])
-
-# Quote completion rate
-sum(rate(cashu_mint_quotes_completed_total[5m]))
-  / sum(rate(cashu_mint_quotes_created_total[5m]))
+# Voucher rejections for missing funding
+rate(cashu_mint_voucher_funding_required_total[5m])
 ```
 
 ### Task Metrics
@@ -195,18 +177,17 @@ Health indicators include:
 - **gateway**: Lightning gateway connectivity
 - **vault**: Database/vault connectivity
 
+These surface on `/actuator/health` only — neither is exported as a Prometheus
+series, so there is no alert on gateway or vault loss. Probe `/actuator/health`
+externally (e.g. blackbox_exporter) if you need paging on it.
+
 ## Production Considerations
 
 ### Cardinality Management
 
 To prevent metric explosion in production:
 
-1. **Disable keyset tracking** if you have many keysets:
-   ```properties
-   cashu.observability.metrics.track-keysets=false
-   ```
-
-2. **Use bounded label values**: The module automatically normalizes endpoints to prevent high cardinality.
+1. **Use bounded label values**: The module automatically normalizes endpoints to prevent high cardinality.
 
 ### Prometheus Configuration
 
@@ -237,11 +218,8 @@ Pre-configured alerts are defined in `docker/prometheus/alerts.yml`:
 - **CashuMintDown**: Service is unreachable
 - **CashuMintHighLatency**: P95 latency > 1 second
 - **CashuMintHighErrorRate**: Error rate > 5%
-- **CashuMintHighLiability**: Outstanding sats > 10M
-- **CashuMintDoubleSpendAttempts**: Double-spend rate elevated
 - **CashuMintTaskFailureRate**: Task failure rate > 10%
-- **CashuMintGatewayUnhealthy**: Gateway connectivity issues
-- **CashuMintVaultUnhealthy**: Vault/database issues
+- **CashuMintSlowTasks**: Task P95 latency > 500ms
 
 ### Alertmanager Configuration
 
