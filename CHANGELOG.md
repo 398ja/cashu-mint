@@ -66,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Updated `cashu-voucher` to 0.10.0 (from 0.6.1).
+- `cashu-mint-rest` no longer attaches its ~110 MB `-exec` fat jar as a Maven
+  artifact (`<attach>false</attach>` on the Spring Boot `repackage` goal). The
+  jar is still built into `target/` — the module's Dockerfile and
+  `scripts/heap-exhaustion-test.sh` both read it from there — but it is no
+  longer installed or deployed, where it exceeded the repository upload limit
+  and failed `mvn deploy` with HTTP 413. The thin `cashu-mint-rest` jar is
+  still published for use as a dependency.
 - Integration tests raise `cashu.mint.issuance.rate-limit.per-minute-burst`
   in the shared `test` profile. Spring's `ApplicationContext` cache is shared
   across IT classes in a JVM fork, so `IssuanceRateLimitFilter`'s token bucket

@@ -197,6 +197,15 @@
                     </excludes>
                     <!-- Create both executable jar and classifier jar for use as dependency -->
                     <classifier>exec</classifier>
+                    <!-- Build the fat jar into target/ but do NOT attach it as a Maven
+                         artifact: at ~110 MB it exceeds the reposilite upload limit and
+                         fails `mvn deploy` with HTTP 413, taking the rest of the reactor
+                         down with it. Nothing resolves it from a repository anyway — the
+                         two consumers (this module's Dockerfile and
+                         scripts/heap-exhaustion-test.sh) both read it straight from
+                         target/, and the app ships as the Jib image below. The thin
+                         cashu-mint-rest jar is still published for use as a dependency. -->
+                    <attach>false</attach>
                 </configuration>
                 <executions>
                     <execution>
