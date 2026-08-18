@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.webhook;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -52,6 +53,13 @@ class QuoteStatusUpdaterDurableTest {
      * that the right outcome was recorded once.
      */
     private final java.util.List<Outcome> outcomes = new java.util.ArrayList<>();
+
+    @AfterEach
+    void resetGlobalRecorder() {
+        // MetricRecorders is a JVM-global; leaving this class's list installed
+        // would have every later test in the surefire JVM record into it.
+        MetricRecorders.registerWebhook(null);
+    }
 
     private long outcomeCount(Outcome outcome) {
         return outcomes.stream().filter(o -> o == outcome).count();

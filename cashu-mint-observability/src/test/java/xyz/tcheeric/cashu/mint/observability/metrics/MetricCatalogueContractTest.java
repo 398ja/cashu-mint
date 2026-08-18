@@ -88,9 +88,10 @@ class MetricCatalogueContractTest {
         assertThat(metricByMethod).as("method-to-metric mapping must not be empty").isNotEmpty();
 
         List<String> unused = new ArrayList<>();
-        metricByMethod.forEach((method, metric) -> {
+        metricByMethod.forEach((portAndMethod, metric) -> {
+            String method = portAndMethod.substring(portAndMethod.indexOf('#') + 1);
             if (!productionSources.contains("." + method + "(")) {
-                unused.add(metric + " (declared by " + method + "(), no call site in "
+                unused.add(metric + " (declared by " + portAndMethod + ", no call site in "
                         + String.join(", ", PRODUCTION_MODULES) + ")");
             }
         });
@@ -268,7 +269,10 @@ class MetricCatalogueContractTest {
                     .findFirst()
                     .orElseThrow(() -> new AssertionError(
                             port.getSimpleName() + "#" + method + " moved no meter — it declares nothing"));
-            mapping.put(method, moved);
+            // Keyed by port as well as method: rateLimitBreach() exists on both
+            // the voucher and issuance recorders, and a bare-method key would
+            // silently drop one of them from the call-site check.
+            mapping.put(port.getSimpleName() + "#" + method, moved);
         });
         return mapping;
     }

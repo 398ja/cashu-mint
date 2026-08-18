@@ -164,6 +164,57 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         assertThat(gaugeValue(scrape(), "cashu_mint_melt_payment_sent_burn_failed")).isEqualTo(0.0);
     }
 
+    /**
+     * An operator who has settled the payment out of band marks the saga
+     * resolved; {@code markResolved} appends a transition without touching
+     * {@code current_state} (FR-007 / FR-011), so if the gauge keyed on state
+     * alone the page could never be cleared by anything the mint exposes.
+     */
+    @Test
+    void operatorAcknowledgementClearsTheStuckPaymentGauge() {
+        seedPaymentUnknown("saga-ack", "quote-ack", Instant.now().minus(Duration.ofHours(2)));
+        appendTransition("saga-ack", 3, MeltSagaState.PAYMENT_UNKNOWN,
+                "marked resolved by operator", "operator:alice", Instant.now());
+
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_melt_stuck_payment_unknown")).isEqualTo(0.0);
+    }
+
+    /** Same contract for the burn-failure gauge, which nothing ever transitions out of. */
+    @Test
+    void operatorAcknowledgementClearsTheBurnFailureGauge() {
+        seedSaga("saga-burn-ack", "quote-burn-ack",
+                MeltSagaState.PAYMENT_SENT_BURN_FAILED, Instant.now());
+        appendTransition("saga-burn-ack", 3, MeltSagaState.PAYMENT_SENT_BURN_FAILED,
+                "reviewed", "operator:bob", Instant.now());
+
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_melt_payment_sent_burn_failed")).isEqualTo(0.0);
+    }
+
+    /**
+     * The clock runs from when the saga entered PAYMENT_UNKNOWN, not from when
+     * it was created: an old saga that only just turned ambiguous has not been
+     * stuck for hours.
+     */
+    @Test
+    void oldSagaThatOnlyJustBecameUnknownIsNotYetStuck() {
+        seedSaga("saga-late-unknown", "quote-late-unknown",
+                MeltSagaState.PAYMENT_UNKNOWN, Instant.now().minus(Duration.ofHours(3)));
+        // Re-stamp the transition INTO PAYMENT_UNKNOWN as having just happened.
+        transitions.deleteAll();
+        appendTransition("saga-late-unknown", 1, null, MeltSagaState.PROOFS_HELD, "seed", "system",
+                Instant.now().minus(Duration.ofHours(3)));
+        appendTransition("saga-late-unknown", 2, MeltSagaState.PROOFS_HELD, MeltSagaState.PAYMENT_UNKNOWN,
+                "just now", "system", Instant.now());
+
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_melt_stuck_payment_unknown")).isEqualTo(0.0);
+    }
+
     /** Issue #345 — an issued voucher quote with no funding row is orphaned value. */
     @Test
     void orphanIssuanceIsCountedAndExported() {
@@ -203,15 +254,27 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         s.setCreatedAt(createdAt);
         s.setUpdatedAt(createdAt);
         sagas.save(s);
-        appendTransition(sagaId, 1, MeltSagaState.PROOFS_HELD, "seed", "system", createdAt);
-        appendTransition(sagaId, 2, state, "seed advance", "system", createdAt);
+        appendTransition(sagaId, 1, null, MeltSagaState.PROOFS_HELD, "seed", "system", createdAt);
+        appendTransition(sagaId, 2, MeltSagaState.PROOFS_HELD, state, "seed advance", "system", createdAt);
     }
 
+    /**
+     * Appends a self-transition — a poll no-op or an operator annotation.
+     * These must NOT read as an entry into the state, or every reconciler poll
+     * would reset the stuck clock.
+     */
     private void appendTransition(String sagaId, int seq, MeltSagaState toState,
+                                  String reason, String actor, Instant at) {
+        appendTransition(sagaId, seq, toState, toState, reason, actor, at);
+    }
+
+    /** Appends a transition from {@code fromState} into {@code toState}. */
+    private void appendTransition(String sagaId, int seq, MeltSagaState fromState, MeltSagaState toState,
                                   String reason, String actor, Instant at) {
         MeltSagaTransitionEntity t = new MeltSagaTransitionEntity();
         t.setMeltSagaId(sagaId);
         t.setSeq(seq);
+        t.setFromState(fromState);
         t.setToState(toState);
         t.setReason(reason);
         t.setActor(actor);
