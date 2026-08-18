@@ -124,7 +124,7 @@ groups:
       # the same query via the Prometheus counter that increments on
       # each rejection.
       - alert: VoucherFundingRequiredSpike
-        expr: rate(cashu_mint_voucher_funding_required_total[5m]) > 0.1
+        expr: rate(cashu_mint_voucher_rejected_total{reason="funding_required"}[5m]) > 0.1
         for: 5m
         labels:
           severity: critical
@@ -160,7 +160,7 @@ groups:
           route: slack-vouchers-ops
         annotations:
           summary: "Sustained voucher rate-limit breaches"
-          description: "Principal {{ $labels.principal }} is breaching the rate limit at {{ $value | printf \"%.2f\" }}/s"
+          description: "Voucher rate-limit breaches at {{ $value | printf \"%.2f\" }}/s — the breaching principal is in the mint logs, deliberately not a metric label"
 
       # Backfill / readiness — if the actuator readiness probe stays
       # DOWN for an hour, something's wrong with the backfill job.

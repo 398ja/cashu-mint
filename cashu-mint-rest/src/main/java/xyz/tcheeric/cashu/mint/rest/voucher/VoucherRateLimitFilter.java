@@ -2,17 +2,16 @@ package xyz.tcheeric.cashu.mint.rest.voucher;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.rest.config.VoucherDurabilityProperties;
 
 import java.io.IOException;
@@ -41,15 +40,11 @@ public class VoucherRateLimitFilter extends OncePerRequestFilter {
     private static final String VOUCHER_PATH_PREFIX = "/v1/vouchers";
     private static final String HEADER_RATELIMIT_REMAINING = "X-RateLimit-Remaining";
     private static final String HEADER_RETRY_AFTER = "Retry-After";
-    private static final String COUNTER_BREACH = "cashu_mint_voucher_rate_limit_breach_total";
 
     private final VoucherDurabilityProperties properties;
-    private final MeterRegistry meterRegistry;
 
-    public VoucherRateLimitFilter(VoucherDurabilityProperties properties,
-                                  @Autowired(required = false) MeterRegistry meterRegistry) {
+    public VoucherRateLimitFilter(VoucherDurabilityProperties properties) {
         this.properties = properties;
-        this.meterRegistry = meterRegistry;
     }
 
     private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
@@ -83,9 +78,10 @@ public class VoucherRateLimitFilter extends OncePerRequestFilter {
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"rate_limit_exceeded\"}");
             log.warn("voucher_rate_limit principal={} remaining=0 path={}", principalId, request.getRequestURI());
-            if (meterRegistry != null) {
-                meterRegistry.counter(COUNTER_BREACH, "principal", principalId).increment();
-            }
+            // The principal is logged, not labelled — see
+            // VoucherMetricsRecorder for why it must not become a series
+            // dimension (cardinality + spec-004 data minimisation).
+            MetricRecorders.voucher().rateLimitBreach();
             return;
         }
 

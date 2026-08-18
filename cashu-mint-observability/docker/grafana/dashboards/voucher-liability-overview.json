@@ -55,7 +55,7 @@
       "datasource": {"type": "prometheus"},
       "targets": [
         {
-          "expr": "rate(cashu_mint_voucher_issued_total{path=\"mint\"}[5m])",
+          "expr": "rate(cashu_mint_voucher_issued_total[5m])",
           "legendFormat": "{{funding_source}}"
         }
       ]

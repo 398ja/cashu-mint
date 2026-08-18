@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerVoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.LockMetrics;
@@ -25,6 +26,7 @@ import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MeltMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 
 /**
@@ -137,6 +139,23 @@ public class ObservabilityAutoConfiguration {
         log.info("Registering melt metrics recorder for protocol melt instrumentation");
         MeltMetricsRecorder recorder = new MicrometerMeltMetricsRecorder(registry);
         MetricRecorders.registerMelt(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the voucher-area recorder so the voucher path emits its
+     * counters through a typed port instead of a raw registry (ADR 0001,
+     * issue #341).
+     *
+     * @param registry the Micrometer registry
+     * @return the voucher metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public VoucherMetricsRecorder voucherMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering voucher metrics recorder for voucher instrumentation");
+        VoucherMetricsRecorder recorder = new MicrometerVoucherMetricsRecorder(registry);
+        MetricRecorders.registerVoucher(recorder);
         return recorder;
     }
 
