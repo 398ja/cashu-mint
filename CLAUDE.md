@@ -721,3 +721,17 @@ cd cashu-mint-rest && mvn jib:build
 
 ## Recent Changes
 - 003-voucher-its: Added Java 21
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `398ja/cashu-mint`, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, using their default label strings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

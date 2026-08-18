@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
@@ -49,7 +50,6 @@ import java.util.Optional;
 @Service
 public class QuoteStatusUpdater implements PaymentStatusChecker {
 
-    private static final String COUNTER_NAME = "cashu_mint_webhook_event_total";
     private static final int NOTIFICATION_BASE_SIZE = 120;
 
     private final Cache<String, PaymentNotification> paidQuotes;
@@ -316,10 +316,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     }
 
     private void incrementCounter(Outcome outcome) {
-        if (meterRegistry == null) {
-            return;
-        }
-        meterRegistry.counter(COUNTER_NAME, "outcome", outcome.name()).increment();
+        MetricRecorders.webhook().event(outcome);
     }
 
     /**

@@ -49,9 +49,38 @@ public final class MetricRecorders {
         }
     };
 
+    private static final IssuanceMetricsRecorder NO_OP_ISSUANCE = new IssuanceMetricsRecorder() {
+        @Override
+        public void quoteExpired() {
+        }
+
+        @Override
+        public void amountMismatch() {
+        }
+
+        @Override
+        public void crossCheckFailure() {
+        }
+
+        @Override
+        public void idempotentReplay() {
+        }
+
+        @Override
+        public void rateLimitBreach() {
+        }
+    };
+
+    private static final WebhookMetricsRecorder NO_OP_WEBHOOK =
+            outcome -> { };
+
     private static volatile MeltMetricsRecorder melt = NO_OP_MELT;
 
     private static volatile VoucherMetricsRecorder voucher = NO_OP_VOUCHER;
+
+    private static volatile IssuanceMetricsRecorder issuance = NO_OP_ISSUANCE;
+
+    private static volatile WebhookMetricsRecorder webhook = NO_OP_WEBHOOK;
 
     private MetricRecorders() {
     }
@@ -86,5 +115,41 @@ public final class MetricRecorders {
      */
     public static void registerVoucher(VoucherMetricsRecorder recorder) {
         voucher = recorder != null ? recorder : NO_OP_VOUCHER;
+    }
+
+    /**
+     * The mint/issuance area recorder. Never {@code null}.
+     *
+     * @return the registered recorder, or a no-op when none is wired
+     */
+    public static IssuanceMetricsRecorder issuance() {
+        return issuance;
+    }
+
+    /**
+     * Registers the issuance recorder. Passing {@code null} resets to the no-op.
+     *
+     * @param recorder the recorder to use, or {@code null} to disable reporting
+     */
+    public static void registerIssuance(IssuanceMetricsRecorder recorder) {
+        issuance = recorder != null ? recorder : NO_OP_ISSUANCE;
+    }
+
+    /**
+     * The webhook area recorder. Never {@code null}.
+     *
+     * @return the registered recorder, or a no-op when none is wired
+     */
+    public static WebhookMetricsRecorder webhook() {
+        return webhook;
+    }
+
+    /**
+     * Registers the webhook recorder. Passing {@code null} resets to the no-op.
+     *
+     * @param recorder the recorder to use, or {@code null} to disable reporting
+     */
+    public static void registerWebhook(WebhookMetricsRecorder recorder) {
+        webhook = recorder != null ? recorder : NO_OP_WEBHOOK;
     }
 }

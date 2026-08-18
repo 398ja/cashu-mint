@@ -21,7 +21,7 @@ class IssuanceRateLimitFilterTest {
     /** Exposes the protected filter method so we test the limiter logic without the servlet machinery. */
     private static final class TestableFilter extends IssuanceRateLimitFilter {
         TestableFilter(IssuanceRateLimitProperties p) {
-            super(p, null);
+            super(p);
         }
 
         void run(HttpServletRequest req, HttpServletResponse resp, FilterChain chain) throws Exception {
