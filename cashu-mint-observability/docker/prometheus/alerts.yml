@@ -98,7 +98,7 @@ groups:
           slo: error_budget
         annotations:
           summary: "Error budget burning too fast"
-          description: "Error rate is 10x the allowed rate - will exhaust monthly budget in {{ 30 / 10 }} days"
+          description: "Error rate is 10x the allowed rate — a 30-day error budget burns out in ~3 days at this rate"
           runbook_url: "https://github.com/your-org/cashu-mint/wiki/runbooks#error-budget"
 
   - name: cashu-mint-capacity-alerts
@@ -124,7 +124,7 @@ groups:
       # the same query via the Prometheus counter that increments on
       # each rejection.
       - alert: VoucherFundingRequiredSpike
-        expr: rate(cashu_mint_voucher_funding_required_total[5m]) > 0.1
+        expr: rate(cashu_mint_voucher_rejected_total{reason="funding_required"}[5m]) > 0.1
         for: 5m
         labels:
           severity: critical
@@ -160,7 +160,7 @@ groups:
           route: slack-vouchers-ops
         annotations:
           summary: "Sustained voucher rate-limit breaches"
-          description: "Principal {{ $labels.principal }} is breaching the rate limit at {{ $value | printf \"%.2f\" }}/s"
+          description: "Voucher rate-limit breaches at {{ $value | printf \"%.2f\" }}/s — the breaching principal is in the mint logs, deliberately not a metric label"
 
       # Backfill / readiness — if the actuator readiness probe stays
       # DOWN for an hour, something's wrong with the backfill job.
@@ -175,3 +175,97 @@ groups:
           summary: "Voucher identity backfill stuck"
           description: "/actuator/health/readiness has been DOWN for 1h — backfill may have failed mid-batch"
           runbook_url: "https://github.com/398ja/cashu-mint/blob/master/specs/004-voucher-data-minimisation/quickstart.md#troubleshooting"
+
+  # ---------------------------------------------------------------
+  # Issue #344 / ADR 0002 — operational invariants exported as
+  # DB-derived gauges by cashu-mint-jpa's InvariantGaugePoller.
+  # ---------------------------------------------------------------
+  - name: cashu-mint-invariants
+    rules:
+      # Stuck Payment: a melt saga parked in PAYMENT_UNKNOWN for longer than
+      # cashu.mint.melt.payment-unknown-ttl. The Lightning payment may have
+      # left the mint while the proofs were never burned, and by design
+      # nothing resolves it without a human.
+      #
+      # The TTL lives in the SQL (bound from the property), so `for:` here is
+      # only a scrape-debounce — do NOT set it to the TTL as well or the page
+      # arrives at twice the intended age.
+      - alert: MeltStuckPaymentUnknown
+        expr: cashu_mint_melt_stuck_payment_unknown > 0
+        for: 5m
+        labels:
+          severity: critical
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Melt saga stuck in PAYMENT_UNKNOWN past TTL"
+          description: "{{ $value }} melt saga(s) have been in PAYMENT_UNKNOWN longer than cashu.mint.melt.payment-unknown-ttl. Payment may have settled with the provider while the proofs were never burned; this never self-resolves."
+          query: |
+            SELECT s.melt_saga_id, s.created_at, now() - s.created_at AS age
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_UNKNOWN'
+              AND s.created_at < now() - INTERVAL '1 hour'   -- = payment-unknown-ttl
+            ORDER BY s.created_at;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
+      # Burn failure: the payment settled and the proofs stayed spendable.
+      # That is money out of the mint with the token still live — there is no
+      # benign instance and no in-flight state that looks like this, so it
+      # pages on the first occurrence with no sustain period. Contrast with
+      # MeltStuckPaymentUnknown, which is an *ambiguous* payment: that one may
+      # still resolve, this one is already a loss.
+      - alert: MeltPaymentSentBurnFailed
+        expr: cashu_mint_melt_payment_sent_burn_failed > 0
+        for: 0m
+        labels:
+          severity: critical
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Melt payment settled but proofs were never burned"
+          description: "{{ $value }} melt saga(s) in PAYMENT_SENT_BURN_FAILED. The Lightning payment left the mint and the inputs are still spendable — direct loss. Never auto-resolved (FR-007 / FR-011); an operator must settle it."
+          query: |
+            SELECT s.melt_saga_id, s.quote_id, s.created_at,
+                   (SELECT count(*) FROM melt_saga_transition t
+                     WHERE t.melt_saga_id = s.melt_saga_id
+                       AND t.actor LIKE 'operator:%') AS operator_actions
+              FROM melt_saga s
+             WHERE s.current_state = 'PAYMENT_SENT_BURN_FAILED'
+             ORDER BY s.created_at;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
+      # Orphan Issuance: a voucher proof that cannot be traced to a funding
+      # row — the mint has issued value with no record of what backs it.
+      # Five minutes of sustain because the issuance path briefly holds a
+      # quote in ISSUED before the funding row is attached, so a transient
+      # read during a legitimate issuance must not page anyone.
+      - alert: VoucherOrphanIssuance
+        expr: cashu_mint_voucher_orphan_issuance > 0
+        for: 5m
+        labels:
+          severity: critical
+          spec: '003'
+          route: pagerduty
+        annotations:
+          summary: "Voucher issued with no funding row"
+          description: "{{ $value }} issued voucher quote(s) have no funding_id, sustained over 5m — this is no longer an in-flight issuance. The mint has issued value it cannot trace to a funding source."
+          query: |
+            SELECT q.quote_id FROM voucher_quote q
+             WHERE q.lifecycle_state = 'ISSUED'
+               AND q.funding_id IS NULL;
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"
+
+      # The invariant gauges fail open: a poll that throws holds the last
+      # value, and a poller that never started publishes no series at all —
+      # either way `> 0` above can never match. Alert on the staleness itself.
+      - alert: InvariantGaugePollerStale
+        expr: absent(cashu_mint_melt_stuck_payment_unknown) or increase(cashu_mint_invariant_poll_failures_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+          spec: '002'
+          route: pagerduty
+        annotations:
+          summary: "Invariant gauge poller is not reporting"
+          description: "The melt invariant gauge is absent or its poll is failing, so MeltStuckPaymentUnknown cannot fire. Check the mint logs for invariant_poll warnings."
+          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/adr/0002-db-derived-gauges-for-operational-invariants.md"

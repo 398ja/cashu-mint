@@ -1,10 +1,12 @@
 package xyz.tcheeric.cashu.mint.webhook;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
@@ -44,6 +46,25 @@ class QuoteStatusUpdaterDurableTest {
     private WebhookProperties webhookProperties;
     private SimpleMeterRegistry meterRegistry;
 
+    /**
+     * Counting stand-in for the webhook recorder. The mapping from port
+     * method to Micrometer name lives in
+     * {@code MicrometerWebhookMetricsRecorderTest}; this module only cares
+     * that the right outcome was recorded once.
+     */
+    private final java.util.List<Outcome> outcomes = new java.util.ArrayList<>();
+
+    @AfterEach
+    void resetGlobalRecorder() {
+        // MetricRecorders is a JVM-global; leaving this class's list installed
+        // would have every later test in the surefire JVM record into it.
+        MetricRecorders.registerWebhook(null);
+    }
+
+    private long outcomeCount(Outcome outcome) {
+        return outcomes.stream().filter(o -> o == outcome).count();
+    }
+
     @BeforeEach
     void setUp() {
         mintQuoteRepository = Mockito.mock(MintQuoteRepository.class);
@@ -52,6 +73,8 @@ class QuoteStatusUpdaterDurableTest {
         webhookProperties = new WebhookProperties();
         webhookProperties.setProvider(PROVIDER);
         meterRegistry = new SimpleMeterRegistry();
+        outcomes.clear();
+        MetricRecorders.registerWebhook(outcomes::add);
 
         updater = new QuoteStatusUpdater(
                 Duration.ofHours(1), Duration.ofHours(24), 10_485_760L, 100_000,
@@ -82,8 +105,7 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(persisted.outcome()).isEqualTo(Outcome.accepted);
         assertThat(persisted.provider()).isEqualTo(PROVIDER);
         assertThat(persisted.providerEventId()).isEqualTo("preimage-accept");
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "accepted").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.accepted)).isEqualTo(1);
     }
 
     @Test
@@ -118,8 +140,7 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
         verify(webhookEventRepository, never()).insert(any());
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "amount_mismatch").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.amount_mismatch)).isEqualTo(1);
     }
 
     @Test
@@ -155,8 +176,7 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
         assertThat(outcome.firstAccepted()).isFalse();
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "amount_mismatch").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.amount_mismatch)).isEqualTo(1);
     }
 
     @Test
@@ -246,8 +266,7 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(outcome.outcome()).isEqualTo(Outcome.duplicate);
         verify(webhookEventRepository, never()).insert(any());
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "duplicate").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.duplicate)).isEqualTo(1);
     }
 
     @Test
@@ -261,8 +280,7 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(outcome.outcome()).isEqualTo(Outcome.tamper);
         verify(webhookEventRepository, never()).insert(any());
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "tamper").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.tamper)).isEqualTo(1);
     }
 
     @Test
@@ -332,8 +350,7 @@ class QuoteStatusUpdaterDurableTest {
         when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
 
         updater.record(n);
-        assertThat(meterRegistry.counter("cashu_mint_webhook_event_total",
-                "outcome", "accepted").count()).isEqualTo(1.0);
+        assertThat(outcomeCount(Outcome.accepted)).isEqualTo(1);
         verify(webhookEventRepository, times(1)).insert(any());
     }
 

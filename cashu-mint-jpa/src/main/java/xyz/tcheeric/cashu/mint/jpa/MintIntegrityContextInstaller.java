@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.jpa;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -48,9 +47,6 @@ public class MintIntegrityContextInstaller {
     private final Environment environment;
 
     @Autowired(required = false)
-    private MeterRegistry meterRegistry;
-
-    @Autowired(required = false)
     private LightningPaymentPort lightningPaymentPort;
 
     @Value("${cashu.mint.url:}")
@@ -64,7 +60,7 @@ public class MintIntegrityContextInstaller {
 
     @PostConstruct
     void install() {
-        MintIntegrityContext.install(quoteRepository, issuanceRecordRepository, meterRegistry,
+        MintIntegrityContext.install(quoteRepository, issuanceRecordRepository,
                 mintUrl != null ? mintUrl : "");
         MintIntegrityContext.installMelt(meltSagaRepository, lightningPaymentPort, meltPaymentTimeout);
         String[] active = environment.getActiveProfiles();
@@ -72,10 +68,10 @@ public class MintIntegrityContextInstaller {
         MintIntegrityContext.installVoucher(voucherQuoteRepository, voucherFundingRepository,
                 voucherIssuanceRepository, voucherFundingResolver, voucherIouPolicy, activeProfile);
         MintIntegrityContext.installIdentityHasher(identityHasher);
-        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, meterRegistry={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={})",
+        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={})",
                 quoteRepository != null, issuanceRecordRepository != null,
                 meltSagaRepository != null, lightningPaymentPort != null,
-                meterRegistry != null, mintUrl, meltPaymentTimeout,
+                mintUrl, meltPaymentTimeout,
                 voucherIouPolicy, activeProfile, identityHasher != null);
     }
 

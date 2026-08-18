@@ -15,13 +15,24 @@ import xyz.tcheeric.cashu.mint.observability.aspect.TaskTimingAspect;
 import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerInvariantMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerIssuanceMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerVoucherMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerWebhookMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.LockMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerLockMetricsAdapter;
 import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsAdapter;
 import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.IssuanceMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.WebhookMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 
 /**
@@ -119,6 +130,89 @@ public class ObservabilityAutoConfiguration {
         LockMetricsAdapter adapter = new MicrometerLockMetricsAdapter(lockMetrics);
         LockMetricsRecorder.register(adapter);
         return adapter;
+    }
+
+    /**
+     * Registers the melt-area recorder so {@code MeltTask} emits its counters
+     * through a typed port instead of a raw registry (ADR 0001).
+     *
+     * @param registry the Micrometer registry
+     * @return the melt metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public MeltMetricsRecorder meltMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering melt metrics recorder for protocol melt instrumentation");
+        MeltMetricsRecorder recorder = new MicrometerMeltMetricsRecorder(registry);
+        MetricRecorders.registerMelt(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the voucher-area recorder so the voucher path emits its
+     * counters through a typed port instead of a raw registry (ADR 0001,
+     * issue #341).
+     *
+     * @param registry the Micrometer registry
+     * @return the voucher metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public VoucherMetricsRecorder voucherMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering voucher metrics recorder for voucher instrumentation");
+        VoucherMetricsRecorder recorder = new MicrometerVoucherMetricsRecorder(registry);
+        MetricRecorders.registerVoucher(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the mint/issuance recorder so {@code MintTask} and the
+     * issuance rate-limit filter emit through a typed port (ADR 0001,
+     * issue #342).
+     *
+     * @param registry the Micrometer registry
+     * @return the issuance metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public IssuanceMetricsRecorder issuanceMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering issuance metrics recorder for mint-path instrumentation");
+        IssuanceMetricsRecorder recorder = new MicrometerIssuanceMetricsRecorder(registry);
+        MetricRecorders.registerIssuance(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the webhook recorder so the delivery path emits through a
+     * typed port (ADR 0001, issue #342).
+     *
+     * @param registry the Micrometer registry
+     * @return the webhook metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public WebhookMetricsRecorder webhookMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering webhook metrics recorder for webhook delivery instrumentation");
+        WebhookMetricsRecorder recorder = new MicrometerWebhookMetricsRecorder(registry);
+        MetricRecorders.registerWebhook(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the invariant gauge recorder so the DB-derived poller in
+     * {@code cashu-mint-jpa} declares its gauges here rather than reaching for
+     * a raw registry (ADR 0002, issue #343).
+     *
+     * @param registry the Micrometer registry
+     * @return the invariant metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public InvariantMetricsRecorder invariantMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering invariant metrics recorder for DB-derived gauges");
+        InvariantMetricsRecorder recorder = new MicrometerInvariantMetricsRecorder(registry);
+        MetricRecorders.registerInvariant(recorder);
+        return recorder;
     }
 
     /**

@@ -1,11 +1,12 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.mint.proto.metrics.CountingIssuanceRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
@@ -53,7 +54,7 @@ import static org.mockito.Mockito.when;
  * {@code findById} call returns {@code ISSUING}; a subsequent call (after the
  * bounded backoff) returns {@code ISSUED} with a matching
  * {@code outputs_hash}. The task MUST replay the cached signatures and
- * increment the {@code cashu_mint_idempotent_replay_total} counter.
+ * record an idempotent replay on the issuance recorder.
  */
 class IssuingConcurrencyTest {
 
@@ -70,7 +71,7 @@ class IssuingConcurrencyTest {
     private SignatureVaultService signatureVaultService;
     private Mint mint;
     private Gateway gateway;
-    private SimpleMeterRegistry meterRegistry;
+    private CountingIssuanceRecorder issuanceRecorder;
 
     @BeforeEach
     void setUp() throws CashuErrorException {
@@ -87,11 +88,13 @@ class IssuingConcurrencyTest {
 
         signatureVaultService = new DefaultSignatureVaultService();
         mint = createMintWithKeys();
-        meterRegistry = new SimpleMeterRegistry();
+        issuanceRecorder = new CountingIssuanceRecorder();
+        MetricRecorders.registerIssuance(issuanceRecorder);
     }
 
     @AfterEach
     void tearDown() {
+        MetricRecorders.registerIssuance(null);
         VoucherQuoteRegistry.clear();
         pubkeyIndex.set(0);
     }
@@ -123,8 +126,7 @@ class IssuingConcurrencyTest {
         PostMintResponse response = newMeteredTask(request).execute();
         assertThat(response.getBlindSignatures()).isNotNull();
         verify(mintQuoteRepository, atLeast(3)).findById(quoteId);
-        assertThat(meterRegistry.counter("cashu_mint_idempotent_replay_total",
-                "path", "mint").count()).isEqualTo(1.0);
+        assertThat(issuanceRecorder.count(CountingIssuanceRecorder.Event.IDEMPOTENT_REPLAY)).isEqualTo(1);
     }
 
     @Test
@@ -145,16 +147,14 @@ class IssuingConcurrencyTest {
         CashuErrorException ex = assertThrows(CashuErrorException.class, newMeteredTask(request)::execute);
         assertThat(errorCode(ex)).isEqualTo("issuance_in_progress");
         // Counter not incremented when no replay happens.
-        assertThat(meterRegistry.counter("cashu_mint_idempotent_replay_total",
-                "path", "mint").count()).isEqualTo(0.0);
+        assertThat(issuanceRecorder.count(CountingIssuanceRecorder.Event.IDEMPOTENT_REPLAY)).isZero();
     }
 
     // ---------------------- helpers ----------------------
 
     private MintTask<Secret> newMeteredTask(PostMintRequest<Secret> request) {
         return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
-                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository,
-                meterRegistry);
+                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository);
     }
 
     private BlindedMessage blinded(int amount) {

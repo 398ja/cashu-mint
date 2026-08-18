@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -136,4 +137,81 @@ public interface MeltSagaJpaRepository extends JpaRepository<MeltSagaEntity, Str
     int updateChangeOutputs(@Param("id") String id,
                             @Param("hash") String changeOutputsHash,
                             @Param("json") String changeSignaturesJson);
+
+    /**
+     * Issue #344 / ADR 0002 — Stuck Payment invariant, exported as a
+     * DB-derived gauge by {@code InvariantGaugePoller}: melt sagas that have
+     * sat in {@code PAYMENT_UNKNOWN} for longer than
+     * {@code cashu.mint.melt.payment-unknown-ttl} without an operator looking
+     * at them.
+     *
+     * <p><strong>Time in state, not age of saga.</strong> The boundary is
+     * compared against the last transition <em>into</em>
+     * {@code PAYMENT_UNKNOWN}, not {@code created_at}: a saga created two
+     * hours ago that only became ambiguous thirty seconds ago has not been
+     * stuck for two hours. Reconciler poll no-ops (which record
+     * {@code PAYMENT_UNKNOWN → PAYMENT_UNKNOWN}) are excluded from that
+     * lookup, or every poll would reset the clock and the gauge could never
+     * rise. {@code updated_at} is not used because metadata writes such as
+     * {@link #updateProviderMetadata} bump it without any state change.
+     *
+     * <p><strong>Operator acknowledgement clears the gauge.</strong> Sagas
+     * with an {@code actor LIKE 'operator:%'} transition are excluded — the
+     * same clause the hygiene query above uses to tell reviewed rows from
+     * unreviewed ones. This is the only way the alert can be cleared:
+     * {@code MeltSagaAdminController#markResolved} deliberately appends a
+     * transition without overwriting {@code current_state} (FR-007 / FR-011),
+     * so a gauge keyed on state alone would page forever after an operator
+     * had already settled the payment out of band.
+     *
+     * <p><strong>Divergence from the SC-004 block above.</strong> That query
+     * also excludes sagas with an {@code actor='poll'} transition in the last
+     * five minutes, which makes it a <em>reconciler-liveness</em> check rather
+     * than a stuck-payment one: {@link xyz.tcheeric.cashu.mint.jpa.MeltSagaReconciler}
+     * appends a poll row on every tick for exactly the sagas whose provider
+     * status is still {@code Unknown}, so keeping that clause would pin the
+     * gauge at zero while the reconciler was alive.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_UNKNOWN'
+              AND NOT EXISTS (
+                  SELECT 1 FROM melt_saga_transition t
+                  WHERE t.melt_saga_id = s.melt_saga_id
+                    AND t.actor LIKE 'operator:%'
+              )
+              AND COALESCE((
+                  SELECT max(t.at) FROM melt_saga_transition t
+                  WHERE t.melt_saga_id = s.melt_saga_id
+                    AND t.to_state = 'PAYMENT_UNKNOWN'
+                    AND (t.from_state IS NULL OR t.from_state <> 'PAYMENT_UNKNOWN')
+              ), s.created_at) < :ttlBoundary
+            """)
+    long countStuckPaymentUnknown(@Param("ttlBoundary") Instant ttlBoundary);
+
+    /**
+     * Issue #345 / ADR 0002 — {@code PAYMENT_SENT_BURN_FAILED} sagas awaiting
+     * operator review, exported as a DB-derived gauge by
+     * {@code InvariantGaugePoller}.
+     *
+     * <p>Every row means a payment settled while its proofs stayed spendable —
+     * direct loss, with no benign instance, which is why the alert has no
+     * sustain period. The {@code actor LIKE 'operator:%'} exclusion is the
+     * hygiene query's own definition of "reviewed", and is what lets the page
+     * clear: nothing moves a saga out of {@code PAYMENT_SENT_BURN_FAILED}
+     * (FR-007 / FR-011 forbid auto-resolution), so a gauge keyed on state
+     * alone would page for the lifetime of the row.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM melt_saga s
+            WHERE s.current_state = 'PAYMENT_SENT_BURN_FAILED'
+              AND NOT EXISTS (
+                  SELECT 1 FROM melt_saga_transition t
+                  WHERE t.melt_saga_id = s.melt_saga_id
+                    AND t.actor LIKE 'operator:%'
+              )
+            """)
+    long countPaymentSentBurnFailed();
 }

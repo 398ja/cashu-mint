@@ -260,10 +260,10 @@ so operator dashboards see drift.
 | Counter | Meaning |
 |---|---|
 | `cashu_mint_voucher_issued_total{funding_source=...}` | Successful voucher issuance per funding source |
-| `cashu_mint_voucher_funding_required_total` | Issuance rejected with `funding_required` |
+| `cashu_mint_voucher_rejected_total{reason="funding_required"}` | Issuance rejected with `funding_required` |
 | `cashu_mint_voucher_iou_issued_total` | MERCHANT_IOU funding row produced an issuance |
 | `cashu_mint_voucher_lazy_funding_total` | Resolver fallback created a `CustomerPaymentFunding` row |
-| `cashu_mint_voucher_rate_limit_breach_total{principal=...}` | Per-principal 429 events |
+| `cashu_mint_voucher_rate_limit_breach_total` | 429 events; the breaching principal is in the logs, deliberately not a label |
 
 ## Cross-repo follow-ups (spec 004)
 

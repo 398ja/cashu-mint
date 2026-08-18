@@ -35,10 +35,21 @@ docker compose -f cashu-mint-observability/docker/docker-compose.observability.y
 
 ### 3. Verify Metrics
 
+Actuator is on the management port (`9000`), not the public API port (`7777`) — see
+issue #346. `docker-compose.dev.yml` publishes it on host loopback, so the commands
+below work as written against the dev stack. In production the port is not published;
+run them from inside the container instead:
+
+```bash
+docker compose -f docker-compose.prod.yml exec cashu-mint-rest \
+  curl -s localhost:9000/actuator/prometheus | head -50
+```
+
+
 Check that metrics are being collected:
 
 ```bash
-curl http://localhost:7777/actuator/prometheus | head -50
+curl http://localhost:9000/actuator/prometheus | head -50
 ```
 
 ## Configuration
@@ -145,7 +156,7 @@ sum(rate(cashu_mint_requests_total{status=~"4xx|5xx"}[5m]))
 increase(cashu_mint_voucher_issued_total[1h])
 
 # Voucher rejections for missing funding
-rate(cashu_mint_voucher_funding_required_total[5m])
+rate(cashu_mint_voucher_rejected_total{reason="funding_required"}[5m])
 ```
 
 ### Task Metrics
@@ -167,10 +178,10 @@ The observability module adds custom health indicators:
 
 ```bash
 # Check overall health
-curl http://localhost:7777/actuator/health
+curl http://localhost:9000/actuator/health
 
 # Detailed health with indicators
-curl http://localhost:7777/actuator/health | jq
+curl http://localhost:9000/actuator/health | jq
 ```
 
 Health indicators include:
@@ -290,7 +301,7 @@ Traces are automatically propagated using W3C Trace Context headers. When integr
 
 1. Check the actuator endpoint is accessible:
    ```bash
-   curl http://localhost:7777/actuator/prometheus
+   curl http://localhost:9000/actuator/prometheus
    ```
 
 2. Verify Prometheus can reach the mint:

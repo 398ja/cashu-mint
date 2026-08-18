@@ -72,6 +72,7 @@ docker compose -f docker-compose.dev.yml down
 
 **Key ports:**
 - Mint REST API: 7777
+- Mint actuator/management: 9000 (separate port, not published to the host — see issue #346)
 - Gateway API: 8080
 - Vault API: 3333
 - Vault PostgreSQL: 55433
@@ -310,6 +311,8 @@ gateway.bolt11.sat=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
 
 **Environment variable overrides:**
 - `CASHU_MINT_PORT` - API port (default: 7777)
+- `CASHU_MINT_MANAGEMENT_PORT` - Actuator port (default: 9000)
+- `CASHU_MINT_MANAGEMENT_ADDRESS` - Actuator bind address (default: 127.0.0.1; containers use 0.0.0.0)
 - `GATEWAY_BOLT11_SAT` - Gateway implementation class
 - `CASHU_VAULT_BASE_URL` - Vault service URL
 - `PHOENIXD_BASE_URL` - Phoenixd Lightning service URL
@@ -629,11 +632,17 @@ docker compose -f cashu-mint-observability/docker/docker-compose.observability.y
 | `cashu_mint_task_success_total` / `_failure_total` | Task outcomes by task name |
 | `cashu_mint_lock_wait_seconds` / `_hold_seconds` / `_active` | Quote/proof lock contention |
 
-`TaskMetrics` and `LockMetrics` are the only metric families this module owns;
-domain code reaches them through the `TaskMetricsAdapter` / `LockMetricsAdapter`
-recorder ports in `cashu-mint-protocol`. Everything else under the
-`cashu_mint_*` prefix is an ad-hoc counter incremented at its call site (see
-`docs/adr/0001-typed-metric-recorders.md`).
+Domain code never touches `MeterRegistry` — it emits through typed recorder
+ports declared in `cashu-mint-protocol` (`proto/metrics/`) and implemented
+here, one per domain area (see `docs/adr/0001-typed-metric-recorders.md`).
+`TaskMetricsAdapter` / `LockMetricsAdapter` back the task and lock families;
+`MeltMetricsRecorder`, reached via `MetricRecorders.melt()`, backs the melt
+area (`cashu_mint_melt_insufficient_input_total`,
+`cashu_mint_melt_proofs_not_bound_total`). Accessors never return `null`, so
+call sites carry no null check. The remaining areas (voucher, mint/issuance,
+webhook) are still ad-hoc counters reading the legacy
+`MintIntegrityContext.meterRegistry()` accessor; they move onto their own
+recorders in issues #341/#342, after which the accessor is deleted (#343).
 
 ### Configuration
 
@@ -712,3 +721,17 @@ cd cashu-mint-rest && mvn jib:build
 
 ## Recent Changes
 - 003-voucher-its: Added Java 21
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `398ja/cashu-mint`, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, using their default label strings. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

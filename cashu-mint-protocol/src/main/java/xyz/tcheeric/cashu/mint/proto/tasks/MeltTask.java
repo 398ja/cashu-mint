@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
@@ -244,7 +245,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             try {
                 BurnAmountValidator.requireFunded(proofSum, invoiceAmount, feeReserve.getTotal());
             } catch (CashuErrorException rejection) {
-                incrementCounter("cashu_mint_melt_insufficient_input_total");
+                MetricRecorders.melt().insufficientInput();
                 throw rejection;
             }
 
@@ -658,13 +659,6 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
     }
 
-    private static void incrementCounter(String name) {
-        io.micrometer.core.instrument.MeterRegistry registry = MintIntegrityContext.meterRegistry();
-        if (registry != null) {
-            registry.counter(name).increment();
-        }
-    }
-
     private static String resolveProviderName(xyz.tcheeric.payment.adapter.core.common.Gateway gateway) {
         try {
             String name = gateway.getName();
@@ -769,7 +763,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
      * both cases for visibility.
      */
     private void releaseAndFailClosed(String sagaId, String quoteId) {
-        incrementCounter("cashu_mint_melt_proofs_not_bound_total");
+        MetricRecorders.melt().proofsNotBound();
         boolean refunded;
         try {
             proofVaultService.refundForSaga(sagaId);

@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.mint.proto.metrics.CountingIssuanceRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -83,7 +83,7 @@ class MintTaskAmountValidationTest {
     private SignatureVaultService signatureVaultService;
     private Mint mint;
     private Gateway gateway;
-    private MeterRegistry meterRegistry;
+    private CountingIssuanceRecorder issuanceRecorder;
 
     @BeforeEach
     void setUp() throws CashuErrorException {
@@ -101,11 +101,13 @@ class MintTaskAmountValidationTest {
 
         signatureVaultService = new DefaultSignatureVaultService();
         mint = createMintWithKeys();
-        meterRegistry = new SimpleMeterRegistry();
+        issuanceRecorder = new CountingIssuanceRecorder();
+        MetricRecorders.registerIssuance(issuanceRecorder);
     }
 
     @AfterEach
     void tearDown() {
+        MetricRecorders.registerIssuance(null);
         VoucherQuoteRegistry.clear();
         pubkeyIndex.set(0);
     }
@@ -244,8 +246,7 @@ class MintTaskAmountValidationTest {
 
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
         verify(issuanceRecordRepository, never()).insertIfAbsent(any());
-        assertThat(meterRegistry.counter("cashu_mint_quote_cross_check_failures_total", "path", "mint")
-                .count()).isEqualTo(1.0);
+        assertThat(issuanceRecorder.count(CountingIssuanceRecorder.Event.CROSS_CHECK_FAILURE)).isEqualTo(1);
     }
 
     @Test
@@ -263,8 +264,7 @@ class MintTaskAmountValidationTest {
             assertThat(errorCode(ex)).isEqualTo("quote_amount_cross_check_failed");
         }
 
-        assertThat(meterRegistry.counter("cashu_mint_quote_cross_check_failures_total", "path", "mint")
-                .count()).isEqualTo(1.0);
+        assertThat(issuanceRecorder.count(CountingIssuanceRecorder.Event.CROSS_CHECK_FAILURE)).isEqualTo(1);
     }
 
     @Test
@@ -280,8 +280,7 @@ class MintTaskAmountValidationTest {
             assertThrows(CashuErrorException.class, newMeteredTask(request)::execute);
         }
 
-        assertThat(meterRegistry.counter("cashu_mint_amount_mismatch_total", "path", "mint")
-                .count()).isEqualTo(1.0);
+        assertThat(issuanceRecorder.count(CountingIssuanceRecorder.Event.AMOUNT_MISMATCH)).isEqualTo(1);
     }
 
     // ---------------------- helpers ----------------------
@@ -293,8 +292,7 @@ class MintTaskAmountValidationTest {
 
     private MintTask<Secret> newMeteredTask(PostMintRequest<Secret> request) {
         return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
-                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository,
-                meterRegistry);
+                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository);
     }
 
     private MockedConstruction<SignBlindedMessageTask> signBlindedConstruction() {

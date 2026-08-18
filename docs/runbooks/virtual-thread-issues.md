@@ -49,7 +49,7 @@ GATEWAY_CLIENT_READ_TIMEOUT=30s
 2. Identify contention source:
    ```bash
    # Check which lock types have high wait times
-   curl -s localhost:7777/actuator/prometheus | grep cashu_mint_lock_wait
+   curl -s localhost:9000/actuator/prometheus | grep cashu_mint_lock_wait
    ```
 
 3. If `quote` locks show high contention:
@@ -138,7 +138,7 @@ GATEWAY_CLIENT_READ_TIMEOUT=30s
 3. Monitor heap trend:
    ```bash
    # Watch heap usage over time
-   watch -n 5 'curl -s localhost:7777/actuator/metrics/jvm.memory.used | jq .'
+   watch -n 5 'curl -s localhost:9000/actuator/metrics/jvm.memory.used | jq .'
    ```
 
 ### Common Causes
@@ -172,12 +172,12 @@ GATEWAY_CLIENT_READ_TIMEOUT=30s
 
 1. Check gateway health:
    ```bash
-   curl -s localhost:7777/actuator/health | jq '.components.gateway'
+   curl -s localhost:9000/actuator/health | jq '.components.gateway'
    ```
 
 2. Review gateway metrics:
    ```bash
-   curl -s localhost:7777/actuator/prometheus | grep gateway
+   curl -s localhost:9000/actuator/prometheus | grep gateway
    ```
 
 3. Check lock hold times - long holds indicate slow gateway:
@@ -219,11 +219,11 @@ kubectl rollout restart deployment/cashu-mint
 ### Step 2: Verify Rollback
 ```bash
 # Check that VTs are disabled
-curl -s localhost:7777/actuator/env | grep virtual
+curl -s localhost:9000/actuator/env | grep virtual
 # Should show: spring.threads.virtual.enabled=false
 
 # Check thread pool behavior
-curl -s localhost:7777/actuator/prometheus | grep tomcat_threads
+curl -s localhost:9000/actuator/prometheus | grep tomcat_threads
 # Busy threads should increase under load (platform thread behavior)
 ```
 
@@ -258,7 +258,7 @@ jcmd <pid> GC.heap_dump /tmp/heap.hprof
 ### Check VT Configuration
 ```bash
 # Check if VTs are enabled
-curl -s localhost:7777/actuator/env/spring.threads.virtual.enabled
+curl -s localhost:9000/actuator/env/spring.threads.virtual.enabled
 ```
 
 ### Prometheus Queries

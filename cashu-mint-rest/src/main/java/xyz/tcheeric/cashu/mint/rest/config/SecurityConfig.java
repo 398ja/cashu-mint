@@ -23,8 +23,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Spec 002 T311 — locks {@code /admin/**} behind HTTP Basic auth. All public
- * NUT endpoints ({@code /v1/**}), webhook delivery, WebSocket upgrade,
- * actuator, and static error pages stay open.
+ * NUT endpoints ({@code /v1/**}), webhook delivery, WebSocket upgrade and
+ * static error pages stay open.
+ *
+ * <p>This chain guards the public API port only. Since issue #346 actuator is
+ * served from a separate management port and is not mapped here at all, so no
+ * rule in this class can expose it.
  *
  * <p>The admin password comes from {@code cashu.mint.admin.password}. When
  * unset/blank, NO admin user is registered: every {@code /admin/**}
@@ -74,9 +78,10 @@ public class SecurityConfig {
                         .requestMatchers("/v1/vouchers/**").hasRole("ADMIN")
                         // OPTIONS preflight is always allowed.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // All other paths (NUT endpoints, /webhook/**, /actuator/**,
-                        // WebSocket upgrades, static) stay open — the mint's public
-                        // contract is unchanged.
+                        // All other paths (NUT endpoints, /webhook/**, WebSocket
+                        // upgrades, static) stay open — the mint's public contract is
+                        // unchanged. Actuator is NOT in this list: it moved to its own
+                        // management port (issue #346) and never reaches this chain.
                         .anyRequest().permitAll())
                 .httpBasic(httpBasic -> {});
         return http.build();

@@ -53,7 +53,19 @@ public abstract class AbstractMintDurableIT {
         POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("cashu_mint_it")
                 .withUsername("cashu")
-                .withPassword("cashu");
+                .withPassword("cashu")
+                // Every cached Spring context holds its own Hikari pool
+                // against this one container, so the connection budget grows
+                // with the number of distinct IT context configurations. The
+                // stock max_connections=100 is already close; raise it rather
+                // than making each new IT contort its properties to reuse an
+                // existing context.
+                //
+                // fsync=off is repeated because withCommand REPLACES the
+                // command PostgreSQLContainer sets in its constructor rather
+                // than appending to it; dropping it would quietly turn
+                // durability back on and slow every durable IT down.
+                .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=500");
         POSTGRES.start();
     }
 

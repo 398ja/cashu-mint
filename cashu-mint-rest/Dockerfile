@@ -12,4 +12,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 EXPOSE 7777
+# Issue #346 — actuator/management port. Declared for documentation; compose and
+# Kubernetes decide whether it is actually reachable from outside the container.
+EXPOSE 9000
 ENTRYPOINT ["java","-jar","/app/app.jar"]

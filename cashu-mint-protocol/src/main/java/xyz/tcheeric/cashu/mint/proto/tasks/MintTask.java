@@ -38,7 +38,8 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.MeterRegistry;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
+import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
 
 import java.time.Instant;
 
@@ -68,7 +69,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>FR-001: {@code sum(outputs.amount) == quote.amount}; mismatches throw
  *       {@code amount_mismatch} and increment
- *       {@code cashu_mint_amount_mismatch_total{path="mint"}}.</li>
+ *       {@code cashu_mint_issuance_amount_mismatch_total}.</li>
  *   <li>FR-002 / FR-011: compare-and-set lifecycle transitions
  *       {@code PAID → ISSUING → ISSUED} with one append-only
  *       {@code IssuanceRecord} row per quote.</li>
@@ -77,7 +78,7 @@ import java.util.stream.Collectors;
  *       outputs reject with {@code quote_already_issued}.</li>
  *   <li>FR-010: {@code Gateway.getAmount(quoteId)} cross-check before the
  *       {@code PAID → ISSUING} CAS; failures emit
- *       {@code cashu_mint_quote_cross_check_failures_total{path="mint"}}.</li>
+ *       {@code cashu_mint_issuance_cross_check_failure_total}.</li>
  * </ul>
  */
 @Slf4j
@@ -93,7 +94,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final PaymentStatusChecker paymentStatusChecker;
     private final MintQuoteRepository mintQuoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
-    private final MeterRegistry meterRegistry;
     private final SplittingService splittingService = new SplittingService();
 
 
@@ -102,7 +102,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null, null);
+        this(postMintRequest, method, null, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -111,7 +111,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull Mint mint,
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, null, null, null);
     }
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -121,20 +121,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull MintProtocolService mintProtocolService,
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null, null);
-    }
-
-    public MintTask(@NonNull PostMintRequest<T> postMintRequest,
-                    @NonNull PaymentMethod method,
-                    String unit,
-                    @NonNull Mint mint,
-                    @NonNull MintProtocolService mintProtocolService,
-                    @NonNull SignatureVaultService signatureVaultService,
-                    PaymentStatusChecker paymentStatusChecker,
-                    MintQuoteRepository mintQuoteRepository,
-                    IssuanceRecordRepository issuanceRecordRepository) {
-        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService,
-                paymentStatusChecker, mintQuoteRepository, issuanceRecordRepository, null);
+        this(postMintRequest, method, unit, mint, mintProtocolService, signatureVaultService, paymentStatusChecker, null, null);
     }
 
     /**
@@ -143,10 +130,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
      * (sum of output amounts == quote.amount), FR-002 (single-use via
      * compare-and-set lifecycle transitions), FR-010 (Gateway.getAmount
      * cross-check before the PAID→ISSUING transition), and FR-011 (one
-     * IssuanceRecord per quote). When {@code meterRegistry} is non-null, the
-     * task emits {@code cashu_mint_amount_mismatch_total} and
-     * {@code cashu_mint_quote_cross_check_failures_total} counters tagged with
-     * {@code path="mint"}. Production wires all four when
+     * IssuanceRecord per quote). Metrics are emitted through the typed
+     * {@code IssuanceMetricsRecorder} port, not from here. Production wires
+     * both repositories when
      * {@code cashu.mint.jpa.enabled=true}; legacy unit-test constructors leave
      * them null so the existing test surface keeps working.
      */
@@ -158,8 +144,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     @NonNull SignatureVaultService signatureVaultService,
                     PaymentStatusChecker paymentStatusChecker,
                     MintQuoteRepository mintQuoteRepository,
-                    IssuanceRecordRepository issuanceRecordRepository,
-                    MeterRegistry meterRegistry) {
+                    IssuanceRecordRepository issuanceRecordRepository) {
         this.postMintRequest = postMintRequest;
         this.method = method;
         this.unit = unit;
@@ -169,7 +154,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         this.paymentStatusChecker = paymentStatusChecker;
         this.mintQuoteRepository = mintQuoteRepository;
         this.issuanceRecordRepository = issuanceRecordRepository;
-        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -228,7 +212,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (Instant.now().isAfter(expiresAt)) {
                     log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                             quoteId, createdAt, ttlSeconds, expiresAt);
-                    incrementCounter("cashu_mint_quote_expired_total");
+                    MetricRecorders.issuance().quoteExpired();
                     throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
                 }
             }
@@ -331,7 +315,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (requestedTotal != durableQuote.amount()) {
                     log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
                             quoteId, durableQuote.amount(), requestedTotal);
-                    incrementCounter("cashu_mint_amount_mismatch_total");
+                    MetricRecorders.issuance().amountMismatch();
                     throw new CashuErrorException(
                             new ErrorResponse("amount_mismatch",
                                     "Sum of blinded output amounts must equal the quote amount").toJson());
@@ -358,7 +342,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                         if (Instant.now().isAfter(expiresAt)) {
                             log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                                     quoteId, createdAt, ttlSeconds, expiresAt);
-                            incrementCounter("cashu_mint_quote_expired_total");
+                            MetricRecorders.issuance().quoteExpired();
                             throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
                         }
                     }
@@ -381,14 +365,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     gatewayAmount = crossCheckGateway.getAmount(quoteId);
                 } catch (RuntimeException e) {
                     log.error("mint_task gateway_cross_check_failed quote_id={}", quoteId, e);
-                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(
                             new ErrorResponse("quote_amount_cross_check_failed").toJson());
                 }
                 if (gatewayAmount == null || gatewayAmount.longValue() != durableQuote.amount()) {
                     log.error("mint_task gateway_cross_check_mismatch quote_id={} durable={} gateway={}",
                             quoteId, durableQuote.amount(), gatewayAmount);
-                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(
                             new ErrorResponse("quote_amount_cross_check_failed").toJson());
                 }
@@ -556,11 +540,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
                 // Spec 003 FR-014 / T114 — per-funding-source success counter
                 // for operator dashboards (SC-006 liability reconciliation).
-                if (meterRegistry != null) {
-                    meterRegistry.counter("cashu_mint_voucher_issued_total",
-                            "funding_source", voucherCtx.funding.fundingSource().name(),
-                            "path", "mint").increment();
-                }
+                MetricRecorders.voucher().issued(voucherCtx.funding.fundingSource());
             }
 
             return result;
@@ -591,7 +571,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (existing != null && existing.outputsHash().equals(outputsHash)) {
                     log.info("[mint][replay] quote_id={} outputs_hash={} attempt={}",
                             quoteId, outputsHash, attempt);
-                    incrementCounter("cashu_mint_idempotent_replay_total");
+                    MetricRecorders.issuance().idempotentReplay();
                     return decodeSignatures(existing.signaturesJson());
                 }
                 throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
@@ -611,13 +591,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
         }
         return null;
-    }
-
-    private void incrementCounter(String name) {
-        if (meterRegistry == null) {
-            return;
-        }
-        meterRegistry.counter(name, "path", "mint").increment();
     }
 
     private static String firstKeysetId(List<BlindedMessage> outputs) {
@@ -730,7 +703,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
         if (funding == null) {
             log.warn("mint_task voucher_funding_required quote_id={}", quoteId);
-            incrementCounter("cashu_mint_voucher_funding_required_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FUNDING_REQUIRED);
             throw new CashuErrorException(new ErrorResponse("funding_required").toJson());
         }
 
@@ -810,7 +783,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
                             + "face_value={} funding_amount={}",
                     quoteId, quote.faceValue(), funding.amount());
-            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
         }
 
@@ -819,16 +792,17 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // regardless of policy outcome. Emitted BEFORE the policy gate so
             // existing dashboards / runbooks wired to this counter keep firing
             // on denied attempts too (the deny path throws below). The
-            // policy-specific subset is tracked by cashu_mint_voucher_iou_denied_total.
+            // policy-specific subset is the IOU_NOT_PERMITTED reason on
+            // cashu_mint_voucher_rejected_total.
             log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
                     quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
-            incrementCounter("cashu_mint_voucher_iou_issued_total");
+            MetricRecorders.voucher().iouIssuanceAttempted();
             // FR-006 — enforce the configured IOU policy (default DENY).
             String iouPolicy = MintIntegrityContext.voucherIouPolicy();
             if (!"ALLOW".equalsIgnoreCase(iouPolicy)) {
                 log.error("[voucher][alert] iou_not_permitted quote_id={} funding_id={} policy={}",
                         quoteId, funding.fundingId(), iouPolicy);
-                incrementCounter("cashu_mint_voucher_iou_denied_total");
+                MetricRecorders.voucher().rejected(VoucherRejectionReason.IOU_NOT_PERMITTED);
                 throw new CashuErrorException(new ErrorResponse("iou_not_permitted").toJson());
             }
         }
@@ -840,7 +814,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source={} "
                             + "face_value={} funding_amount={} quote_unit={} funding_unit={}",
                     quoteId, source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
-            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
         }
     }
