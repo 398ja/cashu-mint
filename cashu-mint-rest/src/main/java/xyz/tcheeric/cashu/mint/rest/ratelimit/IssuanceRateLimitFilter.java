@@ -2,15 +2,14 @@ package xyz.tcheeric.cashu.mint.rest.ratelimit;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.rest.config.IssuanceRateLimitProperties;
 
 import java.io.IOException;
@@ -40,22 +39,18 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
 
     private static final String MINT_PATH_PREFIX = "/v1/mint";
     private static final String HEADER_RETRY_AFTER = "Retry-After";
-    private static final String COUNTER_BREACH = "cashu_mint_issuance_rate_limit_breach_total";
     /** Cap on the client-supplied identity used as a cache key + log field (bounds memory + log-injection surface). */
     private static final int MAX_IDENTITY_LEN = 128;
 
     private final IssuanceRateLimitProperties properties;
-    private final MeterRegistry meterRegistry;
 
     private final Cache<String, DualBucket> buckets = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofDays(2))
             .maximumSize(200_000)
             .build();
 
-    public IssuanceRateLimitFilter(IssuanceRateLimitProperties properties,
-                                   @Autowired(required = false) MeterRegistry meterRegistry) {
+    public IssuanceRateLimitFilter(IssuanceRateLimitProperties properties) {
         this.properties = properties;
-        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -77,9 +72,7 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"rate_limit_exceeded\"}");
             log.warn("issuance_rate_limit identity={} path={}", identity, request.getRequestURI());
-            if (meterRegistry != null) {
-                meterRegistry.counter(COUNTER_BREACH).increment();
-            }
+            MetricRecorders.issuance().rateLimitBreach();
             return;
         }
 

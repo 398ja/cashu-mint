@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>FR-001: {@code sum(outputs.amount) == quote.amount}; mismatches throw
  *       {@code amount_mismatch} and increment
- *       {@code cashu_mint_amount_mismatch_total{path="mint"}}.</li>
+ *       {@code cashu_mint_issuance_amount_mismatch_total}.</li>
  *   <li>FR-002 / FR-011: compare-and-set lifecycle transitions
  *       {@code PAID → ISSUING → ISSUED} with one append-only
  *       {@code IssuanceRecord} row per quote.</li>
@@ -79,7 +79,7 @@ import java.util.stream.Collectors;
  *       outputs reject with {@code quote_already_issued}.</li>
  *   <li>FR-010: {@code Gateway.getAmount(quoteId)} cross-check before the
  *       {@code PAID → ISSUING} CAS; failures emit
- *       {@code cashu_mint_quote_cross_check_failures_total{path="mint"}}.</li>
+ *       {@code cashu_mint_issuance_cross_check_failure_total}.</li>
  * </ul>
  */
 @Slf4j
@@ -230,7 +230,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (Instant.now().isAfter(expiresAt)) {
                     log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                             quoteId, createdAt, ttlSeconds, expiresAt);
-                    incrementCounter("cashu_mint_quote_expired_total");
+                    MetricRecorders.issuance().quoteExpired();
                     throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
                 }
             }
@@ -333,7 +333,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (requestedTotal != durableQuote.amount()) {
                     log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
                             quoteId, durableQuote.amount(), requestedTotal);
-                    incrementCounter("cashu_mint_amount_mismatch_total");
+                    MetricRecorders.issuance().amountMismatch();
                     throw new CashuErrorException(
                             new ErrorResponse("amount_mismatch",
                                     "Sum of blinded output amounts must equal the quote amount").toJson());
@@ -360,7 +360,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                         if (Instant.now().isAfter(expiresAt)) {
                             log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                                     quoteId, createdAt, ttlSeconds, expiresAt);
-                            incrementCounter("cashu_mint_quote_expired_total");
+                            MetricRecorders.issuance().quoteExpired();
                             throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
                         }
                     }
@@ -383,14 +383,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     gatewayAmount = crossCheckGateway.getAmount(quoteId);
                 } catch (RuntimeException e) {
                     log.error("mint_task gateway_cross_check_failed quote_id={}", quoteId, e);
-                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(
                             new ErrorResponse("quote_amount_cross_check_failed").toJson());
                 }
                 if (gatewayAmount == null || gatewayAmount.longValue() != durableQuote.amount()) {
                     log.error("mint_task gateway_cross_check_mismatch quote_id={} durable={} gateway={}",
                             quoteId, durableQuote.amount(), gatewayAmount);
-                    incrementCounter("cashu_mint_quote_cross_check_failures_total");
+                    MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(
                             new ErrorResponse("quote_amount_cross_check_failed").toJson());
                 }
@@ -589,7 +589,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 if (existing != null && existing.outputsHash().equals(outputsHash)) {
                     log.info("[mint][replay] quote_id={} outputs_hash={} attempt={}",
                             quoteId, outputsHash, attempt);
-                    incrementCounter("cashu_mint_idempotent_replay_total");
+                    MetricRecorders.issuance().idempotentReplay();
                     return decodeSignatures(existing.signaturesJson());
                 }
                 throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
@@ -609,13 +609,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
         }
         return null;
-    }
-
-    private void incrementCounter(String name) {
-        if (meterRegistry == null) {
-            return;
-        }
-        meterRegistry.counter(name, "path", "mint").increment();
     }
 
     private static String firstKeysetId(List<BlindedMessage> outputs) {
