@@ -156,7 +156,7 @@ sum(rate(cashu_mint_requests_total{status=~"4xx|5xx"}[5m]))
 increase(cashu_mint_voucher_issued_total[1h])
 
 # Voucher rejections for missing funding
-rate(cashu_mint_voucher_funding_required_total[5m])
+rate(cashu_mint_voucher_rejected_total{reason="funding_required"}[5m])
 ```
 
 ### Task Metrics

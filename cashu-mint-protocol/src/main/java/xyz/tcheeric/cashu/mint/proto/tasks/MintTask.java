@@ -39,6 +39,8 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
+import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
 
 import java.time.Instant;
 
@@ -556,11 +558,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
                 // Spec 003 FR-014 / T114 — per-funding-source success counter
                 // for operator dashboards (SC-006 liability reconciliation).
-                if (meterRegistry != null) {
-                    meterRegistry.counter("cashu_mint_voucher_issued_total",
-                            "funding_source", voucherCtx.funding.fundingSource().name(),
-                            "path", "mint").increment();
-                }
+                MetricRecorders.voucher().issued(voucherCtx.funding.fundingSource());
             }
 
             return result;
@@ -730,7 +728,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
         if (funding == null) {
             log.warn("mint_task voucher_funding_required quote_id={}", quoteId);
-            incrementCounter("cashu_mint_voucher_funding_required_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FUNDING_REQUIRED);
             throw new CashuErrorException(new ErrorResponse("funding_required").toJson());
         }
 
@@ -810,7 +808,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
                             + "face_value={} funding_amount={}",
                     quoteId, quote.faceValue(), funding.amount());
-            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
         }
 
@@ -819,16 +817,17 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // regardless of policy outcome. Emitted BEFORE the policy gate so
             // existing dashboards / runbooks wired to this counter keep firing
             // on denied attempts too (the deny path throws below). The
-            // policy-specific subset is tracked by cashu_mint_voucher_iou_denied_total.
+            // policy-specific subset is the IOU_NOT_PERMITTED reason on
+            // cashu_mint_voucher_rejected_total.
             log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
                     quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
-            incrementCounter("cashu_mint_voucher_iou_issued_total");
+            MetricRecorders.voucher().iouIssuanceAttempted();
             // FR-006 — enforce the configured IOU policy (default DENY).
             String iouPolicy = MintIntegrityContext.voucherIouPolicy();
             if (!"ALLOW".equalsIgnoreCase(iouPolicy)) {
                 log.error("[voucher][alert] iou_not_permitted quote_id={} funding_id={} policy={}",
                         quoteId, funding.fundingId(), iouPolicy);
-                incrementCounter("cashu_mint_voucher_iou_denied_total");
+                MetricRecorders.voucher().rejected(VoucherRejectionReason.IOU_NOT_PERMITTED);
                 throw new CashuErrorException(new ErrorResponse("iou_not_permitted").toJson());
             }
         }
@@ -840,7 +839,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source={} "
                             + "face_value={} funding_amount={} quote_unit={} funding_unit={}",
                     quoteId, source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
-            incrementCounter("cashu_mint_voucher_face_value_not_backed_total");
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
         }
     }

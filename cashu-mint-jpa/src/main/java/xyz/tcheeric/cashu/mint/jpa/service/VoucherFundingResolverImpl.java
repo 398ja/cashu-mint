@@ -1,16 +1,14 @@
 package xyz.tcheeric.cashu.mint.jpa.service;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.CustomerPaymentFundingEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherFundingEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherFundingJpaRepository;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.jpa.repository.WebhookEventJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
@@ -52,13 +50,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VoucherFundingResolverImpl implements VoucherFundingResolver {
 
-    private static final String COUNTER_LAZY_FUNDING = "cashu_mint_voucher_lazy_funding_total";
-
     private final VoucherFundingJpaRepository fundingJpa;
     private final WebhookEventJpaRepository webhookJpa;
-
-    @Autowired(required = false)
-    private MeterRegistry meterRegistry;
 
     @Override
     public Optional<VoucherFunding> resolveForQuote(VoucherQuote quote) {
@@ -102,7 +95,7 @@ public class VoucherFundingResolverImpl implements VoucherFundingResolver {
             CustomerPaymentFundingEntity saved = fundingJpa.save(funding);
             log.info("voucher_funding lazy_create funding_id={} quote_id={} provider={} provider_event_id={}",
                     saved.getFundingId(), quote.quoteId(), provider, providerEventId);
-            incrementCounter();
+            MetricRecorders.voucher().lazyFundingCreated();
             return saved;
         } catch (DataIntegrityViolationException conflict) {
             // Spec 003 review fix — another writer (the webhook bridge,
@@ -118,15 +111,5 @@ public class VoucherFundingResolverImpl implements VoucherFundingResolver {
                     winner.getFundingId(), quote.quoteId(), provider, providerEventId);
             return winner;
         }
-    }
-
-    private void incrementCounter() {
-        if (meterRegistry == null) {
-            return;
-        }
-        Counter.builder(COUNTER_LAZY_FUNDING)
-                .description("Voucher funding rows created lazily by the resolver fallback")
-                .register(meterRegistry)
-                .increment();
     }
 }
