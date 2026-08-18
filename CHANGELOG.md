@@ -9,6 +9,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-08-18
+
+Replaces the mint's dead instrumentation with a typed recorder seam, adds
+DB-derived gauges for the three money-losing invariants, and makes both
+directions of the metric catalogue checkable by CI (#337).
+
+### Removed
+
+- **BREAKING** `MintIntegrityContext.meterRegistry()`. Deleted, not deprecated:
+  a deprecated accessor preserves the exact hole this work exists to close —
+  the next spec adds counter number seventeen inline and the catalogue drifts
+  again. Domain code reaches metrics only through the typed recorder ports in
+  `xyz.tcheeric.cashu.mint.proto.metrics`. The registry no longer threads
+  through `NUT04 → MintTokensTask → MintTask`, so the public constructors of
+  both tasks lost their trailing `MeterRegistry` parameter, and the null checks
+  that guarded every former call site are gone (#343).
+
+### Changed
+
+- **BREAKING** Metric renames. Dashboards and alert rules querying the old
+  names return no data:
+  - `cashu_mint_voucher_funding_required_total`,
+    `cashu_mint_voucher_face_value_not_backed_total` and
+    `cashu_mint_voucher_iou_denied_total` collapse into
+    `cashu_mint_voucher_rejected_total{reason=...}`, with the label domain
+    bounded by an enum. They were always one metric with a reason dimension;
+    splitting them meant a new reason cost a new metric, panel and alert rule
+    (#341).
+  - `cashu_mint_quote_expired_total` → `cashu_mint_issuance_quote_expired_total`
+  - `cashu_mint_amount_mismatch_total` → `cashu_mint_issuance_amount_mismatch_total`
+  - `cashu_mint_quote_cross_check_failures_total` → `cashu_mint_issuance_cross_check_failure_total`
+  - `cashu_mint_idempotent_replay_total` → `cashu_mint_issuance_idempotent_replay_total`
+- **BREAKING** The `path="mint"` label is gone from the issuance counters. With
+  the area in the metric name it was a second encoding of the same fact (#342).
+- **BREAKING** `cashu_mint_voucher_rate_limit_breach_total` no longer carries a
+  `principal` label. Today's single ADMIN service account keeps it bounded, but
+  under per-merchant authentication it becomes both a cardinality problem and a
+  data-minimisation one: spec 004 kept merchant identity out of the read path
+  with column-level GRANTs, and a Prometheus label routes it straight back out
+  into a store with no retention purge. The principal stays in the logs (#341).
+- The metrics reference is now generated from the recorder declarations rather
+  than written by hand. It had documented roughly fifty metrics of which most
+  were never emitted, because it was a third artefact with nothing tying it to
+  the code (#348).
+
+### Added
+
+- Typed metric recorder ports for the voucher, mint/issuance, webhook and
+  invariant areas, with Micrometer implementations in `cashu-mint-observability`
+  (#341, #342, #343). Every meter is registered eagerly, so no family first
+  materialises on failure — a family that only appears when something breaks
+  reads as "no data", which is indistinguishable from a broken exporter.
+- `InvariantGaugePoller` in `cashu-mint-jpa`: exports the three money-losing
+  invariants as gauges re-derived from the database every 60 seconds, running
+  the operator queries already documented on the repositories (ADR 0002).
+  A counter incremented on a state transition can neither express "stuck for an
+  hour" nor survive a restart with its standing count intact — exactly the
+  wrong failure mode for conditions that by design never resolve themselves
+  (#344, #345).
+  - `cashu_mint_melt_stuck_payment_unknown` — sagas parked in `PAYMENT_UNKNOWN`
+    past `cashu.mint.melt.payment-unknown-ttl`.
+  - `cashu_mint_melt_payment_sent_burn_failed` — payment settled while the
+    proofs stayed spendable.
+  - `cashu_mint_voucher_orphan_issuance` — issued voucher value with no funding
+    row.
+  - `cashu_mint_invariant_poll_failures_total` — the gauges fail open, so a
+    failing poll has to be alertable in its own right or a stale zero silently
+    disarms the pages.
+- Alert rules for all three, each carrying the SQL behind its gauge in a
+  `query` annotation so the first diagnostic step ships with the page. Their
+  shapes differ deliberately so an on-call reader can tell a stuck saga from
+  one merely in flight: burn-failure pages on the first occurrence, Orphan
+  Issuance sustains five minutes, Stuck Payment applies its TTL in SQL.
+- `MetricCatalogueContractTest` — fails the build when a declared metric has no
+  production call site, or when a name in dashboard PromQL or an alert rule
+  resolves to no declaration. Nothing connected a declared metric to a consumer
+  in either direction before; both failure modes had happened and both survived
+  CI for a long time (#347).
+- `MeterRegistryContainmentArchTest` — fails the build if a protocol class
+  depends on `io.micrometer` again (#343).
+- New configuration: `cashu.mint.invariant.poll-interval` (default `PT60S`).
+
+### Fixed
+
+- Both melt invariant gauges excluded operator-acknowledged sagas only after
+  review. `MeltSagaAdminController#markResolved` deliberately appends a
+  transition without overwriting `current_state` (FR-007 / FR-011), and nothing
+  else moves a saga out of `PAYMENT_UNKNOWN` or `PAYMENT_SENT_BURN_FAILED` — so
+  as first written, either alert would have paged forever with no in-product
+  way to clear it.
+- The Stuck Payment clock now runs from the last transition *into*
+  `PAYMENT_UNKNOWN` rather than from `created_at`, so an old saga that has only
+  just turned ambiguous is not reported as stuck for hours.
+- `CashuMintErrorBudgetBurning`'s description contained `{{ 30 / 10 }}`, which
+  is not valid Go template syntax, so the one alert whose job is explaining how
+  fast the budget burns would have rendered without its explanation. Found by
+  the promtool rule tests added in the deployment repository — nothing had ever
+  evaluated these rules.
+- The integration-test Postgres container had lost `fsync=off`: Testcontainers
+  sets it in the constructor and `withCommand` replaces rather than appends.
+
 ## [0.28.0] - 2026-08-18
 
 ### Changed
