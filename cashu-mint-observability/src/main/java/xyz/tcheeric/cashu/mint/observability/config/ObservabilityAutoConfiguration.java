@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerInvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerIssuanceMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerVoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerWebhookMetricsRecorder;
@@ -28,6 +29,7 @@ import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MeltMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.IssuanceMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.WebhookMetricsRecorder;
@@ -193,6 +195,23 @@ public class ObservabilityAutoConfiguration {
         log.info("Registering webhook metrics recorder for webhook delivery instrumentation");
         WebhookMetricsRecorder recorder = new MicrometerWebhookMetricsRecorder(registry);
         MetricRecorders.registerWebhook(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the invariant gauge recorder so the DB-derived poller in
+     * {@code cashu-mint-jpa} declares its gauges here rather than reaching for
+     * a raw registry (ADR 0002, issue #343).
+     *
+     * @param registry the Micrometer registry
+     * @return the invariant metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public InvariantMetricsRecorder invariantMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering invariant metrics recorder for DB-derived gauges");
+        InvariantMetricsRecorder recorder = new MicrometerInvariantMetricsRecorder(registry);
+        MetricRecorders.registerInvariant(recorder);
         return recorder;
     }
 

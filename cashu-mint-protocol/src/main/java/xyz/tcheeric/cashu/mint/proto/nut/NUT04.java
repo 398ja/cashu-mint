@@ -84,8 +84,7 @@ public final class NUT04 {
         return new MintTokensTask<>(mintId, postMintRequest, method, unit, mintLoadService, mintProtocolService,
                 signatureVaultService,
                 MintIntegrityContext.quoteRepository(),
-                MintIntegrityContext.issuanceRecordRepository(),
-                MintIntegrityContext.meterRegistry()).execute();
+                MintIntegrityContext.issuanceRecordRepository()).execute();
     }
 
     /**

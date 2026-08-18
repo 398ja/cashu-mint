@@ -1,14 +1,14 @@
 package xyz.tcheeric.cashu.mint.jpa;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaJpaRepository;
+import org.springframework.beans.factory.ObjectProvider;
+import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * which is exactly the wrong failure mode for conditions that by design never
  * resolve themselves. A gauge re-derived from operator SQL survives restarts
  * and reduces the alert to a one-line threshold.
+ *
+ * <p>Metric names are declared on {@code InvariantMetricsRecorder} in the
+ * observability module, not here: this module owns the <em>query</em>, not the
+ * catalogue (issue #343).
  *
  * <p>Currently exports:
  * <ul>
@@ -50,29 +54,29 @@ import java.util.concurrent.atomic.AtomicLong;
 @ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 public class InvariantGaugePoller {
 
-    static final String STUCK_PAYMENT_GAUGE = "cashu_mint_melt_stuck_payment_unknown";
-    static final String POLL_FAILURES_COUNTER = "cashu_mint_invariant_poll_failures_total";
-
     private final MeltSagaJpaRepository meltSagas;
     private final Duration paymentUnknownTtl;
+    private final InvariantMetricsRecorder recorder;
     private final AtomicLong stuckPaymentUnknown = new AtomicLong();
-    private final Counter pollFailures;
 
+    /**
+     * The recorder is injected rather than read off {@link MetricRecorders}
+     * because the gauge is <em>bound</em> in this constructor: taking it as a
+     * dependency makes Spring create the observability bean first, where
+     * reading the static could bind to the no-op if this poller happened to be
+     * constructed earlier. The static fallback covers contexts with no
+     * observability module at all.
+     */
     public InvariantGaugePoller(MeltSagaJpaRepository meltSagas,
-                                MeterRegistry registry,
+                                ObjectProvider<InvariantMetricsRecorder> recorderProvider,
                                 @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl) {
         this.meltSagas = meltSagas;
         this.paymentUnknownTtl = paymentUnknownTtl;
-        // Registered eagerly so both series are scrapeable before the first
-        // poll: a meter that only materialises once something breaks is
+        this.recorder = recorderProvider.getIfAvailable(MetricRecorders::invariant);
+        // Bound eagerly so the series is scrapeable before the first poll: a
+        // meter that only materialises once something breaks is
         // indistinguishable from a broken exporter on a dashboard.
-        Gauge.builder(STUCK_PAYMENT_GAUGE, stuckPaymentUnknown, AtomicLong::doubleValue)
-                .description("Melt sagas stuck in PAYMENT_UNKNOWN past cashu.mint.melt.payment-unknown-ttl "
-                        + "(see MeltSagaJpaRepository#countStuckPaymentUnknown)")
-                .register(registry);
-        this.pollFailures = Counter.builder(POLL_FAILURES_COUNTER)
-                .description("Invariant poll attempts that failed; a non-zero rate means the gauges are stale")
-                .register(registry);
+        recorder.bindStuckPaymentUnknown(stuckPaymentUnknown::get);
     }
 
     @Scheduled(fixedDelayString = "${cashu.mint.invariant.poll-interval:PT60S}")
@@ -83,7 +87,7 @@ public class InvariantGaugePoller {
             // Hold the last known value rather than reporting a false zero —
             // a zero here would silently clear a firing alert. The counter is
             // what makes the staleness itself alertable.
-            pollFailures.increment();
+            recorder.pollFailed();
             log.warn("invariant_poll stuck_payment_unknown_failed cause={}", e.getMessage());
         }
     }

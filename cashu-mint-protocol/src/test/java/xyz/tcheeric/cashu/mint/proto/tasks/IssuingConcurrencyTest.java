@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +71,6 @@ class IssuingConcurrencyTest {
     private SignatureVaultService signatureVaultService;
     private Mint mint;
     private Gateway gateway;
-    private SimpleMeterRegistry meterRegistry;
     private CountingIssuanceRecorder issuanceRecorder;
 
     @BeforeEach
@@ -90,7 +88,6 @@ class IssuingConcurrencyTest {
 
         signatureVaultService = new DefaultSignatureVaultService();
         mint = createMintWithKeys();
-        meterRegistry = new SimpleMeterRegistry();
         issuanceRecorder = new CountingIssuanceRecorder();
         MetricRecorders.registerIssuance(issuanceRecorder);
     }
@@ -157,8 +154,7 @@ class IssuingConcurrencyTest {
 
     private MintTask<Secret> newMeteredTask(PostMintRequest<Secret> request) {
         return new MintTask<>(request, PaymentMethod.BOLT11, null, mint, service,
-                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository,
-                meterRegistry);
+                signatureVaultService, null, mintQuoteRepository, issuanceRecordRepository);
     }
 
     private BlindedMessage blinded(int amount) {
