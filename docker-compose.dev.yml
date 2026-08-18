@@ -237,6 +237,8 @@ services:
     image: docker.398ja.xyz/cashu-mint-rest:${CASHU_MINT_VERSION:-latest}
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
+      # Actuator, bound to host loopback so it is not reachable off this machine.
+      - "127.0.0.1:${CASHU_MINT_MANAGEMENT_PORT:-9000}:${CASHU_MINT_MANAGEMENT_PORT:-9000}"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
@@ -253,6 +255,10 @@ services:
       PHOENIXD_BASE_URL: http://phoenixd-mock:${PHOENIXD_PORT:-9740}
       PHOENIXD_API_TOKEN: ${PHOENIXD_API_TOKEN:-local-token}
       PHOENIXD_LNADDRESS: off
+      # Issue #346 — actuator lives on its own port, published on host loopback only
+      # (see `ports:` above) so the documented `curl localhost:9000/actuator/...`
+      # dev commands work without exposing metrics beyond this machine.
+      CASHU_MINT_MANAGEMENT_PORT: ${CASHU_MINT_MANAGEMENT_PORT:-9000}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
       # Webhook configuration
@@ -273,7 +279,7 @@ services:
     volumes:
       - ./scripts:/app/scripts:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_PORT:-7777}/actuator/health/readiness >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_MANAGEMENT_PORT:-9000}/actuator/health/readiness >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6

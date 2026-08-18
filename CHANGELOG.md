@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-08-18
+
+### Changed
+
+- **BREAKING for anything probing or scraping actuator on port 7777.** Actuator moved to
+  its own management port, default `9000` (`CASHU_MINT_MANAGEMENT_PORT`). Nothing under
+  `/actuator/**` answers on the public API port any more, so `/actuator/prometheus` — which
+  exposes issuance rates, outstanding liability and melt-saga failure counts — is no longer
+  readable by anyone who can reach the mint. External stacks consuming
+  `docker.398ja.xyz/cashu-mint-rest` with a health check or load-balancer probe on
+  `7777/actuator/health` must retarget to the management port, or probe `/v1/info` on 7777.
+  `management.server.address` defaults to `0.0.0.0`: isolation comes from not publishing the
+  port, which also keeps Kubernetes `httpGet` probes (issued against the pod IP, never
+  loopback) working. `ManagementPortGuard` fails startup if the management and application
+  ports are ever set equal. Issue #346.
+
+### Added
+
+- `ManagementPortGuard` — fails startup when `management.server.port` equals
+  `server.port`, is unset, or is `-1` (which disables the management server and folds
+  actuator back onto the public port). The port separation is the security property this
+  release exists for, and it was previously undoable by a single environment variable with
+  no warning at boot.
+- `ActuatorManagementPortIT` — asserts `/actuator/prometheus` responds on the management
+  port and 404s on the application port, alongside health/readiness still reachable for
+  container health checks. It drives `CASHU_MINT_MANAGEMENT_PORT` rather than
+  `management.server.port`, so it exercises the shipped wiring: setting the Spring property
+  directly would pass against a build with no management port configured at all.
+
 ## [0.27.0] - 2026-08-18
 
 ### Removed

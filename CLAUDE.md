@@ -72,6 +72,7 @@ docker compose -f docker-compose.dev.yml down
 
 **Key ports:**
 - Mint REST API: 7777
+- Mint actuator/management: 9000 (separate port, not published to the host — see issue #346)
 - Gateway API: 8080
 - Vault API: 3333
 - Vault PostgreSQL: 55433
@@ -310,6 +311,8 @@ gateway.bolt11.sat=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
 
 **Environment variable overrides:**
 - `CASHU_MINT_PORT` - API port (default: 7777)
+- `CASHU_MINT_MANAGEMENT_PORT` - Actuator port (default: 9000)
+- `CASHU_MINT_MANAGEMENT_ADDRESS` - Actuator bind address (default: 127.0.0.1; containers use 0.0.0.0)
 - `GATEWAY_BOLT11_SAT` - Gateway implementation class
 - `CASHU_VAULT_BASE_URL` - Vault service URL
 - `PHOENIXD_BASE_URL` - Phoenixd Lightning service URL

@@ -80,7 +80,7 @@ services:
       - CASHU_WEBSOCKET_ALLOWED_ORIGINS=https://cashu.example.com
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7777/actuator/health/readiness"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/actuator/health/readiness"]
       interval: 30s
       timeout: 5s
       retries: 3

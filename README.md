@@ -34,7 +34,7 @@ docker compose --profile dev up
 The public API listens on `http://localhost:7777/v1`. Check readiness and minted keysets:
 
 ```bash
-curl http://localhost:7777/actuator/health/readiness
+curl http://localhost:9000/actuator/health/readiness
 curl http://localhost:7777/v1/keysets
 ```
 
@@ -48,7 +48,7 @@ Metrics and health endpoints are enabled by default when `cashu-mint-observabili
 docker compose -f cashu-mint-observability/docker/docker-compose.observability.yml up -d
 ```
 
-Browse metrics at `http://localhost:7777/actuator/prometheus` and Grafana at `http://localhost:3000` (admin/admin). See `docs/how-to/enable-observability.md` and `cashu-mint-observability/docs/metrics-reference.md` for configuration and metric names.
+Browse metrics at `http://localhost:9000/actuator/prometheus` and Grafana at `http://localhost:3000` (admin/admin). See `docs/how-to/enable-observability.md` and `cashu-mint-observability/docs/metrics-reference.md` for configuration and metric names.
 
 ## Payment notifications
 
