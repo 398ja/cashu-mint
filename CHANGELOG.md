@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-08-18
+
+### Removed
+
+- **Four metric classes that registered ~45 meters and were never called once.**
+  `MintMetrics`, `QuoteMetrics`, `VoucherMetrics` and `GatewayMetrics` were wired
+  as beans in `ObservabilityAutoConfiguration`, but every reference to them
+  outside `cashu-mint-observability` was a doc or their own unit tests — no
+  production call site incremented a single counter. The dashboards and alert
+  rules charted that dead set, so those alerts could never fire, while the
+  metrics the mint does emit appeared on none of them. Deleted the classes,
+  their unit tests and their bean definitions. `TaskMetrics` and `LockMetrics`
+  stay: they are the two families reached through the `TaskMetricsAdapter` /
+  `LockMetricsAdapter` recorder ports in `cashu-mint-protocol`, and the only two
+  that were alive.
+- Configuration properties that only fed the deleted beans:
+  `cashu.observability.metrics.track-keysets`,
+  `cashu.observability.metrics.include-unit-tag`,
+  `cashu.observability.metrics.application`,
+  `cashu.observability.metrics.environment`,
+  `cashu.observability.vouchers.enabled` and
+  `cashu.observability.gateway.enabled`. The `MetricsProperties`,
+  `VouchersProperties` and `GatewayProperties` nested classes are gone with
+  them. Setting any of these keys was already a silent no-op.
+- The **Cost Analysis** Grafana dashboard, whose every panel queried a
+  `GatewayMetrics` or `MintMetrics` series.
+- Dead panels from the **Overview**, **Operations** and **Business** dashboards.
+  The **SLO**, **Virtual Threads** and three voucher dashboards are untouched.
+- Alert rules reading deleted series: `CashuMintHighLiability`,
+  `CashuMintDoubleSpendAttempts`, `CashuMintQuoteBacklog`,
+  `CashuMintProofIssuanceSpike` and `CashuMintVoucherRejectionRate`, plus
+  `CashuMintGatewayUnhealthy` and `CashuMintVaultUnhealthy` — the latter two
+  watched `cashu_mint_gateway_health` (from the deleted class) and
+  `cashu_mint_vault_health` (never emitted by anything at all). The
+  corresponding Alertmanager inhibit rules went with them.
+- The spec-004 `cashu_mint_voucher_compat` Prometheus recording-rule group. It
+  aliased the deleted plural `cashu_mint_vouchers_*` names and was already
+  marked for removal after one release cycle. Nothing in this repo consumed the
+  aliases; external consumers of `cashu_mint_vouchers_issued_total` lose that
+  series with no deprecation window.
+
+### Changed
+
+- Updated `cashu-voucher` to 0.10.0 (from 0.6.1).
+- `cashu-mint-observability/docs/metrics-reference.md`, `docs/reference/configuration.md`,
+  `docs/reference/module-layers.md`, `docs/how-to/enable-observability.md` and the
+  Observability section of `CLAUDE.md` now describe only metrics the mint emits.
+  Added the previously undocumented `cashu_mint_lock_*` family. Noted explicitly
+  that the gateway and vault health indicators surface on `/actuator/health`
+  only and are not exported as Prometheus series, so neither is alertable
+  without an external probe.
+
+Every `cashu_mint_*` name still referenced by dashboard JSON or an alert rule
+now resolves to something the mint actually emits.
+
 ## [0.26.0] - 2026-08-18
 
 ### Fixed
