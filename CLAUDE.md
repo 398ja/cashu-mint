@@ -632,11 +632,17 @@ docker compose -f cashu-mint-observability/docker/docker-compose.observability.y
 | `cashu_mint_task_success_total` / `_failure_total` | Task outcomes by task name |
 | `cashu_mint_lock_wait_seconds` / `_hold_seconds` / `_active` | Quote/proof lock contention |
 
-`TaskMetrics` and `LockMetrics` are the only metric families this module owns;
-domain code reaches them through the `TaskMetricsAdapter` / `LockMetricsAdapter`
-recorder ports in `cashu-mint-protocol`. Everything else under the
-`cashu_mint_*` prefix is an ad-hoc counter incremented at its call site (see
-`docs/adr/0001-typed-metric-recorders.md`).
+Domain code never touches `MeterRegistry` — it emits through typed recorder
+ports declared in `cashu-mint-protocol` (`proto/metrics/`) and implemented
+here, one per domain area (see `docs/adr/0001-typed-metric-recorders.md`).
+`TaskMetricsAdapter` / `LockMetricsAdapter` back the task and lock families;
+`MeltMetricsRecorder`, reached via `MetricRecorders.melt()`, backs the melt
+area (`cashu_mint_melt_insufficient_input_total`,
+`cashu_mint_melt_proofs_not_bound_total`). Accessors never return `null`, so
+call sites carry no null check. The remaining areas (voucher, mint/issuance,
+webhook) are still ad-hoc counters reading the legacy
+`MintIntegrityContext.meterRegistry()` accessor; they move onto their own
+recorders in issues #341/#342, after which the accessor is deleted (#343).
 
 ### Configuration
 
