@@ -56,6 +56,12 @@ public final class MetricsReferenceGenerator {
             throw new IllegalArgumentException(
                     "metrics reference is missing the generated-block markers");
         }
-        return document.substring(0, begin) + render() + document.substring(end + END_MARKER.length() + 1);
+        int afterMarker = end + END_MARKER.length();
+        // render() already ends with a newline, so swallow one if the document
+        // has it and tolerate a file that ends flush at the marker.
+        int resumeAt = afterMarker < document.length() && document.charAt(afterMarker) == '\n'
+                ? afterMarker + 1
+                : afterMarker;
+        return document.substring(0, begin) + render() + document.substring(resumeAt);
     }
 }

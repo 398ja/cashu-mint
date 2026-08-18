@@ -60,7 +60,12 @@ public abstract class AbstractMintDurableIT {
                 // stock max_connections=100 is already close; raise it rather
                 // than making each new IT contort its properties to reuse an
                 // existing context.
-                .withCommand("postgres", "-c", "max_connections=500");
+                //
+                // fsync=off is repeated because withCommand REPLACES the
+                // command PostgreSQLContainer sets in its constructor rather
+                // than appending to it; dropping it would quietly turn
+                // durability back on and slow every durable IT down.
+                .withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=500");
         POSTGRES.start();
     }
 
