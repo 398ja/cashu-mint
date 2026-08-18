@@ -9,6 +9,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-08-18
+
+### Removed
+
+- **Four metric classes that registered ~45 meters and were never called once.**
+  `MintMetrics`, `QuoteMetrics`, `VoucherMetrics` and `GatewayMetrics` were wired
+  as beans in `ObservabilityAutoConfiguration`, but every reference to them
+  outside `cashu-mint-observability` was a doc or their own unit tests — no
+  production call site incremented a single counter. The dashboards and alert
+  rules charted that dead set, so those alerts could never fire, while the
+  metrics the mint does emit appeared on none of them. Deleted the classes,
+  their unit tests and their bean definitions. `TaskMetrics` and `LockMetrics`
+  stay: they are the two families reached through the `TaskMetricsAdapter` /
+  `LockMetricsAdapter` recorder ports in `cashu-mint-protocol`, and the only two
+  that were alive.
+- Configuration properties that only fed the deleted beans:
+  `cashu.observability.metrics.track-keysets`,
+  `cashu.observability.metrics.include-unit-tag`,
+  `cashu.observability.metrics.application`,
+  `cashu.observability.metrics.environment`,
+  `cashu.observability.vouchers.enabled` and
+  `cashu.observability.gateway.enabled`. The `MetricsProperties`,
+  `VouchersProperties` and `GatewayProperties` nested classes are gone with
+  them. Setting any of these keys was already a silent no-op.
+- The **Cost Analysis** Grafana dashboard, whose every panel queried a
+  `GatewayMetrics` or `MintMetrics` series.
+- Dead panels from the **Overview**, **Operations** and **Business** dashboards.
+  The **SLO**, **Virtual Threads** and three voucher dashboards are untouched.
+- Alert rules reading deleted series: `CashuMintHighLiability`,
+  `CashuMintDoubleSpendAttempts`, `CashuMintQuoteBacklog`,
+  `CashuMintProofIssuanceSpike` and `CashuMintVoucherRejectionRate`, plus
+  `CashuMintGatewayUnhealthy` and `CashuMintVaultUnhealthy` — the latter two
+  watched `cashu_mint_gateway_health` (from the deleted class) and
+  `cashu_mint_vault_health` (never emitted by anything at all). The
+  corresponding Alertmanager inhibit rules went with them.
+- The spec-004 `cashu_mint_voucher_compat` Prometheus recording-rule group. It
+  aliased the deleted plural `cashu_mint_vouchers_*` names and was already
+  marked for removal after one release cycle. Nothing in this repo consumed the
+  aliases; external consumers of `cashu_mint_vouchers_issued_total` lose that
+  series with no deprecation window.
+
+### Fixed
+
+- **The JPA context could not boot at all when `cashu.mint.jpa.enabled=true`.**
+  `V20260601_007` (spec 035, shipped in 0.26.0) added `original_token_amount` to
+  `voucher_quote` but not to its Envers shadow `voucher_quote_aud`, while
+  `VoucherQuoteEntity` is `@Audited` at class level. Hibernate's schema
+  validator expects the column on both, so `mintEntityManagerFactory` failed to
+  build and took the whole application context down — every integration test
+  that boots the stack errored on `Unable to start embedded Tomcat`. Added
+  `V20260601_008` to bring the shadow table in line. Audited by the same check
+  across all seven `@Audited` entities; this was the only drift (the `version`
+  columns are `@Version`, which Envers excludes by design).
+
+### Changed
+
+- Updated `cashu-voucher` to 0.10.0 (from 0.6.1).
+- `cashu-mint-rest` no longer attaches its ~110 MB `-exec` fat jar as a Maven
+  artifact (`<attach>false</attach>` on the Spring Boot `repackage` goal). The
+  jar is still built into `target/` — the module's Dockerfile and
+  `scripts/heap-exhaustion-test.sh` both read it from there — but it is no
+  longer installed or deployed, where it exceeded the repository upload limit
+  and failed `mvn deploy` with HTTP 413. The thin `cashu-mint-rest` jar is
+  still published for use as a dependency.
+- Integration tests raise `cashu.mint.issuance.rate-limit.per-minute-burst`
+  in the shared `test` profile. Spring's `ApplicationContext` cache is shared
+  across IT classes in a JVM fork, so `IssuanceRateLimitFilter`'s token bucket
+  is shared too and later classes hit `POST /v1/mint` against an already-drained
+  bucket. The filter stays enabled so it is still exercised.
+- `cashu-mint-observability/docs/metrics-reference.md`, `docs/reference/configuration.md`,
+  `docs/reference/module-layers.md`, `docs/how-to/enable-observability.md` and the
+  Observability section of `CLAUDE.md` now describe only metrics the mint emits.
+  Added the previously undocumented `cashu_mint_lock_*` family. Noted explicitly
+  that the gateway and vault health indicators surface on `/actuator/health`
+  only and are not exported as Prometheus series, so neither is alertable
+  without an external probe.
+
+Every `cashu_mint_*` name still referenced by dashboard JSON or an alert rule
+now resolves to something the mint actually emits.
+
+## [0.26.0] - 2026-08-18
+
+### Fixed
+
+- **P2PK spends were rejected for every spec-conformant public key.** `P2PKSpendingCondition`
+  passed the 33-byte compressed key straight to `Schnorr.verify`, which requires the 32-byte
+  BIP-340 x-only form and throws on anything else. That throw landed in a `catch (Exception)` that
+  logged and continued, so the key silently counted as *no valid signature* and the spend failed as
+  under-signed. The mint therefore only worked against 32-byte x-only keys — the form NUT-11
+  forbids, and the form its own test fixtures built. The parity prefix is now stripped via the
+  `xCoordinate` helper that already sat one method away (it was used for dedup counting but not for
+  the verify call). Wallets sending compressed keys — cashu-ts, CDK, imani-wallet-lib — were
+  affected.
+
+### Added
+
+- **A malformed P2PK lock returns an unspendable-proof error instead of a 500.** NUT-11 frames a
+  malformed P2PK secret as a Proof that MUST be rejected as unspendable — a client error, not a
+  server fault. Two handlers on `CashuController`: one for `MalformedP2PKSecretException` itself
+  (service-layer parsing), and one unwrapping it from `HttpMessageNotReadableException`, since
+  Jackson wraps deserializer exceptions during `@RequestBody` binding and it never arrives as
+  itself from a request body. Both return `verify_proof_failed_error` with HTTP 400; an unrelated
+  unreadable body stays an ordinary 400.
+
+### Changed
+
+- Updated cashu-lib to 0.21.0 (NUT-11 P2PK secret validation). Validation is fail-closed: a
+  malformed lock is now rejected at parse time rather than accepted and misbehaving later. Test
+  fixtures that built locks from 32-byte x-only keys were corrected to compressed keys.
+
 ## [0.25.0] - 2026-07-13
 
 ### Added

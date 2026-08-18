@@ -46,40 +46,6 @@ sum(rate(cashu_mint_requests_errors_total[5m])) / sum(rate(cashu_mint_requests_t
 
 ---
 
-## Mint Operations Metrics
-
-Core metrics for proof and signature operations.
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `cashu_mint_proofs_issued_total` | Counter | `unit` | Total proofs issued |
-| `cashu_mint_proofs_spent_total` | Counter | `unit` | Total proofs spent |
-| `cashu_mint_proofs_issued_keyset_total` | Counter | `keyset_id`, `unit` | Proofs issued per keyset |
-| `cashu_mint_proofs_spent_keyset_total` | Counter | `keyset_id`, `unit` | Proofs spent per keyset |
-| `cashu_mint_proofs_double_spend_total` | Counter | - | Double-spend attempts (global) |
-| `cashu_mint_proofs_double_spend_keyset_total` | Counter | `keyset_id` | Double-spend attempts per keyset |
-| `cashu_mint_signatures_generated_total` | Counter | - | Blind signatures created |
-| `cashu_mint_signatures_verified_total` | Counter | - | Signatures verified |
-| `cashu_mint_sats_issued_total` | Counter | `unit` | Total sats issued |
-| `cashu_mint_sats_redeemed_total` | Counter | `unit` | Total sats redeemed |
-| `cashu_mint_sats_outstanding` | Gauge | `unit` | Current liability (issued - redeemed) |
-| `cashu_mint_keysets_active` | Gauge | `unit` | Number of active keysets |
-
-### Example Queries
-
-```promql
-# Outstanding liability
-cashu_mint_sats_outstanding
-
-# Proof issuance rate
-rate(cashu_mint_proofs_issued_total[5m])
-
-# Double-spend detection rate
-rate(cashu_mint_proofs_double_spend_total[5m])
-```
-
----
-
 ## Task Metrics
 
 Metrics for protocol task execution (SwapTask, MintTask, MeltTask, etc.).
@@ -126,124 +92,17 @@ sum by (task_name) (rate(cashu_mint_task_failure_total[5m]))
 
 ---
 
-## Quote Metrics
+## Lock Metrics
 
-Metrics for mint and melt quote operations.
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `cashu_mint_quotes_created_total` | Counter | `type`, `method` | Quotes created |
-| `cashu_mint_quotes_completed_total` | Counter | `type`, `method` | Quotes completed |
-| `cashu_mint_quotes_expired_total` | Counter | `type`, `method` | Quotes expired |
-| `cashu_mint_quotes_failed_total` | Counter | `type`, `method`, `reason` | Quotes failed |
-| `cashu_mint_quotes_active` | Gauge | `type` | Active quote count |
-| `cashu_mint_quotes_amount_total` | Counter | `type`, `unit` | Total amount requested |
-| `cashu_mint_quotes_completed_amount_total` | Counter | `type`, `unit` | Total amount completed |
-| `cashu_mint_quotes_processing_duration_seconds` | Timer | `type`, `method` | Quote processing time |
-
-### Labels
-
-- `type`: Quote type (`mint` or `melt`)
-- `method`: Payment method (`bolt11`, `onchain`, etc.)
-- `reason`: Failure reason (e.g., `payment_timeout`, `insufficient_funds`)
-
-### Example Queries
-
-```promql
-# Quote completion rate
-sum by (type) (rate(cashu_mint_quotes_completed_total[5m]))
-  / sum by (type) (rate(cashu_mint_quotes_created_total[5m]))
-
-# Active quotes by type
-cashu_mint_quotes_active
-
-# Quote failure reasons
-sum by (type, reason) (rate(cashu_mint_quotes_failed_total[5m]))
-```
-
----
-
-## Voucher Metrics
-
-Metrics for voucher (gift card) operations.
+Contention metrics for the per-quote and per-proof locks that guard against
+double-mint / double-spend races. Emitted through the `LockMetricsRecorder`
+port in `cashu-mint-protocol`.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `cashu_mint_vouchers_issued_total` | Counter | - | Vouchers issued |
-| `cashu_mint_vouchers_redeemed_total` | Counter | - | Vouchers redeemed |
-| `cashu_mint_vouchers_rejected_total` | Counter | `reason` | Vouchers rejected |
-| `cashu_mint_vouchers_quotes_active` | Gauge | - | Active voucher quotes |
-| `cashu_mint_vouchers_face_value_issued_total` | Counter | `unit` | Face value issued |
-| `cashu_mint_vouchers_face_value_redeemed_total` | Counter | `unit` | Face value redeemed |
-| `cashu_mint_vouchers_fees_collected_total` | Counter | `unit` | Fees collected |
-| `cashu_mint_vouchers_quote_duration_seconds` | Timer | - | Quote processing time |
-| `cashu_mint_vouchers_redemption_duration_seconds` | Timer | - | Redemption time |
-
-### Rejection Reasons
-
-- `expired` - Voucher has expired
-- `invalid_signature` - Invalid cryptographic signature
-- `already_redeemed` - Voucher already used
-- `quote_expired` - Quote expired before completion
-
-### Example Queries
-
-```promql
-# Voucher issuance rate
-rate(cashu_mint_vouchers_issued_total[5m])
-
-# Voucher rejection breakdown
-sum by (reason) (rate(cashu_mint_vouchers_rejected_total[5m]))
-
-# Total fees collected
-cashu_mint_vouchers_fees_collected_total
-```
-
----
-
-## Gateway Metrics
-
-Metrics for Lightning gateway operations.
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `cashu_mint_gateway_payments_sent_total` | Counter | `gateway` | Total payments sent |
-| `cashu_mint_gateway_payments_received_total` | Counter | `gateway` | Total payments received |
-| `cashu_mint_gateway_payment_failures_total` | Counter | `gateway`, `error_type` | Payment failures |
-| `cashu_mint_gateway_amount_sent_total` | Counter | `gateway`, `unit` | Total amount sent (sats) |
-| `cashu_mint_gateway_amount_received_total` | Counter | `gateway`, `unit` | Total amount received (sats) |
-| `cashu_mint_gateway_routing_fees_total` | Counter | `gateway`, `unit` | Routing fees paid (sats) |
-| `cashu_mint_gateway_invoices_created_total` | Counter | - | Total invoices created |
-| `cashu_mint_gateway_invoices_paid_total` | Counter | - | Total invoices paid |
-| `cashu_mint_gateway_invoices_expired_total` | Counter | - | Total invoices expired |
-| `cashu_mint_gateway_pending_payments` | Gauge | - | Number of pending payments |
-| `cashu_mint_gateway_health` | Gauge | - | Gateway health (1=healthy, 0=unhealthy) |
-| `cashu_mint_gateway_payment_send_duration_seconds` | Timer | `gateway` | Time to send payment |
-| `cashu_mint_gateway_payment_receive_duration_seconds` | Timer | `gateway` | Time to receive payment |
-| `cashu_mint_gateway_invoice_creation_duration_seconds` | Timer | `gateway` | Time to create invoice |
-
-### Labels
-
-- `gateway`: Gateway type (e.g., `bolt11`, `phoenixd`)
-- `error_type`: Error type (e.g., `timeout`, `no_route`, `insufficient_funds`)
-
-### Example Queries
-
-```promql
-# Total routing fees by gateway
-sum by (gateway) (cashu_mint_gateway_routing_fees_total)
-
-# Average routing fee per payment
-rate(cashu_mint_gateway_routing_fees_total[5m]) / rate(cashu_mint_gateway_payments_sent_total[5m])
-
-# Payment failure rate
-sum(rate(cashu_mint_gateway_payment_failures_total[5m]))
-  / (sum(rate(cashu_mint_gateway_payments_sent_total[5m]))
-     + sum(rate(cashu_mint_gateway_payment_failures_total[5m])))
-
-# Invoice conversion rate
-cashu_mint_gateway_invoices_paid_total / cashu_mint_gateway_invoices_created_total
-```
+| `cashu_mint_lock_wait_seconds` | Timer | `lock_type` | Time spent waiting to acquire a lock |
+| `cashu_mint_lock_hold_seconds` | Timer | `lock_type` | Time a lock was held |
+| `cashu_mint_lock_active` | Gauge | `lock_type` | Locks currently held |
 
 ---
 
@@ -287,9 +146,6 @@ cashu.observability.enabled=true
 # Task instrumentation
 cashu.observability.tasks.enabled=true
 
-# Voucher metrics
-cashu.observability.vouchers.enabled=true
-
 # Health indicators
 cashu.observability.health.gateway.enabled=true
 cashu.observability.health.vault.enabled=true
@@ -316,25 +172,21 @@ management.metrics.distribution.slo.cashu_mint_task_duration_seconds=0.001,0.005
 
 ## Grafana Dashboards
 
-Five pre-built dashboards are provided:
+Pre-built dashboards are provided:
 
 ### Cashu Mint Overview
 - Service health status
-- Outstanding liability
 - Request rate and latency
 - Error rate overview
+- Task execution time and success/failure rate
 
 ### Cashu Mint Operations
 - Task execution metrics
-- Proof operations
-- Signature operations
+- Task error rate by type
 - HTTP request details
 
 ### Cashu Mint Business
-- Financial overview (issued/redeemed/outstanding)
-- Quote operations
-- Voucher metrics
-- Fee collection
+- Vouchers issued and issuance rate
 
 ### Cashu Mint SLO/SLI
 - Availability SLI (target: 99.9%)
@@ -343,13 +195,9 @@ Five pre-built dashboards are provided:
 - Task success rates by type
 - Historical SLO compliance
 
-### Cashu Mint Cost Analysis
-- Outstanding liability
-- Routing fees paid vs fees collected
-- Net profit/loss tracking
-- Gateway cost breakdown
-- Volume analysis
-- Invoice conversion rate
+### Cashu Mint Virtual Threads
+- Active locks
+- Lock wait and hold time distributions
 
 ---
 
@@ -361,8 +209,6 @@ To prevent metric cardinality explosion:
    - `/v1/keys/abc123` → `/v1/keys/{keyset_id}`
    - `/v1/mint/quote/bolt11/uuid` → `/v1/mint/quote/{method}/{quote_id}`
 
-2. **Keyset tracking**: Can be disabled with `cashu.observability.metrics.trackKeysets=false`
+2. **Limited label values**: Error types use exception class names (bounded set)
 
-3. **Limited label values**: Error types use exception class names (bounded set)
-
-4. **No high-cardinality data**: Quote IDs, proof secrets, and user data are never included in labels
+3. **No high-cardinality data**: Quote IDs, proof secrets, and user data are never included in labels

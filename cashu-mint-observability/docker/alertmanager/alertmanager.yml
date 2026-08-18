@@ -23,20 +23,6 @@ inhibit_rules:
       severity: 'warning'
     equal: ['instance']
 
-  # Don't alert on task failures if gateway is unhealthy
-  - source_match:
-      alertname: 'CashuMintGatewayUnhealthy'
-    target_match:
-      alertname: 'CashuMintTaskFailureRate'
-    equal: ['instance']
-
-  # Don't alert on task failures if vault is unhealthy
-  - source_match:
-      alertname: 'CashuMintVaultUnhealthy'
-    target_match:
-      alertname: 'CashuMintTaskFailureRate'
-    equal: ['instance']
-
 # Route tree - how alerts are routed to receivers
 route:
   # Default receiver

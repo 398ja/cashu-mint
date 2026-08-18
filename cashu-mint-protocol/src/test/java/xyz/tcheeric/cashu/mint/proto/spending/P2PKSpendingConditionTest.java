@@ -19,10 +19,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class P2PKSpendingConditionTest {
 
+    /**
+     * The 33-byte compressed public key NUT-11 requires for {@code data}, {@code pubkeys} and
+     * {@code refund}. {@code Schnorr.genPubKey} yields the 32-byte BIP-340 x-only form, which is not
+     * a valid P2PK key — cashu-lib rejects it outright from 0.21.0 on.
+     */
+    private static byte[] pub(PrivateKey priv) {
+        return PrivateKey.derivePublicKey(priv).getBytes();
+    }
+
     @Test
     public void verifyValidProof() throws Exception {
         PrivateKey priv = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        byte[] pub = Schnorr.genPubKey(priv.toBytes());
+        byte[] pub = pub(priv);
 
         P2PKSecret secret = new P2PKSecret(pub);
         secret.setNSigs(1);
@@ -43,7 +52,7 @@ public class P2PKSpendingConditionTest {
     @Test
     public void verifyInvalidSignature() throws Exception {
         PrivateKey priv = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        byte[] pub = Schnorr.genPubKey(priv.toBytes());
+        byte[] pub = pub(priv);
 
         P2PKSecret secret = new P2PKSecret(pub);
         secret.setNSigs(1);
@@ -68,7 +77,7 @@ public class P2PKSpendingConditionTest {
     @Test
     public void verifyPrimaryKeySpendableBeforeLocktime() throws Exception {
         PrivateKey priv = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        byte[] pub = Schnorr.genPubKey(priv.toBytes());
+        byte[] pub = pub(priv);
 
         P2PKSecret secret = new P2PKSecret(pub);
         secret.setNSigs(1);
@@ -115,8 +124,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), null, null);
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), null, null);
 
         Witness witness = new Witness();
         witness.addSignature(signSecret(secret, a));
@@ -135,8 +144,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), null, null);
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), null, null);
 
         Witness witness = new Witness();
         witness.addSignature(signSecret(secret, a)); // only one of the three
@@ -153,7 +162,7 @@ public class P2PKSpendingConditionTest {
     @Test
     public void sigAll_missingOutputs_protocolError() throws Exception {
         PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        P2PKSecret secret = new P2PKSecret(Schnorr.genPubKey(a.toBytes()));
+        P2PKSecret secret = new P2PKSecret(pub(a));
         secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_ALL);
 
         Witness witness = new Witness();
@@ -176,8 +185,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey refund = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         // Locktime in the past; refund key is distinct from the primary set.
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), 1000, Schnorr.genPubKey(refund.toBytes()));
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), 1000, pub(refund));
 
         Witness witness = new Witness();
         witness.addSignature(signSecret(secret, refund));
@@ -198,8 +207,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey a = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), null, null);
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), null, null);
 
         String sigB = signSecret(secret, b);
         Witness witness = new Witness();
@@ -227,12 +236,12 @@ public class P2PKSpendingConditionTest {
         PrivateKey r2 = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey r3 = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
 
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), 1000, null); // locktime in the past
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), 1000, null); // locktime in the past
         secret.setRefund(List.of(
-                Hex.toHexString(Schnorr.genPubKey(r1.toBytes())),
-                Hex.toHexString(Schnorr.genPubKey(r2.toBytes())),
-                Hex.toHexString(Schnorr.genPubKey(r3.toBytes()))));
+                Hex.toHexString(pub(r1)),
+                Hex.toHexString(pub(r2)),
+                Hex.toHexString(pub(r3))));
         secret.setNSigsRefund(2);
 
         // One valid refund signature is not enough for a 2-of-3 refund threshold.
@@ -265,8 +274,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey refund = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         // Locktime in the past; refund key is distinct from the primary set; n_sigs_refund unset.
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), 1000, Schnorr.genPubKey(refund.toBytes()));
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), 1000, pub(refund));
 
         Witness witness = new Witness();
         witness.addSignature(signSecret(secret, refund));
@@ -285,8 +294,8 @@ public class P2PKSpendingConditionTest {
         PrivateKey b = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey l = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
         PrivateKey refund = PrivateKey.fromBytes(Schnorr.generatePrivateKey());
-        P2PKSecret secret = twoOfThree(Schnorr.genPubKey(a.toBytes()), Schnorr.genPubKey(b.toBytes()),
-                Schnorr.genPubKey(l.toBytes()), Integer.MAX_VALUE, Schnorr.genPubKey(refund.toBytes()));
+        P2PKSecret secret = twoOfThree(pub(a), pub(b),
+                pub(l), Integer.MAX_VALUE, pub(refund));
 
         Witness witness = new Witness();
         witness.addSignature(signSecret(secret, refund)); // refund alone, before locktime

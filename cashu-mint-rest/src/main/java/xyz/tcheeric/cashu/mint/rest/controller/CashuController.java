@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +19,7 @@ import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.nut11.MalformedP2PKSecretException;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
@@ -817,6 +819,36 @@ public class CashuController<T extends Secret> implements org.springframework.co
         }
 
         return new ResponseEntity<>(error, status);
+    }
+
+    /**
+     * NUT-11 frames a malformed P2PK secret as a Proof that MUST be rejected as unspendable — a
+     * client error, not a server fault. cashu-lib validates at parse time from 0.21.0 on, so without
+     * this the rejection would surface as an unhandled exception and a 500.
+     *
+     * <p>The message carries only the failing position and reason (never key material), so it is
+     * safe to return.
+     */
+    @ExceptionHandler(MalformedP2PKSecretException.class)
+    public ResponseEntity<ErrorResponse> handleMalformedP2PKSecret(MalformedP2PKSecretException ex) {
+        log.warn("verify_proof_failed_error malformed_p2pk_secret: {}", ex.getMessage());
+        return new ResponseEntity<>(new ErrorResponse("verify_proof_failed_error"), HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * A malformed P2PK lock in the request body is rejected inside Jackson, so it reaches us wrapped
+     * in {@link HttpMessageNotReadableException} rather than as itself. Unwrap it to the same
+     * unspendable-proof error; anything else stays an ordinary unreadable-body 400, as before.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof MalformedP2PKSecretException malformed) {
+                return handleMalformedP2PKSecret(malformed);
+            }
+        }
+        log.warn("unreadable request body: {}", ex.getMessage());
+        return new ResponseEntity<>(new ErrorResponse("internal_error"), HttpStatus.BAD_REQUEST);
     }
 
     // Map gateway 404 on payment lookup to a structured "invoice not paid" error per NUT-04

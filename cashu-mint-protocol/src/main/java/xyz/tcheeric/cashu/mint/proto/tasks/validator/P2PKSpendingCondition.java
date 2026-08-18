@@ -199,12 +199,17 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
                 continue;
             }
             // Each distinct public key (by x-coordinate) is counted at most once.
-            if (!countedKeys.add(xCoordinate(publicKey))) {
+            String xOnly = xCoordinate(publicKey);
+            if (!countedKeys.add(xOnly)) {
                 continue;
             }
             for (String signature : signatures) {
                 try {
-                    if (Schnorr.verify(hash, Hex.decode(publicKey), Hex.decode(signature))) {
+                    // BIP-340 verifies against the 32-byte x-only key. NUT-11 carries the 33-byte
+                    // compressed form, which Schnorr.verify rejects outright, so strip the parity
+                    // prefix first — otherwise every spec-conformant key throws into the catch
+                    // below and silently counts as "no valid signature".
+                    if (Schnorr.verify(hash, Hex.decode(xOnly), Hex.decode(signature))) {
                         validKeyCount++;
                         break; // this key is satisfied by some signature; stop scanning signatures
                     }

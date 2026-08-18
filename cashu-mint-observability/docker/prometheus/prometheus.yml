@@ -30,15 +30,6 @@ scrape_configs:
         target_label: instance
         regex: '([^:]+):\d+'
         replacement: '${1}'
-    # Spec 004 T605 / FR-017 — backward-compat aliases for the
-    # deprecated plural metric names are defined as RECORDING RULES
-    # in alerts.yml (group: cashu_mint_voucher_compat). Recording
-    # rules CREATE the alias time-series while the original
-    # singular cashu_mint_voucher_* names continue to flow through
-    # unchanged. The previous metric_relabel_configs approach
-    # REWROTE singular → plural, which silently dropped the
-    # singular name and broke the spec-004 dashboards. See
-    # PR #324 review.
 
   # Prometheus self-monitoring
   - job_name: 'prometheus'

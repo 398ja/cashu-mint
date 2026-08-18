@@ -75,10 +75,6 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | --- | --- | --- |
 | `cashu.observability.enabled` | `true` | Global toggle for metrics/health/tracing auto-config. |
 | `cashu.observability.tasks.enabled` | `true` | Enable task timing AOP instrumentation. |
-| `cashu.observability.metrics.track-keysets` | `true` | Track per-keyset counters (set to false to reduce cardinality). |
-| `cashu.observability.metrics.include-unit-tag` | `true` | Include `unit` labels on business metrics. |
-| `cashu.observability.vouchers.enabled` | `true` | Collect voucher metrics. |
-| `cashu.observability.gateway.enabled` | `true` | Collect gateway metrics. |
 | `cashu.observability.health.gateway.enabled` | `true` | Enable gateway health indicator. |
 | `cashu.observability.health.gateway.timeout-ms` | `5000` | Gateway health check timeout (ms). |
 | `cashu.observability.health.vault.enabled` | `true` | Enable vault health indicator. |

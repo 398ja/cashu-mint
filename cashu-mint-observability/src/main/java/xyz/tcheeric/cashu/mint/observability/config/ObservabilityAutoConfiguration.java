@@ -15,12 +15,8 @@ import xyz.tcheeric.cashu.mint.observability.aspect.TaskTimingAspect;
 import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
-import xyz.tcheeric.cashu.mint.observability.metrics.GatewayMetrics;
-import xyz.tcheeric.cashu.mint.observability.metrics.MintMetrics;
-import xyz.tcheeric.cashu.mint.observability.metrics.QuoteMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerTaskMetricsAdapter;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
-import xyz.tcheeric.cashu.mint.observability.metrics.VoucherMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.LockMetrics;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerLockMetricsAdapter;
 import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsAdapter;
@@ -47,20 +43,6 @@ import xyz.tcheeric.cashu.mint.proto.metrics.TaskMetricsAdapter;
 @Import(MetricsWebMvcConfiguration.class)
 @Slf4j
 public class ObservabilityAutoConfiguration {
-
-    /**
-     * Creates the core MintMetrics bean for tracking mint operations.
-     *
-     * @param registry the Micrometer registry (auto-configured by Spring Boot)
-     * @param properties observability configuration properties
-     * @return the MintMetrics instance
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public MintMetrics mintMetrics(MeterRegistry registry, ObservabilityProperties properties) {
-        log.info("Initializing Cashu Mint observability metrics");
-        return new MintMetrics(registry, properties.getMetrics().isTrackKeysets());
-    }
 
     /**
      * Creates the TaskMetrics bean for tracking task executions.
@@ -153,51 +135,6 @@ public class ObservabilityAutoConfiguration {
     public MetricsHandlerInterceptor metricsHandlerInterceptor(MeterRegistry registry) {
         log.info("Initializing Cashu Mint HTTP request metrics interceptor");
         return new MetricsHandlerInterceptor(registry);
-    }
-
-    /**
-     * Creates the QuoteMetrics bean for tracking mint/melt quote operations.
-     *
-     * @param registry the Micrometer registry
-     * @return the QuoteMetrics instance
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public QuoteMetrics quoteMetrics(MeterRegistry registry) {
-        log.info("Initializing Cashu Mint quote metrics");
-        return new QuoteMetrics(registry);
-    }
-
-    /**
-     * Creates the VoucherMetrics bean for tracking voucher operations.
-     *
-     * <p>Can be disabled by setting {@code cashu.observability.vouchers.enabled=false}.
-     *
-     * @param registry the Micrometer registry
-     * @return the VoucherMetrics instance
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "cashu.observability.vouchers.enabled", havingValue = "true", matchIfMissing = true)
-    public VoucherMetrics voucherMetrics(MeterRegistry registry) {
-        log.info("Initializing Cashu Mint voucher metrics");
-        return new VoucherMetrics(registry);
-    }
-
-    /**
-     * Creates the GatewayMetrics bean for tracking Lightning gateway operations.
-     *
-     * <p>Can be disabled by setting {@code cashu.observability.gateway.enabled=false}.
-     *
-     * @param registry the Micrometer registry
-     * @return the GatewayMetrics instance
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "cashu.observability.gateway.enabled", havingValue = "true", matchIfMissing = true)
-    public GatewayMetrics gatewayMetrics(MeterRegistry registry) {
-        log.info("Initializing Cashu Mint gateway metrics");
-        return new GatewayMetrics(registry);
     }
 
     /**

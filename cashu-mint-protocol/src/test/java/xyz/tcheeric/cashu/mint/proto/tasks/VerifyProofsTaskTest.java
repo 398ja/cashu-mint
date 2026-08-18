@@ -35,6 +35,10 @@ public class VerifyProofsTaskTest {
 
     private static final String VALID_KEYSET_ID = "0123456789abcdef";
 
+    /** NUT-11's own example lock key — a real compressed secp256k1 point, which P2PKSecret validates. */
+    private static final String VALID_P2PK_PUBKEY =
+            "0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7";
+
     private RSSProof createProof(int amount) {
         RSSProof proof = new RSSProof();
         proof.setAmount(amount);
@@ -58,7 +62,7 @@ public class VerifyProofsTaskTest {
         P2PKProof proof = new P2PKProof();
         proof.setAmount(amount);
         proof.setKeySetId(VALID_KEYSET_ID);
-        P2PKSecret secret = new P2PKSecret(new byte[32]);
+        P2PKSecret secret = new P2PKSecret(PublicKey.fromString(VALID_P2PK_PUBKEY).getBytes());
         secret.setNSigs(1);
         secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_INPUTS);
         proof.setSecret(secret);
@@ -180,7 +184,7 @@ public class VerifyProofsTaskTest {
      */
     @Test
     public void voucherSecretDetector_P2PKSecret() {
-        P2PKSecret secret = new P2PKSecret(new byte[32]);
+        P2PKSecret secret = new P2PKSecret(PublicKey.fromString(VALID_P2PK_PUBKEY).getBytes());
         boolean result = VoucherSecretDetector.isVoucherSecret(secret);
         org.junit.jupiter.api.Assertions.assertFalse(result,
                 "VoucherSecretDetector should return false for P2PKSecret");
