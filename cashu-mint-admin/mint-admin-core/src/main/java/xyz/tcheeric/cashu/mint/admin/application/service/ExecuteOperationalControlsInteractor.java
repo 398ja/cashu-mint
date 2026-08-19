@@ -141,7 +141,9 @@ public class ExecuteOperationalControlsInteractor extends AbstractUseCaseInterac
             mintId,
             AGGREGATE_TYPE,
             KEYS_ROTATED_EVENT,
-            "{}",
+            // The handler resolves the mint from the payload, as it does for
+            // lifecycle events; an empty body leaves it nothing to read.
+            "{\"mintId\":\"" + mintId.asString() + "\"}",
             Map.of(CONTROL_ID_ATTRIBUTE, controlId),
             now,
             now,

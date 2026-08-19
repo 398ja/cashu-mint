@@ -222,8 +222,15 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
     private MintId parseMintId(final OutboxMessage message) {
         try {
             final JsonNode node = objectMapper.readTree(message.payload());
-            final String mintIdStr = node.get("mintId").asText();
-            return MintId.fromString(mintIdStr);
+            final JsonNode mintIdNode = node.get("mintId");
+            if (mintIdNode == null || mintIdNode.isNull()) {
+                // Typed rather than an NPE: the dispatcher records a failure against
+                // this message and carries on, where an unchecked exception aborts
+                // the whole cycle and stalls every other message behind it.
+                throw new OutboxMessageHandlingException(
+                    "Outbox payload carries no mintId: " + message.eventId());
+            }
+            return MintId.fromString(mintIdNode.asText());
         } catch (final JsonProcessingException e) {
             throw new OutboxMessageHandlingException("Failed to parse mint id from outbox payload", e);
         }
