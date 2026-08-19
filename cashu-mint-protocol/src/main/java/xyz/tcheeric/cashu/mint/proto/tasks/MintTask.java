@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.mint.proto.ports.MintSuspensionRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
@@ -156,8 +157,33 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         this.issuanceRecordRepository = issuanceRecordRepository;
     }
 
+    /**
+     * Refuse to issue while the mint is suspended.
+     *
+     * <p>Only issuance is refused: swap and melt run through their own tasks and
+     * stay available, so a suspended mint keeps honouring redemption and holders
+     * can always exit. See ADR-0006 and ADR-0007.
+     *
+     * <p>With no suspension record — the JPA module disabled — the mint is never
+     * suspended, matching how the other durable records degrade.
+     */
+    private void requireNotSuspended() throws CashuErrorException {
+        final MintSuspensionRepository suspensions = MintIntegrityContext.mintSuspensionRepository();
+        if (suspensions == null || mint == null) {
+            return;
+        }
+        if (suspensions.isIssuanceSuspended(mint.getId())) {
+            log.warn("mint_task issuance_refused reason=mint_suspended mint_id={}", mint.getId());
+            throw new CashuErrorException(new ErrorResponse("mint_suspended",
+                    "This mint is suspended and is not issuing new tokens. "
+                            + "Existing tokens can still be swapped and melted.").toJson());
+        }
+    }
+
     @Override
     protected PostMintResponse doExecute() throws CashuErrorException {
+        requireNotSuspended();
+
         PostMintResponse result = new PostMintResponse();
         List<BlindedMessage> blindedMessages = Objects.requireNonNull(
                 postMintRequest.getBlindedMessages(),

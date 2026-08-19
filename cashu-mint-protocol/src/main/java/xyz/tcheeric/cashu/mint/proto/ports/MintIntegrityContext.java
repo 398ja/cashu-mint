@@ -47,6 +47,7 @@ public final class MintIntegrityContext {
     private static volatile VoucherIssuanceRepository voucherIssuanceRepository;
     private static volatile VoucherFundingResolver voucherFundingResolver;
     private static volatile IdentityHasher identityHasher;
+    private static volatile MintSuspensionRepository mintSuspensionRepository;
     private static volatile String voucherIouPolicy;
     private static volatile String activeProfile;
 
@@ -108,6 +109,18 @@ public final class MintIntegrityContext {
         MintIntegrityContext.identityHasher = identityHasher;
     }
 
+    /**
+     * Installs the durable suspension record the issuance path consults.
+     *
+     * <p>Absent when the JPA module is disabled, in which case the mint is never
+     * suspended — the same fallback the other spec repositories take.
+     *
+     * @param mintSuspensionRepository suspension record, or null when unavailable
+     */
+    public static void installMintSuspension(MintSuspensionRepository mintSuspensionRepository) {
+        MintIntegrityContext.mintSuspensionRepository = mintSuspensionRepository;
+    }
+
     /** Resets the context. Test-only — clears all references. */
     public static void clear() {
         quoteRepository = null;
@@ -123,10 +136,15 @@ public final class MintIntegrityContext {
         identityHasher = null;
         voucherIouPolicy = null;
         activeProfile = null;
+        mintSuspensionRepository = null;
     }
 
     public static IdentityHasher identityHasher() {
         return identityHasher;
+    }
+
+    public static MintSuspensionRepository mintSuspensionRepository() {
+        return mintSuspensionRepository;
     }
 
     public static MintQuoteRepository quoteRepository() {

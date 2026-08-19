@@ -807,6 +807,11 @@ public class CashuController<T extends Secret> implements org.springframework.co
             case "keyset_inactive":
                 status = HttpStatus.BAD_REQUEST;
                 break;
+            // A suspended mint is temporarily not issuing; the wallet should retry
+            // later rather than treat this as a permanent client error.
+            case "mint_suspended":
+                status = HttpStatus.SERVICE_UNAVAILABLE;
+                break;
             case "quote_not_found":
             // An unknown keyset is a different recovery from an archived one: there is
             // nothing to retry against, so it must not read as keyset_inactive.
