@@ -53,6 +53,17 @@
                     <includes>
                         <include>**/*E2EIT.java</include>
                     </includes>
+                    <systemPropertyVariables>
+                        <!-- Selects the images this reactor built, so the stack
+                             exercises the code under test rather than a release. -->
+                        <project.version>${project.version}</project.version>
+                        <!-- The vault and payment-adapter services must match the
+                             client libraries this reactor compiles against; a
+                             separately maintained pin drifts out of lockstep and
+                             fails at runtime, not at build time. -->
+                        <cashu-vault.version>${cashu-vault.version}</cashu-vault.version>
+                        <payment-adapter.version>${payment-adapter.version}</payment-adapter.version>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

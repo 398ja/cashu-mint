@@ -238,6 +238,18 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <!-- The E2E compose stack runs the image this reactor builds,
+                             so it must exist locally before the stack starts. -->
+                        <id>e2e-local-image</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>dockerBuild</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${e2e.image.skip}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <phase>deploy</phase>
                         <goals>
                             <goal>build</goal>

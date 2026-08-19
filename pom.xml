@@ -25,6 +25,10 @@
     </modules>
 
     <properties>
+        <!-- The E2E compose stack runs images built from this reactor rather than
+             published ones. Building them costs time, so only the e2e-tests
+             profile turns it on. -->
+        <e2e.image.skip>true</e2e.image.skip>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
@@ -806,6 +810,20 @@
 
     <profiles>
         <!-- Integration Tests Profile -->
+        <!-- E2E tests: mvn verify -Pe2e-tests -->
+
+        <profile>
+
+            <id>e2e-tests</id>
+
+            <properties>
+
+                <e2e.image.skip>false</e2e.image.skip>
+
+            </properties>
+
+        </profile>
+
         <profile>
             <id>integration-tests</id>
             <activation>
