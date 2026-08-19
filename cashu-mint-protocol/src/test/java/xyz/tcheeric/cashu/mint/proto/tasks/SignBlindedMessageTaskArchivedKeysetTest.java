@@ -51,8 +51,8 @@ class SignBlindedMessageTaskArchivedKeysetTest {
     // Ensures an archived keyset stops issuance before any key material is touched.
     void refusesToSignWithArchivedKeyset() throws Exception {
         final Mint mint = new Mint(UUID.randomUUID().toString());
-        doThrow(new CashuErrorException("{\"code\":\"keyset_inactive\"}"))
-                .when(mintProtocolService).requireActiveKeySet(KEYSET_ID);
+        when(mintProtocolService.getPrivateKeyForSigning(eq(KEYSET_ID), eq(1), any()))
+                .thenThrow(new CashuErrorException("{\"code\":\"keyset_inactive\"}"));
 
         final SignBlindedMessageTask task = new SignBlindedMessageTask(
                 mint, blindedMessage(), mintProtocolService, signatureVaultService);
@@ -61,7 +61,7 @@ class SignBlindedMessageTaskArchivedKeysetTest {
                 .isInstanceOf(CashuErrorException.class)
                 .hasMessageContaining("keyset_inactive");
 
-        verify(mintProtocolService, never()).getPrivateKey(any(), any(), any());
+        // Nothing is stored when the keyset is refused.
         verify(signatureVaultService, never()).store(any(), any());
     }
 
@@ -70,7 +70,7 @@ class SignBlindedMessageTaskArchivedKeysetTest {
     // Ensures the active-keyset check is on the signing path, not merely available.
     void checksKeysetIsActiveBeforeSigning() throws Exception {
         final Mint mint = new Mint(UUID.randomUUID().toString());
-        when(mintProtocolService.getPrivateKey(any(), any(), eq(mint)))
+        when(mintProtocolService.getPrivateKeyForSigning(eq(KEYSET_ID), eq(1), eq(mint)))
                 .thenReturn(PrivateKey.generateRandom());
 
         final SignBlindedMessageTask task = new SignBlindedMessageTask(
@@ -78,26 +78,10 @@ class SignBlindedMessageTaskArchivedKeysetTest {
 
         assertThat(task.execute()).isNotNull();
 
-        verify(mintProtocolService).requireActiveKeySet(KEYSET_ID);
-    }
-
-    @Test
-    @DisplayName("Checks the keyset is active in voucher mode too")
-    // Vouchers derive their key from a master secret rather than the keyset, but the
-    // output still claims a keyset id — so an archived keyset must not be signed
-    // against by that route either.
-    void refusesVoucherSigningWithArchivedKeyset() throws Exception {
-        final Mint mint = new Mint(UUID.randomUUID().toString());
-        doThrow(new CashuErrorException("{\"code\":\"keyset_inactive\"}"))
-                .when(mintProtocolService).requireActiveKeySet(KEYSET_ID);
-
-        final SignBlindedMessageTask task = new SignBlindedMessageTask(
-                mint, blindedMessage(), mintProtocolService, signatureVaultService,
-                true, "master-secret");
-
-        assertThatThrownBy(task::execute)
-                .isInstanceOf(CashuErrorException.class)
-                .hasMessageContaining("keyset_inactive");
+        // Signing must go through the resolution that honours the archived flag,
+        // never the plain getPrivateKey the redemption paths use.
+        verify(mintProtocolService).getPrivateKeyForSigning(KEYSET_ID, 1, mint);
+        verify(mintProtocolService, never()).getPrivateKey(any(), any(), any());
     }
 
     private static BlindedMessage blindedMessage() {

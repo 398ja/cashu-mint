@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
+import xyz.tcheeric.cashu.vault.api.KeyVault;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
 import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
@@ -64,23 +65,27 @@ public final class MintProtocolUtil {
     }
 
     /**
-     * Reject an archived keyset before it is used to sign a new output.
+     * Resolve the signing key for a new output, refusing an archived keyset.
      *
-     * <p>Archived means retired for issuance only: proofs already signed by the
-     * keyset must still verify, swap and melt indefinitely, so this check
-     * deliberately does <em>not</em> live in {@link #getPrivateKey}, which the
-     * redemption paths also use. See ADR-0004.
+     * <p>Shares the one keyset lookup {@link #getPrivateKey} already performs
+     * rather than adding a second: a separate check would make issuance depend on
+     * two independent vault calls succeeding, and turn any hiccup on the second
+     * into a failed mint.
+     *
+     * <p>Archived means retired for issuance only. Proofs the keyset already
+     * signed must still verify, swap and melt indefinitely, which is why
+     * {@link #getPrivateKey} — used by the redemption paths — carries no such
+     * check. See ADR-0004.
      *
      * @param keySetId external Cashu keyset id the client asked to be signed against
+     * @param amount denomination to sign
+     * @param mint the mint
+     * @return the signing key
      * @throws CashuErrorException {@code keyset_inactive} when the keyset is archived
      */
-    public static void requireActiveKeySet(@NonNull String keySetId) throws CashuErrorException {
-        KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
-        KeySetEntity keySet = keySetClient.getByKeySetId(keySetId);
-        if (keySet == null || keySet.getId() == null) {
-            throw new CashuErrorException(new ErrorResponse("keyset_not_found",
-                    "Keyset " + keySetId + " is not known to this mint.").toJson());
-        }
+    public static PrivateKey getPrivateKeyForSigning(@NonNull String keySetId, @NonNull Integer amount,
+                                                     @NonNull Mint mint) throws CashuErrorException {
+        KeySetEntity keySet = requireKeySet(keySetId);
         if (keySet.isArchived()) {
             log.warn("Refusing to sign with archived keyset: keySetId={}", keySetId);
             ErrorResponse error = new ErrorResponse("keyset_inactive",
@@ -88,6 +93,25 @@ public final class MintProtocolUtil {
                             + "Re-read /v1/keys and retry against an active keyset.");
             throw new CashuErrorException(error.toJson());
         }
+        return retrieveKey(keySet, amount);
+    }
+
+    private static KeySetEntity requireKeySet(@NonNull String keySetId) throws CashuErrorException {
+        KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
+        KeySetEntity keySet = keySetClient.getByKeySetId(keySetId);
+        if (keySet == null || keySet.getId() == null) {
+            throw new CashuErrorException(new ErrorResponse("keyset_not_found",
+                    "Keyset " + keySetId + " is not known to this mint.").toJson());
+        }
+        return keySet;
+    }
+
+    private static PrivateKey retrieveKey(@NonNull KeySetEntity keySet, @NonNull Integer amount)
+            throws CashuErrorException {
+        KeyVault keyVault = VaultClientFactory.keyVault();
+        KeyEntity keyEntity = keyVault.retrieveByAmount(java.math.BigInteger.valueOf(amount),
+                keySet.getId().toString());
+        return PrivateKey.fromString(keyEntity.getPrivateKey());
     }
 
     public static PrivateKey getPrivateKey(@NonNull String keySetId, @NonNull Integer amount, @NonNull Mint mint) throws CashuErrorException {

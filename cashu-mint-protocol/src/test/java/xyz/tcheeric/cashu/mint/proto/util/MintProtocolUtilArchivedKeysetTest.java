@@ -43,7 +43,7 @@ class MintProtocolUtilArchivedKeysetTest {
             factory.when(VaultClientFactory::keySetClient).thenReturn(keySetClient);
 
             final CashuErrorException thrown = assertThrows(CashuErrorException.class,
-                () -> MintProtocolUtil.requireActiveKeySet(KEYSET_ID));
+                () -> MintProtocolUtil.getPrivateKeyForSigning(KEYSET_ID, 1, new Mint()));
 
             assertTrue(thrown.getMessage().contains("keyset_inactive"),
                 "expected a keyset_inactive error but was: " + thrown.getMessage());
@@ -54,13 +54,19 @@ class MintProtocolUtilArchivedKeysetTest {
     @Test
     void shouldAllowSigningWithActiveKeyset() throws CashuErrorException {
         final KeySetEntity active = keySetEntity(false);
+        final KeyEntity keyEntity = new KeyEntity();
+        keyEntity.setPrivateKey(PRIVATE_KEY_HEX);
 
         try (MockedStatic<VaultClientFactory> factory = Mockito.mockStatic(VaultClientFactory.class)) {
             final KeySetVaultClient keySetClient = Mockito.mock(KeySetVaultClient.class);
             Mockito.when(keySetClient.getByKeySetId(KEYSET_ID)).thenReturn(active);
+            final KeyVault keyVault = Mockito.mock(KeyVault.class);
+            Mockito.when(keyVault.retrieveByAmount(BigInteger.valueOf(1), active.getId().toString()))
+                .thenReturn(keyEntity);
             factory.when(VaultClientFactory::keySetClient).thenReturn(keySetClient);
+            factory.when(VaultClientFactory::keyVault).thenReturn(keyVault);
 
-            MintProtocolUtil.requireActiveKeySet(KEYSET_ID);
+            assertNotNull(MintProtocolUtil.getPrivateKeyForSigning(KEYSET_ID, 1, new Mint()));
         }
     }
 
@@ -117,7 +123,7 @@ class MintProtocolUtilArchivedKeysetTest {
             factory.when(VaultClientFactory::keySetClient).thenReturn(keySetClient);
 
             final CashuErrorException thrown = assertThrows(CashuErrorException.class,
-                () -> MintProtocolUtil.requireActiveKeySet(KEYSET_ID));
+                () -> MintProtocolUtil.getPrivateKeyForSigning(KEYSET_ID, 1, new Mint()));
 
             // Typed like keyset_inactive, so a wallet can tell "refresh and retry"
             // from "this mint has never had that keyset".

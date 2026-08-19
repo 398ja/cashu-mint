@@ -34,6 +34,8 @@ public class SignBlindedMessage33ByteTest {
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        Mockito.when(service.getPrivateKeyForSigning(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         byte[] thirtyThree = new byte[33];
         for (int i = 0; i < thirtyThree.length; i++) {

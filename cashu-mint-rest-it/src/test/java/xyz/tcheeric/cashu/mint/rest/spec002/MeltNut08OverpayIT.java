@@ -116,6 +116,11 @@ class MeltNut08OverpayIT extends AbstractMintDurableIT {
         Mockito.doReturn(gateway).when(stub).createGateway(any(PaymentMethod.class), anyString());
         Mockito.doAnswer(inv -> MeltProofFixture.privateKeyFor(inv.getArgument(1, Integer.class)))
                 .when(stub).getPrivateKey(anyString(), org.mockito.ArgumentMatchers.anyInt(), any(Mint.class));
+        // Change outputs are signed, and signing resolves through the path that
+        // honours the archived flag.
+        Mockito.doAnswer(inv -> MeltProofFixture.privateKeyFor(inv.getArgument(1, Integer.class)))
+                .when(stub).getPrivateKeyForSigning(anyString(),
+                        org.mockito.ArgumentMatchers.anyInt(), any(Mint.class));
         MintProtocolServiceFactory.setInstance(stub);
     }
 

@@ -92,6 +92,13 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
             String hex = String.format("%064x", java.math.BigInteger.valueOf(amount));
             return PrivateKey.fromString(hex);
         }).when(stub).getPrivateKey(Mockito.anyString(), Mockito.anyInt(), Mockito.any(Mint.class));
+        // Signing resolves through getPrivateKeyForSigning, which also honours the
+        // archived flag; stub it too or signing reaches the real vault client.
+        Mockito.doAnswer(inv -> {
+            Integer signAmount = inv.getArgument(1);
+            String signHex = String.format("%064x", java.math.BigInteger.valueOf(signAmount));
+            return PrivateKey.fromString(signHex);
+        }).when(stub).getPrivateKeyForSigning(Mockito.anyString(), Mockito.anyInt(), Mockito.any(Mint.class));
         MintProtocolServiceFactory.setInstance(stub);
     }
 

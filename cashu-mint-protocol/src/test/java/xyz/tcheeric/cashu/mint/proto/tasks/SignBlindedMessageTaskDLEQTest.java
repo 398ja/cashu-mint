@@ -45,7 +45,7 @@ class SignBlindedMessageTaskDLEQTest {
     void attachesDleqProof() throws Exception {
         Mint mint = new Mint(UUID.randomUUID().toString());
         PrivateKey privateKey = PrivateKey.generateRandom();
-        when(mintProtocolService.getPrivateKey(any(), any(), eq(mint))).thenReturn(privateKey);
+        when(mintProtocolService.getPrivateKeyForSigning(any(), any(), eq(mint))).thenReturn(privateKey);
 
         DLEQProof proof = DLEQProof.forBlindSignature("e".repeat(64), "f".repeat(64));
         when(dleqProofGenerator.generateProof(any(), any(), any())).thenReturn(proof);

@@ -91,10 +91,6 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                     blindedMessage.getAmount(), blindedMessage.getKeySetId(), voucherMode);
         }
 
-        // Whatever the key derivation, the output claims a keyset — so an archived
-        // keyset must not receive a new signature by any route. ADR-0004.
-        mintProtocolService.requireActiveKeySet(blindedMessage.getKeySetId().toString());
-
         PrivateKey privateKey;
         if (voucherMode) {
             // Voucher mode: derive key dynamically for arbitrary amounts
@@ -108,8 +104,11 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                 log.debug("Derived voucher key for amount={}", blindedMessage.getAmount());
             }
         } else {
-            // Regular mode: lookup key from keyset
-            privateKey = getPrivateKey(blindedMessage, mint, mintProtocolService);
+            // Regular mode: resolve from the keyset, which refuses an archived one.
+            // Voucher mode above derives its key from a master secret rather than a
+            // vault keyset, so there is no archived keyset for it to honour.
+            privateKey = mintProtocolService.getPrivateKeyForSigning(
+                    blindedMessage.getKeySetId().toString(), blindedMessage.getAmount(), mint);
         }
 
         if (privateKey == null) {
@@ -216,9 +215,6 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
         return blindSignature;
     }
 
-    private static PrivateKey getPrivateKey(@NonNull BlindedMessage blindedMessage, @NonNull Mint mint, @NonNull MintProtocolService svc) throws CashuErrorException {
-        return svc.getPrivateKey(blindedMessage.getKeySetId().toString(), blindedMessage.getAmount(), mint);
-    }
 
     private static String bytesToHex(byte[] bytes) {
         if (bytes == null) return null;

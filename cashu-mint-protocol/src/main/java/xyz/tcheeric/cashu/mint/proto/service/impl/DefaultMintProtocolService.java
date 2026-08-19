@@ -46,8 +46,9 @@ public class DefaultMintProtocolService implements MintProtocolService {
     }
 
     @Override
-    public void requireActiveKeySet(@NonNull String keySetId) throws CashuErrorException {
-        MintProtocolUtil.requireActiveKeySet(keySetId);
+    public PrivateKey getPrivateKeyForSigning(@NonNull String keySetId, @NonNull Integer amount,
+                                              @NonNull Mint mint) throws CashuErrorException {
+        return MintProtocolUtil.getPrivateKeyForSigning(keySetId, amount, mint);
     }
 
     @Override
