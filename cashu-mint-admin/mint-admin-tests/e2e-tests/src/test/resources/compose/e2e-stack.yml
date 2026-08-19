@@ -64,6 +64,20 @@ services:
     networks:
       - cashu
 
+  payment-adapter-db-init:
+    image: postgres:${POSTGRES_VERSION}
+    depends_on:
+      payment-adapter-db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./payment-adapter-db-init.sql:/sql/payment-adapter-db-init.sql:ro
+    entrypoint: ["bash", "-c", "psql -h payment-adapter-db -U postgres -d cashu_gateway -v ON_ERROR_STOP=1 -f /sql/payment-adapter-db-init.sql"]
+    restart: "no"
+    networks:
+      - cashu
+
   vault-db-init:
     image: postgres:${POSTGRES_VERSION}
     depends_on:
@@ -109,6 +123,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # The quote table is pre-created (see payment-adapter-db-init.sql), so the
+      # schema is not empty when Flyway first runs. Baseline at 0 rather than the
+      # default 1, or V1 would be treated as already applied and cash_invoice
+      # would never be created.
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       CASHU_VAULT_PORT: 3333
@@ -155,6 +175,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
       SERVER_PORT: 8080
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # The quote table is pre-created (see payment-adapter-db-init.sql), so the
+      # schema is not empty when Flyway first runs. Baseline at 0 rather than the
+      # default 1, or V1 would be treated as already applied and cash_invoice
+      # would never be created.
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_BASELINE_VERSION: "0"
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       GATEWAY_WALLET_MOCK_PAYMENT_ENABLED: "true"
       GATEWAY_WALLET_MOCK_PAYMENT_PHOENIXD_URL: http://phoenixd-mock:9740
@@ -162,8 +188,8 @@ services:
       WEBHOOK_SECRET: e2e-webhook-secret
       WEBHOOK_ENABLED: "true"
     depends_on:
-      payment-adapter-db:
-        condition: service_healthy
+      payment-adapter-db-init:
+        condition: service_completed_successfully
       phoenixd-mock:
         condition: service_started
     healthcheck:
