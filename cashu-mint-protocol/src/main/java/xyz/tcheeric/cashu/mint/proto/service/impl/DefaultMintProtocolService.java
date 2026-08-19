@@ -46,6 +46,11 @@ public class DefaultMintProtocolService implements MintProtocolService {
     }
 
     @Override
+    public void requireActiveKeySet(@NonNull String keySetId) throws CashuErrorException {
+        MintProtocolUtil.requireActiveKeySet(keySetId);
+    }
+
+    @Override
     public MintEntity toMintEntity(@NonNull Mint mint) {
         return MintProtocolUtil.toMintEntity(mint);
     }

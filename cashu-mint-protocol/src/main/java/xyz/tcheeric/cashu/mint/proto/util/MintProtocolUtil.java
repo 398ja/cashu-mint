@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
+import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
@@ -57,6 +58,33 @@ public final class MintProtocolUtil {
             return gateway;
         } catch (Exception e) {
             throw new RuntimeException("Failed to create gateway instance", e);
+        }
+    }
+
+    /**
+     * Reject an archived keyset before it is used to sign a new output.
+     *
+     * <p>Archived means retired for issuance only: proofs already signed by the
+     * keyset must still verify, swap and melt indefinitely, so this check
+     * deliberately does <em>not</em> live in {@link #getPrivateKey}, which the
+     * redemption paths also use. See ADR-0004.
+     *
+     * @param keySetId external Cashu keyset id the client asked to be signed against
+     * @throws CashuErrorException {@code keyset_inactive} when the keyset is archived
+     */
+    public static void requireActiveKeySet(@NonNull String keySetId) throws CashuErrorException {
+        xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient ksc =
+                xyz.tcheeric.cashu.vault.api.VaultClientFactory.keySetClient();
+        KeySetEntity kse = ksc.getByKeySetId(keySetId);
+        if (kse == null || kse.getId() == null) {
+            throw new CashuErrorException("keyset_not_found");
+        }
+        if (kse.isArchived()) {
+            log.warn("Refusing to sign with archived keyset: keySetId={}", keySetId);
+            ErrorResponse error = new ErrorResponse("keyset_inactive",
+                    "Keyset " + keySetId + " is archived and no longer signs. "
+                            + "Re-read /v1/keys and retry against an active keyset.");
+            throw new CashuErrorException(error.toJson());
         }
     }
 

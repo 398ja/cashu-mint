@@ -104,6 +104,9 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                 log.debug("Derived voucher key for amount={}", blindedMessage.getAmount());
             }
         } else {
+            // An archived keyset must not sign new outputs, however the client asks.
+            // Redemption of proofs it already signed is unaffected — ADR-0004.
+            mintProtocolService.requireActiveKeySet(blindedMessage.getKeySetId().toString());
             // Regular mode: lookup key from keyset
             privateKey = getPrivateKey(blindedMessage, mint, mintProtocolService);
         }
