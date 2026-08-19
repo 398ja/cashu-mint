@@ -1,8 +1,5 @@
 TRUNCATE TABLE
-    admin_alert_escalations,
-    admin_alerts,
     admin_users,
-    mint_health_snapshots,
     operational_controls,
     mint_lifecycle_approval_states,
     mint_lifecycle_history,

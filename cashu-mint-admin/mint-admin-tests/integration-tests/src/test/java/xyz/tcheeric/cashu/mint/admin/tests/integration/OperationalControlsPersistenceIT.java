@@ -20,7 +20,7 @@ import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAd
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class OperationalControlsPersistenceIT extends AbstractAdminIntegrationIT {
 
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
 
     // Verifies maintenance lifecycle plus rotate/force-close controls persist in operational_controls.

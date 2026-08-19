@@ -802,9 +802,20 @@ public class CashuController<T extends Secret> implements org.springframework.co
             case "mint_request_missing_outputs":
             case "mint_request_contains_null_output":
             case "mint_amount_mismatch":
+            // An archived keyset is a client error: the wallet asked to be signed
+            // against a retired keyset and should re-read /v1/keys and retry.
+            case "keyset_inactive":
                 status = HttpStatus.BAD_REQUEST;
                 break;
+            // A suspended mint is temporarily not issuing; the wallet should retry
+            // later rather than treat this as a permanent client error.
+            case "mint_suspended":
+                status = HttpStatus.SERVICE_UNAVAILABLE;
+                break;
             case "quote_not_found":
+            // An unknown keyset is a different recovery from an archived one: there is
+            // nothing to retry against, so it must not read as keyset_inactive.
+            case "keyset_not_found":
                 status = HttpStatus.NOT_FOUND;
                 break;
             default:

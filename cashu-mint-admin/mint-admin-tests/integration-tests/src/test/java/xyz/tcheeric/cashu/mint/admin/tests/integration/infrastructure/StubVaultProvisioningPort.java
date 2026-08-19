@@ -29,6 +29,18 @@ public class StubVaultProvisioningPort implements VaultProvisioningPort {
     }
 
     @Override
+    public RotationResult rotate(final UUID mintId, final String unit,
+                                 final List<Integer> denominations, final String rotationId) {
+        invocations.add(new Invocation("rotate", mintId));
+        if (shouldFail.get()) {
+            throw new RuntimeException("Stub vault rotation failure");
+        }
+        // Keyed on the rotation id, mirroring the real adapter, so a redelivered
+        // message yields the same keyset rather than a second one.
+        return new RotationResult("keyset-" + rotationId, List.of("keyset-previous"));
+    }
+
+    @Override
     public boolean isProvisioned(final UUID mintId) {
         invocations.add(new Invocation("isProvisioned", mintId));
         return false;

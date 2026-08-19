@@ -48,15 +48,19 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             throw new IllegalArgumentException("at least one role must be provided for provisioning");
         }
 
+        // Issued here so a new operator is usable from one call. The bootstrap
+        // credential goes inert as soon as an operator exists, and would otherwise
+        // be unable to hand the first operator its own way in.
+        final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount record = new OperatorAccessAccount(
             request.targetAccountId(), request.displayName(), request.email(),
-            Set.copyOf(request.roles()), true, 0, null, null);
+            Set.copyOf(request.roles()), true, 1, OperatorCredentials.hash(credential), Instant.now());
         final boolean created = operatorAccessRepository.create(record);
         if (!created) {
             throw new IllegalStateException("operator already exists: " + request.targetAccountId());
         }
 
-        return buildResponse(record, request.versionTag(), "User created", null);
+        return buildResponse(record, request.versionTag(), "User created", credential);
     }
 
     private AdministerAccessResponse updateRoles(final AdministerAccessRequest request) {
@@ -75,7 +79,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             Set.copyOf(request.roles()),
             record.active(),
             record.credentialResetCount(),
-            record.lastResetToken(),
+            record.credentialHash(),
             record.lastResetAt());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User updated", null);
@@ -91,7 +95,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.roles(),
             false,
             record.credentialResetCount(),
-            record.lastResetToken(),
+            record.credentialHash(),
             record.lastResetAt());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User deactivated", null);
@@ -101,7 +105,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         validateUuid(request.targetAccountId(), "target account id");
         final OperatorAccessAccount record = requireExisting(request.targetAccountId());
         final int resetCount = record.credentialResetCount() + 1;
-        final String token = request.targetAccountId() + "-reset-" + resetCount;
+        // The plaintext credential is returned to the caller once and never stored.
+        final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount updated = new OperatorAccessAccount(
             record.accountId(),
             record.displayName(),
@@ -109,10 +114,10 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.roles(),
             record.active(),
             resetCount,
-            token,
+            OperatorCredentials.hash(credential),
             Instant.now());
         operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "Reset token issued", token);
+        return buildResponse(updated, request.versionTag(), "Credential issued", credential);
     }
 
     private OperatorAccessAccount requireExisting(final String accountId) {

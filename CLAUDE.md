@@ -15,9 +15,20 @@ This is a Java implementation of the Cashu ecash protocol, organized as a multi-
 - `cashu-mint-tools` - Test data generation utilities
 - `cashu-mint-observability` - Prometheus metrics, Grafana dashboards, health indicators
 
-**External modules** (separate repository at `../cashu-mint-admin`):
-- Admin functionality has been split to a separate project
-- Referenced in docker-compose via published images
+**Admin modules** (in-tree under `cashu-mint-admin/`, and part of this reactor):
+- `cashu-mint-admin/mint-admin-core` - Domain, use cases, JDBC + outbox + vault adapters (hexagonal)
+- `cashu-mint-admin/mint-admin-rest` - Admin REST API (port 8080)
+- `cashu-mint-admin/mint-admin-web` - React admin UI
+- `cashu-mint-admin/mint-admin-tests` - Postgres-backed integration tests and a compose-backed E2E suite
+
+The admin reaches the mint through the **shared vault**, not over HTTP:
+`VaultProvisioningAdapter` writes mint, keyset and key entities that the mint
+later loads via `MintLoadService`. See `docs/adr/0003-admin-provisions-key-material-in-the-shared-vault.md`.
+
+Current state of each admin capability — which actuate, which only record, and
+which are decorative — is in `cashu-mint-admin/docs/explanations/admin-triage.md`.
+
+The standalone `398ja/cashu-mint-admin` repository is **archived**. Do not use it.
 
 ## Build Commands
 

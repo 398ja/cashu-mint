@@ -14,12 +14,8 @@ import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { MintListPage } from "@/features/mints/MintListPage";
 import { MintDetailPage } from "@/features/mints/MintDetailPage";
 import { CreateMintPage } from "@/features/mints/CreateMintPage";
-import { HealthPage } from "@/features/mints/HealthPage";
-import { ConfigurationPage } from "@/features/configuration/ConfigurationPage";
 import { UserListPage } from "@/features/users/UserListPage";
 import { UserDetailPage } from "@/features/users/UserDetailPage";
-import { AlertListPage } from "@/features/alerts/AlertListPage";
-import { AlertDetailPage } from "@/features/alerts/AlertDetailPage";
 import { OperationsPage } from "@/features/operations/OperationsPage";
 import { AuditTimelinePage } from "@/features/audit/AuditTimelinePage";
 import type { ReactNode } from "react";
@@ -81,22 +77,6 @@ export function App() {
                 }
               />
               <Route
-                path="/mints/:mintId/configuration"
-                element={
-                  <RequireRole role="MINT_ADMIN">
-                    <ConfigurationPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/mints/:mintId/health"
-                element={
-                  <RequireRole role="MINT_ADMIN">
-                    <HealthPage />
-                  </RequireRole>
-                }
-              />
-              <Route
                 path="/mints/:mintId/operations"
                 element={
                   <RequireRole role="OPS_ADMIN">
@@ -117,22 +97,6 @@ export function App() {
                 element={
                   <RequireRole role="USER_ADMIN">
                     <UserDetailPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/alerts"
-                element={
-                  <RequireRole role="ALERTS_ADMIN">
-                    <AlertListPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/alerts/:alertId"
-                element={
-                  <RequireRole role="ALERTS_ADMIN">
-                    <AlertDetailPage />
                   </RequireRole>
                 }
               />

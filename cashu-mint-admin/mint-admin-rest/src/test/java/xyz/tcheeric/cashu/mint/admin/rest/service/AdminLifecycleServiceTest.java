@@ -42,7 +42,19 @@ class AdminLifecycleServiceTest {
         service = new AdminLifecycleService(new InMemoryMintLifecycleUseCase(),
             new EmptyMintRepository(),
             new LifecycleSummaryPresenter(),
-            new LifecycleSummaryApiPresenter());
+            new LifecycleSummaryApiPresenter(),
+            fixedOperatorIdentity());
+    }
+
+    // The filter chain does not run in this test, so stand in for the operator it
+    // would otherwise have resolved onto the request.
+    private static OperatorIdentity fixedOperatorIdentity() {
+        return new OperatorIdentity() {
+            @Override
+            public String requireActor(final String claimedOperatorId) {
+                return OPERATOR_UUID;
+            }
+        };
     }
 
     @AfterEach

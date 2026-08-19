@@ -33,6 +33,8 @@ public class SignBlindedMessageTest {
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        Mockito.when(service.getPrivateKeyForSigning(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         Mint mint = new Mint();
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());
@@ -54,6 +56,7 @@ public class SignBlindedMessageTest {
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(null);
+        Mockito.when(service.getPrivateKeyForSigning(anyString(), anyInt(), any())).thenReturn(null);
 
         Mint mint = new Mint();
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());

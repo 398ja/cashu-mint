@@ -7,7 +7,7 @@ The admin module follows Clean Architecture (Robert C. Martin) with four layers.
 ```
 ┌─────────────────────────────────────────────┐
 │              Frameworks & Drivers            │
-│  mint-admin-rest · mint-admin-cli · web UI  │
+│       mint-admin-rest · web UI              │
 └──────────────────┬──────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────────┐
@@ -32,7 +32,6 @@ The admin module follows Clean Architecture (Robert C. Martin) with four layers.
 | Module | Layer | Role |
 |--------|-------|------|
 | `mint-admin-core` | Entities + Use Cases | Domain model, use case ports, Flyway migrations, services |
-| `mint-admin-cli` | Framework | Picocli CLI commands, stub adapters, I/O formatting |
 | `mint-admin-rest` | Framework | Spring Boot REST controllers, DTO mapping, security filter |
 | `mint-admin-web` | Framework | React SPA, Radix UI components, TanStack Query state |
 | `mint-admin-tests` | — | Integration and E2E test harnesses |

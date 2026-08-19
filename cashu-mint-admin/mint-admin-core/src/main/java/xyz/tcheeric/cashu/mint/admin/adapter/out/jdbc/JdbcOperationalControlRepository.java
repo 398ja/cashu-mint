@@ -30,8 +30,9 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
                 reason,
                 duration_minutes,
                 scheduled_at,
-                updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                updated_at,
+                outcome)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String UPDATE_SQL =
@@ -41,7 +42,8 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
                 status = ?,
                 reason = ?,
                 duration_minutes = ?,
-                updated_at = ?
+                updated_at = ?,
+                outcome = ?
             WHERE control_id = ?
         """;
 
@@ -54,7 +56,8 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
                    status,
                    reason,
                    duration_minutes,
-                   scheduled_at
+                   scheduled_at,
+                   outcome
             FROM operational_controls
             WHERE mint_id = ?
               AND control_type = 'MAINTENANCE'
@@ -73,10 +76,26 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
                    status,
                    reason,
                    duration_minutes,
-                   scheduled_at
+                   scheduled_at,
+                   outcome
             FROM operational_controls
             WHERE mint_id = ?
             ORDER BY scheduled_at DESC
+        """;
+
+    private static final String SELECT_BY_ID_SQL =
+        """
+            SELECT control_id,
+                   mint_id,
+                   operator_id,
+                   control_type,
+                   status,
+                   reason,
+                   duration_minutes,
+                   scheduled_at,
+                   outcome
+            FROM operational_controls
+            WHERE control_id = ?
         """;
 
     private final DataSource dataSource;
@@ -109,7 +128,8 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
                 statement.setInt(4, control.durationMinutes());
             }
             statement.setTimestamp(5, Timestamp.from(Instant.now()));
-            statement.setObject(6, UUID.fromString(control.controlId()));
+            statement.setString(6, control.outcome());
+            statement.setObject(7, UUID.fromString(control.controlId()));
             final int updated = statement.executeUpdate();
             if (updated == 0) {
                 throw new JdbcRepositoryException(
@@ -153,6 +173,22 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
         }
     }
 
+    @Override
+    public Optional<OperationalControlRecord> findById(final String controlId) {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_BY_ID_SQL)) {
+            statement.setObject(1, UUID.fromString(controlId));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (final SQLException ex) {
+            throw new JdbcRepositoryException("Failed to load operational control " + controlId, ex);
+        }
+    }
+
     private void bindForCreate(final PreparedStatement statement,
                                final OperationalControlRecord control) throws SQLException {
         statement.setObject(1, UUID.fromString(control.controlId()));
@@ -168,6 +204,7 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
         }
         statement.setTimestamp(8, Timestamp.from(control.scheduledAt()));
         statement.setTimestamp(9, Timestamp.from(control.scheduledAt()));
+        statement.setString(10, control.outcome());
     }
 
     private OperationalControlRecord mapRow(final ResultSet resultSet) throws SQLException {
@@ -180,8 +217,9 @@ public class JdbcOperationalControlRepository implements OperationalControlRepos
         final String reason = resultSet.getString("reason");
         final Integer durationMinutes = (Integer) resultSet.getObject("duration_minutes");
         final Instant scheduledAt = resultSet.getTimestamp("scheduled_at").toInstant();
+        final String outcome = resultSet.getString("outcome");
         return new OperationalControlRecord(controlId.toString(), MintId.of(mintId), operatorId,
-            controlType, status, scheduledAt, reason, durationMinutes);
+            controlType, status, scheduledAt, reason, durationMinutes, outcome);
     }
 
     private UUID getUuid(final ResultSet resultSet, final String column) throws SQLException {

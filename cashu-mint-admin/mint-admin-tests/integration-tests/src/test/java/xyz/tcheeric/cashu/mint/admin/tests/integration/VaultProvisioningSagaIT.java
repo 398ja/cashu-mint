@@ -48,7 +48,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
     @Autowired
     private VaultProvisioningPort vaultProvisioningPort;
 
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @BeforeEach
     void resetStub() {

@@ -22,7 +22,7 @@ public abstract class AbstractAdminE2EIT {
     protected static final String ALERTS_ADMIN_ROLE = "ALERTS_ADMIN";
     protected static final String OPS_ADMIN_ROLE = "OPS_ADMIN";
 
-    protected static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    protected static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

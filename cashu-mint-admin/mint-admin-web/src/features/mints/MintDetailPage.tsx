@@ -13,7 +13,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
-import { ArrowLeft, Settings, Activity, Wrench } from "lucide-react";
+import { ArrowLeft, Activity, Wrench } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 
 interface ActionConfig {
@@ -178,18 +178,14 @@ export function MintDetailPage() {
 
           {hasRole("MINT_ADMIN") && (
             <div className="flex gap-3">
-              <Link
-                to={`/mints/${mintId}/configuration`}
+              <a
+                href={import.meta.env.VITE_GRAFANA_URL ?? "http://localhost:3000"}
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
               >
-                <Settings className="h-4 w-4" /> Configuration
-              </Link>
-              <Link
-                to={`/mints/${mintId}/health`}
-                className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
-              >
-                <Activity className="h-4 w-4" /> Health
-              </Link>
+                <Activity className="h-4 w-4" /> Health (Grafana)
+              </a>
               {hasRole("OPS_ADMIN") && (
                 <Link
                   to={`/mints/${mintId}/operations`}

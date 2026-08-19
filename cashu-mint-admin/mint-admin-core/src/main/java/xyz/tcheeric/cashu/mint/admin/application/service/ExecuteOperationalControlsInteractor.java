@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.admin.application.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,7 +11,9 @@ import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalContr
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlRecord;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlType;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
+import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
 
 /**
  * Implements {@link ExecuteOperationalControlsUseCase} for maintenance windows and operational workflows.
@@ -18,13 +21,24 @@ import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 public class ExecuteOperationalControlsInteractor extends AbstractUseCaseInteractor
     implements ExecuteOperationalControlsUseCase {
 
+    /** Outbox event type carrying a key rotation to the vault adapter. */
+    public static final String KEYS_ROTATED_EVENT = "KEYS_ROTATED";
+
+    /** Outbox attribute naming the control that drives a rotation. */
+    public static final String CONTROL_ID_ATTRIBUTE = "controlId";
+
+    private static final String AGGREGATE_TYPE = "MintAggregate";
+
     private final OperationalControlRepository operationalControlRepository;
+    private final OutboxRepository outboxRepository;
     private final Clock clock;
 
     public ExecuteOperationalControlsInteractor(final OperationalControlRepository operationalControlRepository,
+                                                final OutboxRepository outboxRepository,
                                                 final Clock clock) {
         this.operationalControlRepository = Objects.requireNonNull(operationalControlRepository,
             "operational control repository must not be null");
+        this.outboxRepository = Objects.requireNonNull(outboxRepository, "outbox repository must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -119,9 +133,27 @@ public class ExecuteOperationalControlsInteractor extends AbstractUseCaseInterac
         operationalControlRepository.create(new OperationalControlRecord(
             controlId, mintId, operatorId, OperationalControlType.KEY_ROTATION,
             "KEY_ROTATION_INITIATED", now, request.reason(), request.durationMinutes()));
+
+        // Committed in the same transaction as the control row, so a rotation is
+        // never acknowledged without the work to carry it out being durable.
+        outboxRepository.append(new OutboxMessage(
+            UUID.randomUUID(),
+            mintId,
+            AGGREGATE_TYPE,
+            KEYS_ROTATED_EVENT,
+            // The handler resolves the mint from the payload, as it does for
+            // lifecycle events; an empty body leaves it nothing to read.
+            "{\"mintId\":\"" + mintId.asString() + "\"}",
+            Map.of(CONTROL_ID_ATTRIBUTE, controlId),
+            now,
+            now,
+            null,
+            null,
+            0));
+
         return new ExecuteOperationalControlsResponse(request.mintId(), controlId,
             "KEY_ROTATION_INITIATED", now, request.versionTag(),
-            "Key rotation initiated (placeholder)");
+            "Key rotation initiated");
     }
 
     private ExecuteOperationalControlsResponse forceClose(final ExecuteOperationalControlsRequest request,

@@ -2,7 +2,6 @@ import { apiGet } from "./client";
 
 export interface DashboardSummary {
   mintsByState: Record<string, number>;
-  alertsBySeverity: Record<string, number>;
   activeControls: number;
 }
 

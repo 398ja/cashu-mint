@@ -41,6 +41,11 @@ public class LifecycleEventOutboxHandler implements OutboxMessageHandler {
     @Override
     public void handle(final OutboxMessage message) {
         Objects.requireNonNull(message, "outbox message must not be null");
+        // The composite dispatcher hands every message to every handler, so this one
+        // must ignore event families it does not own rather than failing on them.
+        if (!isLifecycleEventType(message.eventType())) {
+            return;
+        }
         final LifecycleEventPayload payload = readPayload(message);
         if (payload.eventId() != null && !message.eventId().toString().equals(payload.eventId())) {
             throw new OutboxMessageHandlingException("Outbox payload event id does not match message id: "
@@ -49,6 +54,19 @@ public class LifecycleEventOutboxHandler implements OutboxMessageHandler {
         final MintLifecycleEvent event = toEvent(payload);
         aggregateViewRepository.upsert(event);
         historyRepository.append(message.eventId(), event);
+    }
+
+    private static boolean isLifecycleEventType(final String eventType) {
+        if (eventType == null || eventType.isBlank()) {
+            return false;
+        }
+        for (final MintLifecycleEvent.MintLifecycleEventType type
+                : MintLifecycleEvent.MintLifecycleEventType.values()) {
+            if (type.name().equals(eventType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private LifecycleEventPayload readPayload(final OutboxMessage message) {

@@ -10,7 +10,6 @@ export function LoginPage() {
   const expired = searchParams.get("expired") === "true";
 
   const [token, setToken] = useState("");
-  const [roles, setRoles] = useState("MINT_ADMIN,USER_ADMIN,ALERTS_ADMIN,OPS_ADMIN");
   const [error, setError] = useState<string | null>(
     expired ? "Session expired. Please log in again." : null,
   );
@@ -21,7 +20,7 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const ok = await login(token, roles);
+      const ok = await login(token);
       if (ok) {
         navigate("/dashboard", { replace: true });
       } else {
@@ -73,22 +72,6 @@ export function LoginPage() {
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="roles"
-              className="block text-sm font-medium text-zinc-300 mb-1"
-            >
-              Roles (comma-separated)
-            </label>
-            <input
-              id="roles"
-              type="text"
-              value={roles}
-              onChange={(e) => setRoles(e.target.value)}
-              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
-              placeholder="MINT_ADMIN,USER_ADMIN"
-            />
-          </div>
 
           <button
             type="submit"

@@ -14,9 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.service.AdminAlertService;
-import xyz.tcheeric.cashu.mint.admin.rest.service.AdminHealthService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -34,14 +31,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class,
-    AdminAlertService.class, AdminUserService.class,
-    AdminHealthService.class, AdminOperationsService.class})
-@TestPropertySource(properties = "admin.security.api-token=test-token")
+    AdminUserService.class, AdminOperationsService.class})
+@TestPropertySource(properties = {
+    "admin.security.api-token=test-token",
+    // Own database per class: a shared in-memory store leaks operators between
+    // classes, and the bootstrap credential is inert once any operator exists.
+    "spring.datasource.url=jdbc:h2:mem:ErrorResponseContractTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+})
 class ErrorResponseContractTest {
 
     private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "99999999-9999-9999-9999-999999999999";
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -60,15 +61,14 @@ class ErrorResponseContractTest {
     // Verifies forbidden requests return standard error format with status, error, code, message fields.
     @Test
     @DisplayName("Forbidden lifecycle request returns standard error format")
-    void forbiddenLifecycleReturnsStandardError() throws Exception {
+    void unauthenticatedLifecycleReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").exists())
-                .andExpect(jsonPath("$.code").value("forbidden"))
+                .andExpect(jsonPath("$.code").value("unauthorized"))
                 .andExpect(jsonPath("$.message").exists());
     }
 
@@ -78,7 +78,6 @@ class ErrorResponseContractTest {
     void notFoundLifecyclePauseReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID + "/pause")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -93,26 +92,12 @@ class ErrorResponseContractTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    // Verifies health endpoint returns consistent response structure.
-    @Test
-    @DisplayName("Health snapshot returns consistent response structure")
-    void healthSnapshotReturnsConsistentStructure() throws Exception {
-        mockMvc.perform(get("/admin/health/mints/" + MINT_ID)
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.mintId").exists())
-                .andExpect(jsonPath("$.status").exists())
-                .andExpect(jsonPath("$.message").exists());
-    }
-
     // Verifies operations endpoint returns consistent response structure.
     @Test
     @DisplayName("Operations schedule returns consistent response structure")
     void operationsScheduleReturnsConsistentStructure() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -128,42 +113,4 @@ class ErrorResponseContractTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    // Verifies creating a duplicate alert returns 409 conflict.
-    @Test
-    @DisplayName("Duplicate alert returns conflict error")
-    void duplicateAlertReturnsConflict() throws Exception {
-        final String alertId = "contract-test-alert-1";
-        mockMvc.perform(post("/admin/alerts")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "ALERTS_ADMIN")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "alertId": "%s",
-                                  "mintId": "%s",
-                                  "severity": "WARNING",
-                                  "summary": "Test",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
-                                }
-                                """.formatted(alertId, MINT_ID, OPERATOR_ID)))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/admin/alerts")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "ALERTS_ADMIN")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "alertId": "%s",
-                                  "mintId": "%s",
-                                  "severity": "WARNING",
-                                  "summary": "Test",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
-                                }
-                                """.formatted(alertId, MINT_ID, OPERATOR_ID)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.code").value("alert_exists"))
-                .andExpect(jsonPath("$.message").exists());
-    }
 }

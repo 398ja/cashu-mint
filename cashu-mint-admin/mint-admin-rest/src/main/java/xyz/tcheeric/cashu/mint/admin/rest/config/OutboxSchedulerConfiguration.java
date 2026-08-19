@@ -29,6 +29,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.MintAggregateViewRepos
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
 
@@ -66,6 +67,7 @@ public class OutboxSchedulerConfiguration {
             final VaultProvisioningPort vaultPort,
             final MintRepository mintRepository,
             final ConfigurationSetRepository configurationSetRepository,
+            final OperationalControlRepository operationalControlRepository,
             final MintLifecycleEventPublisher eventPublisher,
             final ObjectMapper objectMapper,
             final Clock adminClock,
@@ -76,7 +78,7 @@ public class OutboxSchedulerConfiguration {
             new LifecycleEventOutboxHandler(viewRepository, historyRepository, objectMapper);
         final VaultProvisioningOutboxHandler vaultHandler =
             new VaultProvisioningOutboxHandler(vaultPort, mintRepository, configurationSetRepository,
-                eventPublisher, objectMapper, adminClock, maxRetries);
+                operationalControlRepository, eventPublisher, objectMapper, adminClock, maxRetries);
         final CompositeOutboxMessageHandler compositeHandler =
             new CompositeOutboxMessageHandler(List.of(readModelHandler, vaultHandler));
 

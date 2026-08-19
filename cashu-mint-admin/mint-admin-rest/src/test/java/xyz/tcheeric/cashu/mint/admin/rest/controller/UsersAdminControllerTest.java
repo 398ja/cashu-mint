@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
 
@@ -27,11 +26,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminUserService.class})
-@TestPropertySource(properties = "admin.security.api-token=test-token")
+@TestPropertySource(properties = {
+    "admin.security.api-token=test-token",
+    // Own database per class: a shared in-memory store leaks operators between
+    // classes, and the bootstrap credential is inert once any operator exists.
+    "spring.datasource.url=jdbc:h2:mem:UsersAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+})
 class UsersAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
     @Autowired
@@ -50,12 +54,11 @@ class UsersAdminControllerTest {
     // Verifies that creating a user without the required role returns a forbidden status.
     @Test
     @DisplayName("User creation requires role header")
-    void createUserRequiresRole() throws Exception {
+    void createUserRequiresCredential() throws Exception {
         mockMvc.perform(post("/admin/users")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createUserJson(USER_ID)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // Ensures update returns the resulting user payload once a user exists.
@@ -64,16 +67,20 @@ class UsersAdminControllerTest {
     void updateUserReturnsResponse() throws Exception {
         final String userId = "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee";
 
-        mockMvc.perform(post("/admin/users")
+        // Creating this operator consumes the bootstrap credential, so the update that
+        // follows is authenticated as the operator just created — the same handover a
+        // real deployment performs.
+        final String created = mockMvc.perform(post("/admin/users")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "USER_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createUserJson(userId)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        final String credential = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(created).path("credential").asText();
 
         mockMvc.perform(put("/admin/users/" + userId)
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "USER_ADMIN")
+                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, credential)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -82,7 +89,7 @@ class UsersAdminControllerTest {
                                   "roles": ["admin", "viewer"],
                                   "requestedBy": {"id":"%s","displayName":"Ops"}
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """.formatted(userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.message").value("User updated"));
@@ -94,7 +101,7 @@ class UsersAdminControllerTest {
                   "userId": "%s",
                   "displayName": "Alice",
                   "email": "alice@example.com",
-                  "roles": ["admin"],
+                  "roles": ["USER_ADMIN"],
                   "requestedBy": {"id":"%s","displayName":"Ops"}
                 }
                 """.formatted(userId, OPERATOR_ID);

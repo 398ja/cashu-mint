@@ -13,9 +13,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.client.HttpClientErrorException;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
 import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
-import xyz.tcheeric.cashu.vault.db.client.KeyVaultClient;
 import xyz.tcheeric.cashu.vault.db.client.VaultClient;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
@@ -43,15 +43,79 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
         final KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
-        final KeyVaultClient keyClient = VaultClientFactory.keyClient();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
         final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations);
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
-        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity);
+        storeKeyEntities(mintId, unit, denominations, keySetEntity);
 
         log.info("Vault provisioned for mint {} with keyset {}", mintId, keySetId);
+    }
+
+    @Override
+    public RotationResult rotate(final UUID mintId, final String unit, final List<Integer> denominations,
+                                 final String rotationId) {
+        Objects.requireNonNull(mintId, "mint id must not be null");
+        Objects.requireNonNull(unit, "unit must not be null");
+        Objects.requireNonNull(denominations, "denominations must not be null");
+        Objects.requireNonNull(rotationId, "rotation id must not be null");
+
+        final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+        final KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
+
+        final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
+
+        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId);
+
+        // Which keysets this rotation replaces. The new keyset is excluded by id
+        // rather than by ordering: on a redelivery it already exists and is still
+        // unarchived, and would otherwise be recorded as its own predecessor.
+        final List<String> superseded = keySetClient.getByMintId(mintId.toString()).stream()
+            .filter(keySet -> unit.equals(keySet.getUnit()))
+            .filter(keySet -> !keySet.isArchived())
+            .map(KeySetEntity::getKeySetId)
+            .filter(id -> !keySetId.equals(id))
+            .toList();
+
+        final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
+        final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
+        storeKeyEntities(mintId, unit, denominations, keySetEntity, rotationId);
+
+        // Archive last: until the replacement exists and can sign, the mint must
+        // keep its current keyset, or a failure mid-rotation leaves it unable to issue.
+        try {
+            for (final KeySetEntity keySet : keySetClient.getByMintId(mintId.toString())) {
+                if (unit.equals(keySet.getUnit())
+                    && !keySet.isArchived()
+                    && !keySetId.equals(keySet.getKeySetId())) {
+                    keySetClient.archive(keySet.getId().toString());
+                }
+            }
+        } catch (final Exception e) {
+            // Leaving the replacement in place alongside an un-archived predecessor
+            // would give the mint two signing keysets — the state rotation exists to
+            // end. Roll the new one back and fail.
+            compensateRotation(keySetClient, keySetRowId, keySetId);
+            throw new IllegalStateException(
+                "Rotation archive step failed for mint " + mintId + "; new keyset " + keySetId
+                    + " was rolled back", e);
+        }
+
+        log.info("Vault keyset rotated for mint {} unit {}: {} replaces {}",
+            mintId, unit, keySetId, superseded);
+        return new RotationResult(keySetId, superseded);
+    }
+
+    private void compensateRotation(final KeySetVaultClient keySetClient, final UUID keySetRowId,
+                                    final String keySetId) {
+        try {
+            keySetClient.delete(keySetRowId.toString());
+            log.warn("Rotation compensation: removed new keyset {}", keySetId);
+        } catch (final Exception e) {
+            log.error("Rotation compensation failed; keyset {} may be live alongside its predecessor",
+                keySetId, e);
+        }
     }
 
     @Override
@@ -121,25 +185,47 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
     }
 
-    private void storeKeyEntities(final KeyVaultClient keyClient,
-                                   final UUID mintId,
+    private void storeKeyEntities(final UUID mintId,
                                    final String unit,
                                    final List<Integer> denominations,
                                    final KeySetEntity keySetEntity) {
+        storeKeyEntities(mintId, unit, denominations, keySetEntity, null);
+    }
+
+    private void storeKeyEntities(final UUID mintId,
+                                   final String unit,
+                                   final List<Integer> denominations,
+                                   final KeySetEntity keySetEntity,
+                                   final String rotationId) {
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             final List<CompletableFuture<Void>> futures = denominations.stream()
                 .map(amount -> CompletableFuture.runAsync(() -> {
-                    final UUID keyId = keyGenerator.deterministicId(mintId, unit, String.valueOf(amount));
-                    final String privateKeyHex = keyGenerator.derivePrivateKeyHex(mintId, unit, amount);
+                    // The row id must carry the rotation too, or a rotated key would
+                    // collide with the one it replaces for the same mint/unit/amount.
+                    final String keyIdSource = rotationId == null
+                        ? String.valueOf(amount)
+                        : amount + "|" + rotationId;
+                    final UUID keyId = keyGenerator.deterministicId(mintId, unit, keyIdSource);
+                    final String privateKeyHex =
+                        keyGenerator.derivePrivateKeyHex(mintId, unit, amount, rotationId);
                     final KeyEntity keyEntity = new KeyEntity();
                     keyEntity.setId(keyId);
                     keyEntity.setAmount(BigInteger.valueOf(amount));
                     keyEntity.setPrivateKey(privateKeyHex);
                     keyEntity.setKeySet(keySetEntity);
                     try {
-                        keyClient.store(keyEntity);
+                        // Through the backend-aware vault rather than the REST client.
+                        // Under the default HashiCorp backend this writes the secret to
+                        // HashiCorp and stamps the row with the path it used; t_key has
+                        // no column for a private key, so storing the row directly would
+                        // persist a key that exists nowhere. It is also the route the
+                        // mint reads back through.
+                        VaultClientFactory.keyVault().store(keyEntity);
                     } catch (final HttpClientErrorException.Conflict e) {
                         log.debug("Key entity for amount {} already exists", amount);
+                    } catch (final CashuErrorException e) {
+                        throw new IllegalStateException(
+                            "Failed to store key for amount " + amount + " of mint " + mintId, e);
                     }
                 }, executor))
                 .toList();

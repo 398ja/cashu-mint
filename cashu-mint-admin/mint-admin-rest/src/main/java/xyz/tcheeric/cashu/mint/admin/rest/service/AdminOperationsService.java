@@ -25,13 +25,16 @@ public class AdminOperationsService {
 
     private final ExecuteOperationalControlsUseCase operationalUseCase;
     private final OperationalControlRepository controlRepository;
+    private final OperatorIdentity operatorIdentity;
 
     public AdminOperationsService(final ExecuteOperationalControlsUseCase operationalUseCase,
-                                  final OperationalControlRepository controlRepository) {
+                                  final OperationalControlRepository controlRepository,
+                                  final OperatorIdentity operatorIdentity) {
         this.operationalUseCase = Objects.requireNonNull(operationalUseCase,
             "operational use case must not be null");
         this.controlRepository = Objects.requireNonNull(controlRepository,
             "operational control repository must not be null");
+        this.operatorIdentity = Objects.requireNonNull(operatorIdentity, "operator identity must not be null");
     }
 
     public PagedResponse<OperationalControlResponse> listControls(final String mintId,
@@ -75,7 +78,7 @@ public class AdminOperationsService {
         Objects.requireNonNull(request, "request");
         try {
             final ExecuteOperationalControlsResponse response = operationalUseCase.handle(
-                new ExecuteOperationalControlsRequest(mintId, request.requestedBy().id(),
+                new ExecuteOperationalControlsRequest(mintId, operatorIdentity.requireActor(request.requestedBy().id()),
                     command, "v1", request.reason(), request.durationMinutes()));
             return toResponse(response);
         } catch (final IllegalStateException e) {

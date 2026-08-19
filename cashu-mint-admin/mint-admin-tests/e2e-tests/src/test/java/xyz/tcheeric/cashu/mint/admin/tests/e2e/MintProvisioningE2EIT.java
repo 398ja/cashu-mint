@@ -14,9 +14,9 @@ import xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure.AbstractAdminE2EIT
 
 class MintProvisioningE2EIT extends AbstractAdminE2EIT {
 
-    // Verifies mint provisioning and initial configuration apply succeed against the live compose stack.
+    // Verifies mint provisioning succeeds against the live compose stack.
     @Test
-    void shouldProvisionMintAndApplyInitialConfiguration() {
+    void shouldProvisionMint() {
         final String mintId = UUID.randomUUID().toString();
 
         // Create mint (starts in PROVISIONING state).
@@ -38,16 +38,6 @@ class MintProvisioningE2EIT extends AbstractAdminE2EIT {
                 assertThat(detail.getStatusCode().value()).isEqualTo(200);
                 assertThat(detail.getBody().path("lifecycleState").asText()).isEqualTo("PROVISIONED");
             });
-
-        final ResponseEntity<JsonNode> applied = adminApiClient().post(
-            "/admin/configuration/mints/" + mintId + "/apply",
-            Map.of(
-                "requestedBy", actor("E2E Mint Admin"),
-                "proposedConfiguration", Map.of("fee_ppm", "120", "webhookEnabled", "true"),
-                "changeSummary", "Apply baseline runtime configuration"),
-            MINT_ADMIN_ROLE);
-        assertThat(applied.getStatusCode().value()).isEqualTo(200);
-        assertThat(applied.getBody().path("mintId").asText()).isEqualTo(mintId);
 
         final ResponseEntity<JsonNode> mintInfo = mintApiClient().get("/v1/info");
         assertThat(mintInfo.getStatusCode().value()).isEqualTo(200);

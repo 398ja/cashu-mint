@@ -8,37 +8,31 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Enforces basic role based access control for administrative endpoints.
  */
 public class AdminRbacFilter extends OncePerRequestFilter {
 
-    public static final String ADMIN_ROLES_HEADER = "X-Admin-Roles";
-
     private static final Map<String, String> REQUIRED_ROLE_BY_PATTERN = Map.of(
             "/admin/lifecycle/**", "MINT_ADMIN",
-            "/admin/configuration/**", "MINT_ADMIN",
             "/admin/users/**", "USER_ADMIN",
-            "/admin/alerts/**", "ALERTS_ADMIN",
-            "/admin/health/**", "MINT_ADMIN",
-            "/admin/operations/**", "OPS_ADMIN"
+            "/admin/operations/**", "OPS_ADMIN",
+            "/admin/audit/**", "MINT_ADMIN"
     );
 
+    // /admin/auth is how a caller establishes who they are, and the dashboard is a
+    // read-only roll-up of counts. Everything else, including the audit trail,
+    // requires a role.
     private static final List<String> NO_ROLE_REQUIRED_PATTERNS = List.of(
             "/admin/auth/**",
-            "/admin/audit/**",
             "/admin/dashboard/**"
     );
 
@@ -65,7 +59,9 @@ public class AdminRbacFilter extends OncePerRequestFilter {
             return;
         }
 
-        final Set<String> callerRoles = extractRoles(request.getHeader(ADMIN_ROLES_HEADER));
+        final AuthenticatedOperator operator =
+                (AuthenticatedOperator) request.getAttribute(AuthenticatedOperator.ATTRIBUTE);
+        final Set<String> callerRoles = operator == null ? Set.of() : operator.roles();
         if (callerRoles.contains(requiredRole)) {
             filterChain.doFilter(request, response);
             return;
@@ -99,14 +95,4 @@ public class AdminRbacFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private Set<String> extractRoles(final String headerValue) {
-        if (!StringUtils.hasText(headerValue)) {
-            return Set.of();
-        }
-        return Arrays.stream(headerValue.split(","))
-                .map(String::trim)
-                .filter(StringUtils::hasText)
-                .map(value -> value.toUpperCase(Locale.ROOT))
-                .collect(Collectors.toUnmodifiableSet());
-    }
 }

@@ -47,6 +47,9 @@ public final class DockerComposeE2EStack {
     private static final int PAYMENT_ADAPTER_PORT = 8080;
     private static final String MINT_SERVICE = "cashu-mint-rest";
     private static final int MINT_PORT = 7777;
+    // The mint serves its actuator on a separate management port (#346), so the
+    // readiness wait must probe that rather than the protocol port.
+    private static final int MINT_MANAGEMENT_PORT = 9000;
     private static final String ADMIN_SERVICE = "mint-admin-rest";
     private static final int ADMIN_PORT = 7778;
 
@@ -71,6 +74,22 @@ public final class DockerComposeE2EStack {
         return "true".equalsIgnoreCase(System.getenv("E2E_USE_EXTERNAL"));
     }
 
+    /**
+     * A version the build resolved, used to select images that match it.
+     *
+     * @param property system property carrying the version
+     * @return the version
+     */
+    private static String requiredVersion(final String property) {
+        final String version = System.getProperty(property);
+        if (version == null || version.isBlank()) {
+            throw new IllegalStateException(property
+                + " system property is required so the stack runs the versions this build "
+                + "resolved; failsafe supplies it.");
+        }
+        return version;
+    }
+
     public void start() {
         if (started.compareAndSet(false, true)) {
             if (useExternalServices()) {
@@ -79,7 +98,16 @@ public final class DockerComposeE2EStack {
             }
 
             try {
-                final Map<String, String> imageVersions = loadEnvFile(Path.of(IMAGE_VERSION_FILE));
+                final Map<String, String> imageVersions =
+                    new java.util.HashMap<>(loadEnvFile(Path.of(IMAGE_VERSION_FILE)));
+                // cashu-mint-rest and mint-admin-rest are built from this reactor
+                // rather than pulled, so the stack exercises the code under test.
+                imageVersions.put("PROJECT_VERSION", requiredVersion("project.version"));
+                // Service images track the client libraries the reactor compiles
+                // against, so a skew shows up as a build change rather than a
+                // runtime failure against an unexpected schema.
+                imageVersions.put("CASHU_VAULT_VERSION", requiredVersion("cashu-vault.version"));
+                imageVersions.put("PAYMENT_ADAPTER_VERSION", requiredVersion("payment-adapter.version"));
                 this.composeContainer = new ComposeContainer(Path.of(COMPOSE_FILE).toFile())
                     .withEnv(imageVersions)
                     .withExposedService(
@@ -96,10 +124,14 @@ public final class DockerComposeE2EStack {
                             .withStartupTimeout(STARTUP_TIMEOUT))
                     .withExposedService(
                         MINT_SERVICE,
-                        MINT_PORT,
+                        MINT_MANAGEMENT_PORT,
                         Wait.forHttp("/actuator/health/readiness")
                             .forStatusCode(200)
                             .withStartupTimeout(STARTUP_TIMEOUT))
+                    .withExposedService(
+                        MINT_SERVICE,
+                        MINT_PORT,
+                        Wait.forListeningPort().withStartupTimeout(STARTUP_TIMEOUT))
                     .withExposedService(
                         ADMIN_SERVICE,
                         ADMIN_PORT,

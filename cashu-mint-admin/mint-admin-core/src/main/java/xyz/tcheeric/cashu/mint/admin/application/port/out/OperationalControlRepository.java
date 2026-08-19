@@ -44,6 +44,14 @@ public interface OperationalControlRepository {
     List<OperationalControlRecord> findByMintId(MintId mintId);
 
     /**
+     * Retrieve a single operational control by its identifier.
+     *
+     * @param controlId control identifier
+     * @return the control when present
+     */
+    Optional<OperationalControlRecord> findById(String controlId);
+
+    /**
      * Persisted operational control categories.
      */
     enum OperationalControlType {
@@ -62,7 +70,20 @@ public interface OperationalControlRepository {
                                     String status,
                                     Instant scheduledAt,
                                     String reason,
-                                    Integer durationMinutes) {
+                                    Integer durationMinutes,
+                                    String outcome) {
+
+        /** A control that has not completed yet carries no outcome. */
+        public OperationalControlRecord(final String controlId,
+                                        final MintId mintId,
+                                        final UUID operatorId,
+                                        final OperationalControlType controlType,
+                                        final String status,
+                                        final Instant scheduledAt,
+                                        final String reason,
+                                        final Integer durationMinutes) {
+            this(controlId, mintId, operatorId, controlType, status, scheduledAt, reason, durationMinutes, null);
+        }
 
         public OperationalControlRecord {
             Objects.requireNonNull(controlId, "control id must not be null");

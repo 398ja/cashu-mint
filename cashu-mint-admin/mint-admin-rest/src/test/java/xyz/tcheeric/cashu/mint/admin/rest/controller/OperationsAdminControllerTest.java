@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 
@@ -26,12 +25,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminOperationsService.class})
-@TestPropertySource(properties = "admin.security.api-token=test-token")
+@TestPropertySource(properties = {
+    "admin.security.api-token=test-token",
+    // Own database per class: a shared in-memory store leaks operators between
+    // classes, and the bootstrap credential is inert once any operator exists.
+    "spring.datasource.url=jdbc:h2:mem:OperationsAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+})
 class OperationsAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -49,12 +53,11 @@ class OperationsAdminControllerTest {
     // Checks that scheduling maintenance requires the OPS_ADMIN role.
     @Test
     @DisplayName("Schedule maintenance requires role header")
-    void scheduleMaintenanceRequiresRole() throws Exception {
+    void scheduleMaintenanceRequiresCredential() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // Ensures scheduling maintenance returns SCHEDULED status.
@@ -63,7 +66,6 @@ class OperationsAdminControllerTest {
     void scheduleMaintenanceReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())
@@ -78,7 +80,6 @@ class OperationsAdminControllerTest {
     void forceCloseReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/force-close")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())

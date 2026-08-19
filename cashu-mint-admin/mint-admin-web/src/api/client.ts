@@ -19,17 +19,14 @@ export class ApiRequestError extends Error {
 
 function getAuthHeaders(): Record<string, string> {
   const token = sessionStorage.getItem("admin_token");
-  const roles = sessionStorage.getItem("admin_roles");
   const headers: Record<string, string> = {};
   if (token) headers["X-Admin-Token"] = token;
-  if (roles) headers["X-Admin-Roles"] = roles;
   return headers;
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
     sessionStorage.removeItem("admin_token");
-    sessionStorage.removeItem("admin_roles");
     window.location.href = "/login?expired=true";
     throw new ApiRequestError(401, "unauthorized", "Session expired");
   }

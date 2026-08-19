@@ -5,7 +5,7 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint-admin</artifactId>
-        <version>0.29.0</version>
+        <version>0.30.0</version>
     </parent>
     <artifactId>mint-admin-rest</artifactId>
     <name>mint-admin-rest</name>
@@ -29,10 +29,12 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>mint-admin-cli</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
+            <!-- HashiCorp is the default vault backend. Without this the registrar
+                 is absent, VaultClientFactory silently falls back to the database
+                 vault, and provisioned keys never reach HashiCorp while the mint
+                 reads from it. -->
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-vault-hashi</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
@@ -144,6 +146,18 @@
                     </container>
                 </configuration>
                 <executions>
+                    <execution>
+                        <!-- The E2E compose stack runs the image this reactor builds,
+                             so it must exist locally before the stack starts. -->
+                        <id>e2e-local-image</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>dockerBuild</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${e2e.image.skip}</skip>
+                        </configuration>
+                    </execution>
                     <execution>
                         <phase>deploy</phase>
                         <goals>

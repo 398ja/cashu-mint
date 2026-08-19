@@ -10,7 +10,6 @@ import java.util.Map;
 @Schema(description = "Dashboard summary with aggregated counts.")
 public record DashboardSummaryResponse(
         @Schema(description = "Mint counts by lifecycle state") Map<String, Long> mintsByState,
-        @Schema(description = "Open alert counts by severity") Map<String, Long> alertsBySeverity,
         @Schema(description = "Number of active operational controls") long activeControls
 ) {
 }
