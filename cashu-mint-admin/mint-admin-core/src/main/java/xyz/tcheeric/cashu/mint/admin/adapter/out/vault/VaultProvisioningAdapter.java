@@ -13,9 +13,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.client.HttpClientErrorException;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
 import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
-import xyz.tcheeric.cashu.vault.db.client.KeyVaultClient;
 import xyz.tcheeric.cashu.vault.db.client.VaultClient;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
@@ -43,13 +43,12 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
         final KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
-        final KeyVaultClient keyClient = VaultClientFactory.keyClient();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
         final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations);
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
-        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity);
+        storeKeyEntities(mintId, unit, denominations, keySetEntity);
 
         log.info("Vault provisioned for mint {} with keyset {}", mintId, keySetId);
     }
@@ -64,7 +63,6 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
         final KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
-        final KeyVaultClient keyClient = VaultClientFactory.keyClient();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
 
@@ -82,7 +80,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
-        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity, rotationId);
+        storeKeyEntities(mintId, unit, denominations, keySetEntity, rotationId);
 
         // Archive last: until the replacement exists and can sign, the mint must
         // keep its current keyset, or a failure mid-rotation leaves it unable to issue.
@@ -187,16 +185,31 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
     }
 
-    private void storeKeyEntities(final KeyVaultClient keyClient,
-                                   final UUID mintId,
+    /**
+     * Location of a key's secret, in the layout the vault itself uses.
+     *
+     * <p>Supplied for the database-backed vault, where nothing else populates the
+     * NOT NULL column. Under the HashiCorp backend — the default — the vault
+     * overwrites this with the path it actually wrote to, which uses the same
+     * layout, so the value is consistent either way.
+     *
+     * @param mintId owning mint
+     * @param keySetId external keyset id
+     * @param amount denomination
+     * @return the vault path for this key
+     */
+    static String vaultPath(final UUID mintId, final String keySetId, final int amount) {
+        return String.format("keys/%s/%s/%s", mintId, keySetId, amount);
+    }
+
+    private void storeKeyEntities(final UUID mintId,
                                    final String unit,
                                    final List<Integer> denominations,
                                    final KeySetEntity keySetEntity) {
-        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity, null);
+        storeKeyEntities(mintId, unit, denominations, keySetEntity, null);
     }
 
-    private void storeKeyEntities(final KeyVaultClient keyClient,
-                                   final UUID mintId,
+    private void storeKeyEntities(final UUID mintId,
                                    final String unit,
                                    final List<Integer> denominations,
                                    final KeySetEntity keySetEntity,
@@ -217,10 +230,19 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                     keyEntity.setAmount(BigInteger.valueOf(amount));
                     keyEntity.setPrivateKey(privateKeyHex);
                     keyEntity.setKeySet(keySetEntity);
+                    keyEntity.setVaultPath(vaultPath(mintId, keySetEntity.getKeySetId(), amount));
                     try {
-                        keyClient.store(keyEntity);
+                        // Through the backend-aware vault rather than the REST client:
+                        // under the default HashiCorp backend this puts the secret in
+                        // HashiCorp and clears the plaintext key from the row, which
+                        // storing directly would not do. It is also the same route the
+                        // mint reads back through.
+                        VaultClientFactory.keyVault().store(keyEntity);
                     } catch (final HttpClientErrorException.Conflict e) {
                         log.debug("Key entity for amount {} already exists", amount);
+                    } catch (final CashuErrorException e) {
+                        throw new IllegalStateException(
+                            "Failed to store key for amount " + amount + " of mint " + mintId, e);
                     }
                 }, executor))
                 .toList();
