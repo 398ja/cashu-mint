@@ -401,6 +401,11 @@
                 <artifactId>cashu-vault-api</artifactId>
                 <version>${cashu-vault.version}</version>
             </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-vault-hashi</artifactId>
+                <version>${cashu-vault.version}</version>
+            </dependency>
 
             <!-- Cashu Mint Modules -->
             <dependency>

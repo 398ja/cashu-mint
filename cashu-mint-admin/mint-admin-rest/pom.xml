@@ -29,6 +29,14 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <!-- HashiCorp is the default vault backend. Without this the registrar
+                 is absent, VaultClientFactory silently falls back to the database
+                 vault, and provisioned keys never reach HashiCorp while the mint
+                 reads from it. -->
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>cashu-vault-hashi</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.7.0</version>

@@ -185,23 +185,6 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
     }
 
-    /**
-     * Location of a key's secret, in the layout the vault itself uses.
-     *
-     * <p>Supplied for the database-backed vault, where nothing else populates the
-     * NOT NULL column. Under the HashiCorp backend — the default — the vault
-     * overwrites this with the path it actually wrote to, which uses the same
-     * layout, so the value is consistent either way.
-     *
-     * @param mintId owning mint
-     * @param keySetId external keyset id
-     * @param amount denomination
-     * @return the vault path for this key
-     */
-    static String vaultPath(final UUID mintId, final String keySetId, final int amount) {
-        return String.format("keys/%s/%s/%s", mintId, keySetId, amount);
-    }
-
     private void storeKeyEntities(final UUID mintId,
                                    final String unit,
                                    final List<Integer> denominations,
@@ -230,12 +213,12 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                     keyEntity.setAmount(BigInteger.valueOf(amount));
                     keyEntity.setPrivateKey(privateKeyHex);
                     keyEntity.setKeySet(keySetEntity);
-                    keyEntity.setVaultPath(vaultPath(mintId, keySetEntity.getKeySetId(), amount));
                     try {
-                        // Through the backend-aware vault rather than the REST client:
-                        // under the default HashiCorp backend this puts the secret in
-                        // HashiCorp and clears the plaintext key from the row, which
-                        // storing directly would not do. It is also the same route the
+                        // Through the backend-aware vault rather than the REST client.
+                        // Under the default HashiCorp backend this writes the secret to
+                        // HashiCorp and stamps the row with the path it used; t_key has
+                        // no column for a private key, so storing the row directly would
+                        // persist a key that exists nowhere. It is also the route the
                         // mint reads back through.
                         VaultClientFactory.keyVault().store(keyEntity);
                     } catch (final HttpClientErrorException.Conflict e) {
