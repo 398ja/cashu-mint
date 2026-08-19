@@ -16,24 +16,29 @@ import xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure.AbstractAdminE2EIT
 /**
  * Rotation, asserted against the mint rather than the admin's own echo.
  *
- * <p>Blocked by the vault schema. {@code t_keyset} carries
- * {@code UNIQUE (unit, mint_id)}, so a mint may hold exactly one keyset per unit
- * — the replacement cannot exist alongside the keyset it replaces. Rotation
- * therefore fails at the insert with a constraint violation, and the admin
- * records KEY_ROTATION_FAILED and leaves the existing keyset active.
+ <p>Rotation itself works: against a vault carrying the fix from
+ * 398ja/cashu-vault#126 the saga completes and records
+ * "Keyset X replaces [Y]". What this class cannot yet observe is the mint's
+ * side of it.
  *
- * <p>Deleting the old keyset instead is not an option: ADR-0004 requires an
- * archived keyset to keep verifying and redeeming indefinitely, and removing it
- * would strand every token it signed. The fix belongs in cashu-vault — the
- * unique index needs to be dropped or made partial on {@code archived = false};
- * {@code idx_keyset_key_set_mint_unq} already provides the identity constraint
- * that matters. Re-enable this class once that lands.
+ * <p>The stack runs the mint with {@code PreloadMintLoadService}, which is on by
+ * default ({@code mint.preload.enabled}, {@code matchIfMissing = true}) and
+ * serves keysets from a JSON file rather than the vault. The vault-backed
+ * {@code DefaultMintLoadService} is {@code @Profile({"!dev", "!test"})} and the
+ * stack runs the mint under {@code dev}. So a rotation lands in the vault and
+ * {@code /v1/keysets} never changes — not because rotation failed, but because
+ * this mint is not reading from where it was written.
+ *
+ * <p>Enabling this class means running the stack's mint against the vault:
+ * a non-dev profile and {@code mint.preload.enabled=false}. That also removes
+ * the preloaded keyset the other E2E tests rely on at startup, so it is a change
+ * to the stack rather than to this file.
  *
  * <p>The mint advertises only its own mint's keysets, which is why this rotates
  * the mint id the stack preloads rather than a freshly created one.
  */
-@Disabled("Blocked by cashu-vault t_keyset UNIQUE (unit, mint_id): a rotated keyset "
-    + "cannot coexist with the one it replaces. See the class javadoc.")
+@Disabled("The stack's mint loads keysets from preload JSON, not the vault, so a "
+    + "rotation is invisible to /v1/keysets. Rotation itself succeeds. See the class javadoc.")
 class KeyRotationE2EIT extends AbstractAdminE2EIT {
 
     /** The mint id the stack preloads, and the only one this mint serves. */
