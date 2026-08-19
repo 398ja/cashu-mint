@@ -20,7 +20,7 @@ import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAd
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
 class SecurityValidationIT extends AbstractAdminIntegrationIT {
 
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     // Ensures requests without auth token are rejected with 401.
     @Test
@@ -49,7 +49,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
     void shouldAllowValidTokenAndRoleThroughAuthLayer() {
         final ResponseEntity<JsonNode> response = adminApiClient().get(
             "/admin/lifecycle/mints",
-            ADMIN_TOKEN,
+            rootCredential(),
             MINT_ADMIN_ROLE);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
@@ -99,9 +99,9 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             "/admin/lifecycle/mints",
             Map.of(
                 "mintId", UUID.randomUUID().toString(),
-                "requestedBy", actor(),
+                "requestedBy", rootActor(),
                 "configuration", Map.of("versionTag", "v1")),
-            ADMIN_TOKEN,
+            rootCredential(),
             MINT_ADMIN_ROLE);
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
@@ -109,6 +109,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
     private static Stream<Arguments> rbacCases() {
         final String mintId = UUID.randomUUID().toString();
         final Map<String, Object> actor = Map.of("id", OPERATOR_ID, "displayName", "Operator");
+        // Bodies here are only ever sent on refused requests, so the actor is never read.
         return Stream.of(
             Arguments.of(
                 HttpMethod.POST,
@@ -168,10 +169,10 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/users/" + userId + "/deactivate",
             Map.of(
-                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator"),
+                "requestedBy", rootActor(),
                 "reason", "revoked for test"),
-            ADMIN_TOKEN,
-            USER_ADMIN_ROLE);
+            rootCredential(),
+            null);
 
         final ResponseEntity<JsonNode> response = adminApiClient().get(
             "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
@@ -192,12 +193,76 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
 
+    // The Audit Trail must name the operator the server authenticated, so a request
+    // that claims to be someone else is refused rather than silently recorded.
+    @Test
+    void shouldRefuseRequestNamingAnotherOperator() {
+        final String userId = UUID.randomUUID().toString();
+        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
+
+        final ResponseEntity<JsonNode> response = adminApiClient().post(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/maintenance/schedule",
+            Map.of(
+                "reason", "impersonation attempt",
+                "durationMinutes", 10,
+                // Someone else entirely.
+                "requestedBy", Map.of("id", UUID.randomUUID().toString(), "displayName", "Somebody")),
+            credential,
+            null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+        assertThat(response.getBody().path("code").asText()).isEqualTo("operator_mismatch");
+    }
+
+    // An operator naming themselves is accepted, so the guard blocks impersonation
+    // rather than every request that carries an actor.
+    @Test
+    void shouldAcceptRequestNamingTheAuthenticatedOperator() {
+        final String userId = UUID.randomUUID().toString();
+        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
+
+        final ResponseEntity<JsonNode> response = adminApiClient().post(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/maintenance/schedule",
+            Map.of(
+                "reason", "planned",
+                "durationMinutes", 10,
+                "requestedBy", Map.of("id", userId, "displayName", "Operator")),
+            credential,
+            null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+    }
+
+    // A role change takes effect on the operator's next request, with no restart.
+    @Test
+    void shouldApplyRoleChangesOnTheNextRequest() {
+        final String userId = UUID.randomUUID().toString();
+        final String credential = provisionOperator(userId, List.of(USER_ADMIN_ROLE));
+
+        final String path = "/admin/operations/mints/" + UUID.randomUUID() + "/controls";
+        assertThat(adminApiClient().get(path, credential, null).getStatusCode().value()).isEqualTo(403);
+
+        adminApiClient().post(
+            "/admin/users/" + userId + "/roles",
+            Map.of(
+                "roles", List.of(USER_ADMIN_ROLE, OPS_ADMIN_ROLE),
+                "requestedBy", rootActor()),
+            rootCredential(),
+            null);
+
+        assertThat(adminApiClient().get(path, credential, null).getStatusCode().value()).isEqualTo(200);
+    }
+
     private String provisionOperator(final List<String> roles) {
         return provisionOperator(UUID.randomUUID().toString(), roles);
     }
 
     // Creates an operator with the given roles and returns its issued credential.
+    // The bootstrap credential works only while the operator store is empty, so the
+    // first operator is created with it and everything after uses that operator —
+    // exactly the handover a real deployment performs.
     private String provisionOperator(final String userId, final List<String> roles) {
+        final String root = rootCredential();
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/users",
             Map.of(
@@ -205,21 +270,12 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "displayName", "Operator " + userId.substring(0, 8),
                 "email", userId.substring(0, 8) + "@example.com",
                 "roles", roles,
-                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator")),
-            ADMIN_TOKEN,
-            USER_ADMIN_ROLE);
+                "requestedBy", rootActor()),
+            root,
+            null);
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
-        final ResponseEntity<JsonNode> reset = adminApiClient().post(
-            "/admin/users/" + userId + "/reset-credentials",
-            Map.of(
-                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator"),
-                "reason", "issue initial credential"),
-            ADMIN_TOKEN,
-            USER_ADMIN_ROLE);
-        assertThat(reset.getStatusCode().value()).isEqualTo(200);
-
-        final String credential = reset.getBody().path("resetToken").asText();
+        final String credential = created.getBody().path("credential").asText();
         assertThat(credential).isNotBlank();
         return credential;
     }

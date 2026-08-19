@@ -36,7 +36,12 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String ADMIN_TOKEN_HEADER = "X-Admin-Token";
 
-    private static final String BOOTSTRAP_OPERATOR_ID = "bootstrap";
+    /**
+     * Fixed identity of the bootstrap credential. A real UUID because the domain
+     * validates the audit actor as one, and nil so it is unmistakable in the
+     * Audit Trail as the shared, unattributable identity.
+     */
+    public static final String BOOTSTRAP_OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final Set<String> BOOTSTRAP_ROLES = Set.of("MINT_ADMIN", "USER_ADMIN", "OPS_ADMIN");
 
     private final AdminSecurityProperties properties;
@@ -81,6 +86,11 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
     private Optional<AuthenticatedOperator> resolve(final String presented) {
         if (MessageDigestComparator.equals(properties.apiToken(), presented)) {
+            // Deliberately checked only on the bootstrap path, so normal requests
+            // never pay for the scan.
+            if (!operatorAccessRepository.findAll().isEmpty()) {
+                return Optional.empty();
+            }
             return Optional.of(new AuthenticatedOperator(
                 BOOTSTRAP_OPERATOR_ID, "Bootstrap operator", BOOTSTRAP_ROLES));
         }

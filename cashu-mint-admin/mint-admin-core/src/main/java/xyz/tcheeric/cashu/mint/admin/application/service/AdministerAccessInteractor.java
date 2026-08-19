@@ -48,15 +48,19 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             throw new IllegalArgumentException("at least one role must be provided for provisioning");
         }
 
+        // Issued here so a new operator is usable from one call. The bootstrap
+        // credential goes inert as soon as an operator exists, and would otherwise
+        // be unable to hand the first operator its own way in.
+        final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount record = new OperatorAccessAccount(
             request.targetAccountId(), request.displayName(), request.email(),
-            Set.copyOf(request.roles()), true, 0, null, null);
+            Set.copyOf(request.roles()), true, 1, OperatorCredentials.hash(credential), Instant.now());
         final boolean created = operatorAccessRepository.create(record);
         if (!created) {
             throw new IllegalStateException("operator already exists: " + request.targetAccountId());
         }
 
-        return buildResponse(record, request.versionTag(), "User created", null);
+        return buildResponse(record, request.versionTag(), "User created", credential);
     }
 
     private AdministerAccessResponse updateRoles(final AdministerAccessRequest request) {

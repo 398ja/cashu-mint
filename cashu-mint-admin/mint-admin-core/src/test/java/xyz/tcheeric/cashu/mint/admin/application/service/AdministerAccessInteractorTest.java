@@ -104,8 +104,9 @@ class AdministerAccessInteractorTest {
         assertThat(secondReset.resetToken()).isNotBlank().isNotEqualTo(firstReset.resetToken());
 
         // Only the hash of the most recent credential is stored.
+        // Provisioning issues the first credential, so two explicit resets make three.
         final OperatorAccessAccount stored = repository.findById(USER_ID).orElseThrow();
-        assertThat(stored.credentialResetCount()).isEqualTo(2);
+        assertThat(stored.credentialResetCount()).isEqualTo(3);
         assertThat(stored.credentialHash()).isEqualTo(OperatorCredentials.hash(secondReset.resetToken()));
         assertThat(stored.credentialHash()).isNotEqualTo(secondReset.resetToken());
 

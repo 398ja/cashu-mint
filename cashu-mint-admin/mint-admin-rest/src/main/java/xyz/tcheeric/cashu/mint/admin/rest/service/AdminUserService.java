@@ -32,9 +32,12 @@ public class AdminUserService {
 
     private final AdministerAccessUseCase accessUseCase;
     private final OperatorAccessRepository operatorRepository;
+    private final OperatorIdentity operatorIdentity;
 
     public AdminUserService(final AdministerAccessUseCase accessUseCase,
-                            final OperatorAccessRepository operatorRepository) {
+                            final OperatorAccessRepository operatorRepository,
+                            final OperatorIdentity operatorIdentity) {
+        this.operatorIdentity = Objects.requireNonNull(operatorIdentity, "operator identity must not be null");
         this.accessUseCase = Objects.requireNonNull(accessUseCase, "access use case must not be null");
         this.operatorRepository = Objects.requireNonNull(operatorRepository, "operator repository must not be null");
     }
@@ -75,10 +78,13 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(request.requestedBy().id(), request.userId(),
+                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), request.userId(),
                     AccessCommand.PROVISION, DEFAULT_VERSION_TAG, request.displayName(),
                     request.email(), Set.copyOf(request.roles()), null));
-            return toUserResponse(response);
+            // Creation is the one response that carries a credential, shown once.
+            return new UserResponse(response.targetAccountId(), response.displayName(),
+                response.email(), response.roles(), response.active(), response.message(),
+                response.resetToken());
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
@@ -88,7 +94,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(request.requestedBy().id(), userId,
+                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, request.displayName(),
                     request.email(), Set.copyOf(request.roles()), null));
             return toUserResponse(response);
@@ -101,7 +107,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(request.requestedBy().id(), userId,
+                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, null,
                     null, Set.copyOf(request.roles()), request.justification()));
             return toUserResponse(response);
@@ -114,7 +120,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(request.requestedBy().id(), userId,
+                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
                     AccessCommand.RESET_CREDENTIALS, DEFAULT_VERSION_TAG, null,
                     null, Set.of(), request.reason()));
             return new CredentialResetResponse(response.targetAccountId(),
@@ -128,7 +134,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(request.requestedBy().id(), userId,
+                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
                     AccessCommand.REVOKE, DEFAULT_VERSION_TAG, null,
                     null, Set.of(), request.reason()));
             return toUserResponse(response);

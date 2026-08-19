@@ -16,3 +16,15 @@ and attributability is the main thing the admin currently does well. Adopting
 Spring Security was the other option, rejected as a large dependency for a
 service with a single kind of user when the operator store had to become the
 source of truth either way.
+
+## Consequences
+
+`admin.security.api-token` survives only as a bootstrap credential, usable while
+the operator store is empty and inert the moment any Operator exists. Creating
+an Operator issues that Operator's own credential in the same response, so one
+bootstrap request is enough to hand over — a shared token that stayed valid
+would reproduce the defect this ADR exists to close, under a different name.
+
+The audit actor is the authenticated Operator. A request whose body names a
+different one is refused rather than silently recorded, because an Audit Trail
+that stores a claimed identity is evidence of nothing.

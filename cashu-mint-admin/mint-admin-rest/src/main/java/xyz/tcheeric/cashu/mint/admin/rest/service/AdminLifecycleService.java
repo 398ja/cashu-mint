@@ -39,11 +39,14 @@ public class AdminLifecycleService {
     private final MintRepository mintRepository;
     private final LifecycleSummaryPresenter summaryPresenter;
     private final LifecycleSummaryApiPresenter apiPresenter;
+    private final OperatorIdentity operatorIdentity;
 
     public AdminLifecycleService(final ManageMintLifecycleUseCase lifecycleUseCase,
                                  final MintRepository mintRepository,
                                  final LifecycleSummaryPresenter summaryPresenter,
-                                 final LifecycleSummaryApiPresenter apiPresenter) {
+                                 final LifecycleSummaryApiPresenter apiPresenter,
+                                 final OperatorIdentity operatorIdentity) {
+        this.operatorIdentity = Objects.requireNonNull(operatorIdentity, "operatorIdentity");
         this.lifecycleUseCase = Objects.requireNonNull(lifecycleUseCase, "lifecycleUseCase");
         this.mintRepository = Objects.requireNonNull(mintRepository, "mintRepository");
         this.summaryPresenter = Objects.requireNonNull(summaryPresenter, "summaryPresenter");
@@ -93,7 +96,7 @@ public class AdminLifecycleService {
         final java.util.Map<String, String> configParams = extractConfigurationParameters(request.configuration());
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             request.mintId(),
-            request.requestedBy().id(),
+            operatorIdentity.requireActor(request.requestedBy().id()),
             LifecycleCommand.CREATE,
             versionTag,
             null,
@@ -120,7 +123,7 @@ public class AdminLifecycleService {
         final String versionTag = extractVersionTag(request.configuration(), request.revisionId());
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             mintId,
-            request.requestedBy().id(),
+            operatorIdentity.requireActor(request.requestedBy().id()),
             LifecycleCommand.UPDATE_CONFIGURATION,
             versionTag,
             null,
@@ -161,7 +164,7 @@ public class AdminLifecycleService {
             .orElse(DEFAULT_VERSION_TAG);
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             mintId,
-            request.requestedBy().id(),
+            operatorIdentity.requireActor(request.requestedBy().id()),
             command,
             versionTag,
             null,

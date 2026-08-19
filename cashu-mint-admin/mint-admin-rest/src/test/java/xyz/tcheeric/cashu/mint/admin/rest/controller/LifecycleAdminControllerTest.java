@@ -39,11 +39,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminLifecycleService.class})
-@TestPropertySource(properties = "admin.security.api-token=test-token")
+@TestPropertySource(properties = {
+    "admin.security.api-token=test-token",
+    // Own database per class: a shared in-memory store leaks operators between
+    // classes, and the bootstrap credential is inert once any operator exists.
+    "spring.datasource.url=jdbc:h2:mem:LifecycleAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+})
 class LifecycleAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
-    private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
+    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String MINT_ID_1 = "11111111-1111-1111-1111-111111111111";
     private static final String MINT_ID_2 = "22222222-2222-2222-2222-222222222222";
     private static final String MISSING_MINT_ID = "99999999-9999-9999-9999-999999999999";
