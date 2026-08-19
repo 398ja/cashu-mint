@@ -24,6 +24,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetReposi
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlRecord;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
@@ -53,8 +54,9 @@ class VaultProvisioningOutboxHandlerTest {
         mintRepository = new RecordingMintRepository();
         configSetRepository = new RecordingConfigSetRepository();
         eventPublisher = new RecordingEventPublisher();
+        controlRepository = new InMemoryOperationalControlRepository();
         handler = new VaultProvisioningOutboxHandler(vaultPort, mintRepository, configSetRepository,
-            eventPublisher, new ObjectMapper(), CLOCK, 3);
+            controlRepository, eventPublisher, new ObjectMapper(), CLOCK, 3);
     }
 
     @Test
@@ -143,6 +145,54 @@ class VaultProvisioningOutboxHandlerTest {
         assertThat(vaultPort.lastDenominations).containsExactly(1, 5, 10);
     }
 
+    @Test
+    // Ensures KEYS_ROTATED events actually rotate the vault keyset and record the outcome.
+    void shouldRotateVaultKeysetOnKeysRotated() {
+        storeProvisioningMint();
+        final String controlId = UUID.randomUUID().toString();
+        controlRepository.create(new OperationalControlRecord(controlId, MINT_ID, UUID.randomUUID(),
+            xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlType.KEY_ROTATION,
+            "KEY_ROTATION_INITIATED", CLOCK.instant(), "compromise", null));
+
+        handler.handle(keysRotatedMessage(controlId, 0));
+
+        assertThat(vaultPort.rotations).containsExactly(controlId);
+        final OperationalControlRecord updated = controlRepository.records.get(controlId);
+        assertThat(updated.status()).isEqualTo("KEY_ROTATION_COMPLETED");
+        // Both keyset ids belong in the audit trail so the key history is reconstructable.
+        assertThat(updated.outcome()).contains("newkeyset-" + controlId).contains("oldkeyset");
+    }
+
+    @Test
+    // Ensures a rotation that exhausts its retries is recorded as failed rather than lost.
+    void shouldRecordFailureWhenRotationExhaustsRetries() {
+        storeProvisioningMint();
+        final String controlId = UUID.randomUUID().toString();
+        controlRepository.create(new OperationalControlRecord(controlId, MINT_ID, UUID.randomUUID(),
+            xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlType.KEY_ROTATION,
+            "KEY_ROTATION_INITIATED", CLOCK.instant(), "compromise", null));
+        vaultPort.shouldFail = true;
+
+        handler.handle(keysRotatedMessage(controlId, 2));
+
+        assertThat(controlRepository.records.get(controlId).status()).isEqualTo("KEY_ROTATION_FAILED");
+    }
+
+    @Test
+    // Ensures a rotation without its control id is rejected rather than guessed at.
+    void shouldRejectRotationMissingControlId() {
+        storeProvisioningMint();
+        assertThatThrownBy(() -> handler.handle(messageWithType("KEYS_ROTATED", 0)))
+            .isInstanceOf(OutboxMessageHandlingException.class);
+    }
+
+    private OutboxMessage keysRotatedMessage(final String controlId, final int attempts) {
+        final String payload = "{\"mintId\":\"" + MINT_ID_STR
+            + "\",\"versionTag\":\"v1\",\"currentState\":\"PROVISIONING\",\"configurationRevision\":1}";
+        return new OutboxMessage(UUID.randomUUID(), MINT_ID, "MintAggregate", "KEYS_ROTATED", payload,
+            Map.of("controlId", controlId), Instant.now(), Instant.now(), null, null, attempts);
+    }
+
     private void storeProvisioningMint() {
         final AuditMetadata audit = new AuditMetadata("operator", "Mint created", CLOCK.instant());
         final ConfigurationSet config = new ConfigurationSet(ConfigurationRevisionId.of(1),
@@ -170,6 +220,41 @@ class VaultProvisioningOutboxHandlerTest {
             Map.of(), Instant.now(), Instant.now(), null, null, attempts);
     }
 
+    private InMemoryOperationalControlRepository controlRepository;
+
+    /** Minimal in-memory control store so rotation outcomes can be asserted. */
+    private static final class InMemoryOperationalControlRepository
+            implements xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository {
+        final Map<String, OperationalControlRecord> records = new java.util.concurrent.ConcurrentHashMap<>();
+
+        @Override
+        public void create(final OperationalControlRecord control) {
+            records.put(control.controlId(), control);
+        }
+
+        @Override
+        public void update(final OperationalControlRecord control) {
+            records.put(control.controlId(), control);
+        }
+
+        @Override
+        public java.util.Optional<OperationalControlRecord> findActiveMaintenanceByMintId(
+                final xyz.tcheeric.cashu.mint.admin.domain.MintId mintId) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public List<OperationalControlRecord> findByMintId(
+                final xyz.tcheeric.cashu.mint.admin.domain.MintId mintId) {
+            return List.copyOf(records.values());
+        }
+
+        @Override
+        public java.util.Optional<OperationalControlRecord> findById(final String controlId) {
+            return java.util.Optional.ofNullable(records.get(controlId));
+        }
+    }
+
     private static final class RecordingVaultPort implements VaultProvisioningPort {
         final List<UUID> provisionedMints = new ArrayList<>();
         final List<UUID> archivedMints = new ArrayList<>();
@@ -177,6 +262,18 @@ class VaultProvisioningOutboxHandlerTest {
         boolean shouldFail = false;
         String lastUnit;
         List<Integer> lastDenominations;
+
+        final List<String> rotations = new ArrayList<>();
+
+        @Override
+        public RotationResult rotate(final UUID mintId, final String unit,
+                                     final List<Integer> denominations, final String rotationId) {
+            if (shouldFail) throw new RuntimeException("vault unavailable");
+            rotations.add(rotationId);
+            lastUnit = unit;
+            lastDenominations = denominations;
+            return new RotationResult("newkeyset-" + rotationId, List.of("oldkeyset"));
+        }
 
         @Override
         public void provision(final UUID mintId, final String unit, final List<Integer> denominations) {

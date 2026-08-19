@@ -17,7 +17,9 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetReposi
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEvent;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
+import xyz.tcheeric.cashu.mint.admin.application.service.ExecuteOperationalControlsInteractor;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
@@ -40,7 +42,11 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
     private static final String CONFIG_UNIT = "cashu.unit";
     private static final String CONFIG_DENOMINATIONS = "cashu.denominations";
 
+    private static final String KEYS_ROTATED_EVENT = ExecuteOperationalControlsInteractor.KEYS_ROTATED_EVENT;
+    private static final String CONTROL_ID_ATTRIBUTE = ExecuteOperationalControlsInteractor.CONTROL_ID_ATTRIBUTE;
+
     private final VaultProvisioningPort vaultPort;
+    private final OperationalControlRepository operationalControlRepository;
     private final MintRepository mintRepository;
     private final ConfigurationSetRepository configurationSetRepository;
     private final MintLifecycleEventPublisher eventPublisher;
@@ -51,6 +57,7 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
     public VaultProvisioningOutboxHandler(final VaultProvisioningPort vaultPort,
                                           final MintRepository mintRepository,
                                           final ConfigurationSetRepository configurationSetRepository,
+                                          final OperationalControlRepository operationalControlRepository,
                                           final MintLifecycleEventPublisher eventPublisher,
                                           final ObjectMapper objectMapper,
                                           final Clock clock,
@@ -59,6 +66,8 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
         this.mintRepository = Objects.requireNonNull(mintRepository, "mint repository must not be null");
         this.configurationSetRepository = Objects.requireNonNull(configurationSetRepository,
             "configuration set repository must not be null");
+        this.operationalControlRepository = Objects.requireNonNull(operationalControlRepository,
+            "operational control repository must not be null");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "event publisher must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "object mapper must not be null");
         this.clock = clock == null ? Clock.systemUTC() : clock;
@@ -77,6 +86,8 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
             handleCreated(message);
         } else if ("RETIRED".equals(eventType)) {
             handleRetired(message);
+        } else if (KEYS_ROTATED_EVENT.equals(eventType)) {
+            handleKeysRotated(message);
         }
     }
 
@@ -103,6 +114,56 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
                     "Vault provisioning failed for mint " + mintId.asString(), e);
             }
         }
+    }
+
+    private void handleKeysRotated(final OutboxMessage message) {
+        final MintId mintId = parseMintId(message);
+        final UUID mintUuid = UUID.fromString(mintId.asString());
+        final String controlId = message.attributes().get(CONTROL_ID_ATTRIBUTE);
+        if (controlId == null || controlId.isBlank()) {
+            throw new OutboxMessageHandlingException(
+                "Key rotation message is missing " + CONTROL_ID_ATTRIBUTE + ": " + message.eventId());
+        }
+
+        final String unit = resolveUnit(mintId);
+        final List<Integer> denominations = resolveDenominations(mintId);
+
+        try {
+            // Keyed on the control id, so a redelivered message derives the same
+            // keyset instead of minting a second one.
+            final VaultProvisioningPort.RotationResult result =
+                vaultPort.rotate(mintUuid, unit, denominations, controlId);
+            recordRotationOutcome(controlId, "KEY_ROTATION_COMPLETED",
+                "Keyset " + result.newKeySetId() + " replaces " + result.previousKeySetIds());
+            log.info("Key rotation completed for mint {}: {} replaces {}",
+                mintId.asString(), result.newKeySetId(), result.previousKeySetIds());
+        } catch (final Exception e) {
+            final int attempts = message.deliveryAttempts() + 1;
+            if (attempts >= maxRetries) {
+                log.error("Key rotation permanently failed for mint {} after {} attempts",
+                    mintId.asString(), attempts, e);
+                recordRotationOutcome(controlId, "KEY_ROTATION_FAILED", e.getMessage());
+                return;
+            }
+            log.warn("Key rotation failed for mint {} (attempt {}/{}): {}",
+                mintId.asString(), attempts, maxRetries, e.getMessage());
+            throw new OutboxMessageHandlingException(
+                "Key rotation failed for mint " + mintId.asString(), e);
+        }
+    }
+
+    private void recordRotationOutcome(final String controlId, final String status, final String outcome) {
+        operationalControlRepository.findById(controlId).ifPresent(control ->
+            operationalControlRepository.update(new OperationalControlRepository.OperationalControlRecord(
+                control.controlId(),
+                control.mintId(),
+                control.operatorId(),
+                control.controlType(),
+                status,
+                control.scheduledAt(),
+                control.reason(),
+                control.durationMinutes(),
+                outcome)));
     }
 
     private void handleRetired(final OutboxMessage message) {

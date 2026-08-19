@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,13 +27,15 @@ class ExecuteOperationalControlsInteractorTest {
     private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174011";
 
     private InMemoryOperationalControlRepository repository;
+    private RecordingOutboxRepository outboxRepository;
     private ExecuteOperationalControlsInteractor interactor;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryOperationalControlRepository();
         final Clock fixedClock = Clock.fixed(Instant.parse("2026-02-15T01:00:00Z"), ZoneOffset.UTC);
-        interactor = new ExecuteOperationalControlsInteractor(repository, fixedClock);
+        outboxRepository = new RecordingOutboxRepository();
+        interactor = new ExecuteOperationalControlsInteractor(repository, outboxRepository, fixedClock);
     }
 
     // Verifies scheduled maintenance transitions to in-progress and completed states.
@@ -79,6 +82,62 @@ class ExecuteOperationalControlsInteractorTest {
             .hasMessageContaining("maintenance window not found");
     }
 
+    /** Captures what the interactor publishes, so rotation can be asserted. */
+    // Rotation must publish durable work rather than reporting success and doing
+    // nothing — the placeholder it replaces returned KEY_ROTATION_INITIATED and
+    // wrote a single audit row.
+    @Test
+    void shouldPublishRotationWorkWhenRotatingKeys() {
+        final String mintId = UUID.randomUUID().toString();
+        final ExecuteOperationalControlsResponse response = interactor.handle(
+            new ExecuteOperationalControlsRequest(
+                mintId,
+                OPERATOR_ID,
+                OperationalCommand.ROTATE_KEYS,
+                "v1",
+                "suspected key compromise",
+                null));
+
+        assertThat(response.status()).isEqualTo("KEY_ROTATION_INITIATED");
+        assertThat(response.message()).doesNotContain("placeholder");
+
+        assertThat(outboxRepository.appended).hasSize(1);
+        final var message = outboxRepository.appended.get(0);
+        assertThat(message.eventType())
+            .isEqualTo(ExecuteOperationalControlsInteractor.KEYS_ROTATED_EVENT);
+        // The control id travels with the message so the adapter can derive the same
+        // keyset on redelivery instead of minting a second one.
+        assertThat(message.attributes())
+            .containsEntry(ExecuteOperationalControlsInteractor.CONTROL_ID_ATTRIBUTE,
+                response.controlId());
+    }
+
+    private static final class RecordingOutboxRepository
+            implements xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository {
+        final java.util.List<xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage> appended =
+            new java.util.ArrayList<>();
+
+        @Override
+        public void append(final xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage message) {
+            appended.add(message);
+        }
+
+        @Override
+        public java.util.List<xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage> findPending(
+                final java.time.Instant availableBefore, final int limit) {
+            return java.util.List.of();
+        }
+
+        @Override
+        public void markDispatched(final java.util.UUID eventId, final java.time.Instant dispatchedAt) {
+        }
+
+        @Override
+        public void recordFailure(final java.util.UUID eventId, final java.time.Instant attemptAt,
+                                  final java.time.Instant nextAttemptAt) {
+        }
+    }
+
     private static final class InMemoryOperationalControlRepository implements OperationalControlRepository {
 
         private final Map<String, OperationalControlRecord> records = new ConcurrentHashMap<>();
@@ -91,6 +150,11 @@ class ExecuteOperationalControlsInteractorTest {
         @Override
         public void update(final OperationalControlRecord control) {
             records.put(control.controlId(), control);
+        }
+
+        @Override
+        public java.util.Optional<OperationalControlRecord> findById(final String controlId) {
+            return java.util.Optional.ofNullable(records.get(controlId));
         }
 
         @Override

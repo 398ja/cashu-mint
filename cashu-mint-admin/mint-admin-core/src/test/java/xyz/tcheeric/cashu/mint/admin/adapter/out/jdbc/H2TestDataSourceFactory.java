@@ -59,8 +59,9 @@ final class H2TestDataSourceFactory {
         final String v10 = readMigration("/db/migration/admin/V10__create_operational_controls.sql");
         final String v11 = readMigration("/db/migration/admin/V11__drop_health_and_alert_tables.sql");
         final String v12 = readMigration("/db/migration/admin/V12__operator_credential_hash.sql");
+        final String v13 = readMigration("/db/migration/admin/V13__operational_control_outcome.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6
-            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12)
+            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12 + "\n" + v13)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }

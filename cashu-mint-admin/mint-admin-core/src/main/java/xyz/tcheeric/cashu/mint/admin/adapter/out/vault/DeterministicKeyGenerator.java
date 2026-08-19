@@ -23,7 +23,26 @@ public class DeterministicKeyGenerator {
      * using {@code SHA-256(mintId|unit|amount)}.
      */
     public String derivePrivateKeyHex(final UUID mintId, final String unit, final int amount) {
-        final String material = mintId + "|" + unit + "|" + amount;
+        return derivePrivateKeyHex(mintId, unit, amount, null);
+    }
+
+    /**
+     * Derives a private key for a rotation.
+     *
+     * <p>{@code rotationId} is the operational control id of the rotation that
+     * produced this keyset. Keying on it rather than on a counter is what makes
+     * rotation idempotent: a redelivered outbox message derives the same keyset
+     * rather than minting a second one.
+     *
+     * <p>A null {@code rotationId} reproduces the original material exactly, so
+     * keysets provisioned before rotation existed — and those the tools module
+     * preloads — keep deriving byte-identical keys.
+     */
+    public String derivePrivateKeyHex(final UUID mintId, final String unit, final int amount,
+                                      final String rotationId) {
+        final String material = rotationId == null
+            ? mintId + "|" + unit + "|" + amount
+            : mintId + "|" + unit + "|" + amount + "|" + rotationId;
         final byte[] hash = sha256(material);
         return bytesToHex(hash);
     }
@@ -33,9 +52,20 @@ public class DeterministicKeyGenerator {
      * denomination and passing them through the standard keyset ID algorithm.
      */
     public String deriveKeySetId(final UUID mintId, final String unit, final List<Integer> denominations) {
+        return deriveKeySetId(mintId, unit, denominations, null);
+    }
+
+    /**
+     * Computes the external keyset identifier for a rotation.
+     *
+     * @param rotationId operational control id of the rotation, or null for the
+     *                   mint's original keyset
+     */
+    public String deriveKeySetId(final UUID mintId, final String unit, final List<Integer> denominations,
+                                 final String rotationId) {
         final Keys keys = new Keys();
         for (final int amount : denominations) {
-            final String hex = derivePrivateKeyHex(mintId, unit, amount);
+            final String hex = derivePrivateKeyHex(mintId, unit, amount, rotationId);
             final PrivateKey pk = PrivateKey.fromString(hex);
             keys.put(BigInteger.valueOf(amount), PrivateKey.derivePublicKey(pk));
         }

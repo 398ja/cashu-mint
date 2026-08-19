@@ -112,8 +112,9 @@ public class AdminLifecycleServiceConfiguration {
     @Bean
     public ExecuteOperationalControlsUseCase executeOperationalControlsUseCase(
         final OperationalControlRepository operationalControlRepository,
+        final OutboxRepository outboxRepository,
         final Clock adminClock) {
-        return new ExecuteOperationalControlsInteractor(operationalControlRepository, adminClock);
+        return new ExecuteOperationalControlsInteractor(operationalControlRepository, outboxRepository, adminClock);
     }
 
     @Bean

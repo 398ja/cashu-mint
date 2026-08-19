@@ -55,6 +55,48 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
     }
 
     @Override
+    public RotationResult rotate(final UUID mintId, final String unit, final List<Integer> denominations,
+                                 final String rotationId) {
+        Objects.requireNonNull(mintId, "mint id must not be null");
+        Objects.requireNonNull(unit, "unit must not be null");
+        Objects.requireNonNull(denominations, "denominations must not be null");
+        Objects.requireNonNull(rotationId, "rotation id must not be null");
+
+        final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+        final KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
+        final KeyVaultClient keyClient = VaultClientFactory.keyClient();
+
+        final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
+
+        // Which keysets this rotation replaces, captured before the new one lands
+        // so the new keyset is never counted among them.
+        final List<String> superseded = keySetClient.getByMintId(mintId.toString()).stream()
+            .filter(keySet -> unit.equals(keySet.getUnit()))
+            .filter(keySet -> !keySet.isArchived())
+            .map(KeySetEntity::getKeySetId)
+            .toList();
+
+        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId);
+        final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
+        final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
+        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity, rotationId);
+
+        // Archive last: until the replacement exists and can sign, the mint must
+        // keep its current keyset, or a failure mid-rotation leaves it unable to issue.
+        for (final KeySetEntity keySet : keySetClient.getByMintId(mintId.toString())) {
+            if (unit.equals(keySet.getUnit())
+                && !keySet.isArchived()
+                && !keySetId.equals(keySet.getKeySetId())) {
+                keySetClient.archive(keySet.getId().toString());
+            }
+        }
+
+        log.info("Vault keyset rotated for mint {} unit {}: {} replaces {}",
+            mintId, unit, keySetId, superseded);
+        return new RotationResult(keySetId, superseded);
+    }
+
+    @Override
     public boolean isProvisioned(final UUID mintId) {
         try {
             final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
@@ -126,11 +168,26 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                                    final String unit,
                                    final List<Integer> denominations,
                                    final KeySetEntity keySetEntity) {
+        storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity, null);
+    }
+
+    private void storeKeyEntities(final KeyVaultClient keyClient,
+                                   final UUID mintId,
+                                   final String unit,
+                                   final List<Integer> denominations,
+                                   final KeySetEntity keySetEntity,
+                                   final String rotationId) {
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             final List<CompletableFuture<Void>> futures = denominations.stream()
                 .map(amount -> CompletableFuture.runAsync(() -> {
-                    final UUID keyId = keyGenerator.deterministicId(mintId, unit, String.valueOf(amount));
-                    final String privateKeyHex = keyGenerator.derivePrivateKeyHex(mintId, unit, amount);
+                    // The row id must carry the rotation too, or a rotated key would
+                    // collide with the one it replaces for the same mint/unit/amount.
+                    final String keyIdSource = rotationId == null
+                        ? String.valueOf(amount)
+                        : amount + "|" + rotationId;
+                    final UUID keyId = keyGenerator.deterministicId(mintId, unit, keyIdSource);
+                    final String privateKeyHex =
+                        keyGenerator.derivePrivateKeyHex(mintId, unit, amount, rotationId);
                     final KeyEntity keyEntity = new KeyEntity();
                     keyEntity.setId(keyId);
                     keyEntity.setAmount(BigInteger.valueOf(amount));
