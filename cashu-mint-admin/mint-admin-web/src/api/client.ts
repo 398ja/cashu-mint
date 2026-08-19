@@ -19,10 +19,8 @@ export class ApiRequestError extends Error {
 
 function getAuthHeaders(): Record<string, string> {
   const token = sessionStorage.getItem("admin_token");
-  const roles = sessionStorage.getItem("admin_roles");
   const headers: Record<string, string> = {};
   if (token) headers["X-Admin-Token"] = token;
-  if (roles) headers["X-Admin-Roles"] = roles;
   return headers;
 }
 

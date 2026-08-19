@@ -75,7 +75,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             Set.copyOf(request.roles()),
             record.active(),
             record.credentialResetCount(),
-            record.lastResetToken(),
+            record.credentialHash(),
             record.lastResetAt());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User updated", null);
@@ -91,7 +91,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.roles(),
             false,
             record.credentialResetCount(),
-            record.lastResetToken(),
+            record.credentialHash(),
             record.lastResetAt());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User deactivated", null);
@@ -101,7 +101,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         validateUuid(request.targetAccountId(), "target account id");
         final OperatorAccessAccount record = requireExisting(request.targetAccountId());
         final int resetCount = record.credentialResetCount() + 1;
-        final String token = request.targetAccountId() + "-reset-" + resetCount;
+        // The plaintext credential is returned to the caller once and never stored.
+        final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount updated = new OperatorAccessAccount(
             record.accountId(),
             record.displayName(),
@@ -109,10 +110,10 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.roles(),
             record.active(),
             resetCount,
-            token,
+            OperatorCredentials.hash(credential),
             Instant.now());
         operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "Reset token issued", token);
+        return buildResponse(updated, request.versionTag(), "Credential issued", credential);
     }
 
     private OperatorAccessAccount requireExisting(final String accountId) {

@@ -16,7 +16,6 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 public class AdminOpenApiConfiguration {
 
     private static final String ADMIN_TOKEN_SCHEME = "AdminToken";
-    private static final String ADMIN_ROLES_SCHEME = "AdminRoles";
 
     @Bean
     public OpenAPI adminOpenApi() {
@@ -24,21 +23,16 @@ public class AdminOpenApiConfiguration {
                 .addSecuritySchemes(ADMIN_TOKEN_SCHEME, new SecurityScheme()
                         .type(SecurityScheme.Type.APIKEY)
                         .name(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER)
-                        .in(SecurityScheme.In.HEADER))
-                .addSecuritySchemes(ADMIN_ROLES_SCHEME, new SecurityScheme()
-                        .type(SecurityScheme.Type.APIKEY)
-                        .name(AdminRbacFilter.ADMIN_ROLES_HEADER)
                         .in(SecurityScheme.In.HEADER));
 
         final SecurityRequirement securityRequirement = new SecurityRequirement()
-                .addList(ADMIN_TOKEN_SCHEME)
-                .addList(ADMIN_ROLES_SCHEME);
+                .addList(ADMIN_TOKEN_SCHEME);
 
         return new OpenAPI()
                 .components(components)
                 .info(new Info()
                         .title("Cashu Mint Admin API")
-                        .description("Administrative endpoints mirroring CLI workflows")
+                        .description("Administrative endpoints for operating the mint")
                         .version("v1"))
                 .addSecurityItem(securityRequirement);
     }

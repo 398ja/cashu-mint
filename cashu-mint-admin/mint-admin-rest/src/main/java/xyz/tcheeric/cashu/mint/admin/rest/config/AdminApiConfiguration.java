@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,8 +33,10 @@ public class AdminApiConfiguration {
     }
 
     @Bean
-    public AdminAuthenticationFilter adminAuthenticationFilter(final AdminSecurityProperties properties) {
-        return new AdminAuthenticationFilter(properties);
+    public AdminAuthenticationFilter adminAuthenticationFilter(
+            final AdminSecurityProperties properties,
+            final OperatorAccessRepository operatorAccessRepository) {
+        return new AdminAuthenticationFilter(properties, operatorAccessRepository);
     }
 
     @Bean

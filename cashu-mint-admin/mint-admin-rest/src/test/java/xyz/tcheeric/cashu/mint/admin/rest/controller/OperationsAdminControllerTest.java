@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 
@@ -49,12 +48,11 @@ class OperationsAdminControllerTest {
     // Checks that scheduling maintenance requires the OPS_ADMIN role.
     @Test
     @DisplayName("Schedule maintenance requires role header")
-    void scheduleMaintenanceRequiresRole() throws Exception {
+    void scheduleMaintenanceRequiresCredential() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // Ensures scheduling maintenance returns SCHEDULED status.
@@ -63,7 +61,6 @@ class OperationsAdminControllerTest {
     void scheduleMaintenanceReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())
@@ -78,7 +75,6 @@ class OperationsAdminControllerTest {
     void forceCloseReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/force-close")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())

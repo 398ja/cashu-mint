@@ -54,21 +54,27 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
 
-    // Verifies RBAC role checks across all endpoint families.
+    // Verifies RBAC across all endpoint families: an operator holding only the wrong
+    // role is refused, even while asserting the required role in a request header.
     @ParameterizedTest
     @MethodSource("rbacCases")
     void shouldEnforceRbacPerEndpointFamily(final HttpMethod method,
                                             final String path,
                                             final Map<String, Object> body,
                                             final String wrongRole) {
+        final String credential = provisionOperator(List.of(wrongRole));
+
         final ResponseEntity<JsonNode> response = adminApiClient().exchange(
             path,
             method,
             body,
-            ADMIN_TOKEN,
-            wrongRole);
+            credential,
+            ALL_ROLES_CLAIM);
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
+
+    // Every role a caller could try to claim, so the header is proven inert.
+    private static final String ALL_ROLES_CLAIM = "MINT_ADMIN,USER_ADMIN,OPS_ADMIN";
 
     // Ensures bean validation returns 400 for malformed user payloads.
     @Test
@@ -123,6 +129,99 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                     "durationMinutes", 10,
                     "requestedBy", actor),
                 USER_ADMIN_ROLE));
+    }
+
+    // The core defect: an operator must not gain a role by asserting it in a request
+    // header. Provisions an operator holding only USER_ADMIN, then calls an OPS_ADMIN
+    // endpoint with that operator's own credential while claiming OPS_ADMIN in the header.
+    @Test
+    void shouldRefuseRoleAssertedInHeaderThatOperatorDoesNotHold() {
+        final String credential = provisionOperator(List.of(USER_ADMIN_ROLE));
+
+        final ResponseEntity<JsonNode> response = adminApiClient().get(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
+            credential,
+            OPS_ADMIN_ROLE);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+    }
+
+    // An operator's own roles are honoured without any header being sent.
+    @Test
+    void shouldAuthoriseFromOperatorRolesWithoutRolesHeader() {
+        final String credential = provisionOperator(List.of(OPS_ADMIN_ROLE));
+
+        final ResponseEntity<JsonNode> response = adminApiClient().get(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
+            credential,
+            null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+    }
+
+    // A revoked operator loses access on the very next request.
+    @Test
+    void shouldRefuseRevokedOperator() {
+        final String userId = UUID.randomUUID().toString();
+        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
+
+        adminApiClient().post(
+            "/admin/users/" + userId + "/deactivate",
+            Map.of(
+                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator"),
+                "reason", "revoked for test"),
+            ADMIN_TOKEN,
+            USER_ADMIN_ROLE);
+
+        final ResponseEntity<JsonNode> response = adminApiClient().get(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
+            credential,
+            null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(401);
+    }
+
+    // Reading the audit trail requires a role rather than merely a valid credential.
+    @Test
+    void shouldRefuseAuditReadWithoutRequiredRole() {
+        final String credential = provisionOperator(List.of(OPS_ADMIN_ROLE));
+
+        final ResponseEntity<JsonNode> response = adminApiClient().get(
+            "/admin/audit/events", credential, null);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+    }
+
+    private String provisionOperator(final List<String> roles) {
+        return provisionOperator(UUID.randomUUID().toString(), roles);
+    }
+
+    // Creates an operator with the given roles and returns its issued credential.
+    private String provisionOperator(final String userId, final List<String> roles) {
+        final ResponseEntity<JsonNode> created = adminApiClient().post(
+            "/admin/users",
+            Map.of(
+                "userId", userId,
+                "displayName", "Operator " + userId.substring(0, 8),
+                "email", userId.substring(0, 8) + "@example.com",
+                "roles", roles,
+                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator")),
+            ADMIN_TOKEN,
+            USER_ADMIN_ROLE);
+        assertThat(created.getStatusCode().value()).isEqualTo(200);
+
+        final ResponseEntity<JsonNode> reset = adminApiClient().post(
+            "/admin/users/" + userId + "/reset-credentials",
+            Map.of(
+                "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator"),
+                "reason", "issue initial credential"),
+            ADMIN_TOKEN,
+            USER_ADMIN_ROLE);
+        assertThat(reset.getStatusCode().value()).isEqualTo(200);
+
+        final String credential = reset.getBody().path("resetToken").asText();
+        assertThat(credential).isNotBlank();
+        return credential;
     }
 
     private static Map<String, Object> validCreateUserPayload() {

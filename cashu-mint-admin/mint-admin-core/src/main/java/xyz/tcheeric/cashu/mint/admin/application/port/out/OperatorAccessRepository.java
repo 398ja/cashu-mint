@@ -44,13 +44,21 @@ public interface OperatorAccessRepository {
     /**
      * Immutable representation of a persisted operator account.
      */
+    /**
+     * Look up an operator by the hash of their credential.
+     *
+     * @param credentialHash SHA-256 hash of the presented credential
+     * @return the matching account when one exists
+     */
+    Optional<OperatorAccessAccount> findByCredentialHash(String credentialHash);
+
     record OperatorAccessAccount(String accountId,
                                  String displayName,
                                  String email,
                                  Set<String> roles,
                                  boolean active,
                                  int credentialResetCount,
-                                 String lastResetToken,
+                                 String credentialHash,
                                  Instant lastResetAt) {
 
         public OperatorAccessAccount {

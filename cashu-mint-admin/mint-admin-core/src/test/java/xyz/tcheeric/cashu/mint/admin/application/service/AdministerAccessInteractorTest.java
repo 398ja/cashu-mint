@@ -99,12 +99,19 @@ class AdministerAccessInteractorTest {
             AccessCommand.RESET_CREDENTIALS,
             "v1"));
 
-        assertThat(firstReset.resetToken()).isEqualTo(USER_ID + "-reset-1");
-        assertThat(secondReset.resetToken()).isEqualTo(USER_ID + "-reset-2");
-        assertThat(repository.findById(USER_ID)).isPresent()
-            .get()
-            .extracting(OperatorAccessAccount::credentialResetCount)
-            .isEqualTo(2);
+        // Credentials must be unpredictable, and must not be derivable from the account id.
+        assertThat(firstReset.resetToken()).isNotBlank().doesNotContain(USER_ID);
+        assertThat(secondReset.resetToken()).isNotBlank().isNotEqualTo(firstReset.resetToken());
+
+        // Only the hash of the most recent credential is stored.
+        final OperatorAccessAccount stored = repository.findById(USER_ID).orElseThrow();
+        assertThat(stored.credentialResetCount()).isEqualTo(2);
+        assertThat(stored.credentialHash()).isEqualTo(OperatorCredentials.hash(secondReset.resetToken()));
+        assertThat(stored.credentialHash()).isNotEqualTo(secondReset.resetToken());
+
+        // A superseded credential no longer resolves.
+        assertThat(repository.findByCredentialHash(OperatorCredentials.hash(firstReset.resetToken())))
+            .isEmpty();
     }
 
     private static final class InMemoryOperatorAccessRepository implements OperatorAccessRepository {
@@ -129,6 +136,13 @@ class AdministerAccessInteractorTest {
         @Override
         public List<OperatorAccessAccount> findAll() {
             return List.copyOf(accounts.values());
+        }
+
+        @Override
+        public Optional<OperatorAccessAccount> findByCredentialHash(final String credentialHash) {
+            return accounts.values().stream()
+                .filter(account -> credentialHash != null && credentialHash.equals(account.credentialHash()))
+                .findFirst();
         }
     }
 }

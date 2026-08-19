@@ -44,6 +44,8 @@ final class H2TestDataSourceFactory {
         }
     }
 
+    // Every migration must be listed here, in order. A missing entry gives tests a
+    // stale schema that differs from production.
     private static String readSchemaScript() throws IOException {
         final String v1 = readMigration("/db/migration/admin/V1__create_admin_schema.sql");
         final String v2 = readMigration("/db/migration/admin/V2__link_audit_events.sql");
@@ -55,8 +57,10 @@ final class H2TestDataSourceFactory {
         final String v8 = readMigration("/db/migration/admin/V8__create_alerts_and_alert_escalations.sql");
         final String v9 = readMigration("/db/migration/admin/V9__create_mint_health_snapshots.sql");
         final String v10 = readMigration("/db/migration/admin/V10__create_operational_controls.sql");
+        final String v11 = readMigration("/db/migration/admin/V11__drop_health_and_alert_tables.sql");
+        final String v12 = readMigration("/db/migration/admin/V12__operator_credential_hash.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6
-            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10)
+            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }

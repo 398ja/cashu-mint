@@ -56,7 +56,10 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             ADMIN_TOKEN,
             USER_ADMIN_ROLE);
         assertThat(reset.getStatusCode().value()).isEqualTo(200);
-        assertThat(reset.getBody().path("resetToken").asText()).isEqualTo(USER_ID + "-reset-1");
+        // The issued credential must be random, not derivable from the account id.
+        assertThat(reset.getBody().path("resetToken").asText())
+            .isNotBlank()
+            .doesNotContain(USER_ID);
 
         final ResponseEntity<JsonNode> deactivated = adminApiClient().post(
             "/admin/users/" + USER_ID + "/deactivate",
@@ -107,7 +110,9 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             USER_ADMIN_ROLE);
 
         assertThat(reset.getStatusCode().value()).isEqualTo(200);
-        assertThat(reset.getBody().path("resetToken").asText()).isEqualTo(USER_ID + "-reset-2");
+        assertThat(reset.getBody().path("resetToken").asText())
+            .isNotBlank()
+            .doesNotContain(USER_ID);
     }
 
     // Ensures unknown user operations map to the API not-found contract.

@@ -9,22 +9,44 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
+import xyz.tcheeric.cashu.mint.admin.application.service.OperatorCredentials;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 /**
- * Minimal token-based authentication protecting the administrative API surface.
+ * Authenticates an operator from their own credential and publishes the result
+ * for {@link AdminRbacFilter} to authorise against.
+ *
+ * <p>The presented credential is hashed and matched against the operator store;
+ * roles come from the resolved operator. No request header influences identity
+ * or authorisation — see ADR-0005.
+ *
+ * <p>{@code admin.security.api-token} remains as a bootstrap credential so a
+ * fresh deployment can create its first operator. It resolves to a fixed
+ * {@code bootstrap} identity holding every role, and should be unset once real
+ * operators exist — it is shared, so anything it does is unattributable.
  */
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String ADMIN_TOKEN_HEADER = "X-Admin-Token";
 
-    private final AdminSecurityProperties properties;
+    private static final String BOOTSTRAP_OPERATOR_ID = "bootstrap";
+    private static final Set<String> BOOTSTRAP_ROLES = Set.of("MINT_ADMIN", "USER_ADMIN", "OPS_ADMIN");
 
-    public AdminAuthenticationFilter(final AdminSecurityProperties properties) {
+    private final AdminSecurityProperties properties;
+    private final OperatorAccessRepository operatorAccessRepository;
+
+    public AdminAuthenticationFilter(final AdminSecurityProperties properties,
+                                     final OperatorAccessRepository operatorAccessRepository) {
         this.properties = Objects.requireNonNull(properties, "properties");
+        this.operatorAccessRepository = Objects.requireNonNull(operatorAccessRepository,
+            "operator access repository");
     }
 
     @Override
@@ -41,18 +63,41 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        final String providedToken = request.getHeader(ADMIN_TOKEN_HEADER);
-        if (!StringUtils.hasText(providedToken) || !MessageDigestComparator.equals(properties.apiToken(), providedToken)) {
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Token realm=admin");
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getOutputStream().write(
-                ("{\"status\":401,\"error\":\"unauthorized\",\"code\":\"unauthorized\","
-                    + "\"message\":\"Valid X-Admin-Token header required\"}")
-                    .getBytes(StandardCharsets.UTF_8));
+        final String presented = request.getHeader(ADMIN_TOKEN_HEADER);
+        if (!StringUtils.hasText(presented)) {
+            unauthorized(response);
             return;
         }
 
+        final Optional<AuthenticatedOperator> operator = resolve(presented);
+        if (operator.isEmpty()) {
+            unauthorized(response);
+            return;
+        }
+
+        request.setAttribute(AuthenticatedOperator.ATTRIBUTE, operator.get());
         filterChain.doFilter(request, response);
+    }
+
+    private Optional<AuthenticatedOperator> resolve(final String presented) {
+        if (MessageDigestComparator.equals(properties.apiToken(), presented)) {
+            return Optional.of(new AuthenticatedOperator(
+                BOOTSTRAP_OPERATOR_ID, "Bootstrap operator", BOOTSTRAP_ROLES));
+        }
+
+        return operatorAccessRepository.findByCredentialHash(OperatorCredentials.hash(presented))
+            .filter(OperatorAccessAccount::active)
+            .map(account -> new AuthenticatedOperator(
+                account.accountId(), account.displayName(), account.roles()));
+    }
+
+    private void unauthorized(final HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Token realm=admin");
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getOutputStream().write(
+            ("{\"status\":401,\"error\":\"unauthorized\",\"code\":\"unauthorized\","
+                + "\"message\":\"Valid X-Admin-Token header required\"}")
+                .getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -72,6 +72,6 @@ class JdbcOperatorAccessRepositoryIntegrationTest {
         assertThat(reloaded.roles()).containsExactly("VIEWER");
         assertThat(reloaded.active()).isFalse();
         assertThat(reloaded.credentialResetCount()).isEqualTo(1);
-        assertThat(reloaded.lastResetToken()).isEqualTo("user-002-reset-1");
+        assertThat(reloaded.credentialHash()).isNotNull();
     }
 }

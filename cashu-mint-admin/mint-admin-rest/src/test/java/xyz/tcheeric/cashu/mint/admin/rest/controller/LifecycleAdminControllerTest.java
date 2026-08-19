@@ -23,7 +23,6 @@ import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 
@@ -70,12 +69,11 @@ class LifecycleAdminControllerTest {
     // Ensures lifecycle create requires an RBAC role when authenticated.
     @Test
     @DisplayName("Lifecycle create requires role header")
-    void createMintRequiresRole() throws Exception {
+    void createMintRequiresCredential() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_1)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // Verifies pause endpoint updates lifecycle state when proper credentials and roles are supplied.
@@ -84,7 +82,6 @@ class LifecycleAdminControllerTest {
     void pauseMintReturnsLifecycleResponse() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_1)))
                 .andExpect(status().isOk());
@@ -95,14 +92,12 @@ class LifecycleAdminControllerTest {
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/resume")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("activation")))
                 .andExpect(status().isOk());
 
         final MvcResult pauseResult = mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/pause")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("maintenance")))
                 .andExpect(status().isOk())
@@ -123,7 +118,6 @@ class LifecycleAdminControllerTest {
     void pauseMintHonoursProvidedCorrelationId() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_2)))
                 .andExpect(status().isOk());
@@ -134,7 +128,6 @@ class LifecycleAdminControllerTest {
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/resume")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("activation")))
                 .andExpect(status().isOk());
@@ -143,7 +136,6 @@ class LifecycleAdminControllerTest {
 
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/pause")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .header(AdminCorrelationIdFilter.CORRELATION_ID_HEADER, provided)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("manual")))
@@ -157,7 +149,6 @@ class LifecycleAdminControllerTest {
     void updateMintReturnsStructuredError() throws Exception {
         mockMvc.perform(put("/admin/lifecycle/mints/" + MISSING_MINT_ID)
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

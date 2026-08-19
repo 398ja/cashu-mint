@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
 
@@ -50,12 +49,11 @@ class UsersAdminControllerTest {
     // Verifies that creating a user without the required role returns a forbidden status.
     @Test
     @DisplayName("User creation requires role header")
-    void createUserRequiresRole() throws Exception {
+    void createUserRequiresCredential() throws Exception {
         mockMvc.perform(post("/admin/users")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createUserJson(USER_ID)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // Ensures update returns the resulting user payload once a user exists.
@@ -66,14 +64,12 @@ class UsersAdminControllerTest {
 
         mockMvc.perform(post("/admin/users")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "USER_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createUserJson(userId)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(put("/admin/users/" + userId)
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "USER_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

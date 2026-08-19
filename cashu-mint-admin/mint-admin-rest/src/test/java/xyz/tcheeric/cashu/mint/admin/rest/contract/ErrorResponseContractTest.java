@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -57,15 +56,14 @@ class ErrorResponseContractTest {
     // Verifies forbidden requests return standard error format with status, error, code, message fields.
     @Test
     @DisplayName("Forbidden lifecycle request returns standard error format")
-    void forbiddenLifecycleReturnsStandardError() throws Exception {
+    void unauthenticatedLifecycleReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").exists())
-                .andExpect(jsonPath("$.code").value("forbidden"))
+                .andExpect(jsonPath("$.code").value("unauthorized"))
                 .andExpect(jsonPath("$.message").exists());
     }
 
@@ -75,7 +73,6 @@ class ErrorResponseContractTest {
     void notFoundLifecyclePauseReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID + "/pause")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -96,7 +93,6 @@ class ErrorResponseContractTest {
     void operationsScheduleReturnsConsistentStructure() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
                         .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "OPS_ADMIN")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

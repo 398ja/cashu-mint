@@ -31,7 +31,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 roles,
                 active,
                 reset_count,
-                reset_token,
+                credential_hash,
                 reset_requested_at,
                 updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -45,7 +45,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 roles = ?,
                 active = ?,
                 reset_count = ?,
-                reset_token = ?,
+                credential_hash = ?,
                 reset_requested_at = ?,
                 updated_at = ?
             WHERE user_id = ?
@@ -59,10 +59,24 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    roles,
                    active,
                    reset_count,
-                   reset_token,
+                   credential_hash,
                    reset_requested_at
             FROM admin_users
             WHERE user_id = ?
+        """;
+
+    private static final String SELECT_BY_CREDENTIAL_SQL =
+        """
+            SELECT user_id,
+                   display_name,
+                   email,
+                   roles,
+                   active,
+                   reset_count,
+                   credential_hash,
+                   reset_requested_at
+            FROM admin_users
+            WHERE credential_hash = ?
         """;
 
     private static final TypeReference<Set<String>> ROLE_TYPE = new TypeReference<>() { };
@@ -83,7 +97,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    roles,
                    active,
                    reset_count,
-                   reset_token,
+                   credential_hash,
                    reset_requested_at
             FROM admin_users
             ORDER BY display_name
@@ -138,6 +152,25 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
     }
 
     @Override
+    public Optional<OperatorAccessAccount> findByCredentialHash(final String credentialHash) {
+        if (credentialHash == null || credentialHash.isBlank()) {
+            return Optional.empty();
+        }
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_BY_CREDENTIAL_SQL)) {
+            statement.setString(1, credentialHash);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (final SQLException | IOException ex) {
+            throw new JdbcRepositoryException("Failed to load admin user by credential", ex);
+        }
+    }
+
+    @Override
     public void update(final OperatorAccessAccount account) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(UPDATE_SQL)) {
@@ -159,7 +192,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
         statement.setString(4, objectMapper.writeValueAsString(account.roles()));
         statement.setBoolean(5, account.active());
         statement.setInt(6, account.credentialResetCount());
-        statement.setString(7, account.lastResetToken());
+        statement.setString(7, account.credentialHash());
         if (account.lastResetAt() == null) {
             statement.setNull(8, Types.TIMESTAMP);
         } else {
@@ -175,7 +208,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
         statement.setString(3, objectMapper.writeValueAsString(account.roles()));
         statement.setBoolean(4, account.active());
         statement.setInt(5, account.credentialResetCount());
-        statement.setString(6, account.lastResetToken());
+        statement.setString(6, account.credentialHash());
         if (account.lastResetAt() == null) {
             statement.setNull(7, Types.TIMESTAMP);
         } else {
@@ -195,7 +228,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
             roles,
             resultSet.getBoolean("active"),
             resultSet.getInt("reset_count"),
-            resultSet.getString("reset_token"),
+            resultSet.getString("credential_hash"),
             resetAt != null ? resetAt.toInstant() : null);
     }
 
