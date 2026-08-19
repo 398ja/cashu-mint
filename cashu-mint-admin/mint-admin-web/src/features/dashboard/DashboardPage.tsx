@@ -37,16 +37,11 @@ export function DashboardPage() {
       )}
 
       {summary.data && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SummaryCard
             title="Mints by State"
             entries={summary.data.mintsByState}
             linkTo={hasRole("MINT_ADMIN") ? "/mints" : undefined}
-          />
-          <SummaryCard
-            title="Alerts by Severity"
-            entries={summary.data.alertsBySeverity}
-            linkTo={hasRole("ALERTS_ADMIN") ? "/alerts" : undefined}
           />
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
             <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">

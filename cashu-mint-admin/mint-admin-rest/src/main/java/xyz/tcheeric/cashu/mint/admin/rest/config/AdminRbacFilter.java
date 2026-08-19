@@ -29,10 +29,7 @@ public class AdminRbacFilter extends OncePerRequestFilter {
 
     private static final Map<String, String> REQUIRED_ROLE_BY_PATTERN = Map.of(
             "/admin/lifecycle/**", "MINT_ADMIN",
-            "/admin/configuration/**", "MINT_ADMIN",
             "/admin/users/**", "USER_ADMIN",
-            "/admin/alerts/**", "ALERTS_ADMIN",
-            "/admin/health/**", "MINT_ADMIN",
             "/admin/operations/**", "OPS_ADMIN"
     );
 

@@ -21,7 +21,7 @@ import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAdminIntegrationIT;
 
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
-class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
+class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
 
     @Autowired
     private MintRepository mintRepository;
@@ -31,9 +31,9 @@ class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
 
     private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
 
-    // Verifies lifecycle transitions, configuration persistence, and outbox/history creation in PostgreSQL.
+    // Verifies lifecycle transitions and outbox/history creation in PostgreSQL.
     @Test
-    void shouldPersistLifecycleAndConfigurationWorkflow() {
+    void shouldPersistLifecycleWorkflow() {
         final String mintId = UUID.randomUUID().toString();
 
         final ResponseEntity<JsonNode> created = adminApiClient().post(
@@ -43,36 +43,13 @@ class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
             MINT_ADMIN_ROLE);
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
-        final ResponseEntity<JsonNode> applied = adminApiClient().post(
-            "/admin/configuration/mints/" + mintId + "/apply",
-            Map.of(
-                "requestedBy", actor(),
-                "proposedConfiguration", Map.of("fee", "1"),
-                "changeSummary", "Add fee configuration"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
-        assertThat(applied.getStatusCode().value()).isEqualTo(200);
-
-        final Integer revisionCountBeforePreview = jdbcTemplate.queryForObject(
+        // The aggregate's initial ConfigurationSet is persisted at creation, even
+        // though configuration governance endpoints no longer exist.
+        final Integer revisionCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM configuration_revisions WHERE mint_id = ?",
             Integer.class,
             UUID.fromString(mintId));
-
-        final ResponseEntity<JsonNode> previewed = adminApiClient().post(
-            "/admin/configuration/mints/" + mintId + "/preview",
-            Map.of(
-                "requestedBy", actor(),
-                "proposedConfiguration", Map.of("preview-only", "true"),
-                "baseRevisionId", "2"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
-        assertThat(previewed.getStatusCode().value()).isEqualTo(200);
-
-        final Integer revisionCountAfterPreview = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM configuration_revisions WHERE mint_id = ?",
-            Integer.class,
-            UUID.fromString(mintId));
-        assertThat(revisionCountAfterPreview).isEqualTo(revisionCountBeforePreview);
+        assertThat(revisionCount).isGreaterThanOrEqualTo(1);
 
         // Advance from PROVISIONING to PROVISIONED (simulates vault provisioning completion)
         final MintId mint = MintId.fromString(mintId);
@@ -130,25 +107,6 @@ class LifecycleConfigurationPersistenceIT extends AbstractAdminIntegrationIT {
             String.class,
             UUID.fromString(mintId));
         assertThat(states).contains("PROVISIONING", "PROVISIONED", "ACTIVE", "SUSPENDED", "ACTIVE", "DECOMMISSIONED");
-    }
-
-    // Ensures rollback to a missing revision returns a not-found response through API error mapping.
-    @Test
-    void shouldReturnNotFoundWhenRollbackRevisionIsMissing() {
-        final String mintId = UUID.randomUUID().toString();
-        adminApiClient().post("/admin/lifecycle/mints", createMintPayload(mintId), ADMIN_TOKEN, MINT_ADMIN_ROLE);
-
-        final ResponseEntity<JsonNode> rollbackResponse = adminApiClient().post(
-            "/admin/configuration/mints/" + mintId + "/rollback",
-            Map.of(
-                "requestedBy", actor(),
-                "targetRevisionId", "99",
-                "reason", "Invalid rollback target"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
-
-        assertThat(rollbackResponse.getStatusCode().value()).isEqualTo(404);
-        assertThat(rollbackResponse.getBody().path("code").asText()).isEqualTo("not_found");
     }
 
     private Map<String, Object> createMintPayload(final String mintId) {

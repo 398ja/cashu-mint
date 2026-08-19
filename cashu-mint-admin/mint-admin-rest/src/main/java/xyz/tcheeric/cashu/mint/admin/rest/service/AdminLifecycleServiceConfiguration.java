@@ -11,9 +11,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcAlertRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcConfigurationSetRepository;
-import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcMintHealthRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcMintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcMintRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperationalControlRepository;
@@ -22,13 +20,8 @@ import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.TransactionalOutboxMintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalControlsUseCase;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageConfigurationUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageNotificationsUseCase;
-import xyz.tcheeric.cashu.mint.admin.application.port.in.MonitorMintHealthUseCase;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.AlertRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetRepository;
-import xyz.tcheeric.cashu.mint.admin.application.port.out.MintHealthRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
@@ -38,10 +31,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.TransactionManager;
 import xyz.tcheeric.cashu.mint.admin.application.service.AdministerAccessInteractor;
 import xyz.tcheeric.cashu.mint.admin.application.service.ExecuteOperationalControlsInteractor;
-import xyz.tcheeric.cashu.mint.admin.application.service.ManageConfigurationInteractor;
 import xyz.tcheeric.cashu.mint.admin.application.service.ManageMintLifecycleInteractor;
-import xyz.tcheeric.cashu.mint.admin.application.service.ManageNotificationsInteractor;
-import xyz.tcheeric.cashu.mint.admin.application.service.MonitorMintHealthInteractor;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.SpringTransactionManager;
 import xyz.tcheeric.cashu.mint.admin.rest.presenter.LifecycleSummaryApiPresenter;
@@ -89,16 +79,6 @@ public class AdminLifecycleServiceConfiguration {
     }
 
     @Bean
-    public AlertRepository alertRepository(final DataSource dataSource, final ObjectMapper objectMapper) {
-        return new JdbcAlertRepository(dataSource, objectMapper);
-    }
-
-    @Bean
-    public MintHealthRepository mintHealthRepository(final DataSource dataSource) {
-        return new JdbcMintHealthRepository(dataSource);
-    }
-
-    @Bean
     public OperationalControlRepository operationalControlRepository(final DataSource dataSource) {
         return new JdbcOperationalControlRepository(dataSource);
     }
@@ -125,29 +105,8 @@ public class AdminLifecycleServiceConfiguration {
     }
 
     @Bean
-    public ManageConfigurationUseCase manageConfigurationUseCase(final MintRepository mintRepository,
-                                                                  final ConfigurationSetRepository configurationSetRepository,
-                                                                  final TransactionManager transactionManager,
-                                                                  final MintLifecycleEventPublisher eventPublisher,
-                                                                  final Clock adminClock) {
-        return new ManageConfigurationInteractor(mintRepository, configurationSetRepository,
-            transactionManager, eventPublisher, adminClock);
-    }
-
-    @Bean
-    public ManageNotificationsUseCase manageNotificationsUseCase(final AlertRepository alertRepository) {
-        return new ManageNotificationsInteractor(alertRepository);
-    }
-
-    @Bean
     public AdministerAccessUseCase administerAccessUseCase(final OperatorAccessRepository operatorAccessRepository) {
         return new AdministerAccessInteractor(operatorAccessRepository);
-    }
-
-    @Bean
-    public MonitorMintHealthUseCase monitorMintHealthUseCase(final MintHealthRepository mintHealthRepository,
-                                                              final Clock adminClock) {
-        return new MonitorMintHealthInteractor(mintHealthRepository, adminClock);
     }
 
     @Bean

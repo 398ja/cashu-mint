@@ -16,7 +16,6 @@
     <name>cashu-mint-admin</name>
     <modules>
         <module>mint-admin-core</module>
-        <module>mint-admin-cli</module>
         <module>mint-admin-rest</module>
         <module>mint-admin-web</module>
         <module>mint-admin-tests</module>

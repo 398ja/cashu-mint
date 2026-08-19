@@ -15,8 +15,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminRbacFilter;
-import xyz.tcheeric.cashu.mint.admin.rest.service.AdminAlertService;
-import xyz.tcheeric.cashu.mint.admin.rest.service.AdminHealthService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -34,8 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class,
-    AdminAlertService.class, AdminUserService.class,
-    AdminHealthService.class, AdminOperationsService.class})
+    AdminUserService.class, AdminOperationsService.class})
 @TestPropertySource(properties = "admin.security.api-token=test-token")
 class ErrorResponseContractTest {
 
@@ -93,19 +90,6 @@ class ErrorResponseContractTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    // Verifies health endpoint returns consistent response structure.
-    @Test
-    @DisplayName("Health snapshot returns consistent response structure")
-    void healthSnapshotReturnsConsistentStructure() throws Exception {
-        mockMvc.perform(get("/admin/health/mints/" + MINT_ID)
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "MINT_ADMIN"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.mintId").exists())
-                .andExpect(jsonPath("$.status").exists())
-                .andExpect(jsonPath("$.message").exists());
-    }
-
     // Verifies operations endpoint returns consistent response structure.
     @Test
     @DisplayName("Operations schedule returns consistent response structure")
@@ -128,42 +112,4 @@ class ErrorResponseContractTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    // Verifies creating a duplicate alert returns 409 conflict.
-    @Test
-    @DisplayName("Duplicate alert returns conflict error")
-    void duplicateAlertReturnsConflict() throws Exception {
-        final String alertId = "contract-test-alert-1";
-        mockMvc.perform(post("/admin/alerts")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "ALERTS_ADMIN")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "alertId": "%s",
-                                  "mintId": "%s",
-                                  "severity": "WARNING",
-                                  "summary": "Test",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
-                                }
-                                """.formatted(alertId, MINT_ID, OPERATOR_ID)))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/admin/alerts")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
-                        .header(AdminRbacFilter.ADMIN_ROLES_HEADER, "ALERTS_ADMIN")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "alertId": "%s",
-                                  "mintId": "%s",
-                                  "severity": "WARNING",
-                                  "summary": "Test",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
-                                }
-                                """.formatted(alertId, MINT_ID, OPERATOR_ID)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.code").value("alert_exists"))
-                .andExpect(jsonPath("$.message").exists());
-    }
 }

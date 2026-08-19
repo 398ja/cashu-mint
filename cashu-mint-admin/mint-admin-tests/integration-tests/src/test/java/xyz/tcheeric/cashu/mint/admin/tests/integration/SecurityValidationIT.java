@@ -47,9 +47,8 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
     // Confirms valid token and role pass authentication and continue into normal endpoint processing.
     @Test
     void shouldAllowValidTokenAndRoleThroughAuthLayer() {
-        final String mintId = UUID.randomUUID().toString();
         final ResponseEntity<JsonNode> response = adminApiClient().get(
-            "/admin/health/mints/" + mintId,
+            "/admin/lifecycle/mints",
             ADMIN_TOKEN,
             MINT_ADMIN_ROLE);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
@@ -115,17 +114,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                     "configuration", Map.of("versionTag", "v1")),
                 USER_ADMIN_ROLE),
             Arguments.of(HttpMethod.POST, "/admin/users", validCreateUserPayload(), MINT_ADMIN_ROLE),
-            Arguments.of(
-                HttpMethod.POST,
-                "/admin/alerts",
-                Map.of(
-                    "alertId", "alert-rbac-1",
-                    "mintId", "mint-1",
-                    "severity", "WARNING",
-                    "summary", "RBAC check",
-                    "requestedBy", actor),
-                OPS_ADMIN_ROLE),
-            Arguments.of(HttpMethod.GET, "/admin/health/mints/" + mintId, null, USER_ADMIN_ROLE),
+            Arguments.of(HttpMethod.GET, "/admin/lifecycle/mints", null, USER_ADMIN_ROLE),
             Arguments.of(
                 HttpMethod.POST,
                 "/admin/operations/mints/" + mintId + "/maintenance/schedule",
@@ -133,7 +122,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                     "reason", "rbac",
                     "durationMinutes", 10,
                     "requestedBy", actor),
-                ALERTS_ADMIN_ROLE));
+                USER_ADMIN_ROLE));
     }
 
     private static Map<String, Object> validCreateUserPayload() {

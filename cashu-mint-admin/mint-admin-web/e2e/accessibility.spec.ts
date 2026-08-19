@@ -12,7 +12,6 @@ test.describe("Accessibility @a11y", () => {
 
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: { ACTIVE: 2, SUSPENDED: 1 },
-      alertsBySeverity: { WARNING: 3 },
       activeControls: 1,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
@@ -68,23 +67,6 @@ test.describe("Accessibility @a11y", () => {
         },
       ]),
     );
-    await mockApiResponse(
-      page,
-      "**/admin/alerts**",
-      pagedResponse([
-        {
-          alertId: "alert-1",
-          mintId: "mint-1",
-          severity: "WARNING",
-          summary: "Test alert",
-          acknowledged: false,
-          silenced: false,
-          silenceMinutes: null,
-          escalations: [],
-          message: null,
-        },
-      ]),
-    );
   });
 
   test("dashboard page has no critical accessibility violations", async ({
@@ -121,21 +103,6 @@ test.describe("Accessibility @a11y", () => {
     page,
   }) => {
     await page.goto("/users");
-    await page.waitForLoadState("networkidle");
-
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
-
-    expect(results.violations.filter((v) => v.impact === "critical")).toEqual(
-      [],
-    );
-  });
-
-  test("alerts page has no critical accessibility violations", async ({
-    page,
-  }) => {
-    await page.goto("/alerts");
     await page.waitForLoadState("networkidle");
 
     const results = await new AxeBuilder({ page })
