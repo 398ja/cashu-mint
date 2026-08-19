@@ -14,5 +14,4 @@ import xyz.tcheeric.cashu.mint.jpa.entity.MintSuspensionEntity;
  *  ORDER BY suspended_at DESC;
  * }</pre>
  */
-public interface MintSuspensionJpaRepository extends JpaRepository<MintSuspensionEntity, String> {
-}
+public interface MintSuspensionJpaRepository extends JpaRepository<MintSuspensionEntity, String> {}
