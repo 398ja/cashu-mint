@@ -81,6 +81,25 @@ class SignBlindedMessageTaskArchivedKeysetTest {
         verify(mintProtocolService).requireActiveKeySet(KEYSET_ID);
     }
 
+    @Test
+    @DisplayName("Checks the keyset is active in voucher mode too")
+    // Vouchers derive their key from a master secret rather than the keyset, but the
+    // output still claims a keyset id — so an archived keyset must not be signed
+    // against by that route either.
+    void refusesVoucherSigningWithArchivedKeyset() throws Exception {
+        final Mint mint = new Mint(UUID.randomUUID().toString());
+        doThrow(new CashuErrorException("{\"code\":\"keyset_inactive\"}"))
+                .when(mintProtocolService).requireActiveKeySet(KEYSET_ID);
+
+        final SignBlindedMessageTask task = new SignBlindedMessageTask(
+                mint, blindedMessage(), mintProtocolService, signatureVaultService,
+                true, "master-secret");
+
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .hasMessageContaining("keyset_inactive");
+    }
+
     private static BlindedMessage blindedMessage() {
         return BlindedMessage.builder()
                 .amount(1)

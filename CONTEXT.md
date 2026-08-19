@@ -20,8 +20,7 @@ _Avoid_: Admin, user, actor
 
 **Archived Keyset**: A keyset the Mint no longer signs with, but still verifies
 and redeems, indefinitely. Keysets are never deleted — deleting one strands
-every token it signed. Note the current code does not honour this: the archived
-flag is advertising metadata and the signing path ignores it.
+every token it signed.
 _Avoid_: Inactive keyset, retired keyset, old keyset
 
 **Rotation**: Replacing a Mint's active keyset with a newly generated one, the

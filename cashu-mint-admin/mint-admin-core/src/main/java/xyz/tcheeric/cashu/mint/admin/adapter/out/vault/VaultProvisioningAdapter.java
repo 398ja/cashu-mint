@@ -68,32 +68,56 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
 
-        // Which keysets this rotation replaces, captured before the new one lands
-        // so the new keyset is never counted among them.
+        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId);
+
+        // Which keysets this rotation replaces. The new keyset is excluded by id
+        // rather than by ordering: on a redelivery it already exists and is still
+        // unarchived, and would otherwise be recorded as its own predecessor.
         final List<String> superseded = keySetClient.getByMintId(mintId.toString()).stream()
             .filter(keySet -> unit.equals(keySet.getUnit()))
             .filter(keySet -> !keySet.isArchived())
             .map(KeySetEntity::getKeySetId)
+            .filter(id -> !keySetId.equals(id))
             .toList();
 
-        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId);
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
         storeKeyEntities(keyClient, mintId, unit, denominations, keySetEntity, rotationId);
 
         // Archive last: until the replacement exists and can sign, the mint must
         // keep its current keyset, or a failure mid-rotation leaves it unable to issue.
-        for (final KeySetEntity keySet : keySetClient.getByMintId(mintId.toString())) {
-            if (unit.equals(keySet.getUnit())
-                && !keySet.isArchived()
-                && !keySetId.equals(keySet.getKeySetId())) {
-                keySetClient.archive(keySet.getId().toString());
+        try {
+            for (final KeySetEntity keySet : keySetClient.getByMintId(mintId.toString())) {
+                if (unit.equals(keySet.getUnit())
+                    && !keySet.isArchived()
+                    && !keySetId.equals(keySet.getKeySetId())) {
+                    keySetClient.archive(keySet.getId().toString());
+                }
             }
+        } catch (final Exception e) {
+            // Leaving the replacement in place alongside an un-archived predecessor
+            // would give the mint two signing keysets — the state rotation exists to
+            // end. Roll the new one back and fail.
+            compensateRotation(keySetClient, keySetRowId, keySetId);
+            throw new IllegalStateException(
+                "Rotation archive step failed for mint " + mintId + "; new keyset " + keySetId
+                    + " was rolled back", e);
         }
 
         log.info("Vault keyset rotated for mint {} unit {}: {} replaces {}",
             mintId, unit, keySetId, superseded);
         return new RotationResult(keySetId, superseded);
+    }
+
+    private void compensateRotation(final KeySetVaultClient keySetClient, final UUID keySetRowId,
+                                    final String keySetId) {
+        try {
+            keySetClient.delete(keySetRowId.toString());
+            log.warn("Rotation compensation: removed new keyset {}", keySetId);
+        } catch (final Exception e) {
+            log.error("Rotation compensation failed; keyset {} may be live alongside its predecessor",
+                keySetId, e);
+        }
     }
 
     @Override

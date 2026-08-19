@@ -16,6 +16,8 @@ import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
+import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
+import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
@@ -73,13 +75,13 @@ public final class MintProtocolUtil {
      * @throws CashuErrorException {@code keyset_inactive} when the keyset is archived
      */
     public static void requireActiveKeySet(@NonNull String keySetId) throws CashuErrorException {
-        xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient ksc =
-                xyz.tcheeric.cashu.vault.api.VaultClientFactory.keySetClient();
-        KeySetEntity kse = ksc.getByKeySetId(keySetId);
-        if (kse == null || kse.getId() == null) {
-            throw new CashuErrorException("keyset_not_found");
+        KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
+        KeySetEntity keySet = keySetClient.getByKeySetId(keySetId);
+        if (keySet == null || keySet.getId() == null) {
+            throw new CashuErrorException(new ErrorResponse("keyset_not_found",
+                    "Keyset " + keySetId + " is not known to this mint.").toJson());
         }
-        if (kse.isArchived()) {
+        if (keySet.isArchived()) {
             log.warn("Refusing to sign with archived keyset: keySetId={}", keySetId);
             ErrorResponse error = new ErrorResponse("keyset_inactive",
                     "Keyset " + keySetId + " is archived and no longer signs. "

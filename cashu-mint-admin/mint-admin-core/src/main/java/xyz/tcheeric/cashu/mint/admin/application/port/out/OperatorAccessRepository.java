@@ -42,9 +42,6 @@ public interface OperatorAccessRepository {
     void update(OperatorAccessAccount account);
 
     /**
-     * Immutable representation of a persisted operator account.
-     */
-    /**
      * Look up an operator by the hash of their credential.
      *
      * @param credentialHash SHA-256 hash of the presented credential
@@ -52,6 +49,9 @@ public interface OperatorAccessRepository {
      */
     Optional<OperatorAccessAccount> findByCredentialHash(String credentialHash);
 
+    /**
+     * Immutable representation of a persisted operator account.
+     */
     record OperatorAccessAccount(String accountId,
                                  String displayName,
                                  String email,

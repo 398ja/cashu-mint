@@ -27,7 +27,6 @@ function getAuthHeaders(): Record<string, string> {
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
     sessionStorage.removeItem("admin_token");
-    sessionStorage.removeItem("admin_roles");
     window.location.href = "/login?expired=true";
     throw new ApiRequestError(401, "unauthorized", "Session expired");
   }

@@ -2,6 +2,38 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## Unreleased
+
+### Removed
+
+- **BREAKING** `mint-admin-cli` module, and the `/admin/health`, `/admin/alerts`
+  and `/admin/configuration` endpoints. None of them worked: health had no
+  producer and read `UNKNOWN` forever, alerts held only hand-typed rows with no
+  detection or delivery, configuration was stored and never applied, and the CLI
+  presented stub data as live in connected mode. Monitoring is
+  `cashu-mint-observability`'s job. The `ALERTS_ADMIN` role is gone.
+  `ConfigurationSet` and `NotificationPolicy` are kept — they are `MintAggregate`
+  state, not feature state. (#364)
+
+### Changed
+
+- **BREAKING** Admin authorisation no longer reads roles from the `X-Admin-Roles`
+  request header. Operators authenticate with their own credential and their
+  roles are resolved from the operator store. Credentials are random and stored
+  only as SHA-256 hashes; every previously issued reset token stops working.
+  `/admin/audit/**` now requires a role. (#362)
+- **BREAKING** `MintProtocolService` gains `requireActiveKeySet`. The mint refuses
+  to sign new outputs against an archived keyset, returning `keyset_inactive`.
+  Redemption of proofs an archived keyset already signed is unaffected. (#361)
+
+### Added
+
+- Key rotation actually rotates: `ROTATE_KEYS` drives an outbox saga that
+  generates a replacement keyset in the shared vault and archives the one it
+  supersedes, idempotent on the operational control id, with compensation if the
+  archive step fails. Outcomes are recorded in `operational_controls.outcome`
+  with both keyset ids. (#363)
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

@@ -1,6 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.util;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -119,7 +119,11 @@ class MintProtocolUtilArchivedKeysetTest {
             final CashuErrorException thrown = assertThrows(CashuErrorException.class,
                 () -> MintProtocolUtil.requireActiveKeySet(KEYSET_ID));
 
-            assertEquals("keyset_not_found", thrown.getMessage());
+            // Typed like keyset_inactive, so a wallet can tell "refresh and retry"
+            // from "this mint has never had that keyset".
+            assertTrue(thrown.getMessage().contains("keyset_not_found"),
+                "expected a keyset_not_found error but was: " + thrown.getMessage());
+            assertFalse(thrown.getMessage().contains("keyset_inactive"));
         }
     }
 

@@ -15,7 +15,7 @@ export interface AuthState {
 }
 
 export interface AuthContextValue extends AuthState {
-  login: (token: string, roles: string) => Promise<boolean>;
+  login: (token: string) => Promise<boolean>;
   logout: () => void;
   hasRole: (role: string) => boolean;
 }
@@ -25,30 +25,26 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     token: sessionStorage.getItem("admin_token"),
-    roles: (sessionStorage.getItem("admin_roles") ?? "")
-      .split(",")
-      .filter(Boolean),
+    roles: [],
     authenticated: !!sessionStorage.getItem("admin_token"),
     loading: true,
   });
 
-  const login = useCallback(async (token: string, roles: string) => {
+  // Roles are whatever the server says this credential holds; the caller does
+  // not get to assert them, here or anywhere else. See ADR-0005.
+  const login = useCallback(async (token: string) => {
     sessionStorage.setItem("admin_token", token);
-    sessionStorage.setItem("admin_roles", roles);
     try {
       const me = await fetchAuthMe();
-      const resolvedRoles = me.roles.length > 0 ? me.roles : roles.split(",").filter(Boolean);
-      sessionStorage.setItem("admin_roles", resolvedRoles.join(","));
       setState({
         token,
-        roles: resolvedRoles,
+        roles: me.roles,
         authenticated: me.authenticated,
         loading: false,
       });
       return me.authenticated;
     } catch {
       sessionStorage.removeItem("admin_token");
-      sessionStorage.removeItem("admin_roles");
       setState({ token: null, roles: [], authenticated: false, loading: false });
       return false;
     }
@@ -56,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     sessionStorage.removeItem("admin_token");
-    sessionStorage.removeItem("admin_roles");
     setState({ token: null, roles: [], authenticated: false, loading: false });
   }, []);
 
@@ -73,19 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     fetchAuthMe()
       .then((me) => {
-        const roles = me.roles.length > 0
-          ? me.roles
-          : (sessionStorage.getItem("admin_roles") ?? "").split(",").filter(Boolean);
         setState({
           token: state.token,
-          roles,
+          roles: me.roles,
           authenticated: me.authenticated,
           loading: false,
         });
       })
       .catch(() => {
         sessionStorage.removeItem("admin_token");
-        sessionStorage.removeItem("admin_roles");
         setState({ token: null, roles: [], authenticated: false, loading: false });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps

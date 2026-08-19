@@ -1,5 +1,12 @@
 # Cashu Mint Admin User Guide
 
+> **Superseded in parts.** This guide predates the removal of the CLI, alerts,
+> health and configuration governance, and the move to per-operator credentials.
+> Its `mint-admin-cli` commands, `X-Admin-Roles` headers and alert workflows no
+> longer exist. See `../explanations/admin-triage.md` and `docs/adr/0005`.
+> Rewriting it is tracked separately.
+
+
 This guide walks you through everything you need to operate a Cashu mint using the admin module. It covers the web interface, the REST API, and the CLI — starting from zero and building up to day-to-day operational tasks.
 
 ## What Is the Admin Module?
@@ -825,7 +832,6 @@ When something goes wrong, the API returns a structured error:
 
 ## Further Reading
 
-- [CLI Command Reference](../reference/cli-commands.md) — detailed flag and option documentation
 - [REST API Reference](../reference/rest-api.md) — full endpoint specification
 - [Architecture](../explanations/architecture.md) — how the admin module is structured internally
 - [Transactional Outbox](../explanations/transactional-outbox.md) — how background event processing works

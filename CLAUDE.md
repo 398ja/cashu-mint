@@ -19,7 +19,6 @@ This is a Java implementation of the Cashu ecash protocol, organized as a multi-
 - `cashu-mint-admin/mint-admin-core` - Domain, use cases, JDBC + outbox + vault adapters (hexagonal)
 - `cashu-mint-admin/mint-admin-rest` - Admin REST API (port 8080)
 - `cashu-mint-admin/mint-admin-web` - React admin UI
-- `cashu-mint-admin/mint-admin-cli` - Picocli CLI (four of five ports are stubs; see the triage below)
 - `cashu-mint-admin/mint-admin-tests` - Postgres-backed integration tests and a compose-backed E2E suite
 
 The admin reaches the mint through the **shared vault**, not over HTTP:

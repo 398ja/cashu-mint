@@ -6,7 +6,6 @@ It includes a core domain layer, a command-line interface, and a REST API.
 
 Project Modules
 - mint-admin-core: Domain model, use cases, and core services (no runtime).
-- mint-admin-cli: Picocli-based CLI for admin operations; shaded runnable JAR.
 - mint-admin-rest: Spring Boot REST API with OpenAPI UI and Jib image build.
 
 Prerequisites

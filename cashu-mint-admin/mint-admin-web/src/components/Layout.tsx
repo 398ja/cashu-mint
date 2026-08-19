@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Server,
   Users,
-  Bell,
   ScrollText,
   LogOut,
   Shield,
@@ -34,12 +33,6 @@ const NAV_ITEMS: NavItem[] = [
     to: "/users",
     icon: <Users className="h-4 w-4" />,
     role: "USER_ADMIN",
-  },
-  {
-    label: "Alerts",
-    to: "/alerts",
-    icon: <Bell className="h-4 w-4" />,
-    role: "ALERTS_ADMIN",
   },
   {
     label: "Audit Log",

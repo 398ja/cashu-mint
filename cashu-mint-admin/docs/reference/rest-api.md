@@ -101,5 +101,4 @@ Standard error responses use HTTP status codes:
 
 ## See also
 
-- [CLI command reference](cli-commands.md) — CLI commands that call these endpoints
 - [Configuration](configuration.md) — application properties

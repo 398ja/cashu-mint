@@ -808,6 +808,9 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 status = HttpStatus.BAD_REQUEST;
                 break;
             case "quote_not_found":
+            // An unknown keyset is a different recovery from an archived one: there is
+            // nothing to retry against, so it must not read as keyset_inactive.
+            case "keyset_not_found":
                 status = HttpStatus.NOT_FOUND;
                 break;
             default:

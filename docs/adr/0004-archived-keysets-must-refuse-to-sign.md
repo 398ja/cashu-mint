@@ -13,10 +13,10 @@ controllers, so that every route to a signature is covered.
 
 ## Consequences
 
-Until this lands, retiring a mint does not stop it signing — the admin archives
-the vault keysets and the mint carries on issuing to any client that names the
-old keyset id. Rotation cannot be built before it either, because writing a new
-keyset and archiving the old one would leave both signing.
+Before this, retiring a mint did not stop it signing: the admin archived the
+vault keysets and the mint carried on issuing to any client that named the old
+keyset id. Rotation could not be built without it either, because writing a new
+keyset and archiving the old one would have left both signing.
 
 Refusal must carry a distinct, wallet-actionable error, separable from "unknown
 keyset" and from "quote not paid", because the correct wallet response —

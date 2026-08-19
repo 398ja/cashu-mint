@@ -16,7 +16,6 @@ cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/c
 The `cashu-mint-admin` directory contains the administrative layer for managing mint lifecycle, configuration, users, and alerts:
 
 - `mint-admin-core` – domain model, use case ports, services, and Flyway migrations.
-- `mint-admin-cli` – Picocli command-line interface with stub and HTTP adapters.
 - `mint-admin-rest` – Spring Boot REST API (port 7778).
 - `mint-admin-web` – React/TypeScript web admin interface.
 - `mint-admin-tests` – integration and E2E test harnesses.

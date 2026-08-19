@@ -24,10 +24,7 @@ public class AdminRbacFilter extends OncePerRequestFilter {
     private static final Map<String, String> REQUIRED_ROLE_BY_PATTERN = Map.of(
             "/admin/lifecycle/**", "MINT_ADMIN",
             "/admin/users/**", "USER_ADMIN",
-            "/admin/operations/**", "OPS_ADMIN"
-    );
-
-    private static final Map<String, String> REQUIRED_ROLE_BY_PREFIX_FALLBACK = Map.of(
+            "/admin/operations/**", "OPS_ADMIN",
             "/admin/audit/**", "MINT_ADMIN"
     );
 
@@ -90,11 +87,6 @@ public class AdminRbacFilter extends OncePerRequestFilter {
     }
 
     private String resolveRequiredRole(final String uri) {
-        for (Map.Entry<String, String> entry : REQUIRED_ROLE_BY_PREFIX_FALLBACK.entrySet()) {
-            if (pathMatcher.match(entry.getKey(), uri)) {
-                return entry.getValue();
-            }
-        }
         for (Map.Entry<String, String> entry : REQUIRED_ROLE_BY_PATTERN.entrySet()) {
             if (pathMatcher.match(entry.getKey(), uri)) {
                 return entry.getValue();
