@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Detailed operational metrics for Cashu Mint tasks and protocol operations",
+  "description": "Per-task and per-endpoint detail: which protocol task is failing, with which error, and how slow. The drill-down behind Service Health.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -591,9 +591,9 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "tags": [
-    "cashu",
-    "mint",
-    "operations"
+    "cashu-mint",
+    "tasks",
+    "endpoints"
   ],
   "templating": {
     "list": [
@@ -623,7 +623,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Cashu Mint Operations",
+  "title": "Cashu Mint \u2014 Task & Endpoint Breakdown",
   "uid": "cashu-mint-operations",
   "version": 1,
   "weekStart": ""

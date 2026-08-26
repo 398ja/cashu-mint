@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Service Level Objectives and Indicators for Cashu Mint",
+  "description": "Availability and latency against their objectives, and how much error budget is left. Answers \"are we allowed to ship?\" rather than \"is it up right now?\".",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -1332,7 +1332,7 @@
   "tags": [
     "cashu-mint",
     "slo",
-    "sli"
+    "error-budget"
   ],
   "templating": {
     "list": []
@@ -1343,7 +1343,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Cashu Mint SLO/SLI",
+  "title": "Cashu Mint \u2014 SLO & Error Budget",
   "uid": "cashu-mint-slo",
   "version": 1,
   "weekStart": ""

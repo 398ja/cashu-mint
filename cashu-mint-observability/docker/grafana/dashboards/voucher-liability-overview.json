@@ -1,10 +1,10 @@
 {
   "uid": "voucher-liability-overview",
-  "title": "Voucher Liability Overview",
+  "title": "Vouchers \u2014 Outstanding Liability",
   "tags": [
     "cashu-mint",
-    "voucher",
-    "spec-004"
+    "vouchers",
+    "liability"
   ],
   "schemaVersion": 39,
   "version": 1,
@@ -106,5 +106,6 @@
         }
       ]
     }
-  ]
+  ],
+  "description": "How much voucher value is outstanding and what funds it. Reads the mint database directly, so it needs the voucher-postgresql datasource."
 }

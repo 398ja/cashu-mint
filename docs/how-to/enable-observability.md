@@ -105,7 +105,7 @@ management.metrics.distribution.slo.cashu_mint_task_duration_seconds=0.001,0.005
 
 Pre-built dashboards are automatically provisioned:
 
-### Cashu Mint Overview
+### Cashu Mint — Service Health
 
 High-level service health and key metrics:
 - Service status (UP/DOWN)
@@ -113,14 +113,14 @@ High-level service health and key metrics:
 - Request latency percentiles
 - Task execution time and success/failure rate
 
-### Cashu Mint Operations
+### Cashu Mint — Task & Endpoint Breakdown
 
 Detailed operational metrics:
 - Task execution rates and durations
 - Task error rate by type
 - HTTP request breakdown by endpoint
 
-### Cashu Mint Integrity
+### Cashu Mint — Money at Risk
 
 Money-at-risk invariants and issuance/melt/webhook integrity. This is the
 dashboard a critical page lands on:
@@ -131,7 +131,7 @@ dashboard a critical page lands on:
 - Issuance and melt rejections by cause, webhook outcomes
 - Voucher issuance and rejections by funding source and reason
 
-### Voucher Liability, Token Integrity, IOU Liability
+### Vouchers — Outstanding Liability / Token Reconciliation / IOU Exposure
 
 Financial reconciliation read from PostgreSQL through the read-only
 `cashu_mint_grafana_ro` role rather than from Prometheus. These need
@@ -139,7 +139,7 @@ Financial reconciliation read from PostgreSQL through the read-only
 migration time; without it the datasource cannot authenticate and the panels
 stay empty while the Prometheus dashboards work fine.
 
-### Cashu Mint SLO/SLI
+### Cashu Mint — SLO & Error Budget
 
 Service level objectives and indicators:
 - Availability SLI (target: 99.9%)
@@ -148,7 +148,7 @@ Service level objectives and indicators:
 - Task success rates by type
 - Historical SLO compliance timeline
 
-### Cashu Mint Virtual Threads
+### Cashu Mint — Lock Contention & Threads
 
 Lock contention under virtual threads:
 - Active locks

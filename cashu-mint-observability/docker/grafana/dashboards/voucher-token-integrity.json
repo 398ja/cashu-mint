@@ -1,11 +1,10 @@
 {
   "uid": "voucher-token-integrity",
-  "title": "Voucher Token Integrity Reconciliation",
+  "title": "Vouchers \u2014 Token Reconciliation",
   "tags": [
     "cashu-mint",
-    "voucher",
-    "spec-004",
-    "integrity"
+    "vouchers",
+    "reconciliation"
   ],
   "schemaVersion": 39,
   "version": 1,
@@ -144,5 +143,6 @@
         }
       ]
     }
-  ]
+  ],
+  "description": "Issued-versus-funded reconciliation: orphan issuance, stuck quotes, retention purge audit. Reads the mint database directly."
 }

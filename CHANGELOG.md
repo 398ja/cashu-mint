@@ -47,6 +47,16 @@ All notable changes to the Cashu Mint will be documented in this file.
   `CASHU_PROMETHEUS_TARGETS_DIR`), so one config works across dev, staging and
   production.
 
+### Changed
+
+- Dashboard titles say which question each one answers, and the mint dashboards
+  are prefixed so they group together in Grafana's list: `Cashu Mint — Service
+  Health`, `— Task & Endpoint Breakdown`, `— SLO & Error Budget`, `— Lock
+  Contention & Threads`, `— Money at Risk`, and `Vouchers — Outstanding
+  Liability` / `— Token Reconciliation` / `— IOU Exposure`. UIDs are unchanged:
+  they are the stable link target for bookmarks and alert `runbook_url`
+  annotations, so renaming one breaks every existing link silently.
+
 ### Removed
 
 - `Cashu Mint Business` dashboard, superseded by `Cashu Mint Integrity`. Its two

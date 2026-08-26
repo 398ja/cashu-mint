@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Money-at-risk invariants and issuance/melt/webhook integrity. Charts the declared recorder metrics (ADR 0001) that the alert rules fire on, so a page has a dashboard to land on.",
+  "description": "Value taken without value issued, and the issuance/melt integrity faults behind it. This is the dashboard a critical page lands on.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -1187,9 +1187,9 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "tags": [
-    "cashu",
-    "mint",
-    "integrity"
+    "cashu-mint",
+    "integrity",
+    "money-at-risk"
   ],
   "templating": {
     "list": [
@@ -1219,7 +1219,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Cashu Mint Integrity",
+  "title": "Cashu Mint \u2014 Money at Risk",
   "uid": "cashu-mint-integrity",
   "version": 2,
   "weekStart": ""

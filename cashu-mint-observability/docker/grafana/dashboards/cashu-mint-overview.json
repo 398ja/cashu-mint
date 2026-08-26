@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Overview of Cashu Mint operations and health",
+  "description": "Start here. Is the mint up, how much traffic is it taking, and how fast is it responding? Drill into Task & Endpoint Breakdown for per-task detail.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -600,9 +600,9 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "tags": [
-    "cashu",
-    "mint",
-    "ecash"
+    "cashu-mint",
+    "health",
+    "overview"
   ],
   "templating": {
     "list": [
@@ -632,7 +632,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Cashu Mint Overview",
+  "title": "Cashu Mint \u2014 Service Health",
   "uid": "cashu-mint-overview",
   "version": 1,
   "weekStart": ""
