@@ -185,6 +185,28 @@
 
     <build>
         <plugins>
+            <!-- Guards against NoClassDefFoundError
+                 net/bytebuddy/description/type/TypeDefinition at boot. Writes the
+                 *runtime* classpath to a file so RuntimeClasspathTest can assert on
+                 it; a plain Class.forName test cannot catch a test-scoped
+                 byte-buddy, because test scope puts it on the test classpath. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>record-runtime-classpath</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>build-classpath</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>runtime</includeScope>
+                            <outputFile>${project.build.directory}/runtime-classpath.txt</outputFile>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

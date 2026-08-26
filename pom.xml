@@ -282,11 +282,20 @@
                 <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
+            <!-- byte-buddy is pinned for version convergence only. Its scope is
+                 deliberately NOT test: Hibernate pulls it in at compile scope for
+                 its BytecodeProvider, and a test-scoped entry here overrides that
+                 transitive scope, so the jar is absent from the runtime image.
+                 The mint then boots, runs Flyway, and fails building the
+                 EntityManagerFactory with NoClassDefFoundError:
+                 net/bytebuddy/description/type/TypeDefinition — only when
+                 cashu.mint.jpa.enabled=true, which is why unit-test boots and
+                 dev profiles never showed it. byte-buddy-agent below stays
+                 test-scoped; that one really is only used by Mockito. -->
             <dependency>
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy</artifactId>
                 <version>${byte-buddy.version}</version>
-                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>net.bytebuddy</groupId>

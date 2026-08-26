@@ -6,6 +6,16 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- The mint could not boot with `cashu.mint.jpa.enabled=true`. `byte-buddy` was
+  pinned to `test` scope in the parent `dependencyManagement`, which overrides
+  the compile-scope transitive dependency Hibernate declares for its
+  `BytecodeProviderImpl`, so the jar never reached the runtime image. The mint
+  started, applied all 18 Flyway migrations, and only then failed building the
+  `EntityManagerFactory` with `NoClassDefFoundError:
+  net/bytebuddy/description/type/TypeDefinition`. Every unit-test boot and every
+  dev profile ran without JPA, so nothing exercised the path. `byte-buddy-agent`
+  stays test-scoped; only Mockito uses that one.
+
 - Grafana dashboards no longer read empty. Three independent faults each broke
   the pipeline on their own, and all three were invisible because the failure
   mode of every one of them is a blank panel rather than an error:
@@ -26,6 +36,13 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Added
 
+- `RuntimeClasspathTest` asserts that `byte-buddy` and `hibernate-core` are on
+  the *runtime* classpath, so the JPA boot path cannot lose its bytecode
+  provider again. It reads the classpath recorded by `maven-dependency-plugin`
+  rather than calling `Class.forName`, because a test-scoped dependency is
+  present on the test classpath and an in-JVM check passes while the image is
+  broken. Verified in both directions: red with the scope restored, green with it
+  removed.
 - `ScrapeContractTest` guards the three runtime-composed metric families
   (`cashu_mint_requests_*`, `cashu_mint_task_*`, `cashu_mint_lock_*`) that
   `MetricCatalogueContractTest` exempts by design. It drives the real
