@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +39,17 @@ public class TaskMetrics {
 
     private static final String METRIC_PREFIX = "cashu_mint_task_";
 
+    /**
+     * Bucket boundaries for the task timer histogram. Without
+     * {@code publishPercentileHistogram} Micrometer exports a Prometheus
+     * <em>summary</em> (count/sum/max only), so every dashboard panel and alert
+     * built on {@code cashu_mint_task_duration_seconds_bucket} reads "No data".
+     * The expected-value range bounds how many buckets that costs.
+     */
+    private static final Duration MINIMUM_EXPECTED_DURATION = Duration.ofMillis(1);
+
+    private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(10);
+
     private final MeterRegistry registry;
 
     // Cached timers and counters by task name to avoid re-registration
@@ -65,8 +77,10 @@ public class TaskMetrics {
         return taskTimers.computeIfAbsent(normalizeTaskName(taskName), name ->
                 Timer.builder(METRIC_PREFIX + "duration_seconds")
                         .description("Task execution duration")
-                        .tag("task", name)
-                        .minimumExpectedValue(java.time.Duration.ofMillis(1))
+                        .tag("task_name", name)
+                        .publishPercentileHistogram()
+                        .minimumExpectedValue(MINIMUM_EXPECTED_DURATION)
+                        .maximumExpectedValue(MAXIMUM_EXPECTED_DURATION)
                         .register(registry));
     }
 
@@ -179,7 +193,7 @@ public class TaskMetrics {
         return taskSuccessCounters.computeIfAbsent(taskName, name ->
                 Counter.builder(METRIC_PREFIX + "success_total")
                         .description("Successful task executions")
-                        .tag("task", name)
+                        .tag("task_name", name)
                         .register(registry));
     }
 
@@ -188,7 +202,7 @@ public class TaskMetrics {
         return taskFailureCounters.computeIfAbsent(key, k ->
                 Counter.builder(METRIC_PREFIX + "failure_total")
                         .description("Failed task executions")
-                        .tag("task", taskName)
+                        .tag("task_name", taskName)
                         .tag("error_type", errorType)
                         .register(registry));
     }

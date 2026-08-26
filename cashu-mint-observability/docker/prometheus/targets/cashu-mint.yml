@@ -1,0 +1,17 @@
+# Prometheus file service discovery — Cashu Mint scrape targets.
+#
+# Default (dev stack) targets. Override per environment by mounting a
+# different file over this one, or by adding a sibling `cashu-mint-*.yml`
+# in this directory: the job's file_sd glob picks up every match.
+#
+# `env` is a target label here, and also arrives as a metric tag from the
+# mint itself (management.metrics.tags.env / $ENVIRONMENT). Keep the two in
+# step so a panel filtering on either sees the same series.
+#
+# Issue #346 — the port is the management port, not the public API port.
+
+- targets:
+    - 'cashu-mint-rest-dev:9000'
+  labels:
+    env: 'development'
+    service: 'cashu-mint'

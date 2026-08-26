@@ -56,14 +56,14 @@ class TaskTimingAspectTest {
 
         // And the timer is recorded
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(1);
 
         // And success is recorded
         Counter successCounter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .counter();
         assertThat(successCounter).isNotNull();
         assertThat(successCounter.count()).isEqualTo(1.0);
@@ -82,14 +82,14 @@ class TaskTimingAspectTest {
 
         // Then the timer is still recorded
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockMintTask")
+                .tag("task_name", "MockMintTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(1);
 
         // And failure is recorded with error type
         Counter failureCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MockMintTask")
+                .tag("task_name", "MockMintTask")
                 .tag("error_type", "RuntimeException")
                 .counter();
         assertThat(failureCounter).isNotNull();
@@ -109,7 +109,7 @@ class TaskTimingAspectTest {
 
         // Then failure is recorded with the exception type
         Counter failureCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .tag("error_type", "Exception")
                 .counter();
         assertThat(failureCounter).isNotNull();
@@ -129,14 +129,14 @@ class TaskTimingAspectTest {
 
         // Then the timer count reflects all executions
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(3);
 
         // And success counter reflects all executions
         Counter successCounter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .counter();
         assertThat(successCounter).isNotNull();
         assertThat(successCounter.count()).isEqualTo(3.0);
@@ -159,21 +159,21 @@ class TaskTimingAspectTest {
 
         // Then timer reflects all executions
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(3);
 
         // And success counter reflects successful executions
         Counter successCounter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .counter();
         assertThat(successCounter).isNotNull();
         assertThat(successCounter.count()).isEqualTo(2.0);
 
         // And failure counter reflects failed executions
         Counter failureCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .tag("error_type", "IllegalStateException")
                 .counter();
         assertThat(failureCounter).isNotNull();
@@ -193,13 +193,13 @@ class TaskTimingAspectTest {
 
         // Then each task type has its own timer
         Timer swapTimer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .timer();
         assertThat(swapTimer).isNotNull();
         assertThat(swapTimer.count()).isEqualTo(1);
 
         Timer mintTimer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MockMintTask")
+                .tag("task_name", "MockMintTask")
                 .timer();
         assertThat(mintTimer).isNotNull();
         assertThat(mintTimer.count()).isEqualTo(1);
@@ -219,7 +219,7 @@ class TaskTimingAspectTest {
 
         // And success is still recorded
         Counter successCounter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "MockSwapTask")
+                .tag("task_name", "MockSwapTask")
                 .counter();
         assertThat(successCounter).isNotNull();
         assertThat(successCounter.count()).isEqualTo(1.0);

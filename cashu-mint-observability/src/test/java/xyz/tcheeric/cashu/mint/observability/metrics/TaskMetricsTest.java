@@ -36,7 +36,7 @@ class TaskMetricsTest {
 
         // And it has the correct tags
         Timer foundTimer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "SwapTask")
+                .tag("task_name", "SwapTask")
                 .timer();
         assertThat(foundTimer).isNotNull();
     }
@@ -59,7 +59,7 @@ class TaskMetricsTest {
 
         // Then the success counter is incremented
         Counter counter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "SwapTask")
+                .tag("task_name", "SwapTask")
                 .counter();
         assertThat(counter).isNotNull();
         assertThat(counter.count()).isEqualTo(2.0);
@@ -74,14 +74,14 @@ class TaskMetricsTest {
 
         // Then failure counters are incremented per error type
         Counter cashuErrorCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MintTask")
+                .tag("task_name", "MintTask")
                 .tag("error_type", "CashuErrorException")
                 .counter();
         assertThat(cashuErrorCounter).isNotNull();
         assertThat(cashuErrorCounter.count()).isEqualTo(2.0);
 
         Counter runtimeErrorCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MintTask")
+                .tag("task_name", "MintTask")
                 .tag("error_type", "RuntimeException")
                 .counter();
         assertThat(runtimeErrorCounter).isNotNull();
@@ -95,7 +95,7 @@ class TaskMetricsTest {
 
         // Then the timer records the duration
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "VerifyProofsTask")
+                .tag("task_name", "VerifyProofsTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(1);
@@ -103,7 +103,7 @@ class TaskMetricsTest {
 
         // And the success counter is incremented
         Counter successCounter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "VerifyProofsTask")
+                .tag("task_name", "VerifyProofsTask")
                 .counter();
         assertThat(successCounter).isNotNull();
         assertThat(successCounter.count()).isEqualTo(1.0);
@@ -116,7 +116,7 @@ class TaskMetricsTest {
 
         // Then the timer records the duration
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "MeltTask")
+                .tag("task_name", "MeltTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(1);
@@ -124,7 +124,7 @@ class TaskMetricsTest {
 
         // And the failure counter is incremented
         Counter failureCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MeltTask")
+                .tag("task_name", "MeltTask")
                 .tag("error_type", "InvoiceNotPaidException")
                 .counter();
         assertThat(failureCounter).isNotNull();
@@ -138,7 +138,7 @@ class TaskMetricsTest {
 
         // Then the failure counter uses "unknown" as error type
         Counter failureCounter = registry.find("cashu_mint_task_failure_total")
-                .tag("task", "SwapTask")
+                .tag("task_name", "SwapTask")
                 .tag("error_type", "unknown")
                 .counter();
         assertThat(failureCounter).isNotNull();
@@ -163,7 +163,7 @@ class TaskMetricsTest {
         assertThat(duration).isGreaterThanOrEqualTo(TimeUnit.MILLISECONDS.toNanos(20));
 
         Timer timer = registry.find("cashu_mint_task_duration_seconds")
-                .tag("task", "SignBlindedMessageTask")
+                .tag("task_name", "SignBlindedMessageTask")
                 .timer();
         assertThat(timer).isNotNull();
         assertThat(timer.count()).isEqualTo(1);
@@ -176,7 +176,7 @@ class TaskMetricsTest {
 
         // Then the counter uses simple class name
         Counter counter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "SwapTask")
+                .tag("task_name", "SwapTask")
                 .counter();
         assertThat(counter).isNotNull();
         assertThat(counter.count()).isEqualTo(1.0);
@@ -190,7 +190,7 @@ class TaskMetricsTest {
 
         // Then "unknown" is used as task name
         Counter counter = registry.find("cashu_mint_task_success_total")
-                .tag("task", "unknown")
+                .tag("task_name", "unknown")
                 .counter();
         assertThat(counter).isNotNull();
         assertThat(counter.count()).isEqualTo(2.0);
@@ -247,11 +247,11 @@ class TaskMetricsTest {
 
         // Then each task type has its own metrics
         assertThat(registry.find("cashu_mint_task_success_total")
-                .tag("task", "SwapTask").counter().count()).isEqualTo(2.0);
+                .tag("task_name", "SwapTask").counter().count()).isEqualTo(2.0);
         assertThat(registry.find("cashu_mint_task_success_total")
-                .tag("task", "MintTask").counter().count()).isEqualTo(1.0);
+                .tag("task_name", "MintTask").counter().count()).isEqualTo(1.0);
         assertThat(registry.find("cashu_mint_task_failure_total")
-                .tag("task", "MeltTask").counter().count()).isEqualTo(1.0);
+                .tag("task_name", "MeltTask").counter().count()).isEqualTo(1.0);
     }
 
     @Test

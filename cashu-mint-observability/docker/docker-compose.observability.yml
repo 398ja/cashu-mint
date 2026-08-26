@@ -35,6 +35,10 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      # File service discovery targets. Mount an environment-specific
+      # directory here (staging, prod) to point the same config at a
+      # different mint without editing prometheus.yml.
+      - ${CASHU_PROMETHEUS_TARGETS_DIR:-./prometheus/targets}:/etc/prometheus/targets:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

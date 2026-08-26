@@ -15,17 +15,26 @@ rule_files:
   - "alerts.yml"
 
 scrape_configs:
-  # Cashu Mint metrics
+  # Cashu Mint metrics.
+  #
+  # Targets come from file service discovery rather than a hardcoded
+  # `static_configs` host. The dev container name (`cashu-mint-rest-dev`)
+  # resolves on the dev stack and nowhere else, so a staging or production
+  # Prometheus scraping this same config silently found no target — `up` was
+  # absent rather than 0, so even the CashuMintDown alert stayed quiet while
+  # every dashboard read "No data".
+  #
+  # Each environment supplies its own `targets/cashu-mint.yml`; the file is
+  # re-read live, so a target change needs no Prometheus restart.
   - job_name: 'cashu-mint'
     metrics_path: '/actuator/prometheus'
     scrape_interval: 15s
     scrape_timeout: 10s
-    static_configs:
+    file_sd_configs:
       # Issue #346 — actuator is on the management port, not the public API port.
-      - targets: ['cashu-mint-rest-dev:9000']
-        labels:
-          env: 'development'
-          service: 'cashu-mint'
+      - files:
+          - '/etc/prometheus/targets/cashu-mint*.yml'
+        refresh_interval: 30s
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance

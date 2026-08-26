@@ -4,6 +4,55 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Grafana dashboards no longer read empty. Three independent faults each broke
+  the pipeline on their own, and all three were invisible because the failure
+  mode of every one of them is a blank panel rather than an error:
+  - Task metrics were tagged `task` while every dashboard, alert rule and the
+    metrics reference grouped by `task_name`. The series existed, so nothing
+    errored; `sum by (task_name)` just silently collapsed every task into one
+    unlabelled line.
+  - Request, task and lock timers published no histogram buckets, so Micrometer
+    exported Prometheus *summaries*. Summaries carry count, sum and max but no
+    `_bucket` series, so every `histogram_quantile` panel and every latency SLO
+    alert resolved to no data.
+  - Prometheus scraped a hardcoded `cashu-mint-rest-dev:9000`, a hostname that
+    resolves only on the dev stack. Anywhere else no target matched, which makes
+    `up{job="cashu-mint"}` *absent* rather than `0`, so even `CashuMintDown`
+    stayed quiet.
+- The two voucher dashboard panels that query Prometheus had a datasource with
+  no `uid`, so they resolved against whichever datasource Grafana defaulted to.
+
+### Added
+
+- `ScrapeContractTest` guards the three runtime-composed metric families
+  (`cashu_mint_requests_*`, `cashu_mint_task_*`, `cashu_mint_lock_*`) that
+  `MetricCatalogueContractTest` exempts by design. It drives the real
+  instrumentation into a real `PrometheusMeterRegistry` and asserts against the
+  actual scrape text that every timer family exports `_bucket` series and that
+  every label a dashboard or alert groups or filters by exists on the emitted
+  series. The exempted families were the only ones nothing checked, and all
+  three had drifted.
+- `Cashu Mint Integrity` dashboard, covering the 15 of 17 declared recorder
+  metrics that no dashboard charted — including every money-at-risk invariant
+  (`cashu_mint_melt_payment_sent_burn_failed`,
+  `cashu_mint_melt_stuck_payment_unknown`, `cashu_mint_voucher_orphan_issuance`)
+  that a `critical` alert fires on. Those alerts previously paged with no
+  dashboard to land on. It also charts
+  `cashu_mint_invariant_poll_failures_total` beside those gauges, since a stale
+  poll leaves them reading a falsely reassuring zero.
+- Prometheus scrape targets now come from file service discovery
+  (`prometheus/targets/*.yml`, overridable with
+  `CASHU_PROMETHEUS_TARGETS_DIR`), so one config works across dev, staging and
+  production.
+
+### Removed
+
+- `Cashu Mint Business` dashboard, superseded by `Cashu Mint Integrity`. Its two
+  panels charted a cumulative counter as a bare total and its rate; both are
+  retained on the new dashboard, broken down by funding source.
+
 ## [0.30.0] - 2026-08-19
 
 ### Removed

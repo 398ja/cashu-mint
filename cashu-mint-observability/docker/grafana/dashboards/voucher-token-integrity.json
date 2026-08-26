@@ -1,18 +1,34 @@
 {
   "uid": "voucher-token-integrity",
   "title": "Voucher Token Integrity Reconciliation",
-  "tags": ["cashu-mint", "voucher", "spec-004", "integrity"],
+  "tags": [
+    "cashu-mint",
+    "voucher",
+    "spec-004",
+    "integrity"
+  ],
   "schemaVersion": 39,
   "version": 1,
   "refresh": "1m",
-  "time": {"from": "now-24h", "to": "now"},
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "title": "Orphan issued vouchers (SC-001)",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
-      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "voucher-postgresql"
+      },
       "targets": [
         {
           "rawSql": "SELECT COUNT(*) AS orphan_count FROM voucher_quote WHERE lifecycle_state = 'ISSUED' AND funding_id IS NULL",
@@ -24,20 +40,36 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 1}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         }
       },
-      "options": {"colorMode": "background"}
+      "options": {
+        "colorMode": "background"
+      }
     },
     {
       "id": 2,
       "title": "Issued vs funded total",
       "type": "table",
-      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6},
-      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "voucher-postgresql"
+      },
       "targets": [
         {
           "rawSql": "SELECT 'issued' AS side, COALESCE(SUM(face_value), 0) AS total FROM voucher_quote WHERE lifecycle_state = 'ISSUED' UNION ALL SELECT 'funded', COALESCE(SUM(f.amount), 0) FROM voucher_funding f JOIN voucher_quote q ON q.funding_id = f.funding_id AND q.lifecycle_state = 'ISSUED'",
@@ -49,8 +81,16 @@
       "id": 3,
       "title": "Stuck quotes by state (> 1h in non-terminal)",
       "type": "table",
-      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 6},
-      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "voucher-postgresql"
+      },
       "targets": [
         {
           "rawSql": "SELECT lifecycle_state, COUNT(*) AS stuck_count FROM voucher_quote WHERE lifecycle_state IN ('UNFUNDED', 'FUNDED', 'ISSUING') AND updated_at < now() - interval '1 hour' GROUP BY lifecycle_state",
@@ -62,12 +102,24 @@
       "id": 4,
       "title": "funding_required rejection rate",
       "type": "timeseries",
-      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 6},
-      "datasource": {"type": "prometheus"},
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
           "expr": "rate(cashu_mint_voucher_rejected_total{reason=\"funding_required\"}[5m])",
-          "legendFormat": "rejections/sec"
+          "legendFormat": "rejections/sec",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
       ]
     },
@@ -75,8 +127,16 @@
       "id": 5,
       "title": "Daily retention purge audit",
       "type": "table",
-      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 6},
-      "datasource": {"type": "postgres", "uid": "voucher-postgresql"},
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "voucher-postgresql"
+      },
       "targets": [
         {
           "rawSql": "SELECT purged_at, rows_purged, aud_rows_purged, duration_ms FROM voucher_quote_purge_log ORDER BY purged_at DESC LIMIT 7",

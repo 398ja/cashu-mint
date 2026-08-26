@@ -83,7 +83,15 @@ management.prometheus.metrics.export.enabled=true
 
 ### Histogram Buckets
 
-Configure latency histogram buckets for better percentile accuracy:
+Request, task and lock timers publish percentile histograms in code, so
+`_bucket` series exist by default and no configuration is required. This is
+what makes the `histogram_quantile` panels and latency alerts work: a timer
+without a histogram exports a Prometheus *summary*, which carries count, sum
+and max but no buckets, so every quantile query returns "No data".
+`ScrapeContractTest` fails the build if a timer family stops exporting buckets.
+
+To narrow the buckets for better percentile resolution over a known latency
+range, add explicit boundaries:
 
 ```properties
 # Request latency buckets (seconds)
@@ -112,11 +120,24 @@ Detailed operational metrics:
 - Task error rate by type
 - HTTP request breakdown by endpoint
 
-### Cashu Mint Business
+### Cashu Mint Integrity
 
-Business metrics:
-- Vouchers issued
-- Voucher issuance rate
+Money-at-risk invariants and issuance/melt/webhook integrity. This is the
+dashboard a critical page lands on:
+- Payment sent but proofs not burned, melt stuck in `PAYMENT_UNKNOWN`, orphan
+  voucher issuance (the DB-derived gauges of ADR 0002)
+- Invariant poll failures, which tell you whether the three gauges above are
+  fresh enough to trust
+- Issuance and melt rejections by cause, webhook outcomes
+- Voucher issuance and rejections by funding source and reason
+
+### Voucher Liability, Token Integrity, IOU Liability
+
+Financial reconciliation read from PostgreSQL through the read-only
+`cashu_mint_grafana_ro` role rather than from Prometheus. These need
+`CASHU_MINT_GRAFANA_RO_PASSWORD` to be set to the same value the mint used at
+migration time; without it the datasource cannot authenticate and the panels
+stay empty while the Prometheus dashboards work fine.
 
 ### Cashu Mint SLO/SLI
 
@@ -202,15 +223,45 @@ To prevent metric explosion in production:
 
 ### Prometheus Configuration
 
-For production, update `prometheus.yml` with your actual mint hostname:
+Scrape targets come from file service discovery, not from `prometheus.yml`
+itself, so the same config works in every environment. Point Prometheus at a
+different mint by supplying your own targets file:
 
 ```yaml
-scrape_configs:
-  - job_name: 'cashu-mint'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['your-mint-host:7777']
+# cashu-mint-observability/docker/prometheus/targets/cashu-mint.yml
+- targets:
+    - 'your-mint-host:9000'
+  labels:
+    env: 'staging'
+    service: 'cashu-mint'
 ```
+
+Mount an environment-specific directory instead of editing the default:
+
+```bash
+CASHU_PROMETHEUS_TARGETS_DIR=./prometheus/targets.staging \
+  docker compose -f cashu-mint-observability/docker/docker-compose.observability.yml up -d
+```
+
+Two things to get right, both of which have silently emptied dashboards before:
+
+- **Use the management port (`9000`), not the API port (`7777`).** The actuator
+  runs on its own port (issue #346); `/actuator/prometheus` does not exist on
+  the API port, so scrapes 404 and every panel reads "No data".
+- **Prometheus must reach the mint on that port.** In the dev stack the port is
+  published to host loopback only, so Prometheus scrapes it as a sibling
+  container on the shared `cashu` network. Elsewhere, make sure the management
+  port is reachable from Prometheus but not from the public internet.
+
+Confirm the target is actually being scraped before trusting a dashboard:
+
+```bash
+curl -s localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job:.labels.job, health, lastError}'
+```
+
+A missing `cashu-mint` entry means no target matched the glob. Note that this
+also makes `up{job="cashu-mint"}` *absent* rather than `0`, so the
+`CashuMintDown` alert stays quiet: an empty dashboard is the only symptom.
 
 ### Grafana Persistence
 

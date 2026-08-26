@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -36,6 +37,16 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
 
     private static final String METRIC_PREFIX = "cashu_mint_requests_";
     private static final String START_TIME_ATTR = "cashu.metrics.startTime";
+
+    /**
+     * Bucket boundaries for the request latency histogram. Without
+     * {@code publishPercentileHistogram} Micrometer exports a Prometheus
+     * <em>summary</em>, which carries no {@code _bucket} series, so every
+     * {@code histogram_quantile} panel and latency SLO alert reads "No data".
+     */
+    private static final Duration MINIMUM_EXPECTED_DURATION = Duration.ofMillis(1);
+
+    private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(10);
 
     // Patterns for normalizing variable path segments
     // Pattern to match keyset endpoints: /v1/keys/{keyset_id} or /v1/keys/keyset/{keyset_id}
@@ -178,7 +189,9 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
                         .description("HTTP request duration")
                         .tag("endpoint", endpoint)
                         .tag("method", method)
-                        .minimumExpectedValue(java.time.Duration.ofMillis(1))
+                        .publishPercentileHistogram()
+                        .minimumExpectedValue(MINIMUM_EXPECTED_DURATION)
+                        .maximumExpectedValue(MAXIMUM_EXPECTED_DURATION)
                         .register(registry));
     }
 

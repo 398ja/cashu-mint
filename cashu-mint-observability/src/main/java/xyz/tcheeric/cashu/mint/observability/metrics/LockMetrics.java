@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +34,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LockMetrics {
 
     private static final String METRIC_PREFIX = "cashu_mint_lock_";
+
+    /**
+     * Bucket boundaries for the lock timer histograms. {@code publishPercentiles}
+     * alone exports pre-computed {@code quantile} series that cannot be
+     * aggregated and carry no {@code _bucket} series, so the virtual-threads
+     * dashboard's {@code histogram_quantile} panels read "No data".
+     */
+    private static final Duration MINIMUM_EXPECTED_DURATION = Duration.ofMillis(1);
+
+    private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(10);
 
     private final MeterRegistry registry;
 
@@ -141,7 +152,9 @@ public class LockMetrics {
                 Timer.builder(METRIC_PREFIX + "wait_seconds")
                         .description("Time spent waiting to acquire a lock")
                         .tag("lock_type", type)
-                        .publishPercentiles(0.5, 0.95, 0.99)
+                        .publishPercentileHistogram()
+                        .minimumExpectedValue(MINIMUM_EXPECTED_DURATION)
+                        .maximumExpectedValue(MAXIMUM_EXPECTED_DURATION)
                         .register(registry));
     }
 
@@ -150,7 +163,9 @@ public class LockMetrics {
                 Timer.builder(METRIC_PREFIX + "hold_seconds")
                         .description("Time spent holding a lock")
                         .tag("lock_type", type)
-                        .publishPercentiles(0.5, 0.95, 0.99)
+                        .publishPercentileHistogram()
+                        .minimumExpectedValue(MINIMUM_EXPECTED_DURATION)
+                        .maximumExpectedValue(MAXIMUM_EXPECTED_DURATION)
                         .register(registry));
     }
 

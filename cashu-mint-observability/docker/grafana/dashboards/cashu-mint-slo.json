@@ -26,7 +26,9 @@
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
-      "tags": ["cashu-mint"],
+      "tags": [
+        "cashu-mint"
+      ],
       "targetBlank": true,
       "title": "Cashu Mint Dashboards",
       "type": "dashboards"
@@ -65,10 +67,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 99.5},
-              {"color": "yellow", "value": 99.9},
-              {"color": "green", "value": 99.95}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 99.5
+              },
+              {
+                "color": "yellow",
+                "value": 99.9
+              },
+              {
+                "color": "green",
+                "value": 99.95
+              }
             ]
           },
           "unit": "percent"
@@ -85,7 +99,9 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -95,7 +111,10 @@
       "pluginVersion": "10.2.0",
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "(1 - (sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[$__range])) / sum(rate(cashu_mint_requests_total[$__range])))) * 100",
           "legendFormat": "Availability",
           "refId": "A"
@@ -122,10 +141,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "orange", "value": 2},
-              {"color": "red", "value": 3}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           },
           "unit": "s"
@@ -142,7 +173,9 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -151,7 +184,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.99, sum by (le) (rate(cashu_mint_requests_duration_seconds_bucket[$__range])))",
           "legendFormat": "P99 Latency",
           "refId": "A"
@@ -178,10 +214,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 25},
-              {"color": "yellow", "value": 50},
-              {"color": "green", "value": 75}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
             ]
           },
           "unit": "percent"
@@ -198,7 +246,9 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -207,7 +257,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "100 * (1 - ((sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[$__range])) / sum(rate(cashu_mint_requests_total[$__range]))) / 0.001))",
           "legendFormat": "Error Budget",
           "refId": "A"
@@ -234,10 +287,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 95},
-              {"color": "yellow", "value": 99},
-              {"color": "green", "value": 99.5}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 95
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 99.5
+              }
             ]
           },
           "unit": "percent"
@@ -254,7 +319,9 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -263,8 +330,11 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "100 * sum(rate(cashu_mint_task_success_total[$__range])) / (sum(rate(cashu_mint_task_success_total[$__range])) + sum(rate(cashu_mint_task_failure_total[$__range])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum(rate(cashu_mint_task_success_total[$__range])) / sum(rate(cashu_mint_task_success_total[$__range]) or rate(cashu_mint_task_failure_total[$__range]))",
           "legendFormat": "Task Success Rate",
           "refId": "A"
         }
@@ -334,19 +404,46 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 99.9}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 99.9
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "SLO Target"},
+            "matcher": {
+              "id": "byName",
+              "options": "SLO Target"
+            },
             "properties": [
-              {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}},
-              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
-              {"id": "custom.fillOpacity", "value": 0}
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
             ]
           }
         ]
@@ -360,7 +457,10 @@
       "id": 7,
       "options": {
         "legend": {
-          "calcs": ["mean", "min"],
+          "calcs": [
+            "mean",
+            "min"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -372,13 +472,19 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "(1 - (sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[5m])) / sum(rate(cashu_mint_requests_total[5m])))) * 100",
           "legendFormat": "Availability",
           "refId": "A"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "99.9",
           "legendFormat": "SLO Target",
           "refId": "B"
@@ -433,19 +539,46 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 2}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "SLO Target"},
+            "matcher": {
+              "id": "byName",
+              "options": "SLO Target"
+            },
             "properties": [
-              {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}},
-              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
-              {"id": "custom.fillOpacity", "value": 0}
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
             ]
           }
         ]
@@ -459,7 +592,10 @@
       "id": 8,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -471,25 +607,37 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.50, sum by (le) (rate(cashu_mint_requests_duration_seconds_bucket[5m])))",
           "legendFormat": "P50",
           "refId": "A"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum by (le) (rate(cashu_mint_requests_duration_seconds_bucket[5m])))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.99, sum by (le) (rate(cashu_mint_requests_duration_seconds_bucket[5m])))",
           "legendFormat": "P99",
           "refId": "C"
         },
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "2",
           "legendFormat": "SLO Target",
           "refId": "D"
@@ -559,10 +707,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 25},
-              {"color": "yellow", "value": 50},
-              {"color": "green", "value": 75}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 75
+              }
             ]
           },
           "unit": "percent"
@@ -578,7 +738,10 @@
       "id": 10,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "min"],
+          "calcs": [
+            "lastNotNull",
+            "min"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -590,7 +753,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "100 * (1 - ((sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[1h])) / sum(rate(cashu_mint_requests_total[1h]))) / 0.001))",
           "legendFormat": "Error Budget Remaining",
           "refId": "A"
@@ -611,18 +777,70 @@
             "mode": "thresholds"
           },
           "mappings": [
-            {"options": {"from": 0, "result": {"color": "green", "text": "Normal"}, "to": 1}, "type": "range"},
-            {"options": {"from": 1, "result": {"color": "yellow", "text": "Elevated"}, "to": 5}, "type": "range"},
-            {"options": {"from": 5, "result": {"color": "orange", "text": "High"}, "to": 10}, "type": "range"},
-            {"options": {"from": 10, "result": {"color": "red", "text": "Critical"}, "to": 999999}, "type": "range"}
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "color": "green",
+                  "text": "Normal"
+                },
+                "to": 1
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 1,
+                "result": {
+                  "color": "yellow",
+                  "text": "Elevated"
+                },
+                "to": 5
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 5,
+                "result": {
+                  "color": "orange",
+                  "text": "High"
+                },
+                "to": 10
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 10,
+                "result": {
+                  "color": "red",
+                  "text": "Critical"
+                },
+                "to": 999999
+              },
+              "type": "range"
+            }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "orange", "value": 5},
-              {"color": "red", "value": 10}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
             ]
           },
           "unit": "x"
@@ -642,7 +860,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -650,7 +870,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "(sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[1h])) / sum(rate(cashu_mint_requests_total[1h]))) / 0.001",
           "legendFormat": "Burn Rate",
           "refId": "A"
@@ -674,10 +897,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 7},
-              {"color": "yellow", "value": 14},
-              {"color": "green", "value": 21}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 7
+              },
+              {
+                "color": "yellow",
+                "value": 14
+              },
+              {
+                "color": "green",
+                "value": 21
+              }
             ]
           },
           "unit": "d"
@@ -697,7 +932,9 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -705,7 +942,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "30 / clamp_min((sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[1h])) / sum(rate(cashu_mint_requests_total[1h]))) / 0.001, 0.01)",
           "legendFormat": "Days Until Exhausted",
           "refId": "A"
@@ -749,19 +989,39 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "orange", "value": 95},
-              {"color": "yellow", "value": 99},
-              {"color": "green", "value": 99.5}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 95
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 99.5
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "Task"},
+            "matcher": {
+              "id": "byName",
+              "options": "Task"
+            },
             "properties": [
-              {"id": "custom.cellOptions", "value": {"type": "auto"}}
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
             ]
           }
         ]
@@ -778,18 +1038,26 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true,
         "sortBy": [
-          {"desc": false, "displayName": "Success Rate"}
+          {
+            "desc": false,
+            "displayName": "Success Rate"
+          }
         ]
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "expr": "100 * sum by (task_name) (rate(cashu_mint_task_success_total[$__range])) / (sum by (task_name) (rate(cashu_mint_task_success_total[$__range])) + sum by (task_name) (rate(cashu_mint_task_failure_total[$__range])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "100 * sum by (task_name) (rate(cashu_mint_task_success_total[$__range])) / sum by (task_name) (rate(cashu_mint_task_success_total[$__range]) or rate(cashu_mint_task_failure_total[$__range]))",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -801,8 +1069,13 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"Time": true},
-            "renameByName": {"Value": "Success Rate", "task_name": "Task"}
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Success Rate",
+              "task_name": "Task"
+            }
           }
         }
       ],
@@ -830,19 +1103,39 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 0.5},
-              {"color": "orange", "value": 1},
-              {"color": "red", "value": 2}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "Endpoint"},
+            "matcher": {
+              "id": "byName",
+              "options": "Endpoint"
+            },
             "properties": [
-              {"id": "custom.cellOptions", "value": {"type": "auto"}}
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
             ]
           }
         ]
@@ -859,17 +1152,25 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true,
         "sortBy": [
-          {"desc": true, "displayName": "P95 Latency"}
+          {
+            "desc": true,
+            "displayName": "P95 Latency"
+          }
         ]
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "histogram_quantile(0.95, sum by (endpoint, le) (rate(cashu_mint_requests_duration_seconds_bucket[$__range])))",
           "format": "table",
           "instant": true,
@@ -882,8 +1183,14 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {"Time": true, "le": true},
-            "renameByName": {"Value": "P95 Latency", "endpoint": "Endpoint"}
+            "excludeByName": {
+              "Time": true,
+              "le": true
+            },
+            "renameByName": {
+              "Value": "P95 Latency",
+              "endpoint": "Endpoint"
+            }
           }
         }
       ],
@@ -919,13 +1226,32 @@
             "spanNulls": false
           },
           "mappings": [
-            {"options": {"SLO Met": {"color": "green", "index": 0}}, "type": "value"},
-            {"options": {"SLO Missed": {"color": "red", "index": 1}}, "type": "value"}
+            {
+              "options": {
+                "SLO Met": {
+                  "color": "green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "SLO Missed": {
+                  "color": "red",
+                  "index": 1
+                }
+              },
+              "type": "value"
+            }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null}
+              {
+                "color": "green",
+                "value": null
+              }
             ]
           }
         },
@@ -955,7 +1281,10 @@
       },
       "targets": [
         {
-          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "((1 - (sum(rate(cashu_mint_requests_total{status=~\"5xx\"}[1d])) / sum(rate(cashu_mint_requests_total[1d])))) * 100) >= 99.9",
           "legendFormat": "Availability SLO",
           "refId": "A"
@@ -986,7 +1315,9 @@
             },
             "mode": "reduceRow",
             "reduce": {
-              "include": ["Value"],
+              "include": [
+                "Value"
+              ],
               "reducer": "sum"
             },
             "replaceFields": false
@@ -998,7 +1329,11 @@
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["cashu-mint", "slo", "sli"],
+  "tags": [
+    "cashu-mint",
+    "slo",
+    "sli"
+  ],
   "templating": {
     "list": []
   },

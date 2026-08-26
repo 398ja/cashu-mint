@@ -383,7 +383,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (task_name) (rate(cashu_mint_task_failure_total[5m])) / (sum by (task_name) (rate(cashu_mint_task_success_total[5m])) + sum by (task_name) (rate(cashu_mint_task_failure_total[5m])))",
+          "expr": "sum by (task_name) (rate(cashu_mint_task_failure_total[5m])) / sum by (task_name) (rate(cashu_mint_task_success_total[5m]) or rate(cashu_mint_task_failure_total[5m]))",
           "legendFormat": "{{task_name}}",
           "refId": "A"
         }
