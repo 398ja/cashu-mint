@@ -46,6 +46,21 @@ All notable changes to the Cashu Mint will be documented in this file.
   (`prometheus/targets/*.yml`, overridable with
   `CASHU_PROMETHEUS_TARGETS_DIR`), so one config works across dev, staging and
   production.
+- `MintWebhookNotificationAbandoned` (`critical`), which pages when the
+  payment-adapter gives up forwarding a payment notification: the payment
+  settled with the provider but the mint never issued, so value was taken and
+  nothing handed back. `cashu_mint_webhook_event_total` cannot detect this,
+  because it counts deliveries that *arrived* — a notification never
+  successfully sent is exactly the case it cannot see — so the signal is scraped
+  from the adapter, which is now a Prometheus job in its own right. Paired with
+  `MintWebhookRetriesElevated` (early warning) and `PaymentAdapterMetricsAbsent`,
+  which fires when the adapter is not scraped at all, since that silently
+  disarms the critical rule. The Integrity dashboard gains a matching panel so
+  the page has somewhere to land.
+- promtool unit tests for those rules
+  (`prometheus/tests/payment-adapter-webhook-alerts.yml`), pinning that they
+  page on a real loss, stay silent on a healthy adapter, and detect their own
+  blind spot. Confirmed to fail when the rule threshold is broken.
 
 ### Removed
 

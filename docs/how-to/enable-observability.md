@@ -283,6 +283,44 @@ Pre-configured alerts are defined in `docker/prometheus/alerts.yml`:
 - **CashuMintTaskFailureRate**: Task failure rate > 10%
 - **CashuMintSlowTasks**: Task P95 latency > 500ms
 
+Money-at-risk rules, which page rather than warn:
+
+- **MeltPaymentSentBurnFailed**: payment settled, proofs still spendable
+- **MeltStuckPaymentUnknown**: melt saga parked in `PAYMENT_UNKNOWN` past its TTL
+- **VoucherOrphanIssuance**: voucher issued with no funding row
+- **MintWebhookNotificationAbandoned**: the payment-adapter gave up forwarding a
+  payment notification, so the payment settled but the mint never issued. The
+  mint's own `cashu_mint_webhook_event_total` cannot detect this, because it
+  counts deliveries that *arrived*; a notification never successfully sent is
+  exactly the case it cannot see, so the signal comes from the adapter.
+
+Each of these is paired with a rule that fires when the signal itself goes
+missing (`InvariantGaugePollerStale`, `PaymentAdapterMetricsAbsent`), because a
+gauge that is absent and a gauge reading zero look identical on a dashboard, and
+only one of them means everything is fine.
+
+### Testing alert rules
+
+An alert nobody has seen fire is a hypothesis, not a safety net. The webhook
+rules ship with promtool unit tests covering all three states that matter —
+pages on a real loss, silent on a healthy adapter, and notices when it has been
+disarmed by the adapter not being scraped:
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/cashu-mint-observability/docker/prometheus:/etc/prometheus:ro" \
+  prom/prometheus:v2.47.0 \
+  test rules /etc/prometheus/tests/payment-adapter-webhook-alerts.yml
+```
+
+Validate the rule and scrape configuration the same way:
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/cashu-mint-observability/docker/prometheus:/etc/prometheus:ro" \
+  prom/prometheus:v2.47.0 check config /etc/prometheus/prometheus.yml
+```
+
 ### Alertmanager Configuration
 
 Edit `docker/alertmanager/alertmanager.yml` to configure notification channels:

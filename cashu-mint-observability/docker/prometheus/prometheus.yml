@@ -41,6 +41,23 @@ scrape_configs:
         regex: '([^:]+):\d+'
         replacement: '${1}'
 
+  # payment-adapter metrics. Same file service discovery arrangement as the
+  # mint: without a target here the adapter's webhook counters are absent, and
+  # the MintWebhookNotificationAbandoned alert can never fire.
+  - job_name: 'payment-adapter'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/payment-adapter*.yml'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:

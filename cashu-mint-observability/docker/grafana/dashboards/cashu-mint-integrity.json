@@ -305,12 +305,79 @@
       "id": 104
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Payment notifications the adapter gave up forwarding to the mint. The payment settled with the provider but the mint never issued, so value was taken and nothing handed back. Alerted by MintWebhookNotificationAbandoned. Absent series means the adapter is not being scraped, not that it is healthy.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "id": 105,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "increase(payment_adapter_webhook_abandoned_total[15m])",
+          "legendFormat": "abandoned",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Mint notifications abandoned (15m)",
+      "type": "stat"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 9
       },
       "id": 110,
       "panels": [],
@@ -376,7 +443,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 10
       },
       "options": {
         "legend": {
@@ -499,7 +566,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 10
       },
       "options": {
         "legend": {
@@ -536,7 +603,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 18
       },
       "id": 120,
       "panels": [],
@@ -602,7 +669,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 19
       },
       "options": {
         "legend": {
@@ -703,7 +770,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 19
       },
       "options": {
         "legend": {
@@ -740,7 +807,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 27
       },
       "id": 130,
       "panels": [],
@@ -806,7 +873,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 28
       },
       "options": {
         "legend": {
@@ -896,7 +963,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 28
       },
       "options": {
         "legend": {
@@ -960,7 +1027,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 32
+        "y": 36
       },
       "options": {
         "colorMode": "background",
@@ -1023,7 +1090,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 32
+        "y": 36
       },
       "options": {
         "colorMode": "background",
@@ -1086,7 +1153,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 32
+        "y": 36
       },
       "options": {
         "colorMode": "background",
@@ -1149,7 +1216,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 32
+        "y": 36
       },
       "options": {
         "colorMode": "background",
