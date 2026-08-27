@@ -4,6 +4,7 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.Set;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
@@ -29,12 +30,26 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             throw new IllegalArgumentException("access command must not be null");
         }
         validateVersionTag(validated.versionTag());
+        rejectSuperAdminRole(validated.roles());
 
         return switch (validated.command()) {
             case PROVISION -> provision(validated);
             case UPDATE_ROLES -> updateRoles(validated);
             case REVOKE -> revoke(validated);
         };
+    }
+
+    /**
+     * The Super Administrator is named in configuration and resolved from it, so granting
+     * the role here would write an entitlement nothing honours -- or, worse, one that a
+     * future reader honours, letting any operator who may write roles outrank the account
+     * that recovers the deployment.
+     */
+    private static void rejectSuperAdminRole(final Set<String> roles) {
+        if (roles != null && roles.stream().anyMatch(AdminRole.SUPER_ADMIN.key()::equalsIgnoreCase)) {
+            throw new IllegalArgumentException(
+                "SUPER_ADMIN is configured, not assigned: it cannot be granted through the admin API");
+        }
     }
 
     private AdministerAccessResponse provision(final AdministerAccessRequest request) {

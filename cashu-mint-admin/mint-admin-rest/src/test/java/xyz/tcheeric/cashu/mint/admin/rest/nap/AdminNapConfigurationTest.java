@@ -34,7 +34,7 @@ class AdminNapConfigurationTest {
     void undecodableNpubFailsStartup() {
         assertThatThrownBy(() -> configuration.adminAclResolver("npub1nonsense", operators))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("is not a valid npub");
+            .hasMessageContaining("not a valid npub");
     }
 
     // Checks the happy path builds the resolver without touching the operator store.

@@ -79,6 +79,20 @@ class AdministerAccessInteractorTest {
             .hasMessageContaining("pubkey");
     }
 
+    // Checks the role that outranks every other cannot be written through the use case:
+    // it is named in configuration, so an operator who may edit roles must not be able to
+    // grant it to themselves.
+    @Test
+    void shouldRejectGrantingTheSuperAdministratorRole() {
+        interactor.handle(provision(PUBKEY));
+
+        assertThatThrownBy(() -> interactor.handle(new AdministerAccessRequest(OPERATOR_ID, USER_ID,
+            AccessCommand.UPDATE_ROLES, "v1", "Alice", "alice@example.com",
+            Set.of("SUPER_ADMIN"), null, "self-promotion")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("SUPER_ADMIN");
+    }
+
     private static AdministerAccessRequest provision(final String pubkey) {
         return new AdministerAccessRequest(OPERATOR_ID, USER_ID, AccessCommand.PROVISION, "v1",
             "Alice", "alice@example.com", Set.of("ADMIN"), pubkey, null);

@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     AdminUserService.class, AdminOperationsService.class})
 @TestPropertySource(properties = {
     // Own database per class: a shared in-memory store leaks operators between
-    // classes, and the bootstrap credential is inert once any operator exists.
+    // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:ErrorResponseContractTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
 class ErrorResponseContractTest {

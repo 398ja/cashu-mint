@@ -312,7 +312,15 @@ services:
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
       DATASOURCE_DRIVER: org.postgresql.Driver
-      ADMIN_API_TOKEN: ${CASHU_MINT_ADMIN_API_TOKEN:-local-dev-token}
+      # The admin API is reachable only through a NAP session, so the deployment must
+      # name the npub that outranks every stored profile or the app refuses to start.
+      # Defaults to the throwaway key the E2E suite signs with (privkey 00..01); override
+      # with your own npub to sign in from a real signer.
+      ADMIN_SUPER_ADMIN_NPUB: ${CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB:-npub10xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpkge6d}
+      # Handshake proofs name this audience; it must be the URL the browser uses.
+      ADMIN_EXTERNAL_BASE_URL: http://localhost:${CASHU_MINT_ADMIN_PORT:-7778}
+      # Local dev is plain HTTP, so a Secure-only cookie would never be sent back.
+      ADMIN_SESSION_COOKIE_SECURE: "false"
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"

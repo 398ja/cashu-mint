@@ -120,6 +120,22 @@ class AdminAclResolverTest {
         assertThat(decision.roles()).isEmpty();
     }
 
+    // Defence in depth behind the use case's write guard: even a stored profile that
+    // somehow carries SUPER_ADMIN must not be honoured, or a single bad row outranks the
+    // account configuration nominates.
+    @Test
+    @DisplayName("A stored SUPER_ADMIN role is not honoured")
+    void storedSuperAdminRoleIsIgnored() {
+        when(repository.findByPubkey(OPERATOR_PUBKEY))
+            .thenReturn(Optional.of(account(Set.of("SUPER_ADMIN"), true)));
+
+        final AclDecision decision = resolver().resolve("npub1climber", OPERATOR_PUBKEY);
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.roles()).isEmpty();
+        assertThat(decision.permissions()).isEmpty();
+    }
+
     // The pubkey NAP hands over is lower-case hex; a configured npub decoded to
     // upper-case must still match, or the Super Administrator silently loses access.
     @Test

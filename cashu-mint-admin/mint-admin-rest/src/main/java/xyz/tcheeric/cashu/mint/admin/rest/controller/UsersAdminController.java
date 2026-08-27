@@ -98,9 +98,6 @@ public class UsersAdminController {
             @ApiResponse(responseCode = "200", description = "Roles updated", content = @Content(schema = @Schema(implementation = UserResponse.class))),
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
     })
-    // Granting roles is how an operator becomes a Super Administrator, so it needs a
-    // stronger permission than the rest of user management: only SUPER_ADMIN holds this.
-    @RequiresPermission(AdminPermission.Keys.OPERATORS_MANAGE)
     @PostMapping("/{userId}/roles")
     public ResponseEntity<UserResponse> assignRoles(@PathVariable("userId") String userId,
                                                     @Valid @RequestBody AssignRolesRequest request) {

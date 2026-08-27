@@ -36,7 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me.authenticated;
   }, []);
 
+  // The cookie is the credential, so clearing local state alone leaves the operator
+  // signed in and the next page load walks them straight back to the dashboard.
   const logout = useCallback(() => {
+    void fetch("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
     setState({ roles: [], authenticated: false, loading: false });
   }, []);
 

@@ -10,7 +10,9 @@ import nostr.crypto.bech32.Bech32;
  */
 public final class Npubs {
 
-    private static final String NOT_AN_NPUB = " is not a valid npub";
+    // The message reaches a 400 body, so it names the field rather than echoing what the
+    // caller sent; the caller already knows what they typed.
+    private static final String NOT_AN_NPUB = "not a valid npub";
 
     private Npubs() {
     }
@@ -25,10 +27,10 @@ public final class Npubs {
         try {
             hex = npub != null && npub.startsWith("npub1") ? Bech32.fromBech32(npub) : null;
         } catch (final Exception ex) {
-            throw new IllegalArgumentException(npub + NOT_AN_NPUB, ex);
+            throw new IllegalArgumentException(NOT_AN_NPUB, ex);
         }
         if (hex == null || hex.length() != 64) {
-            throw new IllegalArgumentException(npub + NOT_AN_NPUB);
+            throw new IllegalArgumentException(NOT_AN_NPUB);
         }
         return hex.toLowerCase();
     }

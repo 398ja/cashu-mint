@@ -74,7 +74,7 @@ appears to exist, has passing tests, and does not hold.
 | Surface | Verdict | Evidence |
 |---|---|---|
 | REST API | Sound | Genuinely wired to the core interactors. |
-| Web UI | Sound client | Real API client per feature. Inherits the RBAC flaw by design. |
+| Web UI | Sound client, no sign-in | Real API client per feature, but the login page cannot yet sign a handshake, so nothing reaches the API. |
 | CLI | Unsound | `MintAdminCliApplication:76-84` — connected mode wires one real port, `HttpMintLifecyclePort`. Status, config, users and alerts stay on `Stub*`. `StubMintAlertsPort` returns hardcoded rows including `"Lightning backend unreachable"`, presented as live data. |
 
 ## Where the tests stop short

@@ -57,7 +57,12 @@ public class AdminAclResolver implements AclResolver {
         }
         final Set<AdminRole> roles = EnumSet.noneOf(AdminRole.class);
         for (final String role : account.roles()) {
-            AdminRole.fromKey(role).ifPresent(roles::add);
+            AdminRole.fromKey(role)
+                // The Super Administrator is configuration, not data. Honouring the role
+                // from a stored profile would let anyone who can write roles promote
+                // themselves past the account that is meant to outrank them.
+                .filter(resolved -> resolved != AdminRole.SUPER_ADMIN)
+                .ifPresent(roles::add);
         }
         // Only roles this application knows are reported: an unrecognised name grants
         // no permission, so reporting it would describe entitlement nobody has.

@@ -14,11 +14,12 @@ All notable changes to the Cashu Mint will be documented in this file.
   `forbidden` error body rather than a bare status. Per-operator credentials and
   their reset workflow are gone with the token: a migration drops
   `credential_hash`, `reset_count` and `reset_requested_at`, deletes rows with no
-  public key, and makes `pubkey` required. Assigning roles now needs
-  `operators:manage`, which only the Super Administrator holds, so a `USER_ADMIN`
-  can no longer grant themselves the role that outranks them. Both admin API test
-  suites sign in through a real handshake behind one helper, so nothing
-  authenticates in tests that could not authenticate in production. Nothing is migrated and no fallback
+  public key, and makes `pubkey` required. The Super Administrator is configuration,
+  not data: the role cannot be written through the admin API and a stored profile
+  carrying it is ignored, so an Operator who may edit roles can no longer grant
+  themselves the role that outranks them. Both admin API test suites sign in
+  through a real handshake behind one helper, so nothing authenticates in tests
+  that could not authenticate in production. Nothing is migrated and no fallback
   is kept — no deployment exists to migrate. (#373)
 
 ### Added
