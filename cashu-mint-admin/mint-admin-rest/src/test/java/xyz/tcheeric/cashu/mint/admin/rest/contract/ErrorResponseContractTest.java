@@ -42,7 +42,6 @@ class ErrorResponseContractTest {
 
     private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "99999999-9999-9999-9999-999999999999";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -81,10 +80,9 @@ class ErrorResponseContractTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reason": "maintenance",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                                  "reason": "maintenance"
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").exists())
@@ -102,10 +100,9 @@ class ErrorResponseContractTest {
                         .content("""
                                 {
                                   "reason": "test",
-                                  "durationMinutes": 30,
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                                  "durationMinutes": 30
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mintId").exists())
                 .andExpect(jsonPath("$.controlId").exists())

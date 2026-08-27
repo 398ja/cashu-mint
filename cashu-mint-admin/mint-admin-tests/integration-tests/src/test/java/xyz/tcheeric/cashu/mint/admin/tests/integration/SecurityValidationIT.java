@@ -20,7 +20,6 @@ import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAd
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
 class SecurityValidationIT extends AbstractAdminIntegrationIT {
 
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     // Ensures requests without auth token are rejected with 401.
     @Test
@@ -76,7 +75,9 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
     // Every role a caller could try to claim, so the header is proven inert.
     private static final String ALL_ROLES_CLAIM = "MINT_ADMIN,USER_ADMIN,OPS_ADMIN";
 
-    // Ensures bean validation returns 400 for malformed user payloads.
+    // Ensures bean validation returns 400 for malformed user payloads. Authenticates
+    // with an operator credential, not the bootstrap token: the token is inert once
+    // any operator exists, so it answers 401 and never reaches validation.
     @Test
     void shouldReturnBadRequestForInvalidUserPayload() {
         final ResponseEntity<JsonNode> response = adminApiClient().post(
@@ -85,9 +86,8 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "userId", " ",
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", List.of(),
-                "requestedBy", actor()),
-            ADMIN_TOKEN,
+                "roles", List.of()),
+            rootCredential(),
             USER_ADMIN_ROLE);
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
@@ -99,7 +99,6 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             "/admin/lifecycle/mints",
             Map.of(
                 "mintId", UUID.randomUUID().toString(),
-                "requestedBy", rootActor(),
                 "configuration", Map.of("versionTag", "v1")),
             rootCredential(),
             MINT_ADMIN_ROLE);
@@ -108,15 +107,12 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
 
     private static Stream<Arguments> rbacCases() {
         final String mintId = UUID.randomUUID().toString();
-        final Map<String, Object> actor = Map.of("id", OPERATOR_ID, "displayName", "Operator");
-        // Bodies here are only ever sent on refused requests, so the actor is never read.
         return Stream.of(
             Arguments.of(
                 HttpMethod.POST,
                 "/admin/lifecycle/mints",
                 Map.of(
                     "mintId", mintId,
-                    "requestedBy", actor,
                     "metadata", Map.of("displayName", "Mint", "description", "desc", "tags", List.of("it")),
                     "configuration", Map.of("versionTag", "v1")),
                 USER_ADMIN_ROLE),
@@ -127,8 +123,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "/admin/operations/mints/" + mintId + "/maintenance/schedule",
                 Map.of(
                     "reason", "rbac",
-                    "durationMinutes", 10,
-                    "requestedBy", actor),
+                    "durationMinutes", 10),
                 USER_ADMIN_ROLE));
     }
 
@@ -169,7 +164,6 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/users/" + userId + "/deactivate",
             Map.of(
-                "requestedBy", rootActor(),
                 "reason", "revoked for test"),
             rootCredential(),
             null);
@@ -193,44 +187,30 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
 
-    // The Audit Trail must name the operator the server authenticated, so a request
-    // that claims to be someone else is refused rather than silently recorded.
+    // The Audit Trail names the operator the server authenticated. A body field
+    // naming somebody else is inert: it neither changes the attribution nor
+    // refuses the request.
     @Test
-    void shouldRefuseRequestNamingAnotherOperator() {
+    void shouldAttributeAuditToAuthenticatedOperatorIgnoringRequestBody() {
         final String userId = UUID.randomUUID().toString();
-        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
+        final String credential = provisionOperator(userId, List.of(MINT_ADMIN_ROLE));
+        final String mintId = UUID.randomUUID().toString();
 
         final ResponseEntity<JsonNode> response = adminApiClient().post(
-            "/admin/operations/mints/" + UUID.randomUUID() + "/maintenance/schedule",
+            "/admin/lifecycle/mints",
             Map.of(
-                "reason", "impersonation attempt",
-                "durationMinutes", 10,
-                // Someone else entirely.
-                "requestedBy", Map.of("id", UUID.randomUUID().toString(), "displayName", "Somebody")),
-            credential,
-            null);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(403);
-        assertThat(response.getBody().path("code").asText()).isEqualTo("operator_mismatch");
-    }
-
-    // An operator naming themselves is accepted, so the guard blocks impersonation
-    // rather than every request that carries an actor.
-    @Test
-    void shouldAcceptRequestNamingTheAuthenticatedOperator() {
-        final String userId = UUID.randomUUID().toString();
-        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
-
-        final ResponseEntity<JsonNode> response = adminApiClient().post(
-            "/admin/operations/mints/" + UUID.randomUUID() + "/maintenance/schedule",
-            Map.of(
-                "reason", "planned",
-                "durationMinutes", 10,
-                "requestedBy", Map.of("id", userId, "displayName", "Operator")),
+                "mintId", mintId,
+                // Someone else entirely — the server has no reason to read this.
+                "requestedBy", Map.of("id", UUID.randomUUID().toString(), "displayName", "Somebody"),
+                "metadata", Map.of("displayName", "Mint", "description", "desc", "tags", List.of("it")),
+                "configuration", Map.of("versionTag", "v1")),
             credential,
             null);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT last_actor FROM mints WHERE mint_id = ?", String.class, UUID.fromString(mintId)))
+            .isEqualTo(userId);
     }
 
     // A role change takes effect on the operator's next request, with no restart.
@@ -245,8 +225,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/users/" + userId + "/roles",
             Map.of(
-                "roles", List.of(USER_ADMIN_ROLE, OPS_ADMIN_ROLE),
-                "requestedBy", rootActor()),
+                "roles", List.of(USER_ADMIN_ROLE, OPS_ADMIN_ROLE)),
             rootCredential(),
             null);
 
@@ -269,8 +248,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "userId", userId,
                 "displayName", "Operator " + userId.substring(0, 8),
                 "email", userId.substring(0, 8) + "@example.com",
-                "roles", roles,
-                "requestedBy", rootActor()),
+                "roles", roles),
             root,
             null);
         assertThat(created.getStatusCode().value()).isEqualTo(200);
@@ -285,11 +263,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             "userId", UUID.randomUUID().toString(),
             "displayName", "Alice",
             "email", "alice@example.com",
-            "roles", List.of("ADMIN"),
-            "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Operator"));
+            "roles", List.of("ADMIN"));
     }
 
-    private Map<String, Object> actor() {
-        return Map.of("id", OPERATOR_ID, "displayName", "Operator");
-    }
 }

@@ -96,7 +96,7 @@ public class AdminLifecycleService {
         final java.util.Map<String, String> configParams = extractConfigurationParameters(request.configuration());
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             request.mintId(),
-            operatorIdentity.requireActor(request.requestedBy().id()),
+            operatorIdentity.currentOperatorId(),
             LifecycleCommand.CREATE,
             versionTag,
             null,
@@ -123,7 +123,7 @@ public class AdminLifecycleService {
         final String versionTag = extractVersionTag(request.configuration(), request.revisionId());
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             mintId,
-            operatorIdentity.requireActor(request.requestedBy().id()),
+            operatorIdentity.currentOperatorId(),
             LifecycleCommand.UPDATE_CONFIGURATION,
             versionTag,
             null,
@@ -164,7 +164,7 @@ public class AdminLifecycleService {
             .orElse(DEFAULT_VERSION_TAG);
         final ManageMintLifecycleRequest useCaseRequest = new ManageMintLifecycleRequest(
             mintId,
-            operatorIdentity.requireActor(request.requestedBy().id()),
+            operatorIdentity.currentOperatorId(),
             command,
             versionTag,
             null,

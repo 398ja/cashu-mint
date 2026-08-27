@@ -21,8 +21,6 @@ import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
 import { ArrowLeft } from "lucide-react";
 
-const ACTOR = { id: "ce114fe1-944a-43c2-b9c2-b1e21b83e0ae", displayName: "Web Operator" };
-
 type OpAction =
   | "schedule"
   | "start"
@@ -76,7 +74,7 @@ export function OperationsPage() {
       op: OpAction;
       reason: string;
     }) => {
-      const body = { requestedBy: ACTOR, reason };
+      const body = { reason };
       switch (op) {
         case "schedule":
           return scheduleMaintenance(mintId!, body);

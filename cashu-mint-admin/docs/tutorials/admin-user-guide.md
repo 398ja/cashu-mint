@@ -132,10 +132,6 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
     "mintId": "550e8400-e29b-41d4-a716-446655440000",
-    "requestedBy": {
-      "id": "123e4567-e89b-12d3-a456-426614174000",
-      "displayName": "Alice Operator"
-    },
     "metadata": {
       "displayName": "Production SAT Mint",
       "description": "Main satoshi mint for production",
@@ -277,7 +273,6 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "reason": "Initial activation after provisioning"
   }'
 ```
@@ -293,7 +288,6 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "reason": "Scheduled maintenance window"
   }'
 ```
@@ -306,7 +300,6 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "reason": "Maintenance complete"
   }'
 ```
@@ -321,7 +314,6 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "reason": "Replaced by new mint with updated denominations"
   }'
 ```
@@ -353,7 +345,6 @@ curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "proposedConfiguration": {
       "cashu.expiry": "30",
       "cashu.denominations": "1,2,4,8,16,32,64,128"
@@ -372,7 +363,6 @@ curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "proposedConfiguration": {
       "cashu.expiry": "30",
       "cashu.denominations": "1,2,4,8,16,32,64,128"
@@ -391,7 +381,6 @@ curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "targetRevisionId": 2
   }'
 ```
@@ -488,7 +477,7 @@ curl -X POST http://localhost:7778/admin/alerts/alert-001/acknowledge \
   -H "Content-Type: application/json" \
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: ALERTS_ADMIN" \
-  -d '{"requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}}'
+  -d '{}'
 ```
 
 ### Silencing an Alert
@@ -501,7 +490,6 @@ curl -X POST http://localhost:7778/admin/alerts/alert-001/silence \
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: ALERTS_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "silenceMinutes": 60
   }'
 ```
@@ -516,7 +504,6 @@ curl -X POST http://localhost:7778/admin/alerts/alert-001/escalate \
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: ALERTS_ADMIN" \
   -d '{
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"},
     "policyId": "oncall-engineering"
   }'
 ```
@@ -538,8 +525,7 @@ curl -X POST http://localhost:7778/admin/users \
     "userId": "bob-operator-001",
     "displayName": "Bob",
     "email": "bob@example.com",
-    "roles": ["MINT_ADMIN", "ALERTS_ADMIN"],
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "roles": ["MINT_ADMIN", "ALERTS_ADMIN"]
   }'
 ```
 
@@ -574,7 +560,7 @@ curl -X POST http://localhost:7778/admin/users/bob-operator-001/reset-credential
   -H "Content-Type: application/json" \
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: USER_ADMIN" \
-  -d '{"requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}}'
+  -d '{"reason": "Suspected credential leak"}'
 ```
 
 This returns a temporary reset token and expiration time.
@@ -586,7 +572,7 @@ curl -X POST http://localhost:7778/admin/users/bob-operator-001/deactivate \
   -H "Content-Type: application/json" \
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: USER_ADMIN" \
-  -d '{"requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}}'
+  -d '{"reason": "Left the team"}'
 ```
 
 ---
@@ -606,8 +592,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
   -H "X-Admin-Roles: OPS_ADMIN" \
   -d '{
     "reason": "Database migration and key rotation",
-    "durationMinutes": 30,
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "durationMinutes": 30
   }'
 ```
 
@@ -621,8 +606,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
   -H "X-Admin-Roles: OPS_ADMIN" \
   -d '{
     "reason": "Beginning scheduled migration",
-    "durationMinutes": 30,
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "durationMinutes": 30
   }'
 
 # Complete maintenance
@@ -631,8 +615,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: OPS_ADMIN" \
   -d '{
-    "reason": "Migration complete, all checks passed",
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "reason": "Migration complete, all checks passed"
   }'
 ```
 
@@ -646,8 +629,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: OPS_ADMIN" \
   -d '{
-    "reason": "Quarterly key rotation per security policy",
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "reason": "Quarterly key rotation per security policy"
   }'
 ```
 
@@ -661,8 +643,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
   -H "X-Admin-Token: local-dev-token" \
   -H "X-Admin-Roles: OPS_ADMIN" \
   -d '{
-    "reason": "Security incident — compromised key material",
-    "requestedBy": {"id": "123e4567-e89b-12d3-a456-426614174000", "displayName": "Alice"}
+    "reason": "Security incident — compromised key material"
   }'
 ```
 

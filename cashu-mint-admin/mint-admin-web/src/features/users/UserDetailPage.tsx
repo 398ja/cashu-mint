@@ -12,8 +12,6 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { ApiRequestError } from "@/api/client";
 import { ArrowLeft } from "lucide-react";
 
-const ACTOR = { id: "ce114fe1-944a-43c2-b9c2-b1e21b83e0ae", displayName: "Web Operator" };
-
 export function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
   const queryClient = useQueryClient();
@@ -30,7 +28,7 @@ export function UserDetailPage() {
 
   const deactivateMutation = useMutation({
     mutationFn: (reason: string) =>
-      deactivateUser(userId!, { requestedBy: ACTOR, reason }),
+      deactivateUser(userId!, { reason }),
     onSuccess: (res) => {
       setResult(res.message ?? "User deactivated");
       setConfirmDeactivate(false);
@@ -40,7 +38,7 @@ export function UserDetailPage() {
 
   const resetMutation = useMutation({
     mutationFn: (reason: string) =>
-      resetCredentials(userId!, { requestedBy: ACTOR, reason }),
+      resetCredentials(userId!, { reason }),
     onSuccess: (res) => {
       setResult(`Credentials reset. Token: ${res.resetToken}`);
       setConfirmReset(false);

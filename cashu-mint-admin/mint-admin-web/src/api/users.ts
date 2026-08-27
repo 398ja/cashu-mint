@@ -31,7 +31,6 @@ export function getUser(userId: string): Promise<UserResponse> {
 }
 
 export function createUser(body: {
-  requestedBy: { id: string; displayName: string };
   userId: string;
   displayName: string;
   email: string;
@@ -43,7 +42,6 @@ export function createUser(body: {
 export function updateUser(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     displayName: string;
     email: string;
     roles: string[];
@@ -55,7 +53,6 @@ export function updateUser(
 export function assignRoles(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     roles: string[];
     justification: string;
   },
@@ -69,7 +66,6 @@ export function assignRoles(
 export function resetCredentials(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     reason: string;
   },
 ): Promise<CredentialResetResponse> {
@@ -82,7 +78,6 @@ export function resetCredentials(
 export function deactivateUser(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     reason: string;
   },
 ): Promise<UserResponse> {

@@ -36,7 +36,6 @@ curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints" \
   -H "X-Admin-Roles: $ADMIN_ROLES" \
   -d '{
         "mintId": "mint-001",
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "metadata": {
           "displayName": "Primary mint",
           "description": "Production instance",
@@ -58,7 +57,6 @@ curl -X PUT "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   -H "X-Admin-Roles: $ADMIN_ROLES" \
   -d '{
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "metadata": {
           "displayName": "Primary mint",
           "description": "Production instance (Q2 rollout)",
@@ -81,7 +79,6 @@ curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/pause" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   -H "X-Admin-Roles: $ADMIN_ROLES" \
   -d '{
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "reason": "Apply security patches",
         "correlationId": "maintenance-window-42"
       }'
@@ -91,7 +88,6 @@ curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/resume" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   -H "X-Admin-Roles: $ADMIN_ROLES" \
   -d '{
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "reason": "Post-maintenance validation passed",
         "correlationId": "maintenance-window-42"
       }'
@@ -109,7 +105,6 @@ curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/retire" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   -H "X-Admin-Roles: $ADMIN_ROLES" \
   -d '{
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "reason": "Replaced by mint-002"
       }'
 ```

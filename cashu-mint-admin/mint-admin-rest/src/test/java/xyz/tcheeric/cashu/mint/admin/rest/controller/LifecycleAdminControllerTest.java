@@ -48,7 +48,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LifecycleAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String MINT_ID_1 = "11111111-1111-1111-1111-111111111111";
     private static final String MINT_ID_2 = "22222222-2222-2222-2222-222222222222";
     private static final String MISSING_MINT_ID = "99999999-9999-9999-9999-999999999999";
@@ -157,12 +156,11 @@ class LifecycleAdminControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "requestedBy": {"id":"%s","displayName":"Ops"},
                                   "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
                                   "configuration": {"versionTag":"v2"},
                                   "revisionId": "rev-2"
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
@@ -173,20 +171,18 @@ class LifecycleAdminControllerTest {
         return """
             {
               "mintId": "%s",
-              "requestedBy": {"id":"%s","displayName":"Ops"},
               "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
               "configuration": {"versionTag":"2024-Q1"}
             }
-            """.formatted(mintId, OPERATOR_ID);
+            """.formatted(mintId);
     }
 
     private String lifecycleChangeJson(final String reason) {
         return """
             {
-              "requestedBy": {"id":"%s","displayName":"Ops"},
               "reason": "%s"
             }
-            """.formatted(OPERATOR_ID, reason);
+            """.formatted(reason);
     }
 
     // Simulates vault provisioning completion by advancing PROVISIONING → PROVISIONED.

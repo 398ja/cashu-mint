@@ -51,7 +51,6 @@ curl -X POST "http://localhost:7778/admin/lifecycle/mints" \
   -H "X-Admin-Roles: MINT_ADMIN" \
   -d '{
         "mintId": "mint-001",
-        "requestedBy": {"id": "ops", "displayName": "Ops Bot"},
         "metadata": {"displayName": "Primary mint"},
         "configuration": {"versionTag": "dev"}
       }'

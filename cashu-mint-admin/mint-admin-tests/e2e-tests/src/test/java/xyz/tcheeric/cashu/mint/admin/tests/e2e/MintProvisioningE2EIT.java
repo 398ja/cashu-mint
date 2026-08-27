@@ -46,7 +46,6 @@ class MintProvisioningE2EIT extends AbstractAdminE2EIT {
     private Map<String, Object> createMintPayload(final String mintId) {
         return Map.of(
             "mintId", mintId,
-            "requestedBy", actor("E2E Mint Admin"),
             "metadata", Map.of(
                 "displayName", "E2E Mint " + mintId.substring(0, 8),
                 "description", "Provisioned during e2e tests",

@@ -107,7 +107,6 @@ class OperationalControlsPersistenceIT extends AbstractAdminIntegrationIT {
     private Map<String, Object> maintenancePayload(final String reason, final Integer durationMinutes) {
         return Map.of(
             "reason", reason,
-            "durationMinutes", durationMinutes,
-            "requestedBy", Map.of("id", OPERATOR_ID, "displayName", "Ops Admin"));
+            "durationMinutes", durationMinutes);
     }
 }

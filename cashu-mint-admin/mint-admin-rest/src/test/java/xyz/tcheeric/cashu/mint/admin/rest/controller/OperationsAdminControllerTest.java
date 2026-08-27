@@ -35,7 +35,6 @@ class OperationsAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -91,9 +90,8 @@ class OperationsAdminControllerTest {
         return """
                 {
                   "reason": "Scheduled update",
-                  "durationMinutes": 60,
-                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                  "durationMinutes": 60
                 }
-                """.formatted(OPERATOR_ID);
+                """;
     }
 }

@@ -35,7 +35,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UsersAdminControllerTest {
 
     private static final String ADMIN_TOKEN = "test-token";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
     @Autowired
@@ -86,10 +85,9 @@ class UsersAdminControllerTest {
                                 {
                                   "displayName": "Alice Ops",
                                   "email": "alice@example.com",
-                                  "roles": ["admin", "viewer"],
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                                  "roles": ["admin", "viewer"]
                                 }
-                                """.formatted(userId)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.message").value("User updated"));
@@ -101,9 +99,8 @@ class UsersAdminControllerTest {
                   "userId": "%s",
                   "displayName": "Alice",
                   "email": "alice@example.com",
-                  "roles": ["USER_ADMIN"],
-                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                  "roles": ["USER_ADMIN"]
                 }
-                """.formatted(userId, OPERATOR_ID);
+                """.formatted(userId);
     }
 }

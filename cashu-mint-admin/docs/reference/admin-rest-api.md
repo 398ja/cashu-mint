@@ -21,7 +21,6 @@ X-Admin-Token: local-dev-token
 X-Admin-Roles: MINT_ADMIN
 {
   "mintId": "mint-001",
-  "requestedBy": {"id": "ops", "displayName": "Ops"},
   "metadata": {"displayName": "Primary", "description": "Prod mint"},
   "configuration": {"versionTag": "2024-Q1"}
 }

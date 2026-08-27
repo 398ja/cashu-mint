@@ -74,7 +74,6 @@ class OperationalControlsE2EIT extends AbstractAdminE2EIT {
     private Map<String, Object> maintenancePayload(final String reason, final int durationMinutes) {
         return Map.of(
             "reason", reason,
-            "durationMinutes", durationMinutes,
-            "requestedBy", actor("Ops Admin"));
+            "durationMinutes", durationMinutes);
     }
 }

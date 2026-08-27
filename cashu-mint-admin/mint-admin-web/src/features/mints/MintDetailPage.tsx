@@ -38,8 +38,6 @@ const ACTIONS_BY_STATE: Record<string, ActionConfig[]> = {
   DECOMMISSIONED: [],
 };
 
-const ACTOR = { id: "ce114fe1-944a-43c2-b9c2-b1e21b83e0ae", displayName: "Web Operator" };
-
 export function MintDetailPage() {
   const { mintId } = useParams<{ mintId: string }>();
   const queryClient = useQueryClient();
@@ -62,7 +60,7 @@ export function MintDetailPage() {
       endpoint: string;
       reason: string;
     }) => {
-      const body = { requestedBy: ACTOR, reason };
+      const body = { reason };
       switch (endpoint) {
         case "pause":
           return pauseMint(mintId!, body);

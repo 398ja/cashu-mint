@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Map;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -22,7 +21,6 @@ public abstract class AbstractAdminE2EIT {
     protected static final String ALERTS_ADMIN_ROLE = "ALERTS_ADMIN";
     protected static final String OPS_ADMIN_ROLE = "OPS_ADMIN";
 
-    protected static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -40,9 +38,5 @@ public abstract class AbstractAdminE2EIT {
 
     protected String mintApiBaseUrl() {
         return System.getProperty("admin.e2e.mint-url", "http://localhost:7777");
-    }
-
-    protected Map<String, Object> actor(final String displayName) {
-        return Map.of("id", OPERATOR_ID, "displayName", displayName);
     }
 }

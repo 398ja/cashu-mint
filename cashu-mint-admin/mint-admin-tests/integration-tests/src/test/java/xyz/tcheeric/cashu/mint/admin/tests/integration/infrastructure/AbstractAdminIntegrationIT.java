@@ -20,7 +20,6 @@ import xyz.tcheeric.cashu.mint.admin.rest.CashuMintAdminRestApplication;
 public abstract class AbstractAdminIntegrationIT {
 
     protected static final String ADMIN_TOKEN = "integration-token";
-    protected static final String BOOTSTRAP_OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     protected static final String MINT_ADMIN_ROLE = "MINT_ADMIN";
     protected static final String USER_ADMIN_ROLE = "USER_ADMIN";
     protected static final String OPS_ADMIN_ROLE = "OPS_ADMIN";
@@ -54,8 +53,7 @@ public abstract class AbstractAdminIntegrationIT {
                     "userId", rootId,
                     "displayName", "Root Operator",
                     "email", "root@example.com",
-                    "roles", java.util.List.of(USER_ADMIN_ROLE, MINT_ADMIN_ROLE, OPS_ADMIN_ROLE),
-                    "requestedBy", java.util.Map.of("id", BOOTSTRAP_OPERATOR_ID, "displayName", "Bootstrap")),
+                    "roles", java.util.List.of(USER_ADMIN_ROLE, MINT_ADMIN_ROLE, OPS_ADMIN_ROLE)),
                 ADMIN_TOKEN,
                 null);
             if (created.getStatusCode().value() != 200) {
@@ -75,10 +73,6 @@ public abstract class AbstractAdminIntegrationIT {
         return ROOTS.get(getClass())[0];
     }
 
-    /** Actor payload naming the root operator, for request bodies. */
-    protected java.util.Map<String, Object> rootActor() {
-        return java.util.Map.of("id", rootId(), "displayName", "Root Operator");
-    }
 
     // Keyed by test class: the operator store is truncated once per class, so a
     // credential cached across classes would outlive the operator it belongs to.

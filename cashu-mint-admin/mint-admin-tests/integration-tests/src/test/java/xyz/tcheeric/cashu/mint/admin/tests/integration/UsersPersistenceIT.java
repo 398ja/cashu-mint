@@ -20,7 +20,6 @@ import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAd
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class UsersPersistenceIT extends AbstractAdminIntegrationIT {
 
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String USER_ID = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb";
 
     // Verifies create/update/reset/deactivate user actions persist in admin_users with role replacement semantics.
@@ -33,8 +32,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN"),
-                "requestedBy", rootActor()),
+                "roles", java.util.List.of("ADMIN")),
             rootCredential(),
             null);
         assertThat(created.getStatusCode().value()).isEqualTo(200);
@@ -44,15 +42,14 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             Map.of(
                 "displayName", "Alice Updated",
                 "email", "alice.updated@example.com",
-                "roles", java.util.List.of("VIEWER"),
-                "requestedBy", rootActor()),
+                "roles", java.util.List.of("VIEWER")),
             rootCredential(),
             null);
         assertThat(updated.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> reset = adminApiClient().post(
             "/admin/users/" + USER_ID + "/reset-credentials",
-            Map.of("requestedBy", rootActor(), "reason", "rotation"),
+            Map.of("reason", "rotation"),
             rootCredential(),
             null);
         assertThat(reset.getStatusCode().value()).isEqualTo(200);
@@ -63,7 +60,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
 
         final ResponseEntity<JsonNode> deactivated = adminApiClient().post(
             "/admin/users/" + USER_ID + "/deactivate",
-            Map.of("requestedBy", rootActor(), "reason", "offboard"),
+            Map.of("reason", "offboard"),
             rootCredential(),
             null);
         assertThat(deactivated.getStatusCode().value()).isEqualTo(200);
@@ -92,8 +89,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN"),
-                "requestedBy", rootActor()),
+                "roles", java.util.List.of("ADMIN")),
             rootCredential(),
             null);
         assertThat(duplicate.getStatusCode().value()).isEqualTo(409);
@@ -106,7 +102,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
     void shouldRetainUserStateAcrossContextRestart() {
         final ResponseEntity<JsonNode> reset = adminApiClient().post(
             "/admin/users/" + USER_ID + "/reset-credentials",
-            Map.of("requestedBy", rootActor(), "reason", "second rotation"),
+            Map.of("reason", "second rotation"),
             rootCredential(),
             null);
 
@@ -123,7 +119,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
         final String unknownUserId = UUID.randomUUID().toString();
         final ResponseEntity<JsonNode> response = adminApiClient().post(
             "/admin/users/" + unknownUserId + "/deactivate",
-            Map.of("requestedBy", rootActor(), "reason", "missing"),
+            Map.of("reason", "missing"),
             rootCredential(),
             null);
 
@@ -131,7 +127,4 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
         assertThat(response.getBody().path("code").asText()).isEqualTo("user_not_found");
     }
 
-    private Map<String, Object> actor() {
-        return Map.of("id", OPERATOR_ID, "displayName", "User Admin");
-    }
 }

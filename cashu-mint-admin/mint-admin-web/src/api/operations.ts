@@ -20,7 +20,6 @@ export function listControls(
 }
 
 interface MaintenanceBody {
-  requestedBy: { id: string; displayName: string };
   reason: string;
   durationMinutes?: number;
 }

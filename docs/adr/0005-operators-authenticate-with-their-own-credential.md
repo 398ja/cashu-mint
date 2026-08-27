@@ -25,6 +25,6 @@ an Operator issues that Operator's own credential in the same response, so one
 bootstrap request is enough to hand over — a shared token that stayed valid
 would reproduce the defect this ADR exists to close, under a different name.
 
-The audit actor is the authenticated Operator. A request whose body names a
-different one is refused rather than silently recorded, because an Audit Trail
-that stores a claimed identity is evidence of nothing.
+The audit actor is the authenticated Operator. No request field or header offers
+one, so there is nothing for a caller to claim — an Audit Trail that stores a
+claimed identity is evidence of nothing.

@@ -23,7 +23,6 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
             "/admin/lifecycle/mints",
             Map.of(
                 "mintId", mintId,
-                "requestedBy", actor("Lifecycle Admin"),
                 "metadata", Map.of("displayName", "Lifecycle Mint"),
                 "configuration", Map.of("versionTag", "lifecycle-v1")),
             MINT_ADMIN_ROLE);
@@ -35,7 +34,7 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
         // Activate the mint (PROVISIONED -> ACTIVE) before it can be paused.
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor("Lifecycle Admin"), "reason", "activate for e2e"),
+            Map.of("reason", "activate for e2e"),
             MINT_ADMIN_ROLE);
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
         assertThat(activated.getBody().path("currentState").asText()).isEqualTo("ACTIVE");
@@ -43,7 +42,7 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
         // Pause the active mint (ACTIVE -> SUSPENDED).
         final ResponseEntity<JsonNode> paused = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/pause",
-            Map.of("requestedBy", actor("Lifecycle Admin"), "reason", "pause for e2e"),
+            Map.of("reason", "pause for e2e"),
             MINT_ADMIN_ROLE);
         assertThat(paused.getStatusCode().value()).isEqualTo(200);
         assertThat(paused.getBody().path("currentState").asText()).isEqualTo("SUSPENDED");
@@ -51,7 +50,7 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
         // Resume the suspended mint (SUSPENDED -> ACTIVE).
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor("Lifecycle Admin"), "reason", "resume for e2e"),
+            Map.of("reason", "resume for e2e"),
             MINT_ADMIN_ROLE);
         assertThat(resumed.getStatusCode().value()).isEqualTo(200);
         assertThat(resumed.getBody().path("currentState").asText()).isEqualTo("ACTIVE");
@@ -59,7 +58,7 @@ class MintLifecycleFlowE2EIT extends AbstractAdminE2EIT {
         // Retire the mint (ACTIVE -> DECOMMISSIONED).
         final ResponseEntity<JsonNode> retired = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/retire",
-            Map.of("requestedBy", actor("Lifecycle Admin"), "reason", "retire for e2e"),
+            Map.of("reason", "retire for e2e"),
             MINT_ADMIN_ROLE);
         assertThat(retired.getStatusCode().value()).isEqualTo(200);
         assertThat(retired.getBody().path("currentState").asText()).isEqualTo("DECOMMISSIONED");

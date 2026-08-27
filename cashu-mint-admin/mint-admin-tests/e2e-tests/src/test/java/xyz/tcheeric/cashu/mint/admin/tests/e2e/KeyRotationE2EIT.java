@@ -122,7 +122,6 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
             "/admin/lifecycle/mints",
             Map.of(
                 "mintId", SERVED_MINT_ID,
-                "requestedBy", actor("Ops Admin"),
                 "metadata",
                     Map.of(
                         "displayName", "served mint",
@@ -147,7 +146,7 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
         adminApiClient()
             .post(
                 "/admin/operations/mints/" + SERVED_MINT_ID + "/keys/rotate",
-                Map.of("reason", reason, "durationMinutes", 5, "requestedBy", actor("Ops Admin")),
+                Map.of("reason", reason, "durationMinutes", 5),
                 OPS_ADMIN_ROLE);
     assertThat(response.getStatusCode().value()).isEqualTo(200);
   }

@@ -78,7 +78,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), request.userId(),
+                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), request.userId(),
                     AccessCommand.PROVISION, DEFAULT_VERSION_TAG, request.displayName(),
                     request.email(), Set.copyOf(request.roles()), null));
             // Creation is the one response that carries a credential, shown once.
@@ -94,7 +94,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
+                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, request.displayName(),
                     request.email(), Set.copyOf(request.roles()), null));
             return toUserResponse(response);
@@ -107,7 +107,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
+                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, null,
                     null, Set.copyOf(request.roles()), request.justification()));
             return toUserResponse(response);
@@ -120,7 +120,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
+                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.RESET_CREDENTIALS, DEFAULT_VERSION_TAG, null,
                     null, Set.of(), request.reason()));
             return new CredentialResetResponse(response.targetAccountId(),
@@ -134,7 +134,7 @@ public class AdminUserService {
         Objects.requireNonNull(request, "request");
         try {
             final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.requireActor(request.requestedBy().id()), userId,
+                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.REVOKE, DEFAULT_VERSION_TAG, null,
                     null, Set.of(), request.reason()));
             return toUserResponse(response);

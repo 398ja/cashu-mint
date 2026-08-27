@@ -78,7 +78,7 @@ public class AdminOperationsService {
         Objects.requireNonNull(request, "request");
         try {
             final ExecuteOperationalControlsResponse response = operationalUseCase.handle(
-                new ExecuteOperationalControlsRequest(mintId, operatorIdentity.requireActor(request.requestedBy().id()),
+                new ExecuteOperationalControlsRequest(mintId, operatorIdentity.currentOperatorId(),
                     command, "v1", request.reason(), request.durationMinutes()));
             return toResponse(response);
         } catch (final IllegalStateException e) {

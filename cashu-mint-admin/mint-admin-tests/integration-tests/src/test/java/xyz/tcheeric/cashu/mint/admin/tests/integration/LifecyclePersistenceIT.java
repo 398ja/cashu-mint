@@ -29,7 +29,6 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
     @Autowired
     private MintLifecycleEventPublisher eventPublisher;
 
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     // Verifies lifecycle transitions and outbox/history creation in PostgreSQL.
     @Test
@@ -64,28 +63,28 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
 
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Activate after provisioning"),
+            Map.of("reason", "Activate after provisioning"),
             ADMIN_TOKEN,
             MINT_ADMIN_ROLE);
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> paused = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/pause",
-            Map.of("requestedBy", actor(), "reason", "Maintenance"),
+            Map.of("reason", "Maintenance"),
             ADMIN_TOKEN,
             MINT_ADMIN_ROLE);
         assertThat(paused.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Maintenance completed"),
+            Map.of("reason", "Maintenance completed"),
             ADMIN_TOKEN,
             MINT_ADMIN_ROLE);
         assertThat(resumed.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> retired = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/retire",
-            Map.of("requestedBy", actor(), "reason", "Retire"),
+            Map.of("reason", "Retire"),
             ADMIN_TOKEN,
             MINT_ADMIN_ROLE);
         assertThat(retired.getStatusCode().value()).isEqualTo(200);
@@ -112,7 +111,6 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
     private Map<String, Object> createMintPayload(final String mintId) {
         return Map.of(
             "mintId", mintId,
-            "requestedBy", actor(),
             "metadata", Map.of(
                 "displayName", "Mint " + mintId.substring(0, 8),
                 "description", "Integration mint",
@@ -122,7 +120,4 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
                 "name", "integration-mint"));
     }
 
-    private Map<String, Object> actor() {
-        return Map.of("id", OPERATOR_ID, "displayName", "Integration Operator");
-    }
 }
