@@ -15,6 +15,7 @@ This directory contains documentation for the admin components, organized using 
 
 ## How-to guides
 
+- [Configure NAP admin authentication](how-to/configure-nap-admin-authentication.md) — Super Administrator npub, enrolling Operators, choosing a signer.
 - [Configure persistence](how-to/configure-mint-admin-persistence.md) — Database setup, Flyway migrations, and profiles.
 - [Deploy the web interface to production](how-to/deploy-web-production.md) — Single-origin deployment, health checks, and rollback.
 - [Troubleshoot the web interface](how-to/troubleshoot-web-interface.md) — Common issues, performance baselines, and correlation ID tracing.
@@ -26,6 +27,7 @@ This directory contains documentation for the admin components, organized using 
 
 ## Explanations
 
+- [ADR 0008: NAP authenticates Operators](../../docs/adr/0008-nap-authenticates-operators-the-admin-resolves-authorisation.md) — why the integration supplies an authorisation resolver rather than NAP's ACL store.
 - [Architecture](explanations/architecture.md) — Clean Architecture layers, module responsibilities, and data flow.
 
 ## Persistence coverage

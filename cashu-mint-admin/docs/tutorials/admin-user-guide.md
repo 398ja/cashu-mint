@@ -740,7 +740,7 @@ When something goes wrong, the API returns a structured error:
 | `user_not_found` | 404 | The operator ID does not exist. |
 | `user_exists` | 409 | An operator with this ID already exists. |
 | `alert_not_found` | 404 | The alert ID does not exist. |
-| `unauthorized` | 401 | Missing or invalid admin token. |
+| `unauthorized` | 401 | Missing or expired NAP session. Sign in again. |
 | `forbidden` | 403 | Your role does not have permission for this action. |
 | `invalid_request` | 400 | The request body failed validation. Check the message for details. |
 
