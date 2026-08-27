@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRep
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository.OperatorAccessAuditEntry;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.TransactionManager;
 
 /**
  * Implements {@link AdministerAccessUseCase} for operator account management.
@@ -20,14 +21,17 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
 
     private final OperatorAccessRepository operatorAccessRepository;
     private final OperatorAccessAuditRepository auditRepository;
+    private final TransactionManager transactionManager;
     private final Clock clock;
 
     public AdministerAccessInteractor(final OperatorAccessRepository operatorAccessRepository,
                                       final OperatorAccessAuditRepository auditRepository,
+                                      final TransactionManager transactionManager,
                                       final Clock clock) {
         this.operatorAccessRepository =
             requireNonNull(operatorAccessRepository, "operator access repository must not be null");
         this.auditRepository = requireNonNull(auditRepository, "operator access audit repository must not be null");
+        this.transactionManager = requireNonNull(transactionManager, "transaction manager must not be null");
         this.clock = requireNonNull(clock, "clock must not be null");
     }
 
@@ -41,17 +45,19 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         validateVersionTag(validated.versionTag());
         validateRoles(validated.roles());
 
-        final AdministerAccessResponse response = switch (validated.command()) {
-            case PROVISION -> provision(validated);
-            case UPDATE_ROLES -> updateRoles(validated);
-            case REVOKE -> revoke(validated);
-            case REINSTATE -> reinstate(validated);
-        };
-        // Recorded after the write, so the trail carries actions that happened rather
-        // than actions that were attempted.
-        auditRepository.record(new OperatorAccessAuditEntry(validated.operatorId(),
-            validated.command().name(), response.targetAccountId(), clock.instant()));
-        return response;
+        // One transaction, so the change and the record of it stand or fall together: a
+        // suspension that happened and was never recorded is the case the trail exists for.
+        return transactionManager.execute(() -> {
+            final AdministerAccessResponse response = switch (validated.command()) {
+                case PROVISION -> provision(validated);
+                case UPDATE_ROLES -> updateRoles(validated);
+                case REVOKE -> revoke(validated);
+                case REINSTATE -> reinstate(validated);
+            };
+            auditRepository.record(new OperatorAccessAuditEntry(validated.operatorId(),
+                validated.command().name(), response.targetAccountId(), clock.instant()));
+            return response;
+        });
     }
 
     /**

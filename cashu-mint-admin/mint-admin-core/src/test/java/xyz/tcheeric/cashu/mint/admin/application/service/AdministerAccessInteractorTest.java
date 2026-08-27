@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
+import java.util.function.Supplier;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ class AdministerAccessInteractorTest {
         repository = new InMemoryOperatorAccessRepository();
         auditRepository = new InMemoryAuditRepository();
         interactor = new AdministerAccessInteractor(repository, auditRepository,
-            Clock.fixed(NOW, ZoneOffset.UTC));
+            Supplier::get, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     // Verifies provisioning stores a new operator account and returns an active response.

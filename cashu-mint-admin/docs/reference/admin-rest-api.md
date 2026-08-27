@@ -90,7 +90,21 @@ Update operator account details.
 Assign roles to an operator account.
 
 ### `POST /admin/users/{userId}/deactivate`
-Deactivate an operator account.
+Suspend an operator account. Accounts are suspended, never deleted, so the Operator named in
+the audit trail stays resolvable. A suspended Operator is refused on their next request and
+their live sessions are revoked.
+
+### `POST /admin/users/{userId}/reinstate`
+Restore access to a suspended operator account.
+
+### `GET /admin/users`, `GET /admin/users/{userId}`
+List operator accounts, or fetch one. The listing includes the Super Administrator named in
+configuration, marked `configurationAnchored: true`. That entry has no stored profile: any
+attempt to modify, suspend or reinstate it is refused with `403 super_admin_protected`.
+
+Every action above is recorded in the audit trail against the Operator whose session made the
+request, and surfaced by `GET /admin/audit/events` with a null `mintId` — operator management
+is not about a mint — and the affected account in `targetAccountId`.
 
 ## Alerts
 

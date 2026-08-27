@@ -20,6 +20,9 @@ import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 @Service
 public class AdminAuditQueryService {
 
+    /** Only a mint's own trail numbers its entries; an operator-access entry has no sequence. */
+    private static final long NO_SEQUENCE = 0;
+
     private final MintRepository mintRepository;
     private final OperatorAccessAuditRepository operatorAccessAuditRepository;
 
@@ -59,7 +62,8 @@ public class AdminAuditQueryService {
                         entry.actor(),
                         entry.action(),
                         entry.timestamp(),
-                        revisionId));
+                        revisionId,
+                        null));
             }
         }
         // Operator management is not about a mint, so it lives in its own table; it belongs on
@@ -69,8 +73,8 @@ public class AdminAuditQueryService {
             for (final OperatorAccessAuditEntry entry : operatorAccessAuditRepository.findAll()) {
                 if ((actor == null || actor.equals(entry.actor()))
                         && (action == null || action.equals(entry.action()))) {
-                    allEvents.add(new AuditEventResponse(null, 0, entry.actor(), entry.action(),
-                        entry.occurredAt(), null));
+                    allEvents.add(new AuditEventResponse(null, NO_SEQUENCE, entry.actor(),
+                        entry.action(), entry.occurredAt(), null, entry.targetAccountId()));
                 }
             }
         }

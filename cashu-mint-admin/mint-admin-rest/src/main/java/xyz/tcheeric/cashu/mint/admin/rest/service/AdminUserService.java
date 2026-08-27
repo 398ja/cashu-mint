@@ -22,6 +22,7 @@ import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UserResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -87,14 +88,26 @@ public class AdminUserService {
      * being listed twice.
      */
     private List<OperatorAccessAccount> withSuperAdmin(final List<OperatorAccessAccount> stored) {
-        if (superAdminPubkey == null || stored.stream().anyMatch(this::isSuperAdmin)) {
+        if (stored.stream().anyMatch(this::isSuperAdmin)) {
             return stored;
         }
-        final List<OperatorAccessAccount> accounts = new ArrayList<>();
-        accounts.add(new OperatorAccessAccount(OperatorIdentity.derivedAccountId(superAdminPubkey),
+        return superAdminAccount()
+            .map(superAdmin -> {
+                final List<OperatorAccessAccount> accounts = new ArrayList<>();
+                accounts.add(superAdmin);
+                accounts.addAll(stored);
+                return List.copyOf(accounts);
+            })
+            .orElse(stored);
+    }
+
+    /** The configured Super Administrator as an account, or empty when none is configured. */
+    private Optional<OperatorAccessAccount> superAdminAccount() {
+        if (superAdminPubkey == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new OperatorAccessAccount(OperatorIdentity.derivedAccountId(superAdminPubkey),
             "Super Administrator", null, Set.of(AdminRole.SUPER_ADMIN.key()), true, superAdminPubkey));
-        accounts.addAll(stored);
-        return accounts;
     }
 
     private boolean isSuperAdmin(final OperatorAccessAccount account) {
@@ -103,9 +116,7 @@ public class AdminUserService {
 
     public UserResponse getUser(final String userId) {
         final OperatorAccessAccount account = operatorRepository.findById(userId)
-                .or(() -> withSuperAdmin(List.of()).stream()
-                        .filter(a -> a.accountId().equals(userId))
-                        .findFirst())
+                .or(() -> superAdminAccount().filter(a -> a.accountId().equals(userId)))
                 .orElseThrow(() -> new AdminServiceException(
                         HttpStatus.NOT_FOUND, "user_not_found", "User not found: " + userId));
         return toUserResponse(account, null);
@@ -168,10 +179,7 @@ public class AdminUserService {
      * a write here could only ever disagree with it.
      */
     private void requireNotSuperAdmin(final String userId) {
-        if (superAdminPubkey == null) {
-            return;
-        }
-        final boolean anchored = OperatorIdentity.derivedAccountId(superAdminPubkey).equals(userId)
+        final boolean anchored = superAdminAccount().filter(a -> a.accountId().equals(userId)).isPresent()
             || operatorRepository.findById(userId).filter(this::isSuperAdmin).isPresent();
         if (anchored) {
             throw new AdminServiceException(HttpStatus.FORBIDDEN, "super_admin_protected",

@@ -57,6 +57,8 @@ public class OperatorIdentity {
    * @return a stable id derived from the key
    */
   public static String derivedAccountId(final String pubkey) {
-    return UUID.nameUUIDFromBytes(pubkey.getBytes(StandardCharsets.UTF_8)).toString();
+    // Lower-cased here rather than at the call sites: the hash is byte-exact, so the same
+        // key in a different case would otherwise derive a different operator.
+        return UUID.nameUUIDFromBytes(pubkey.toLowerCase().getBytes(StandardCharsets.UTF_8)).toString();
   }
 }

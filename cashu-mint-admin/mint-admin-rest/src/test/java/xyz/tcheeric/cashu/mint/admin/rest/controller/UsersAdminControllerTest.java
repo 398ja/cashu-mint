@@ -21,6 +21,7 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -132,7 +133,6 @@ class UsersAdminControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createUserJson(userId,
                             "npub1az6g0srekrm8c626umzvy4f2glec4haz2v7vtynt6tqs99p0mjmsna8xse")))
-                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isOk());
 
         mockMvc.perform(post("/admin/users/" + userId + "/deactivate")
@@ -179,9 +179,12 @@ class UsersAdminControllerTest {
 
         mockMvc.perform(get("/admin/audit/events").with(TestNapSessions.superAdmin()))
                 .andExpect(status().isOk())
-                // Every entry names the Operator whose session made the request, not the target.
+                // The acting Operator is the session's, never a value the caller supplied,
+                // and the entry names who it was done to as well as who did it.
                 .andExpect(jsonPath("$.items[?(@.action == 'PROVISION')].actor",
-                    everyItem(equalTo(ANCHORED_USER_ID))));
+                    everyItem(equalTo(ANCHORED_USER_ID))))
+                .andExpect(jsonPath("$.items[?(@.action == 'PROVISION')].targetAccountId",
+                    hasItem(userId)));
     }
 
     private String createUserJson(final String userId) {

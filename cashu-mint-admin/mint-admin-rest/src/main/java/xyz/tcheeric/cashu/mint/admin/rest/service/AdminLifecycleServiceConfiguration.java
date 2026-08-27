@@ -114,8 +114,10 @@ public class AdminLifecycleServiceConfiguration {
     @Bean
     public AdministerAccessUseCase administerAccessUseCase(final OperatorAccessRepository operatorAccessRepository,
                                                            final OperatorAccessAuditRepository auditRepository,
+                                                           final TransactionManager transactionManager,
                                                            final Clock adminClock) {
-        return new AdministerAccessInteractor(operatorAccessRepository, auditRepository, adminClock);
+        return new AdministerAccessInteractor(operatorAccessRepository, auditRepository,
+            transactionManager, adminClock);
     }
 
     @Bean

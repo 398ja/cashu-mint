@@ -15,6 +15,8 @@ public record AuditEventResponse(
         @Schema(description = "Actor who performed the action") String actor,
         @Schema(description = "Action performed") String action,
         @Schema(description = "Timestamp of the event") Instant timestamp,
-        @Schema(description = "Configuration revision at time of event", nullable = true) Long configurationRevisionId
+        @Schema(description = "Configuration revision at time of event", nullable = true) Long configurationRevisionId,
+        @Schema(description = "Account the action was performed on, or null when the action names no target",
+            nullable = true) String targetAccountId
 ) {
 }
