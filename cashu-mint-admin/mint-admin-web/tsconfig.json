@@ -21,5 +21,12 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // The vendored NAP packages ship raw TypeScript and are typechecked upstream
+  // under their own, looser options. The resolution test is the only file in
+  // src that imports them, so excluding it keeps them out of this program —
+  // otherwise the app's stricter options (noUncheckedIndexedAccess) land on
+  // code we do not own and must not patch. See vendor/VENDORED.md. Vitest does
+  // not read this exclude, so the test still runs.
+  "exclude": ["src/vendorResolution.test.ts"]
 }

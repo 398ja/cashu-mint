@@ -7,6 +7,7 @@ It includes a core domain layer, a command-line interface, and a REST API.
 Project Modules
 - mint-admin-core: Domain model, use cases, and core services (no runtime).
 - mint-admin-rest: Spring Boot REST API with OpenAPI UI and Jib image build.
+- mint-admin-web: React admin UI. Vendors the `@imani/*` NAP packages under `mint-admin-web/vendor/` — see [VENDORED.md](mint-admin-web/vendor/VENDORED.md).
 
 Prerequisites
 - Java 21 (JDK)
