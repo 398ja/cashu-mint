@@ -4,6 +4,23 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** The admin API is reachable only with a NAP session. The shared
+  admin token, the path-to-role RBAC filter, the bootstrap identity that held
+  every role and the bespoke `/admin/auth/me` endpoint are deleted; NAP's
+  `/api/v1/auth/session` replaces the last of them. Every admin controller now
+  names the permission it requires, so an Operator without it is refused with a
+  `forbidden` error body rather than a bare status. Per-operator credentials and
+  their reset workflow are gone with the token: a migration drops
+  `credential_hash`, `reset_count` and `reset_requested_at`, deletes rows with no
+  public key, and makes `pubkey` required. Assigning roles now needs
+  `operators:manage`, which only the Super Administrator holds, so a `USER_ADMIN`
+  can no longer grant themselves the role that outranks them. Both admin API test
+  suites sign in through a real handshake behind one helper, so nothing
+  authenticates in tests that could not authenticate in production. Nothing is migrated and no fallback
+  is kept — no deployment exists to migrate. (#373)
+
 ### Added
 
 - Operators can authenticate to the admin API with their Nostr key (NAP), alongside
@@ -20,7 +37,7 @@ All notable changes to the Cashu Mint will be documented in this file.
   cannot pick them up. Operator profiles gained a nullable `pubkey` column.
   Sessions are 15 minutes idle / 12 hours absolute with refresh tokens off, on an
   `HttpOnly`, `SameSite=Lax`, production-`Secure` `cashu_admin_session` cookie.
-  Off by default (`NAP_ENABLED`); the token path is untouched. (#372)
+  On by default (`NAP_ENABLED`), and since #373 the only way in. (#372)
 
 ### Fixed
 

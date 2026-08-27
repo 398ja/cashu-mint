@@ -2,8 +2,9 @@
 
 > **Superseded in parts.** This guide predates the removal of the CLI, alerts,
 > health and configuration governance, and the move to per-operator credentials.
-> Its `mint-admin-cli` commands, `X-Admin-Roles` headers and alert workflows no
-> longer exist. See `../explanations/admin-triage.md` and `docs/adr/0005`.
+> Its `mint-admin-cli` commands, token headers and alert workflows no longer
+> exist — Operators now sign in with a NAP handshake over their Nostr key.
+> See `../explanations/admin-triage.md` and `docs/adr/0005`.
 > Rewriting it is tracked separately.
 
 
@@ -64,21 +65,23 @@ All services should show `healthy` status before proceeding.
 ### Your First Login (Web UI)
 
 1. Open `http://localhost:3000` in your browser.
-2. You will see a login page asking for an **Admin Token**.
-3. Enter the development token: `local-dev-token`
-4. Click **Login**.
+2. You will see a login page asking you to sign in with your Nostr key.
+3. Sign the challenge with your signer.
+4. You are in once the mint recognises your npub.
 
 You are now on the **Dashboard**, which shows a summary of your mints, alerts, and operational controls.
 
 ### Authentication
 
-All admin operations require a token. In development, the default token is `local-dev-token`. In production, set a strong token via the `ADMIN_API_TOKEN` environment variable.
+All admin operations require a NAP session. Sign in with `POST /api/v1/auth/init`
+then `POST /api/v1/auth/complete`; the response sets the `cashu_admin_session` cookie.
+The Super Administrator's npub comes from `ADMIN_SUPER_ADMIN_NPUB`; every other
+Operator needs a profile carrying their npub.
 
-**For the REST API**, pass the token in the `X-Admin-Token` header:
+**For the REST API**, send the session cookie:
 
 ```bash
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/lifecycle/mints
 ```
 
@@ -93,12 +96,12 @@ java -jar mint-admin-cli-*-runner.jar \
 
 ### Roles
 
-The admin module uses role-based access control. You must include your roles in the `X-Admin-Roles` header (REST API) or they are selected at login (web UI).
+The admin module uses role-based access control. Your roles come from your Operator profile; the caller does not get to assert them.
 
 | Role | What you can do |
 |------|----------------|
 | `MINT_ADMIN` | Create, activate, pause, retire mints. Manage configuration. |
-| `USER_ADMIN` | Create and manage operator accounts. Assign roles. Reset credentials. |
+| `USER_ADMIN` | Create and manage operator accounts. Assign roles. |
 | `ALERTS_ADMIN` | View, acknowledge, silence, and escalate alerts. |
 | `OPS_ADMIN` | Schedule maintenance, rotate keys, force-close mints. |
 
@@ -128,8 +131,7 @@ A **mint** is a virtual ecash issuer. Each mint is tied to a specific currency u
 ```bash
 curl -X POST http://localhost:7778/admin/lifecycle/mints \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "mintId": "550e8400-e29b-41d4-a716-446655440000",
     "metadata": {
@@ -245,18 +247,15 @@ Every mint follows a strict lifecycle. The diagram below shows all possible stat
 **REST API:**
 ```bash
 # List all mints
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/lifecycle/mints
 
 # Filter by state
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/lifecycle/mints?state=ACTIVE"
 
 # Get a specific mint
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716-446655440000
 ```
 
@@ -270,8 +269,7 @@ After provisioning completes (state = `PROVISIONED`), activate the mint to start
 ```bash
 curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716-446655440000/resume \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Initial activation after provisioning"
   }'
@@ -285,8 +283,7 @@ Pause a mint to temporarily stop it from serving ecash (e.g. during maintenance)
 ```bash
 curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716-446655440000/pause \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Scheduled maintenance window"
   }'
@@ -297,8 +294,7 @@ curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716
 ```bash
 curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716-446655440000/resume \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Maintenance complete"
   }'
@@ -311,8 +307,7 @@ When a mint is no longer needed, decommission it permanently:
 ```bash
 curl -X POST http://localhost:7778/admin/lifecycle/mints/550e8400-e29b-41d4-a716-446655440000/retire \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Replaced by new mint with updated denominations"
   }'
@@ -330,8 +325,7 @@ Each mint has a configuration — a set of key-value parameters that control its
 
 **REST API:**
 ```bash
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-a716-446655440000/revisions
 ```
 
@@ -342,8 +336,7 @@ Before applying a change, you can preview what the resulting configuration would
 ```bash
 curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-a716-446655440000/preview \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "proposedConfiguration": {
       "cashu.expiry": "30",
@@ -360,8 +353,7 @@ This returns the merged configuration without saving anything.
 ```bash
 curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-a716-446655440000/apply \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "proposedConfiguration": {
       "cashu.expiry": "30",
@@ -378,8 +370,7 @@ If a configuration change causes problems, roll back to a previous revision:
 ```bash
 curl -X POST http://localhost:7778/admin/configuration/mints/550e8400-e29b-41d4-a716-446655440000/rollback \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "targetRevisionId": 2
   }'
@@ -404,8 +395,7 @@ Each mint has a health status that tells you whether it is operating normally.
 
 **REST API:**
 ```bash
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: MINT_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/health/mints/550e8400-e29b-41d4-a716-446655440000
 ```
 
@@ -453,18 +443,15 @@ Alerts notify you of operational issues that need attention.
 **REST API:**
 ```bash
 # All alerts
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: ALERTS_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/alerts
 
 # Only critical alerts
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: ALERTS_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/alerts?severity=CRITICAL"
 
 # Unacknowledged alerts for a specific mint
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: ALERTS_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/alerts?mintId=550e8400-e29b-41d4-a716-446655440000&acknowledged=false"
 ```
 
@@ -475,8 +462,7 @@ Acknowledging tells the team "I've seen this and I'm on it":
 ```bash
 curl -X POST http://localhost:7778/admin/alerts/alert-001/acknowledge \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: ALERTS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{}'
 ```
 
@@ -487,8 +473,7 @@ If an alert is noisy and you need time to fix the underlying issue, silence it t
 ```bash
 curl -X POST http://localhost:7778/admin/alerts/alert-001/silence \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: ALERTS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "silenceMinutes": 60
   }'
@@ -501,8 +486,7 @@ When an alert needs attention from a specific team or external system:
 ```bash
 curl -X POST http://localhost:7778/admin/alerts/alert-001/escalate \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: ALERTS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "policyId": "oncall-engineering"
   }'
@@ -519,8 +503,7 @@ Operators are the people who administer the mint. Each operator has an account w
 ```bash
 curl -X POST http://localhost:7778/admin/users \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: USER_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "userId": "bob-operator-001",
     "displayName": "Bob",
@@ -533,13 +516,11 @@ curl -X POST http://localhost:7778/admin/users \
 
 ```bash
 # Active operators only
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: USER_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/users
 
 # Include inactive operators
-curl -H "X-Admin-Token: local-dev-token" \
-     -H "X-Admin-Roles: USER_ADMIN" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/users?active=true"
 ```
 
@@ -548,30 +529,16 @@ curl -H "X-Admin-Token: local-dev-token" \
 ```bash
 curl -X POST http://localhost:7778/admin/users/bob-operator-001/roles \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: USER_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{"roles": ["MINT_ADMIN", "ALERTS_ADMIN", "OPS_ADMIN"]}'
 ```
-
-### Resetting Credentials
-
-```bash
-curl -X POST http://localhost:7778/admin/users/bob-operator-001/reset-credentials \
-  -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: USER_ADMIN" \
-  -d '{"reason": "Suspected credential leak"}'
-```
-
-This returns a temporary reset token and expiration time.
 
 ### Deactivating an Operator
 
 ```bash
 curl -X POST http://localhost:7778/admin/users/bob-operator-001/deactivate \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: USER_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{"reason": "Left the team"}'
 ```
 
@@ -588,8 +555,7 @@ Plan ahead by scheduling maintenance:
 ```bash
 curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a716-446655440000/maintenance/schedule \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: OPS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Database migration and key rotation",
     "durationMinutes": 30
@@ -602,8 +568,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
 # Start maintenance
 curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a716-446655440000/maintenance/start \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: OPS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Beginning scheduled migration",
     "durationMinutes": 30
@@ -612,8 +577,7 @@ curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a71
 # Complete maintenance
 curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a716-446655440000/maintenance/complete \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: OPS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Migration complete, all checks passed"
   }'
@@ -626,8 +590,7 @@ Rotate the mint's cryptographic keys:
 ```bash
 curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a716-446655440000/keys/rotate \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: OPS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Quarterly key rotation per security policy"
   }'
@@ -640,8 +603,7 @@ In an emergency, you can immediately decommission a mint. This is irreversible:
 ```bash
 curl -X POST http://localhost:7778/admin/operations/mints/550e8400-e29b-41d4-a716-446655440000/force-close \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: OPS_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
     "reason": "Security incident — compromised key material"
   }'
@@ -660,15 +622,15 @@ Every admin action is logged in the audit trail. This is read-only — you canno
 **REST API:**
 ```bash
 # All events
-curl -H "X-Admin-Token: local-dev-token" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/audit/events
 
 # Events for a specific mint
-curl -H "X-Admin-Token: local-dev-token" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/audit/events?mintId=550e8400-e29b-41d4-a716-446655440000"
 
 # Events by a specific operator
-curl -H "X-Admin-Token: local-dev-token" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      "http://localhost:7778/admin/audit/events?actor=123e4567-e89b-12d3-a456-426614174000"
 ```
 
@@ -690,7 +652,7 @@ The dashboard provides a quick overview of your entire operation.
 
 **REST API:**
 ```bash
-curl -H "X-Admin-Token: local-dev-token" \
+curl -b "cashu_admin_session=$ADMIN_SESSION" \
      http://localhost:7778/admin/dashboard/summary
 ```
 
@@ -794,7 +756,6 @@ When something goes wrong, the API returns a structured error:
 | `DATASOURCE_URL` | `jdbc:postgresql://localhost:55435/cashu_admin` | Database connection string |
 | `DATASOURCE_USERNAME` | `postgres` | Database user |
 | `DATASOURCE_PASSWORD` | `postgres` | Database password |
-| `ADMIN_API_TOKEN` | `local-dev-token` | Authentication token for admin API |
 | `CASHU_VAULT_BASE_URL` | — | Vault service URL (e.g. `http://cashu-vault-jpa:3333`) |
 | `LOG_LEVEL_ROOT` | `INFO` | Root logging level |
 | `LOG_LEVEL_CASHU` | `DEBUG` | Cashu module logging level |

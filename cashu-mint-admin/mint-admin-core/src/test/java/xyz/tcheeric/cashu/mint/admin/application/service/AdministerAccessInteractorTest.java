@@ -20,6 +20,7 @@ class AdministerAccessInteractorTest {
 
     private static final String OPERATOR_ID = "123e4567-e89b-12d3-a456-426614174000";
     private static final String USER_ID = "123e4567-e89b-12d3-a456-426614174001";
+    private static final String PUBKEY = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
     private InMemoryOperatorAccessRepository repository;
     private AdministerAccessInteractor interactor;
@@ -33,15 +34,7 @@ class AdministerAccessInteractorTest {
     // Verifies provisioning stores a new operator account and returns an active response.
     @Test
     void shouldProvisionOperatorAccount() {
-        final AdministerAccessResponse response = interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.PROVISION,
-            "v1",
-            "Alice",
-            "alice@example.com",
-            Set.of("ADMIN"),
-            null));
+        final AdministerAccessResponse response = interactor.handle(provision(PUBKEY));
 
         assertThat(response.targetAccountId()).isEqualTo(USER_ID);
         assertThat(response.active()).isTrue();
@@ -52,67 +45,43 @@ class AdministerAccessInteractorTest {
     // Ensures duplicate provisioning requests are rejected with a conflict-style domain error.
     @Test
     void shouldRejectDuplicateProvision() {
-        interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.PROVISION,
-            "v1",
-            "Alice",
-            "alice@example.com",
-            Set.of("ADMIN"),
-            null));
+        interactor.handle(provision(PUBKEY));
 
-        assertThatThrownBy(() -> interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.PROVISION,
-            "v1",
-            "Alice",
-            "alice@example.com",
-            Set.of("ADMIN"),
-            null)))
+        assertThatThrownBy(() -> interactor.handle(provision(PUBKEY)))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("already exists");
     }
 
-    // Confirms credential reset tokens are persisted and incremented across repeated resets.
+    // Checks the public key survives provisioning: it is now the only way the operator signs in.
     @Test
-    void shouldIssueIncrementingResetTokens() {
-        interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.PROVISION,
-            "v1",
-            "Alice",
-            "alice@example.com",
-            Set.of("ADMIN"),
-            null));
+    void shouldStoreThePublicKeyProvisioningSupplied() {
+        interactor.handle(provision(PUBKEY));
 
-        final AdministerAccessResponse firstReset = interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.RESET_CREDENTIALS,
-            "v1"));
-        final AdministerAccessResponse secondReset = interactor.handle(new AdministerAccessRequest(
-            OPERATOR_ID,
-            USER_ID,
-            AccessCommand.RESET_CREDENTIALS,
-            "v1"));
+        assertThat(repository.findByPubkey(PUBKEY)).isPresent();
+    }
 
-        // Credentials must be unpredictable, and must not be derivable from the account id.
-        assertThat(firstReset.resetToken()).isNotBlank().doesNotContain(USER_ID);
-        assertThat(secondReset.resetToken()).isNotBlank().isNotEqualTo(firstReset.resetToken());
+    // Checks a role change leaves the public key alone, so an update cannot lock an operator out.
+    @Test
+    void shouldKeepThePublicKeyAcrossRoleUpdates() {
+        interactor.handle(provision(PUBKEY));
 
-        // Only the hash of the most recent credential is stored.
-        // Provisioning issues the first credential, so two explicit resets make three.
-        final OperatorAccessAccount stored = repository.findById(USER_ID).orElseThrow();
-        assertThat(stored.credentialResetCount()).isEqualTo(3);
-        assertThat(stored.credentialHash()).isEqualTo(OperatorCredentials.hash(secondReset.resetToken()));
-        assertThat(stored.credentialHash()).isNotEqualTo(secondReset.resetToken());
+        interactor.handle(new AdministerAccessRequest(OPERATOR_ID, USER_ID,
+            AccessCommand.UPDATE_ROLES, "v1", null, null, Set.of("OPS_ADMIN"), null, "rotation"));
 
-        // A superseded credential no longer resolves.
-        assertThat(repository.findByCredentialHash(OperatorCredentials.hash(firstReset.resetToken())))
-            .isEmpty();
+        assertThat(repository.findByPubkey(PUBKEY)).isPresent();
+    }
+
+    // Checks an operator without a public key is refused: nobody could ever sign in as that row.
+    @Test
+    void shouldRejectProvisioningWithoutAPublicKey() {
+        assertThatThrownBy(() -> interactor.handle(provision(null)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("pubkey");
+    }
+
+    private static AdministerAccessRequest provision(final String pubkey) {
+        return new AdministerAccessRequest(OPERATOR_ID, USER_ID, AccessCommand.PROVISION, "v1",
+            "Alice", "alice@example.com", Set.of("ADMIN"), pubkey, null);
     }
 
     private static final class InMemoryOperatorAccessRepository implements OperatorAccessRepository {
@@ -143,13 +112,6 @@ class AdministerAccessInteractorTest {
         public Optional<OperatorAccessAccount> findByPubkey(final String pubkey) {
             return accounts.values().stream()
                 .filter(a -> pubkey != null && pubkey.equals(a.pubkey()))
-                .findFirst();
-        }
-
-        @Override
-        public Optional<OperatorAccessAccount> findByCredentialHash(final String credentialHash) {
-            return accounts.values().stream()
-                .filter(account -> credentialHash != null && credentialHash.equals(account.credentialHash()))
                 .findFirst();
         }
     }

@@ -8,14 +8,13 @@ import {
 import { fetchAuthMe } from "@/api/auth";
 
 export interface AuthState {
-  token: string | null;
   roles: string[];
   authenticated: boolean;
   loading: boolean;
 }
 
 export interface AuthContextValue extends AuthState {
-  login: (token: string) => Promise<boolean>;
+  refresh: () => Promise<boolean>;
   logout: () => void;
   hasRole: (role: string) => boolean;
 }
@@ -24,35 +23,21 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
-    token: sessionStorage.getItem("admin_token"),
     roles: [],
-    authenticated: !!sessionStorage.getItem("admin_token"),
+    authenticated: false,
     loading: true,
   });
 
-  // Roles are whatever the server says this credential holds; the caller does
-  // not get to assert them, here or anywhere else. See ADR-0005.
-  const login = useCallback(async (token: string) => {
-    sessionStorage.setItem("admin_token", token);
-    try {
-      const me = await fetchAuthMe();
-      setState({
-        token,
-        roles: me.roles,
-        authenticated: me.authenticated,
-        loading: false,
-      });
-      return me.authenticated;
-    } catch {
-      sessionStorage.removeItem("admin_token");
-      setState({ token: null, roles: [], authenticated: false, loading: false });
-      return false;
-    }
+  // The session cookie is the credential and the server is the only reader of
+  // it, so the browser asks who it is rather than keeping its own copy.
+  const refresh = useCallback(async () => {
+    const me = await fetchAuthMe();
+    setState({ roles: me.roles, authenticated: me.authenticated, loading: false });
+    return me.authenticated;
   }, []);
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem("admin_token");
-    setState({ token: null, roles: [], authenticated: false, loading: false });
+    setState({ roles: [], authenticated: false, loading: false });
   }, []);
 
   const hasRole = useCallback(
@@ -62,28 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (!state.token) {
-      setState((s) => ({ ...s, loading: false }));
-      return;
-    }
-    fetchAuthMe()
-      .then((me) => {
-        setState({
-          token: state.token,
-          roles: me.roles,
-          authenticated: me.authenticated,
-          loading: false,
-        });
-      })
-      .catch(() => {
-        sessionStorage.removeItem("admin_token");
-        setState({ token: null, roles: [], authenticated: false, loading: false });
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    refresh().catch(() =>
+      setState({ roles: [], authenticated: false, loading: false }),
+    );
+  }, [refresh]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, hasRole }}>
+    <AuthContext.Provider value={{ ...state, refresh, logout, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

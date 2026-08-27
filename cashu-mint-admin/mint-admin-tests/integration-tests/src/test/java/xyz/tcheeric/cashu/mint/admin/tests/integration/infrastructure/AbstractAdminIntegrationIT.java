@@ -1,15 +1,21 @@
 package xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import xyz.tcheeric.cashu.mint.admin.rest.CashuMintAdminRestApplication;
+import xyz.tcheeric.cashu.mint.admin.tests.nap.NapTestHandshake;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Shared Spring + PostgreSQL test bootstrap for all integration tests.
@@ -19,7 +25,6 @@ import xyz.tcheeric.cashu.mint.admin.rest.CashuMintAdminRestApplication;
 @ExtendWith(PostgresContainerExtension.class)
 public abstract class AbstractAdminIntegrationIT {
 
-    protected static final String ADMIN_TOKEN = "integration-token";
     protected static final String MINT_ADMIN_ROLE = "MINT_ADMIN";
     protected static final String USER_ADMIN_ROLE = "USER_ADMIN";
     protected static final String OPS_ADMIN_ROLE = "OPS_ADMIN";
@@ -34,56 +39,55 @@ public abstract class AbstractAdminIntegrationIT {
     protected JdbcTemplate jdbcTemplate;
 
     /**
-     * Credential of a fully-privileged operator, created once per class.
+     * Session of the configured Super Administrator, who holds every permission.
      *
-     * <p>The bootstrap credential works only while the operator store is empty, so
-     * every test that needs admin powers goes through the same handover a real
-     * deployment performs: create the first operator with the bootstrap credential,
-     * then use that operator's own.
-     *
-     * @return a credential holding every role
+     * @return the session cookie to replay on privileged requests
      */
-    protected String rootCredential() {
-        final String[] cached = ROOTS.get(getClass());
-        if (cached == null) {
-            final String rootId = java.util.UUID.randomUUID().toString();
-            final var created = adminApiClient().post(
-                "/admin/users",
-                java.util.Map.of(
-                    "userId", rootId,
-                    "displayName", "Root Operator",
-                    "email", "root@example.com",
-                    "roles", java.util.List.of(USER_ADMIN_ROLE, MINT_ADMIN_ROLE, OPS_ADMIN_ROLE)),
-                ADMIN_TOKEN,
-                null);
-            if (created.getStatusCode().value() != 200) {
-                throw new IllegalStateException(
-                    "Could not create the root operator: " + created.getStatusCode());
-            }
-            final String credential = created.getBody().path("credential").asText();
-            ROOTS.put(getClass(), new String[] {rootId, credential});
-            return credential;
+    protected String superAdminSession() {
+        return NapTestHandshake.sessionCookie(baseUrl(), NapTestHandshake.SUPER_ADMIN_PRIVATE_KEY);
+    }
+
+    /**
+     * Provisions an Operator with its own key and signs in as it.
+     *
+     * @param userId the account id to create
+     * @param roles  the roles the account holds
+     * @return the session cookie of that Operator
+     */
+    protected String operatorSession(final String userId, final List<String> roles) {
+        final String privateKey = NapTestHandshake.randomPrivateKey();
+        final ResponseEntity<JsonNode> created = adminApiClient().post(
+            "/admin/users",
+            Map.of(
+                "userId", userId,
+                "displayName", "Operator " + userId.substring(0, 8),
+                "email", userId.substring(0, 8) + "@example.com",
+                "roles", roles,
+                "npub", NapTestHandshake.npub(privateKey)),
+            superAdminSession());
+        if (created.getStatusCode().value() != 200) {
+            throw new IllegalStateException("Could not provision an operator: " + created.getStatusCode());
         }
-        return cached[1];
+        return NapTestHandshake.sessionCookie(baseUrl(), privateKey);
     }
-
-    /** Identifier of the operator {@link #rootCredential()} belongs to. */
-    protected String rootId() {
-        rootCredential();
-        return ROOTS.get(getClass())[0];
-    }
-
-
-    // Keyed by test class: the operator store is truncated once per class, so a
-    // credential cached across classes would outlive the operator it belongs to.
-    private static final java.util.Map<Class<?>, String[]> ROOTS = new java.util.concurrent.ConcurrentHashMap<>();
 
     protected AdminApiClient adminApiClient() {
-        return new AdminApiClient("http://localhost:" + localServerPort, objectMapper);
+        return new AdminApiClient(baseUrl(), objectMapper);
+    }
+
+    protected String baseUrl() {
+        return "http://localhost:" + localServerPort;
     }
 
     @DynamicPropertySource
     static void configureProperties(final DynamicPropertyRegistry registry) {
         PostgresContainerExtension.registerProperties(registry);
+        // Proofs name the deployment's audience, not the random port the server answers on.
+        registry.add("nap.external-base-url", () -> NapTestHandshake.EXTERNAL_BASE_URL);
+        registry.add("nap.rate-limit-enabled", () -> false);
+        registry.add("nap.min-auth-response-millis", () -> 0);
+        registry.add("nap.response-jitter-millis", () -> 0);
+        registry.add("admin.security.super-admin-npub",
+            () -> NapTestHandshake.npub(NapTestHandshake.SUPER_ADMIN_PRIVATE_KEY));
     }
 }

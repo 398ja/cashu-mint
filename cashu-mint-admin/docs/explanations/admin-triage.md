@@ -52,25 +52,19 @@ writing a new keyset and archiving the old one would leave both signing.
 
 ## The security finding
 
-`AdminRbacFilter:68` reads the caller's roles from `X-Admin-Roles` — a request
-header the caller sets — and compares it to a required role per path.
-Authentication is a single shared static token, and there is no Spring Security
-on the classpath. Any holder of the token asserts every role:
+**Closed by issues #370 and #373.** It is recorded here because the shape of the
+fix explains the current design.
 
-```
-X-Admin-Roles: MINT_ADMIN,USER_ADMIN,ALERTS_ADMIN,OPS_ADMIN
-```
+Access control used to read the caller's roles from an `X-Admin-Roles` request
+header behind a single shared static token, so any token holder could assert
+every role, and the operator store was never consulted at the enforcement point.
+The audit trail recorded whichever operator id the caller supplied.
 
-The web client sends this header from the browser, and `AuthAdminController:33`
-reads it too. `AdministerAccessUseCase` — the operator accounts and role grants,
-with their own schema, endpoints and tests — is referenced only by the service
-that maintains it, never at the enforcement point. The store is, for
-access-control purposes, write-only.
-
-Two knock-ons: the audit trail records whichever operator id the caller
-supplied, so it attributes actions to a claimed rather than a proven identity;
-and `/admin/audit/**` sits in the no-role-required list, so the audit record is
-readable by any token holder.
+Operators now complete a NAP handshake with their Nostr key. `AdminAclResolver`
+resolves their roles and permissions from the operator store on every request,
+each controller names the permission it requires, and the audit actor is the
+authenticated Operator. The shared token, the header and the credential reset
+workflow no longer exist.
 
 Unlike the gaps above, this is not a missing feature. It is a control that
 appears to exist, has passing tests, and does not hold.

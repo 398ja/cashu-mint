@@ -127,8 +127,7 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
                         "displayName", "served mint",
                         "description", "the mint this stack serves",
                         "tags", java.util.List.of("e2e")),
-                "configuration", Map.of("versionTag", "v1", "name", "served")),
-            MINT_ADMIN_ROLE);
+                "configuration", Map.of("versionTag", "v1", "name", "served")));
 
     Awaitility.await()
         .atMost(Duration.ofSeconds(60))
@@ -136,7 +135,7 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
         .untilAsserted(
             () -> {
               final ResponseEntity<JsonNode> detail =
-                  adminApiClient().get("/admin/lifecycle/mints/" + SERVED_MINT_ID, MINT_ADMIN_ROLE);
+                  adminApiClient().get("/admin/lifecycle/mints/" + SERVED_MINT_ID);
               assertThat(detail.getBody().path("lifecycleState").asText()).isEqualTo("PROVISIONED");
             });
   }
@@ -146,15 +145,14 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
         adminApiClient()
             .post(
                 "/admin/operations/mints/" + SERVED_MINT_ID + "/keys/rotate",
-                Map.of("reason", reason, "durationMinutes", 5),
-                OPS_ADMIN_ROLE);
+                Map.of("reason", reason, "durationMinutes", 5));
     assertThat(response.getStatusCode().value()).isEqualTo(200);
   }
 
   private JsonNode latestRotationControl() {
     final ResponseEntity<JsonNode> controls =
         adminApiClient()
-            .get("/admin/operations/mints/" + SERVED_MINT_ID + "/controls", OPS_ADMIN_ROLE);
+            .get("/admin/operations/mints/" + SERVED_MINT_ID + "/controls");
     for (final JsonNode control : controls.getBody().path("items")) {
       if ("KEY_ROTATION".equals(control.path("controlType").asText())) {
         return control;

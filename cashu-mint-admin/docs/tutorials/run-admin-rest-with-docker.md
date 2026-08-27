@@ -26,10 +26,14 @@ cd ../cashu-mint
 docker compose --profile dev up -d cashu-mint-admin-rest
 ```
 
-Environment variables (with sensible defaults) control the admin port and token:
+Environment variables (with sensible defaults) control the admin port and who may sign in:
 
 - `CASHU_MINT_ADMIN_PORT` (default `7778`)
-- `CASHU_MINT_ADMIN_API_TOKEN` (default `local-dev-token`)
+- `CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB` (the Super Administrator's npub)
+- `CASHU_MINT_ADMIN_EXTERNAL_BASE_URL` (default `http://localhost:7778`) — the audience
+  handshake proofs must name
+
+`ADMIN_SESSION` below is the `cashu_admin_session` cookie a NAP handshake sets.
 
 ## Verify the service
 
@@ -47,8 +51,7 @@ Admin endpoints are rooted at `/admin` (no `/v1`). Example: provision a mint
 ```bash
 curl -X POST "http://localhost:7778/admin/lifecycle/mints" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: local-dev-token" \
-  -H "X-Admin-Roles: MINT_ADMIN" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "mintId": "mint-001",
         "metadata": {"displayName": "Primary mint"},

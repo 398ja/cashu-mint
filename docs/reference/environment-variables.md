@@ -68,7 +68,8 @@ This reference lists the environment variables used to configure the Cashu mint 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CASHU_MINT_ADMIN_PORT` | `7778` | HTTP port for the admin REST API |
-| `CASHU_MINT_ADMIN_API_TOKEN` | `local-dev-token` | API token for admin authentication |
+| `CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB` | _(none)_ | npub of the admin Super Administrator |
+| `CASHU_MINT_ADMIN_EXTERNAL_BASE_URL` | `http://localhost:7778` | Audience admin handshake proofs must name |
 | `CASHU_MINT_ADMIN_VERSION` | `latest` | Docker image version for admin |
 | `CASHU_MINT_ADMIN_WEB_PORT` | `3000` | Port for the admin web UI |
 

@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getUser,
-  deactivateUser,
-  resetCredentials,
-} from "@/api/users";
+import { getUser, deactivateUser } from "@/api/users";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -17,7 +13,6 @@ export function UserDetailPage() {
   const queryClient = useQueryClient();
 
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -33,15 +28,6 @@ export function UserDetailPage() {
       setResult(res.message ?? "User deactivated");
       setConfirmDeactivate(false);
       void queryClient.invalidateQueries({ queryKey: ["user", userId] });
-    },
-  });
-
-  const resetMutation = useMutation({
-    mutationFn: (reason: string) =>
-      resetCredentials(userId!, { reason }),
-    onSuccess: (res) => {
-      setResult(`Credentials reset. Token: ${res.resetToken}`);
-      setConfirmReset(false);
     },
   });
 
@@ -76,20 +62,12 @@ export function UserDetailPage() {
             </div>
             <div className="flex gap-2">
               {data.active && (
-                <>
-                  <button
-                    onClick={() => setConfirmReset(true)}
-                    className="px-3 py-1.5 text-sm border border-amber-800 text-amber-400 hover:bg-amber-950 rounded"
-                  >
-                    Reset Credentials
-                  </button>
-                  <button
-                    onClick={() => setConfirmDeactivate(true)}
-                    className="px-3 py-1.5 text-sm border border-red-800 text-red-400 hover:bg-red-950 rounded"
-                  >
-                    Deactivate
-                  </button>
-                </>
+                <button
+                  onClick={() => setConfirmDeactivate(true)}
+                  className="px-3 py-1.5 text-sm border border-red-800 text-red-400 hover:bg-red-950 rounded"
+                >
+                  Deactivate
+                </button>
               )}
             </div>
           </div>
@@ -123,17 +101,6 @@ export function UserDetailPage() {
         onConfirm={(reason) => deactivateMutation.mutate(reason)}
       />
 
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title="Reset Credentials"
-        description={`This will reset credentials for user "${userId}".`}
-        confirmLabel="Reset"
-        destructive
-        requireReason
-        loading={resetMutation.isPending}
-        onConfirm={(reason) => resetMutation.mutate(reason)}
-      />
     </div>
   );
 }

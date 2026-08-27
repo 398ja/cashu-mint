@@ -7,23 +7,25 @@ This guide shows how to call the administrative lifecycle endpoints exposed by t
 - A running `mint-admin-rest` service (start
   [`CashuMintAdminRestApplication`](../../mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/CashuMintAdminRestApplication.java))
   with the `/admin` routes enabled.
-- An administrator token and role granting `MINT_ADMIN` access.
+- An Operator profile carrying your npub and a role granting `MINT_ADMIN` access.
 - A tool capable of issuing HTTPS requests (the examples below use `curl`).
 
 ## 1. Export common variables
 
-Define the base URL, token, and role headers once to simplify subsequent commands:
+Define the base URL once, then sign in with a NAP handshake and keep the session
+cookie it sets:
 
 ```bash
 export MINT_ADMIN_API="https://admin.mint.example.com"
-export ADMIN_TOKEN="local-dev-token"
-export ADMIN_ROLES="MINT_ADMIN"
+export ADMIN_SESSION="<cashu_admin_session value from POST /api/v1/auth/complete>"
 ```
 
 Point `MINT_ADMIN_API` at the host running the admin service—`mint-admin-rest`
 exposes `/admin` routes separately from the public mint API.
 
-Each request must include `X-Admin-Token` and `X-Admin-Roles` headers as enforced by [`LifecycleAdminController`](../../mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/controller/LifecycleAdminController.java).
+Each request must carry a `cashu_admin_session` cookie from a NAP handshake, and the
+Operator behind it must hold the `mint:lifecycle` permission enforced by
+[`LifecycleAdminController`](../../mint-admin-rest/src/main/java/xyz/tcheeric/cashu/mint/admin/rest/controller/LifecycleAdminController.java).
 
 ## 2. Provision a mint
 
@@ -32,8 +34,7 @@ Send a `POST /admin/lifecycle/mints` request with the operator details, display 
 ```bash
 curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "X-Admin-Roles: $ADMIN_ROLES" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "mintId": "mint-001",
         "metadata": {
@@ -54,8 +55,7 @@ To record a new configuration revision or change descriptive metadata, call `PUT
 ```bash
 curl -X PUT "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "X-Admin-Roles: $ADMIN_ROLES" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "metadata": {
           "displayName": "Primary mint",
@@ -76,8 +76,7 @@ Lifecycle transitions such as maintenance pauses and resumptions use [`Lifecycle
 ```bash
 curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/pause" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "X-Admin-Roles: $ADMIN_ROLES" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "reason": "Apply security patches",
         "correlationId": "maintenance-window-42"
@@ -85,8 +84,7 @@ curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/pause" \
 
 curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/resume" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "X-Admin-Roles: $ADMIN_ROLES" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "reason": "Post-maintenance validation passed",
         "correlationId": "maintenance-window-42"
@@ -102,8 +100,7 @@ Retiring a mint follows the same pattern but targets `/admin/lifecycle/mints/{mi
 ```bash
 curl -X POST "$MINT_ADMIN_API/admin/lifecycle/mints/mint-001/retire" \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  -H "X-Admin-Roles: $ADMIN_ROLES" \
+  -b "cashu_admin_session=$ADMIN_SESSION" \
   -d '{
         "reason": "Replaced by mint-002"
       }'

@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.admin.application.service;
 
 import static java.util.Objects.requireNonNull;
 
-import java.time.Instant;
 import java.util.Set;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
@@ -35,7 +34,6 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             case PROVISION -> provision(validated);
             case UPDATE_ROLES -> updateRoles(validated);
             case REVOKE -> revoke(validated);
-            case RESET_CREDENTIALS -> resetCredentials(validated);
         };
     }
 
@@ -48,19 +46,15 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             throw new IllegalArgumentException("at least one role must be provided for provisioning");
         }
 
-        // Issued here so a new operator is usable from one call. The bootstrap
-        // credential goes inert as soon as an operator exists, and would otherwise
-        // be unable to hand the first operator its own way in.
-        final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount record = new OperatorAccessAccount(
             request.targetAccountId(), request.displayName(), request.email(),
-            Set.copyOf(request.roles()), true, 1, OperatorCredentials.hash(credential), Instant.now(), null);
+            Set.copyOf(request.roles()), true, request.pubkey());
         final boolean created = operatorAccessRepository.create(record);
         if (!created) {
             throw new IllegalStateException("operator already exists: " + request.targetAccountId());
         }
 
-        return buildResponse(record, request.versionTag(), "User created", credential);
+        return buildResponse(record, request.versionTag(), "User created");
     }
 
     private AdministerAccessResponse updateRoles(final AdministerAccessRequest request) {
@@ -78,12 +72,9 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             request.email() != null ? request.email() : record.email(),
             Set.copyOf(request.roles()),
             record.active(),
-            record.credentialResetCount(),
-            record.credentialHash(),
-            record.lastResetAt(),
             record.pubkey());
         operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "User updated", null);
+        return buildResponse(updated, request.versionTag(), "User updated");
     }
 
     private AdministerAccessResponse revoke(final AdministerAccessRequest request) {
@@ -95,32 +86,9 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.email(),
             record.roles(),
             false,
-            record.credentialResetCount(),
-            record.credentialHash(),
-            record.lastResetAt(),
             record.pubkey());
         operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "User deactivated", null);
-    }
-
-    private AdministerAccessResponse resetCredentials(final AdministerAccessRequest request) {
-        validateUuid(request.targetAccountId(), "target account id");
-        final OperatorAccessAccount record = requireExisting(request.targetAccountId());
-        final int resetCount = record.credentialResetCount() + 1;
-        // The plaintext credential is returned to the caller once and never stored.
-        final String credential = OperatorCredentials.issue();
-        final OperatorAccessAccount updated = new OperatorAccessAccount(
-            record.accountId(),
-            record.displayName(),
-            record.email(),
-            record.roles(),
-            record.active(),
-            resetCount,
-            OperatorCredentials.hash(credential),
-            Instant.now(),
-            record.pubkey());
-        operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "Credential issued", credential);
+        return buildResponse(updated, request.versionTag(), "User deactivated");
     }
 
     private OperatorAccessAccount requireExisting(final String accountId) {
@@ -130,9 +98,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
 
     private static AdministerAccessResponse buildResponse(final OperatorAccessAccount record,
                                                            final String versionTag,
-                                                           final String message,
-                                                           final String resetToken) {
+                                                           final String message) {
         return new AdministerAccessResponse(record.accountId(), versionTag, record.displayName(),
-            record.email(), record.roles(), record.active(), message, resetToken);
+            record.email(), record.roles(), record.active(), message);
     }
 }

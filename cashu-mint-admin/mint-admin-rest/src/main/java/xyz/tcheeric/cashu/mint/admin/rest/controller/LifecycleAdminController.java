@@ -21,6 +21,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
@@ -35,8 +39,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
  * request DTOs that will later be passed to the lifecycle use case.
  */
 @Tag(name = "Admin Lifecycle", description = "Lifecycle workflows mirrored from CLI commands")
-@SecurityRequirement(name = "AdminToken")
-@SecurityRequirement(name = "AdminRoles")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.MINT_LIFECYCLE)
 @RestController
 @RequestMapping("/admin/lifecycle")
 public class LifecycleAdminController {

@@ -74,22 +74,4 @@ test.describe("User Management", () => {
       await expect(page.getByRole("textbox")).toBeVisible();
     }
   });
-
-  test("reset credentials action available", async ({ page }) => {
-    await mockApiResponse(page, "**/admin/users/user-1", USERS[0]);
-    await mockApiResponse(
-      page,
-      "**/admin/users/user-1/reset-credentials",
-      {
-        userId: "user-1",
-        resetToken: "new-token-123",
-        message: "Credentials reset",
-      },
-    );
-
-    await page.goto("/users/user-1");
-    await expect(
-      page.getByRole("button", { name: /reset/i }),
-    ).toBeVisible();
-  });
 });

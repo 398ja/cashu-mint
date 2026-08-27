@@ -1,25 +1,17 @@
 import type { Page } from "@playwright/test";
 
 /**
- * Simulate admin login by setting session storage tokens and mocking the auth endpoint.
+ * Simulate a signed-in Operator by answering NAP's session endpoint.
  */
 export async function loginAsAdmin(
   page: Page,
   roles: string[] = ["MINT_ADMIN", "USER_ADMIN", "ALERTS_ADMIN", "OPS_ADMIN"],
 ) {
-  await page.addInitScript(
-    (r) => {
-      sessionStorage.setItem("admin_token", "test-token");
-      sessionStorage.setItem("admin_roles", r.join(","));
-    },
-    roles,
-  );
-
-  await page.route("**/admin/auth/me", (route) =>
+  await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ authenticated: true, roles }),
+      body: JSON.stringify({ roles, permissions: [] }),
     }),
   );
 }

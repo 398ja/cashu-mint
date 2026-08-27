@@ -10,12 +10,6 @@ export interface UserResponse {
   message: string | null;
 }
 
-export interface CredentialResetResponse {
-  userId: string;
-  resetToken: string;
-  message: string;
-}
-
 export function listUsers(params: {
   active?: boolean;
   role?: string;
@@ -35,6 +29,7 @@ export function createUser(body: {
   displayName: string;
   email: string;
   roles: string[];
+  npub: string;
 }): Promise<UserResponse> {
   return apiPost("/admin/users", body);
 }
@@ -59,18 +54,6 @@ export function assignRoles(
 ): Promise<UserResponse> {
   return apiPost(
     `/admin/users/${encodeURIComponent(userId)}/roles`,
-    body,
-  );
-}
-
-export function resetCredentials(
-  userId: string,
-  body: {
-    reason: string;
-  },
-): Promise<CredentialResetResponse> {
-  return apiPost(
-    `/admin/users/${encodeURIComponent(userId)}/reset-credentials`,
     body,
   );
 }

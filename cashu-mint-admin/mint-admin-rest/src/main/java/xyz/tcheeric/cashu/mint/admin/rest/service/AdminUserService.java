@@ -9,11 +9,10 @@ import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase.AdministerAccessResponse;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.Npubs;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.AssignRolesRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.CreateUserRequest;
-import xyz.tcheeric.cashu.mint.admin.rest.dto.users.CredentialResetResponse;
-import xyz.tcheeric.cashu.mint.admin.rest.dto.users.ResetCredentialsRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UpdateUserRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UserLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UserResponse;
@@ -80,11 +79,9 @@ public class AdminUserService {
             final AdministerAccessResponse response = accessUseCase.handle(
                 new AdministerAccessRequest(operatorIdentity.currentOperatorId(), request.userId(),
                     AccessCommand.PROVISION, DEFAULT_VERSION_TAG, request.displayName(),
-                    request.email(), Set.copyOf(request.roles()), null));
-            // Creation is the one response that carries a credential, shown once.
-            return new UserResponse(response.targetAccountId(), response.displayName(),
-                response.email(), response.roles(), response.active(), response.message(),
-                response.resetToken());
+                    request.email(), Set.copyOf(request.roles()),
+                    Npubs.toPubkeyHex(request.npub()), null));
+            return toUserResponse(response);
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
@@ -96,7 +93,7 @@ public class AdminUserService {
             final AdministerAccessResponse response = accessUseCase.handle(
                 new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, request.displayName(),
-                    request.email(), Set.copyOf(request.roles()), null));
+                    request.email(), Set.copyOf(request.roles()), null, null));
             return toUserResponse(response);
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
@@ -109,22 +106,8 @@ public class AdminUserService {
             final AdministerAccessResponse response = accessUseCase.handle(
                 new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.UPDATE_ROLES, DEFAULT_VERSION_TAG, null,
-                    null, Set.copyOf(request.roles()), request.justification()));
+                    null, Set.copyOf(request.roles()), null, request.justification()));
             return toUserResponse(response);
-        } catch (final IllegalStateException e) {
-            throw mapDomainException(e);
-        }
-    }
-
-    public CredentialResetResponse resetCredentials(final String userId, final ResetCredentialsRequest request) {
-        Objects.requireNonNull(request, "request");
-        try {
-            final AdministerAccessResponse response = accessUseCase.handle(
-                new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
-                    AccessCommand.RESET_CREDENTIALS, DEFAULT_VERSION_TAG, null,
-                    null, Set.of(), request.reason()));
-            return new CredentialResetResponse(response.targetAccountId(),
-                response.resetToken(), response.message());
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
@@ -136,7 +119,7 @@ public class AdminUserService {
             final AdministerAccessResponse response = accessUseCase.handle(
                 new AdministerAccessRequest(operatorIdentity.currentOperatorId(), userId,
                     AccessCommand.REVOKE, DEFAULT_VERSION_TAG, null,
-                    null, Set.of(), request.reason()));
+                    null, Set.of(), null, request.reason()));
             return toUserResponse(response);
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);

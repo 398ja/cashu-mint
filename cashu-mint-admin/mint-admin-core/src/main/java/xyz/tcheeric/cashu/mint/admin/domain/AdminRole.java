@@ -8,9 +8,9 @@ import java.util.Set;
  * The roles an Operator profile can hold.
  *
  * <p>Every key but {@code SUPER_ADMIN} is a string already persisted in operator
- * profiles and matched by the RBAC filter, so this enum names what was there
- * rather than introducing a second vocabulary. {@code SUPER_ADMIN} is new: it is
- * the configured Super Administrator's role, held by no stored profile.
+ * profiles, so this enum names what was there rather than introducing a second
+ * vocabulary. {@code SUPER_ADMIN} is the configured Super Administrator's role,
+ * held by no stored profile.
  */
 public enum AdminRole {
 
@@ -19,9 +19,10 @@ public enum AdminRole {
      * recovers a deployment whose other Operators are locked out.
      */
     SUPER_ADMIN("SUPER_ADMIN", Set.of(AdminPermission.values())),
-    MINT_ADMIN("MINT_ADMIN", Set.of(AdminPermission.MINT_LIFECYCLE, AdminPermission.AUDIT_READ)),
-    USER_ADMIN("USER_ADMIN", Set.of(AdminPermission.USERS_MANAGE)),
-    OPS_ADMIN("OPS_ADMIN", Set.of(AdminPermission.OPERATIONS_EXECUTE));
+    MINT_ADMIN("MINT_ADMIN", Set.of(AdminPermission.MINT_LIFECYCLE, AdminPermission.AUDIT_READ,
+        AdminPermission.DASHBOARD_READ)),
+    USER_ADMIN("USER_ADMIN", Set.of(AdminPermission.USERS_MANAGE, AdminPermission.DASHBOARD_READ)),
+    OPS_ADMIN("OPS_ADMIN", Set.of(AdminPermission.OPERATIONS_EXECUTE, AdminPermission.DASHBOARD_READ));
 
     private final String key;
     private final Set<AdminPermission> permissions;

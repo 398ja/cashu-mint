@@ -29,29 +29,35 @@ import org.springframework.test.web.servlet.MvcResult;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.nap.client.NapProofBuilder;
+import xyz.tcheeric.nap.core.SessionRecord;
+import xyz.tcheeric.nap.core.SessionStore;
 import xyz.tcheeric.nap.spring.config.NapProperties;
 
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.List;
 import java.util.HexFormat;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Drives a real NIP-98 handshake against the admin API with NAP enabled, and
- * checks the token path still answers alongside it (issue #372).
+ * Drives a real NIP-98 handshake against the admin API, and checks a session is
+ * the only way in (issues #372, #373).
  */
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @Import(AdminApiConfiguration.class)
 @TestPropertySource(properties = {
-    "admin.security.api-token=test-token",
     "nap.enabled=true",
     "nap.external-base-url=http://localhost",
     "nap.rate-limit-enabled=false",
@@ -72,15 +78,21 @@ class AdminNapHandshakeTest {
         "0000000000000000000000000000000000000000000000000000000000000001";
     private static final String COMPLETE_URL = "http://localhost/api/v1/auth/complete";
 
+    private static final Supplier<String> SUPER_ADMIN_NPUB = () ->
+        Bech32.toBech32(Bech32Prefix.NPUB, superAdminPubkey());
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static String superAdminPubkey() {
+        return HEX.formatHex(Schnorr.genPubKey(HEX.parseHex(SUPER_ADMIN_PRIVATE_KEY)));
+    }
 
     // The Super Administrator is a configuration fact, so it is registered as one --
     // derived from the fixed key below rather than pasted in as a literal that could
     // drift from it.
     @DynamicPropertySource
     static void superAdminNpub(final DynamicPropertyRegistry registry) {
-        registry.add("admin.security.super-admin-npub", () -> Bech32.toBech32(Bech32Prefix.NPUB,
-            HEX.formatHex(Schnorr.genPubKey(HEX.parseHex(SUPER_ADMIN_PRIVATE_KEY)))));
+        registry.add("admin.security.super-admin-npub", SUPER_ADMIN_NPUB::get);
     }
 
     @Autowired
@@ -90,13 +102,16 @@ class AdminNapHandshakeTest {
     private OperatorAccessRepository operatorAccessRepository;
 
     @Autowired
+    private SessionStore sessionStore;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private NapProperties napProperties;
 
-    // The bootstrap token is inert once any Operator exists, so each test starts
-    // from an empty store rather than inheriting the previous test's operator.
+    // Each test starts from an empty store rather than inheriting the previous
+    // test's operator.
     @BeforeEach
     void emptyOperatorStore() {
         jdbcTemplate.execute("DELETE FROM admin_users");
@@ -148,7 +163,7 @@ class AdminNapHandshakeTest {
         new SecureRandom().nextBytes(privateKey);
         final String pubkey = HEX.formatHex(Schnorr.genPubKey(privateKey));
         operatorAccessRepository.create(new OperatorAccessAccount("nap-operator", "Nap Operator",
-            "operator@example.com", Set.of("MINT_ADMIN"), true, 0, null, null, pubkey));
+            "operator@example.com", Set.of("MINT_ADMIN"), true, pubkey));
 
         final Cookie session = handshake(HEX.formatHex(privateKey));
 
@@ -163,16 +178,49 @@ class AdminNapHandshakeTest {
             .doesNotContain("operators:manage");
     }
 
-    // Checks the pre-existing token path is untouched while NAP is enabled.
+    // Checks a session opens the admin API, and that nothing else does (issue #373).
     @Test
-    @DisplayName("The admin API still answers on the bootstrap token")
-    void adminApiStillAnswersOnTheToken() throws Exception {
-        mockMvc.perform(get("/admin/users")
-                .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, "test-token"))
+    @DisplayName("A session opens the admin API and its absence closes it")
+    void adminApiAnswersOnlyOnASession() throws Exception {
+        mockMvc.perform(get("/admin/users").cookie(handshake(SUPER_ADMIN_PRIVATE_KEY)))
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/admin/users"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("unauthorized"))
+            .andExpect(jsonPath("$.message").exists());
+    }
+
+    // Checks an expired session is refused: the cookie survives its session, so the
+    // cookie alone must not be what opens the door.
+    @Test
+    @DisplayName("An expired session is refused")
+    void expiredSessionIsRefused() throws Exception {
+        final long past = Instant.now().getEpochSecond() - 60;
+        sessionStore.createForChallenge(SessionRecord.create("expired-session", "expired-challenge",
+            "expired-token", SUPER_ADMIN_NPUB.get(), superAdminPubkey(),
+            List.of(AdminRole.SUPER_ADMIN.key()), List.of(AdminPermission.Keys.USERS_MANAGE),
+            past - 60, past));
+
+        mockMvc.perform(get("/admin/users").cookie(new Cookie("cashu_admin_session", "expired-session")))
             .andExpect(status().isUnauthorized());
+    }
+
+    // Checks a session that authenticated still cannot reach a permission its roles
+    // do not carry, and that the refusal is a decision rather than a bare status.
+    @Test
+    @DisplayName("A missing permission is refused with an error body")
+    void missingPermissionIsRefusedWithABody() throws Exception {
+        final byte[] privateKey = new byte[32];
+        new SecureRandom().nextBytes(privateKey);
+        final String pubkey = HEX.formatHex(Schnorr.genPubKey(privateKey));
+        operatorAccessRepository.create(new OperatorAccessAccount("ops-only", "Ops Only",
+            "ops@example.com", Set.of("OPS_ADMIN"), true, pubkey));
+
+        mockMvc.perform(get("/admin/users").cookie(handshake(HEX.formatHex(privateKey))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("forbidden"))
+            .andExpect(jsonPath("$.message").exists());
     }
 
     private Cookie handshake(final String privateKeyHex) throws Exception {

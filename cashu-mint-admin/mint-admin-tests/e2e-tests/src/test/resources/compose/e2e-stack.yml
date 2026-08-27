@@ -261,7 +261,10 @@ services:
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
       DATASOURCE_DRIVER: org.postgresql.Driver
-      ADMIN_API_TOKEN: e2e-admin-token
+      # Super Administrator npub of the test key the suite signs in with.
+      ADMIN_SUPER_ADMIN_NPUB: npub10xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpkge6d
+      # Proofs name this audience; the suite signs against it whatever port docker maps.
+      ADMIN_EXTERNAL_BASE_URL: http://localhost:7778
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       CASHU_VAULT_BASE_URL: "http://cashu-vault-jpa:3333"
       # The vault client reads VAULT_BASE_URL; without it the admin falls back to

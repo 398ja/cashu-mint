@@ -8,7 +8,6 @@ import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.nap.core.AclDecision;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -101,7 +100,8 @@ class AdminAclResolverTest {
         assertThat(decision.allowed()).isTrue();
         assertThat(decision.roles()).containsExactly("MINT_ADMIN");
         assertThat(decision.permissions()).containsExactlyInAnyOrder(
-            AdminPermission.MINT_LIFECYCLE.key(), AdminPermission.AUDIT_READ.key());
+            AdminPermission.MINT_LIFECYCLE.key(), AdminPermission.AUDIT_READ.key(),
+            AdminPermission.DASHBOARD_READ.key());
     }
 
     // A role string the store holds but this build does not declare must not
@@ -137,7 +137,7 @@ class AdminAclResolverTest {
 
     private static OperatorAccessAccount account(final Set<String> roles, final boolean active) {
         return new OperatorAccessAccount("11111111-1111-1111-1111-111111111111", "Ops", "ops@example.com",
-            roles, active, 0, "hash", Instant.EPOCH, OPERATOR_PUBKEY);
+            roles, active, OPERATOR_PUBKEY);
     }
 
     private static List<String> allPermissionKeys() {

@@ -8,7 +8,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,12 +29,9 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 email,
                 roles,
                 active,
-                reset_count,
-                credential_hash,
-                reset_requested_at,
                 updated_at,
                 pubkey)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String UPDATE_SQL =
@@ -45,9 +41,6 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 email = ?,
                 roles = ?,
                 active = ?,
-                reset_count = ?,
-                credential_hash = ?,
-                reset_requested_at = ?,
                 updated_at = ?,
                 pubkey = ?
             WHERE user_id = ?
@@ -60,27 +53,9 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    email,
                    roles,
                    active,
-                   reset_count,
-                   credential_hash,
-                   reset_requested_at,
                    pubkey
             FROM admin_users
             WHERE user_id = ?
-        """;
-
-    private static final String SELECT_BY_CREDENTIAL_SQL =
-        """
-            SELECT user_id,
-                   display_name,
-                   email,
-                   roles,
-                   active,
-                   reset_count,
-                   credential_hash,
-                   reset_requested_at,
-                   pubkey
-            FROM admin_users
-            WHERE credential_hash = ?
         """;
 
     private static final String SELECT_BY_PUBKEY_SQL =
@@ -90,9 +65,6 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    email,
                    roles,
                    active,
-                   reset_count,
-                   credential_hash,
-                   reset_requested_at,
                    pubkey
             FROM admin_users
             WHERE pubkey = ?
@@ -115,9 +87,6 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    email,
                    roles,
                    active,
-                   reset_count,
-                   credential_hash,
-                   reset_requested_at,
                    pubkey
             FROM admin_users
             ORDER BY display_name
@@ -172,25 +141,6 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
     }
 
     @Override
-    public Optional<OperatorAccessAccount> findByCredentialHash(final String credentialHash) {
-        if (credentialHash == null || credentialHash.isBlank()) {
-            return Optional.empty();
-        }
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_BY_CREDENTIAL_SQL)) {
-            statement.setString(1, credentialHash);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (!resultSet.next()) {
-                    return Optional.empty();
-                }
-                return Optional.of(mapRow(resultSet));
-            }
-        } catch (final SQLException | IOException ex) {
-            throw new JdbcRepositoryException("Failed to load admin user by credential", ex);
-        }
-    }
-
-    @Override
     public Optional<OperatorAccessAccount> findByPubkey(final String pubkey) {
         if (pubkey == null || pubkey.isBlank()) {
             return Optional.empty();
@@ -230,15 +180,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
         statement.setString(3, account.email());
         statement.setString(4, objectMapper.writeValueAsString(account.roles()));
         statement.setBoolean(5, account.active());
-        statement.setInt(6, account.credentialResetCount());
-        statement.setString(7, account.credentialHash());
-        if (account.lastResetAt() == null) {
-            statement.setNull(8, Types.TIMESTAMP);
-        } else {
-            statement.setTimestamp(8, Timestamp.from(account.lastResetAt()));
-        }
-        statement.setTimestamp(9, Timestamp.from(Instant.now()));
-        statement.setString(10, account.pubkey());
+        statement.setTimestamp(6, Timestamp.from(Instant.now()));
+        statement.setString(7, account.pubkey());
     }
 
     private void bindForUpdate(final PreparedStatement statement, final OperatorAccessAccount account)
@@ -247,30 +190,19 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
         statement.setString(2, account.email());
         statement.setString(3, objectMapper.writeValueAsString(account.roles()));
         statement.setBoolean(4, account.active());
-        statement.setInt(5, account.credentialResetCount());
-        statement.setString(6, account.credentialHash());
-        if (account.lastResetAt() == null) {
-            statement.setNull(7, Types.TIMESTAMP);
-        } else {
-            statement.setTimestamp(7, Timestamp.from(account.lastResetAt()));
-        }
-        statement.setTimestamp(8, Timestamp.from(Instant.now()));
-        statement.setString(9, account.pubkey());
-        statement.setString(10, account.accountId());
+        statement.setTimestamp(5, Timestamp.from(Instant.now()));
+        statement.setString(6, account.pubkey());
+        statement.setString(7, account.accountId());
     }
 
     private OperatorAccessAccount mapRow(final ResultSet resultSet) throws SQLException, IOException {
         final Set<String> roles = objectMapper.readValue(resultSet.getString("roles"), ROLE_TYPE);
-        final Timestamp resetAt = resultSet.getTimestamp("reset_requested_at");
         return new OperatorAccessAccount(
             resultSet.getString("user_id"),
             resultSet.getString("display_name"),
             resultSet.getString("email"),
             roles,
             resultSet.getBoolean("active"),
-            resultSet.getInt("reset_count"),
-            resultSet.getString("credential_hash"),
-            resetAt != null ? resetAt.toInstant() : null,
             resultSet.getString("pubkey"));
     }
 

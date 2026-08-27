@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
@@ -47,7 +48,7 @@ class AdminLifecycleServiceTest {
     // The filter chain does not run in this test, so stand in for the operator it
     // would otherwise have resolved onto the request.
     private static OperatorIdentity fixedOperatorIdentity() {
-        return new OperatorIdentity() {
+        return new OperatorIdentity(org.mockito.Mockito.mock(OperatorAccessRepository.class)) {
             @Override
             public String currentOperatorId() {
                 return OPERATOR_UUID;

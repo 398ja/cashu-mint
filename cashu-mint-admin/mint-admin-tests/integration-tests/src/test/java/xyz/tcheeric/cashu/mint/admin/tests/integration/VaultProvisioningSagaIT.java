@@ -62,8 +62,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
         assertMintState(mintId, "PROVISIONING");
@@ -83,8 +82,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // First dispatch: attempt 1 fails, schedules retry with backoff
         outboxDispatcher.dispatchPending(100);
@@ -107,8 +105,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         assertMintState(mintId, "PROVISIONED");
 
@@ -116,8 +113,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("reason", "Activate after provisioning"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "ACTIVE");
 
@@ -125,8 +121,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> paused = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/pause",
             Map.of("reason", "Maintenance"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(paused.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "SUSPENDED");
 
@@ -134,8 +129,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("reason", "Maintenance complete"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(resumed.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "ACTIVE");
 
@@ -143,8 +137,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> retired = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/retire",
             Map.of("reason", "Retire"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(retired.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "DECOMMISSIONED");
     }
@@ -163,8 +156,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
                     "versionTag", "v1",
                     "name", "config-mint",
                     "parameters", Map.of("cashu.unit", "usd", "cashu.denominations", "1,2,4,8"))),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         final Integer revisionCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM configuration_revisions WHERE mint_id = ?",
@@ -181,15 +173,13 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // Attempt resume without dispatching outbox (state is still PROVISIONING)
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("reason", "Premature activation"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(resumed.getStatusCode().value()).isEqualTo(409);
     }
 
@@ -202,8 +192,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // Exhaust retries (maxRetries=2)
         outboxDispatcher.dispatchPending(100);
@@ -224,8 +213,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdA, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         assertMintState(mintIdA, "PROVISIONED");
 
@@ -233,8 +221,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> activatedA = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintIdA + "/resume",
             Map.of("reason", "Activate A"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(activatedA.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintIdA, "ACTIVE");
 
@@ -242,8 +229,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> createdB = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdB, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(createdB.getStatusCode().value()).isEqualTo(409);
     }
 
@@ -257,22 +243,19 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdA, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         adminApiClient().post(
             "/admin/lifecycle/mints/" + mintIdA + "/resume",
             Map.of("reason", "Activate A"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertMintState(mintIdA, "ACTIVE");
 
         // Create mint B with unit=usd → should succeed
         final ResponseEntity<JsonNode> createdB = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdB, "usd"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(createdB.getStatusCode().value()).isEqualTo(200);
     }
 

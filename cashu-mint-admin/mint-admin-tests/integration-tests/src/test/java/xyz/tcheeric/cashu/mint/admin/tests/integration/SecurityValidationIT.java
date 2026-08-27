@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.admin.tests.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -16,68 +17,62 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAdminIntegrationIT;
+import xyz.tcheeric.cashu.mint.admin.tests.nap.NapTestHandshake;
 
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
 class SecurityValidationIT extends AbstractAdminIntegrationIT {
 
-
-    // Ensures requests without auth token are rejected with 401.
+    // Ensures requests without a session are rejected with 401.
     @Test
-    void shouldRejectMissingToken() {
+    void shouldRejectMissingSession() {
         final ResponseEntity<JsonNode> response = adminApiClient().post(
             "/admin/users",
             validCreateUserPayload(),
-            null,
-            USER_ADMIN_ROLE);
+            null);
         assertThat(response.getStatusCode().value()).isEqualTo(401);
     }
 
-    // Ensures requests with invalid auth token are rejected with 401.
+    // Ensures a session cookie the server never issued is rejected with 401.
     @Test
-    void shouldRejectInvalidToken() {
+    void shouldRejectUnknownSession() {
         final ResponseEntity<JsonNode> response = adminApiClient().post(
             "/admin/users",
             validCreateUserPayload(),
-            "invalid-token",
-            USER_ADMIN_ROLE);
+            "cashu_admin_session=" + UUID.randomUUID());
         assertThat(response.getStatusCode().value()).isEqualTo(401);
     }
 
-    // Confirms valid token and role pass authentication and continue into normal endpoint processing.
+    // An npub with no Operator profile proves a key, not an entitlement: no session is issued.
     @Test
-    void shouldAllowValidTokenAndRoleThroughAuthLayer() {
+    void shouldRefuseHandshakeForUnknownNpub() {
+        assertThatThrownBy(() -> NapTestHandshake.sessionCookie(baseUrl(), NapTestHandshake.randomPrivateKey()))
+            .isInstanceOf(org.springframework.web.client.HttpClientErrorException.Unauthorized.class);
+    }
+
+    // Confirms a valid session passes authentication and continues into normal endpoint processing.
+    @Test
+    void shouldAllowSessionThroughAuthLayer() {
         final ResponseEntity<JsonNode> response = adminApiClient().get(
             "/admin/lifecycle/mints",
-            rootCredential(),
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
 
-    // Verifies RBAC across all endpoint families: an operator holding only the wrong
-    // role is refused, even while asserting the required role in a request header.
+    // Verifies permissions across all endpoint families: an operator holding only the
+    // wrong role is refused, because the session carries the roles, not the request.
     @ParameterizedTest
     @MethodSource("rbacCases")
     void shouldEnforceRbacPerEndpointFamily(final HttpMethod method,
                                             final String path,
                                             final Map<String, Object> body,
                                             final String wrongRole) {
-        final String credential = provisionOperator(List.of(wrongRole));
+        final String session = operatorSession(UUID.randomUUID().toString(), List.of(wrongRole));
 
-        final ResponseEntity<JsonNode> response = adminApiClient().exchange(
-            path,
-            method,
-            body,
-            credential,
-            ALL_ROLES_CLAIM);
+        final ResponseEntity<JsonNode> response = adminApiClient().exchange(path, method, body, session);
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
 
-    // Every role a caller could try to claim, so the header is proven inert.
-    private static final String ALL_ROLES_CLAIM = "MINT_ADMIN,USER_ADMIN,OPS_ADMIN";
-
-    // Ensures bean validation returns 400 for malformed user payloads. Authenticates
-    // with an operator credential, not the bootstrap token: the token is inert once
-    // any operator exists, so it answers 401 and never reaches validation.
+    // Ensures bean validation returns 400 for malformed user payloads.
     @Test
     void shouldReturnBadRequestForInvalidUserPayload() {
         final ResponseEntity<JsonNode> response = adminApiClient().post(
@@ -87,8 +82,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "displayName", "Alice",
                 "email", "alice@example.com",
                 "roles", List.of()),
-            rootCredential(),
-            USER_ADMIN_ROLE);
+            superAdminSession());
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
 
@@ -100,8 +94,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             Map.of(
                 "mintId", UUID.randomUUID().toString(),
                 "configuration", Map.of("versionTag", "v1")),
-            rootCredential(),
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
 
@@ -127,62 +120,24 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 USER_ADMIN_ROLE));
     }
 
-    // The core defect: an operator must not gain a role by asserting it in a request
-    // header. Provisions an operator holding only USER_ADMIN, then calls an OPS_ADMIN
-    // endpoint with that operator's own credential while claiming OPS_ADMIN in the header.
+    // An operator's own roles are honoured, with nothing but the session cookie sent.
     @Test
-    void shouldRefuseRoleAssertedInHeaderThatOperatorDoesNotHold() {
-        final String credential = provisionOperator(List.of(USER_ADMIN_ROLE));
+    void shouldAuthoriseFromOperatorRoles() {
+        final String session = operatorSession(UUID.randomUUID().toString(), List.of(OPS_ADMIN_ROLE));
 
         final ResponseEntity<JsonNode> response = adminApiClient().get(
             "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
-            credential,
-            OPS_ADMIN_ROLE);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(403);
-    }
-
-    // An operator's own roles are honoured without any header being sent.
-    @Test
-    void shouldAuthoriseFromOperatorRolesWithoutRolesHeader() {
-        final String credential = provisionOperator(List.of(OPS_ADMIN_ROLE));
-
-        final ResponseEntity<JsonNode> response = adminApiClient().get(
-            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
-            credential,
-            null);
+            session);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
 
-    // A revoked operator loses access on the very next request.
-    @Test
-    void shouldRefuseRevokedOperator() {
-        final String userId = UUID.randomUUID().toString();
-        final String credential = provisionOperator(userId, List.of(OPS_ADMIN_ROLE));
-
-        adminApiClient().post(
-            "/admin/users/" + userId + "/deactivate",
-            Map.of(
-                "reason", "revoked for test"),
-            rootCredential(),
-            null);
-
-        final ResponseEntity<JsonNode> response = adminApiClient().get(
-            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
-            credential,
-            null);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(401);
-    }
-
-    // Reading the audit trail requires a role rather than merely a valid credential.
+    // Reading the audit trail requires a permission rather than merely a valid session.
     @Test
     void shouldRefuseAuditReadWithoutRequiredRole() {
-        final String credential = provisionOperator(List.of(OPS_ADMIN_ROLE));
+        final String session = operatorSession(UUID.randomUUID().toString(), List.of(OPS_ADMIN_ROLE));
 
-        final ResponseEntity<JsonNode> response = adminApiClient().get(
-            "/admin/audit/events", credential, null);
+        final ResponseEntity<JsonNode> response = adminApiClient().get("/admin/audit/events", session);
 
         assertThat(response.getStatusCode().value()).isEqualTo(403);
     }
@@ -193,7 +148,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
     @Test
     void shouldAttributeAuditToAuthenticatedOperatorIgnoringRequestBody() {
         final String userId = UUID.randomUUID().toString();
-        final String credential = provisionOperator(userId, List.of(MINT_ADMIN_ROLE));
+        final String session = operatorSession(userId, List.of(MINT_ADMIN_ROLE));
         final String mintId = UUID.randomUUID().toString();
 
         final ResponseEntity<JsonNode> response = adminApiClient().post(
@@ -204,8 +159,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
                 "requestedBy", Map.of("id", UUID.randomUUID().toString(), "displayName", "Somebody"),
                 "metadata", Map.of("displayName", "Mint", "description", "desc", "tags", List.of("it")),
                 "configuration", Map.of("versionTag", "v1")),
-            credential,
-            null);
+            session);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(jdbcTemplate.queryForObject(
@@ -213,49 +167,39 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             .isEqualTo(userId);
     }
 
-    // A role change takes effect on the operator's next request, with no restart.
+    // A revoked operator loses access on the very next request, session or no session.
+    @Test
+    void shouldRefuseRevokedOperator() {
+        final String userId = UUID.randomUUID().toString();
+        final String session = operatorSession(userId, List.of(OPS_ADMIN_ROLE));
+
+        adminApiClient().post(
+            "/admin/users/" + userId + "/deactivate",
+            Map.of("reason", "revoked for test"),
+            superAdminSession());
+
+        final ResponseEntity<JsonNode> response = adminApiClient().get(
+            "/admin/operations/mints/" + UUID.randomUUID() + "/controls",
+            session);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+    }
+
+    // A role change takes effect on the operator's next request, with no re-login.
     @Test
     void shouldApplyRoleChangesOnTheNextRequest() {
         final String userId = UUID.randomUUID().toString();
-        final String credential = provisionOperator(userId, List.of(USER_ADMIN_ROLE));
+        final String session = operatorSession(userId, List.of(USER_ADMIN_ROLE));
 
         final String path = "/admin/operations/mints/" + UUID.randomUUID() + "/controls";
-        assertThat(adminApiClient().get(path, credential, null).getStatusCode().value()).isEqualTo(403);
+        assertThat(adminApiClient().get(path, session).getStatusCode().value()).isEqualTo(403);
 
         adminApiClient().post(
             "/admin/users/" + userId + "/roles",
-            Map.of(
-                "roles", List.of(USER_ADMIN_ROLE, OPS_ADMIN_ROLE)),
-            rootCredential(),
-            null);
+            Map.of("roles", List.of(USER_ADMIN_ROLE, OPS_ADMIN_ROLE)),
+            superAdminSession());
 
-        assertThat(adminApiClient().get(path, credential, null).getStatusCode().value()).isEqualTo(200);
-    }
-
-    private String provisionOperator(final List<String> roles) {
-        return provisionOperator(UUID.randomUUID().toString(), roles);
-    }
-
-    // Creates an operator with the given roles and returns its issued credential.
-    // The bootstrap credential works only while the operator store is empty, so the
-    // first operator is created with it and everything after uses that operator —
-    // exactly the handover a real deployment performs.
-    private String provisionOperator(final String userId, final List<String> roles) {
-        final String root = rootCredential();
-        final ResponseEntity<JsonNode> created = adminApiClient().post(
-            "/admin/users",
-            Map.of(
-                "userId", userId,
-                "displayName", "Operator " + userId.substring(0, 8),
-                "email", userId.substring(0, 8) + "@example.com",
-                "roles", roles),
-            root,
-            null);
-        assertThat(created.getStatusCode().value()).isEqualTo(200);
-
-        final String credential = created.getBody().path("credential").asText();
-        assertThat(credential).isNotBlank();
-        return credential;
+        assertThat(adminApiClient().get(path, session).getStatusCode().value()).isEqualTo(200);
     }
 
     private static Map<String, Object> validCreateUserPayload() {
@@ -263,7 +207,8 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             "userId", UUID.randomUUID().toString(),
             "displayName", "Alice",
             "email", "alice@example.com",
-            "roles", List.of("ADMIN"));
+            "roles", List.of("ADMIN"),
+            "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey()));
     }
 
 }

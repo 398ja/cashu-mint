@@ -38,8 +38,7 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
         // The aggregate's initial ConfigurationSet is persisted at creation, even
@@ -64,29 +63,25 @@ class LifecyclePersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("reason", "Activate after provisioning"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> paused = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/pause",
             Map.of("reason", "Maintenance"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(paused.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
             Map.of("reason", "Maintenance completed"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(resumed.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> retired = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/retire",
             Map.of("reason", "Retire"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(retired.getStatusCode().value()).isEqualTo(200);
 
         final String lifecycleState = jdbcTemplate.queryForObject(

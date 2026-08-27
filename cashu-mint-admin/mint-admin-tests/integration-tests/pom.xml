@@ -33,10 +33,10 @@
             <scope>test</scope>
         </dependency>
         <!-- Signs the NIP-98 proof in the NAP handshake test; the admin only verifies. -->
+        <!-- Compile scope: NapTestHandshake is main-scoped so the E2E suite shares it. -->
         <dependency>
             <groupId>xyz.tcheeric</groupId>
             <artifactId>nap-client</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

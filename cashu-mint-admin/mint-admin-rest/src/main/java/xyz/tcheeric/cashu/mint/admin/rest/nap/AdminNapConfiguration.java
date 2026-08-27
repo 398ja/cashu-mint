@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.admin.rest.nap;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import nostr.crypto.bech32.Bech32;
 
 import org.flywaydb.core.Flyway;
 
@@ -16,10 +15,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.service.AdminServiceException;
 import xyz.tcheeric.nap.core.ChallengeStore;
 import xyz.tcheeric.nap.core.SessionStore;
 import xyz.tcheeric.nap.jdbc.JdbcChallengeStore;
@@ -29,9 +31,15 @@ import xyz.tcheeric.nap.server.acl.PermissionDefinition;
 import xyz.tcheeric.nap.server.acl.PermissionRegistry;
 import xyz.tcheeric.nap.server.acl.RoleDefinition;
 import xyz.tcheeric.nap.spring.config.NapProperties;
+import xyz.tcheeric.nap.spring.filter.NapPermissionInterceptor;
 import xyz.tcheeric.nap.spring.filter.NapServletFilter;
+import xyz.tcheeric.nap.spring.filter.NapSessionFilter;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import javax.sql.DataSource;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -47,8 +55,6 @@ import java.util.stream.Collectors;
 @PropertySource("classpath:nap-defaults.properties")
 @ConditionalOnProperty(prefix = "nap", name = "enabled", havingValue = "true")
 public class AdminNapConfiguration {
-
-    private static final String NOT_AN_NPUB = "admin.security.super-admin-npub is not a valid npub: ";
 
     /**
      * The authorisation decision, as one bean. The Super Administrator is decoded
@@ -70,16 +76,12 @@ public class AdminNapConfiguration {
     }
 
     private static String decodeNpub(final String npub) {
-        final String hex;
         try {
-            hex = npub.startsWith("npub1") ? Bech32.fromBech32(npub) : null;
-        } catch (final Exception ex) {
-            throw new IllegalStateException(NOT_AN_NPUB + npub, ex);
+            return Npubs.toPubkeyHex(npub);
+        } catch (final IllegalArgumentException ex) {
+            // A typo in configuration is a startup failure, not a bad request.
+            throw new IllegalStateException(ex.getMessage(), ex);
         }
-        if (hex == null || hex.length() != 64) {
-            throw new IllegalStateException(NOT_AN_NPUB + npub);
-        }
-        return hex.toLowerCase();
     }
 
     /**
@@ -119,6 +121,61 @@ public class AdminNapConfiguration {
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         registration.addUrlPatterns("/api/v1/auth/*");
         return registration;
+    }
+
+    /**
+     * Validates the session cookie on every admin request. NAP's auto-configuration
+     * deliberately leaves this registration to the application, and the admin has no
+     * other authentication: without it {@code /admin/**} is open to anyone.
+     *
+     * <p>The filter passes an anonymous request through rather than refusing it — the
+     * permission interceptor below is what answers 401, so that a caller with no
+     * session and a caller lacking a permission get the same shaped error.
+     *
+     * @param sessionStore where sessions live
+     * @param aclResolver what an authenticated npub may do
+     * @param properties NAP's configuration, for the cookie name
+     * @return the session filter, bound to the admin surface
+     */
+    @Bean
+    public FilterRegistrationBean<NapSessionFilter> napSessionFilterRegistration(
+            final SessionStore sessionStore,
+            final AclResolver aclResolver,
+            final NapProperties properties) {
+        final NapSessionFilter filter = new NapSessionFilter(sessionStore, aclResolver,
+            properties.cookie().name(), List.of("/admin/"), Duration.ZERO);
+        final FilterRegistrationBean<NapSessionFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
+        registration.addUrlPatterns("/admin/*");
+        return registration;
+    }
+
+    /**
+     * Replaces NAP's interceptor with one that gives its refusals a body. NAP answers
+     * with a bare status, and every other admin refusal carries {@code {status, error,
+     * code, message}} — a body-less 403 reads as a bug rather than as a decision.
+     *
+     * @param registry the admin's permission vocabulary
+     * @return the interceptor NAP's auto-configuration will stand down for
+     */
+    @Bean
+    public HandlerInterceptor napPermissionInterceptor(final PermissionRegistry registry) {
+        final NapPermissionInterceptor delegate = new NapPermissionInterceptor(registry);
+        return new HandlerInterceptor() {
+            @Override
+            public boolean preHandle(final HttpServletRequest request, final HttpServletResponse response,
+                                     final Object handler) throws Exception {
+                if (delegate.preHandle(request, response, handler)) {
+                    return true;
+                }
+                if (response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) {
+                    throw new AdminServiceException(HttpStatus.UNAUTHORIZED, "unauthorized",
+                        "A valid admin session is required");
+                }
+                throw new AdminServiceException(HttpStatus.FORBIDDEN, "forbidden",
+                    "Your roles do not carry the permission this endpoint requires");
+            }
+        };
     }
 
     /**

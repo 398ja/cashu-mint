@@ -1,14 +1,17 @@
 package xyz.tcheeric.cashu.mint.admin.rest.service;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AuthenticatedOperator;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
- * Resolves the Operator the authentication filter identified, for the Audit Trail.
+ * Resolves the Operator the NAP session identified, for the Audit Trail.
  *
  * <p>The actor on an audit entry is the Operator the server authenticated. No request field or
  * header offers one — an audit trail that records a claimed identity is evidence of nothing. See
@@ -17,22 +20,33 @@ import xyz.tcheeric.cashu.mint.admin.rest.config.AuthenticatedOperator;
 @Component
 public class OperatorIdentity {
 
+  private final OperatorAccessRepository operatorAccessRepository;
+
+  public OperatorIdentity(final OperatorAccessRepository operatorAccessRepository) {
+    this.operatorAccessRepository =
+        Objects.requireNonNull(operatorAccessRepository, "operator access repository");
+  }
+
   /**
    * The id of the Operator authenticated for the request in flight.
    *
    * @return the authenticated Operator's id
-   * @throws AdminServiceException when no Operator was resolved
+   * @throws AdminServiceException when no session authenticated the request
    */
   public String currentOperatorId() {
-    final var attributes = RequestContextHolder.getRequestAttributes();
-    if (attributes instanceof ServletRequestAttributes servletAttributes) {
-      final HttpServletRequest request = servletAttributes.getRequest();
-      final Object operator = request.getAttribute(AuthenticatedOperator.ATTRIBUTE);
-      if (operator instanceof AuthenticatedOperator authenticated) {
-        return authenticated.operatorId();
-      }
+    final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !authentication.isAuthenticated()) {
+      throw new AdminServiceException(
+          HttpStatus.UNAUTHORIZED, "unauthorized", "No authenticated operator on the request");
     }
-    throw new AdminServiceException(
-        HttpStatus.UNAUTHORIZED, "unauthorized", "No authenticated operator on the request");
+    // NAP names the principal by public key; the audit trail names it by account id.
+    final String pubkey = authentication.getName();
+    return operatorAccessRepository
+        .findByPubkey(pubkey)
+        .map(OperatorAccessRepository.OperatorAccessAccount::accountId)
+        // The Super Administrator is configuration, not a row, so there is no account id to
+        // read. Deriving one from the key keeps their entries attributable and distinct,
+        // where a shared sentinel would merge every Super Administrator into one actor.
+        .orElseGet(() -> UUID.nameUUIDFromBytes(pubkey.getBytes(StandardCharsets.UTF_8)).toString());
   }
 }

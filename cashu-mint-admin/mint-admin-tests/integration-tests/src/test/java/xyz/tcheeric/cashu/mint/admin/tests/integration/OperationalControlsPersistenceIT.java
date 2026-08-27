@@ -30,32 +30,28 @@ class OperationalControlsPersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> scheduled = adminApiClient().post(
             "/admin/operations/mints/" + MINT_ID + "/maintenance/schedule",
             maintenancePayload("planned maintenance", 60),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(scheduled.getStatusCode().value()).isEqualTo(200);
         assertThat(scheduled.getBody().path("status").asText()).isEqualTo("SCHEDULED");
 
         final ResponseEntity<JsonNode> started = adminApiClient().post(
             "/admin/operations/mints/" + MINT_ID + "/maintenance/start",
             maintenancePayload("start maintenance", 60),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(started.getStatusCode().value()).isEqualTo(200);
         assertThat(started.getBody().path("status").asText()).isEqualTo("IN_PROGRESS");
 
         final ResponseEntity<JsonNode> rotated = adminApiClient().post(
             "/admin/operations/mints/" + MINT_ID + "/keys/rotate",
             maintenancePayload("rotate keys", 5),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(rotated.getStatusCode().value()).isEqualTo(200);
         assertThat(rotated.getBody().path("status").asText()).isEqualTo("KEY_ROTATION_INITIATED");
 
         final ResponseEntity<JsonNode> forceClosed = adminApiClient().post(
             "/admin/operations/mints/" + MINT_ID + "/force-close",
             maintenancePayload("force close", 1),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(forceClosed.getStatusCode().value()).isEqualTo(200);
         assertThat(forceClosed.getBody().path("status").asText()).isEqualTo("FORCE_CLOSED");
 
@@ -79,8 +75,7 @@ class OperationalControlsPersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> missingMaintenance = adminApiClient().post(
             "/admin/operations/mints/" + missingMintId + "/maintenance/complete",
             maintenancePayload("complete missing", 1),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(missingMaintenance.getStatusCode().value()).isEqualTo(404);
         assertThat(missingMaintenance.getBody().path("code").asText()).isEqualTo("maintenance_not_found");
     }
@@ -92,8 +87,7 @@ class OperationalControlsPersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> completed = adminApiClient().post(
             "/admin/operations/mints/" + MINT_ID + "/maintenance/complete",
             maintenancePayload("complete maintenance", 5),
-            ADMIN_TOKEN,
-            OPS_ADMIN_ROLE);
+            superAdminSession());
         assertThat(completed.getStatusCode().value()).isEqualTo(200);
         assertThat(completed.getBody().path("status").asText()).isEqualTo("COMPLETED");
 

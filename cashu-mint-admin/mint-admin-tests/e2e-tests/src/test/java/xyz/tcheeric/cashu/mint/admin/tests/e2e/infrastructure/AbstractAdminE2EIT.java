@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import xyz.tcheeric.cashu.mint.admin.tests.nap.NapTestHandshake;
 
 /**
  * Shared E2E base class for admin and mint API tests.
@@ -15,17 +16,19 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @ExtendWith(AdminE2EExtension.class)
 public abstract class AbstractAdminE2EIT {
 
-    protected static final String ADMIN_TOKEN = "e2e-admin-token";
-    protected static final String MINT_ADMIN_ROLE = "MINT_ADMIN";
-    protected static final String USER_ADMIN_ROLE = "USER_ADMIN";
-    protected static final String ALERTS_ADMIN_ROLE = "ALERTS_ADMIN";
-    protected static final String OPS_ADMIN_ROLE = "OPS_ADMIN";
-
-
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /**
+     * Client signed in as the Super Administrator the stack configures.
+     *
+     * <p>The session is opened through a real NAP handshake, the only way into the
+     * admin API, using the helper the integration suite signs in with.
+     */
     protected AdminE2EClient adminApiClient() {
-        return new AdminE2EClient(adminApiBaseUrl(), ADMIN_TOKEN, OBJECT_MAPPER);
+        return new AdminE2EClient(
+            adminApiBaseUrl(),
+            NapTestHandshake.sessionCookie(adminApiBaseUrl(), NapTestHandshake.SUPER_ADMIN_PRIVATE_KEY),
+            OBJECT_MAPPER);
     }
 
     protected MintE2EClient mintApiClient() {

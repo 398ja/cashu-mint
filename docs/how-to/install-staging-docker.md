@@ -56,7 +56,7 @@ PHOENIXD_SERVICE=phoenixd
 # Secrets
 PHOENIXD_API_KEY=<your-staging-phoenixd-api-key>
 PHOENIXD_API_TOKEN=<your-staging-phoenixd-api-token>
-CASHU_MINT_ADMIN_API_TOKEN=<random-admin-token>
+CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB=<npub of the Super Administrator>
 EOF
 ```
 
@@ -95,8 +95,7 @@ curl http://<staging-host>:${CASHU_MINT_PORT:-7777}/v1/info
 - Verify admin API readiness:
 
 ```bash
-curl -H "Authorization: Bearer ${CASHU_MINT_ADMIN_API_TOKEN}" \
-  http://<staging-host>:${CASHU_MINT_ADMIN_PORT:-7778}/actuator/health/readiness
+curl http://<staging-host>:${CASHU_MINT_ADMIN_PORT:-7778}/actuator/health/readiness
 ```
 
 ## Stop the stack

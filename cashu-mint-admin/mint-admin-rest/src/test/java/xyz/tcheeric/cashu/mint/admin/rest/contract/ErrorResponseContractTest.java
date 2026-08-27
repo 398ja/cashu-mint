@@ -1,8 +1,10 @@
 package xyz.tcheeric.cashu.mint.admin.rest.contract;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -13,7 +15,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -33,18 +36,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class,
     AdminUserService.class, AdminOperationsService.class})
 @TestPropertySource(properties = {
-    "admin.security.api-token=test-token",
     // Own database per class: a shared in-memory store leaks operators between
     // classes, and the bootstrap credential is inert once any operator exists.
     "spring.datasource.url=jdbc:h2:mem:ErrorResponseContractTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
 class ErrorResponseContractTest {
 
-    private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "99999999-9999-9999-9999-999999999999";
 
     @Autowired
     private MockMvc mockMvc;
+
+    // NapSessionFilter clears only the context it set itself, so a seated session
+    // would otherwise leak onto the next test sharing this thread.
+    @AfterEach
+    void clearSession() {
+        SecurityContextHolder.clearContext();
+    }
 
     // Verifies unauthenticated requests return 401 with a JSON error body.
     @Test
@@ -54,7 +62,7 @@ class ErrorResponseContractTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("unauthorized"));
+                .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     // Verifies forbidden requests return standard error format with status, error, code, message fields.
@@ -76,7 +84,7 @@ class ErrorResponseContractTest {
     @DisplayName("Pausing non-existent mint returns standard error with mint_not_found")
     void notFoundLifecyclePauseReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID + "/pause")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -95,7 +103,7 @@ class ErrorResponseContractTest {
     @DisplayName("Operations schedule returns consistent response structure")
     void operationsScheduleReturnsConsistentStructure() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

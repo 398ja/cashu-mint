@@ -12,6 +12,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.audit.AuditEventResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminAuditQueryService;
@@ -20,7 +24,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminAuditQueryService;
  * Unified audit timeline endpoint sourced from audit_events table.
  */
 @Tag(name = "Admin Audit", description = "Audit timeline for the admin web interface")
-@SecurityRequirement(name = "AdminToken")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.AUDIT_READ)
 @RestController
 @RequestMapping("/admin/audit")
 public class AuditAdminController {

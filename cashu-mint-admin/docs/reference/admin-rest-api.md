@@ -3,8 +3,10 @@
 This document describes the administrative HTTP endpoints exposed by the admin module (`mint-admin-rest`). Endpoints are not versioned and are rooted at `/admin` (no `/v1` prefix).
 
 ## Authentication and Roles
-- Required headers: `X-Admin-Token` and `X-Admin-Roles`.
-- Default dev token: `local-dev-token` (override with the `ADMIN_API_TOKEN` environment variable).
+- Required: a `cashu_admin_session` cookie from a NAP handshake.
+- Obtain one with `POST /api/v1/auth/init` then `POST /api/v1/auth/complete`.
+- The Super Administrator's npub is configured as `ADMIN_SUPER_ADMIN_NPUB`; every other
+  Operator needs a profile carrying their npub.
 - Example roles: `MINT_ADMIN`, `USER_ADMIN`, `ALERTS_ADMIN`.
 - OpenAPI docs are served at `/v3/api-docs` by the admin service.
 
@@ -17,8 +19,7 @@ Provision a new mint instance (role: `MINT_ADMIN`). Returns a lifecycle action r
 POST /admin/lifecycle/mints HTTP/1.1
 Host: example.com
 Content-Type: application/json
-X-Admin-Token: local-dev-token
-X-Admin-Roles: MINT_ADMIN
+Cookie: cashu_admin_session=<session>
 {
   "mintId": "mint-001",
   "metadata": {"displayName": "Primary", "description": "Prod mint"},
@@ -87,9 +88,6 @@ Update operator account details.
 
 ### `POST /admin/users/{userId}/roles`
 Assign roles to an operator account.
-
-### `POST /admin/users/{userId}/reset-credentials`
-Trigger a credential reset workflow for an operator (role: `USER_ADMIN`). Returns a reset token.
 
 ### `POST /admin/users/{userId}/deactivate`
 Deactivate an operator account.

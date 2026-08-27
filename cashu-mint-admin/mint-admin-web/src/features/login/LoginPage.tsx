@@ -1,86 +1,43 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { Shield } from "lucide-react";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const expired = searchParams.get("expired") === "true";
 
-  const [token, setToken] = useState("");
-  const [error, setError] = useState<string | null>(
-    expired ? "Session expired. Please log in again." : null,
-  );
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const ok = await login(token);
-      if (ok) {
-        navigate("/dashboard", { replace: true });
-      } else {
-        setError("Authentication failed. Check your token.");
-      }
-    } catch {
-      setError("Connection failed. Is the backend running?");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // A session may already be open -- the cookie outlives this page.
+  useEffect(() => {
+    refresh().then((ok) => {
+      if (ok) navigate("/dashboard", { replace: true });
+    });
+  }, [refresh, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
           <Shield className="h-8 w-8 text-zinc-400" />
-          <h1 className="text-2xl font-bold text-zinc-100">
-            Cashu Mint Admin
-          </h1>
+          <h1 className="text-2xl font-bold text-zinc-100">Cashu Mint Admin</h1>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4"
-        >
-          {error && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4">
+          {expired && (
             <div className="rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-              {error}
+              Session expired. Please sign in again.
             </div>
           )}
-
-          <div>
-            <label
-              htmlFor="token"
-              className="block text-sm font-medium text-zinc-300 mb-1"
-            >
-              Admin Token
-            </label>
-            <input
-              id="token"
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-              autoFocus
-              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
-              placeholder="Enter your admin token"
-            />
-          </div>
-
-
-          <button
-            type="submit"
-            disabled={!token || loading}
-            className="w-full rounded bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Authenticating..." : "Sign In"}
-          </button>
-        </form>
+          <p className="text-sm text-zinc-300">
+            Sign in with your Nostr key.
+          </p>
+          <p className="text-sm text-zinc-500">
+            The signing flow is not wired into this page yet; the API accepts a
+            NAP handshake today.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -20,6 +20,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.operations.MaintenanceRequest;
@@ -30,8 +34,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
  * REST endpoints for operational control workflows such as maintenance windows and key rotation.
  */
 @Tag(name = "Admin Operations", description = "Operational controls for mint instances")
-@SecurityRequirement(name = "AdminToken")
-@SecurityRequirement(name = "AdminRoles")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.OPERATIONS_EXECUTE)
 @RestController
 @RequestMapping("/admin/operations")
 public class OperationsAdminController {

@@ -311,7 +311,10 @@ services:
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
       DATASOURCE_DRIVER: org.postgresql.Driver
-      ADMIN_API_TOKEN: ${CASHU_MINT_ADMIN_API_TOKEN:-local-dev-token}
+      # Operators sign in with a NAP handshake; this npub is the Super Administrator.
+      ADMIN_SUPER_ADMIN_NPUB: ${CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB:-}
+      # Handshake proofs name this audience, so it must be the URL operators reach.
+      ADMIN_EXTERNAL_BASE_URL: ${CASHU_MINT_ADMIN_EXTERNAL_BASE_URL:-http://localhost:7778}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
     depends_on:

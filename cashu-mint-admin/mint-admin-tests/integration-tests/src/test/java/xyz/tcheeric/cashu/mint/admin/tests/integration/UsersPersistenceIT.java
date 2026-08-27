@@ -14,6 +14,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import xyz.tcheeric.cashu.mint.admin.tests.integration.infrastructure.AbstractAdminIntegrationIT;
+import xyz.tcheeric.cashu.mint.admin.tests.nap.NapTestHandshake;
 
 @Sql(scripts = "classpath:sql/truncate_admin_tables.sql", executionPhase = ExecutionPhase.BEFORE_TEST_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -22,19 +23,19 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
 
     private static final String USER_ID = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb";
 
-    // Verifies create/update/reset/deactivate user actions persist in admin_users with role replacement semantics.
+    // Verifies create/update/deactivate user actions persist in admin_users with role replacement semantics.
     @Test
     @Order(1)
-    void shouldPersistUserLifecycleAndCredentials() {
+    void shouldPersistUserLifecycle() {
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/users",
             Map.of(
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN")),
-            rootCredential(),
-            null);
+                "roles", java.util.List.of("ADMIN"),
+                "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey())),
+            superAdminSession());
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
         final ResponseEntity<JsonNode> updated = adminApiClient().put(
@@ -43,26 +44,13 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "displayName", "Alice Updated",
                 "email", "alice.updated@example.com",
                 "roles", java.util.List.of("VIEWER")),
-            rootCredential(),
-            null);
+            superAdminSession());
         assertThat(updated.getStatusCode().value()).isEqualTo(200);
-
-        final ResponseEntity<JsonNode> reset = adminApiClient().post(
-            "/admin/users/" + USER_ID + "/reset-credentials",
-            Map.of("reason", "rotation"),
-            rootCredential(),
-            null);
-        assertThat(reset.getStatusCode().value()).isEqualTo(200);
-        // The issued credential must be random, not derivable from the account id.
-        assertThat(reset.getBody().path("resetToken").asText())
-            .isNotBlank()
-            .doesNotContain(USER_ID);
 
         final ResponseEntity<JsonNode> deactivated = adminApiClient().post(
             "/admin/users/" + USER_ID + "/deactivate",
             Map.of("reason", "offboard"),
-            rootCredential(),
-            null);
+            superAdminSession());
         assertThat(deactivated.getStatusCode().value()).isEqualTo(200);
         assertThat(deactivated.getBody().path("active").asBoolean()).isFalse();
 
@@ -74,14 +62,8 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             "SELECT active FROM admin_users WHERE user_id = ?",
             Boolean.class,
             USER_ID);
-        final Integer resetCount = jdbcTemplate.queryForObject(
-            "SELECT reset_count FROM admin_users WHERE user_id = ?",
-            Integer.class,
-            USER_ID);
         assertThat(roles).contains("VIEWER");
         assertThat(active).isFalse();
-        // Creation issues the operator's first credential, the explicit reset its second.
-        assertThat(resetCount).isEqualTo(2);
 
         final ResponseEntity<JsonNode> duplicate = adminApiClient().post(
             "/admin/users",
@@ -89,27 +71,24 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN")),
-            rootCredential(),
-            null);
+                "roles", java.util.List.of("ADMIN"),
+                "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey())),
+            superAdminSession());
         assertThat(duplicate.getStatusCode().value()).isEqualTo(409);
         assertThat(duplicate.getBody().path("code").asText()).isEqualTo("user_exists");
     }
 
-    // Confirms user data survives a Spring context restart and reset token sequence continues.
+    // Confirms user data survives a Spring context restart.
     @Test
     @Order(2)
     void shouldRetainUserStateAcrossContextRestart() {
-        final ResponseEntity<JsonNode> reset = adminApiClient().post(
-            "/admin/users/" + USER_ID + "/reset-credentials",
-            Map.of("reason", "second rotation"),
-            rootCredential(),
-            null);
+        final ResponseEntity<JsonNode> reloaded = adminApiClient().get(
+            "/admin/users/" + USER_ID,
+            superAdminSession());
 
-        assertThat(reset.getStatusCode().value()).isEqualTo(200);
-        assertThat(reset.getBody().path("resetToken").asText())
-            .isNotBlank()
-            .doesNotContain(USER_ID);
+        assertThat(reloaded.getStatusCode().value()).isEqualTo(200);
+        assertThat(reloaded.getBody().path("roles").toString()).contains("VIEWER");
+        assertThat(reloaded.getBody().path("active").asBoolean()).isFalse();
     }
 
     // Ensures unknown user operations map to the API not-found contract.
@@ -120,8 +99,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> response = adminApiClient().post(
             "/admin/users/" + unknownUserId + "/deactivate",
             Map.of("reason", "missing"),
-            rootCredential(),
-            null);
+            superAdminSession());
 
         assertThat(response.getStatusCode().value()).isEqualTo(404);
         assertThat(response.getBody().path("code").asText()).isEqualTo("user_not_found");

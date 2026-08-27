@@ -1,12 +1,15 @@
 # REST API reference
 
-The admin REST API runs on port 7778 by default. All endpoints except `/admin/auth/me` require the `X-Admin-Token` header.
+The admin REST API runs on port 7778 by default. Every `/admin` endpoint requires a
+`cashu_admin_session` cookie from a NAP handshake, and the permission its controller names.
 
-## Authentication — `/admin/auth`
+## Authentication — `/api/v1/auth`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/auth/me` | Returns caller identity and roles (public) |
+| `POST` | `/api/v1/auth/init` | Start a handshake for an npub; returns a challenge |
+| `POST` | `/api/v1/auth/complete` | Answer the challenge with a NIP-98 proof; sets the session cookie |
+| `GET` | `/api/v1/auth/session` | Returns the caller's roles and permissions |
 
 ## Dashboard — `/admin/dashboard`
 
@@ -44,7 +47,6 @@ The admin REST API runs on port 7778 by default. All endpoints except `/admin/au
 | `POST` | `/admin/users` | Create an operator |
 | `PUT` | `/admin/users/{userId}` | Update an operator |
 | `POST` | `/admin/users/{userId}/roles` | Assign roles |
-| `POST` | `/admin/users/{userId}/reset-credentials` | Reset credentials |
 | `POST` | `/admin/users/{userId}/deactivate` | Deactivate an operator |
 
 ## Alerts — `/admin/alerts`
@@ -94,7 +96,7 @@ Standard error responses use HTTP status codes:
 | Status | Meaning |
 |--------|---------|
 | 400 | Validation error (see response body for details) |
-| 401 | Missing or invalid `X-Admin-Token` |
+| 401 | No session, or an expired one |
 | 404 | Resource not found |
 | 409 | Conflict (duplicate resource or revision conflict) |
 | 500 | Internal server error |
