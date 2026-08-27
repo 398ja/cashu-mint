@@ -14,19 +14,18 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    // Off since #375, when the app started importing the vendored NAP packages.
+    // They ship raw TypeScript, so they compile under these options, and four
+    // spots in nap-core/src/codec.ts do not survive this one. Patching them is
+    // not on the table (vendor/VENDORED.md), and building them to .d.ts would
+    // put generated artifacts in a tree whose whole sync story is a directory
+    // swap. The cost is index access in src no longer widening to undefined.
+    "noUncheckedIndexedAccess": false,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src"],
-  // The vendored NAP packages ship raw TypeScript and are typechecked upstream
-  // under their own, looser options. The resolution test is the only file in
-  // src that imports them, so excluding it keeps them out of this program —
-  // otherwise the app's stricter options (noUncheckedIndexedAccess) land on
-  // code we do not own and must not patch. See vendor/VENDORED.md. Vitest does
-  // not read this exclude, so the test still runs.
-  "exclude": ["src/vendorResolution.test.ts"]
+  "include": ["src"]
 }

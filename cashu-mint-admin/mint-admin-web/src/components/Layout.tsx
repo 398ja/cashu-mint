@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Layout() {
-  const { hasRole, roles, logout } = useAuth();
+  const { hasRole, roles, npub, logout } = useAuth();
   const navigate = useNavigate();
 
   const visibleItems = NAV_ITEMS.filter(
@@ -79,6 +79,14 @@ export function Layout() {
         </div>
 
         <div className="border-t border-zinc-800 p-3">
+          {npub && (
+            <div
+              className="text-xs text-zinc-300 mb-1 px-1 truncate"
+              title={npub}
+            >
+              {npub}
+            </div>
+          )}
           <div className="text-xs text-zinc-500 mb-2 px-1">
             {roles.join(", ")}
           </div>
