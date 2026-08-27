@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-08-28
+
 ### Changed
 
 - **BREAKING** The admin API is reachable only with a NAP session. The shared
@@ -21,6 +23,10 @@ All notable changes to the Cashu Mint will be documented in this file.
   through a real handshake behind one helper, so nothing authenticates in tests
   that could not authenticate in production. Nothing is migrated and no fallback
   is kept — no deployment exists to migrate. (#373)
+
+- Admin audit entries name the Operator who acted, taken from the authenticated
+  session rather than from a request field. A caller could previously attribute
+  their own action to anyone. (#370)
 
 ### Added
 
@@ -40,7 +46,31 @@ All notable changes to the Cashu Mint will be documented in this file.
   `HttpOnly`, `SameSite=Lax`, production-`Secure` `cashu_admin_session` cookie.
   On by default (`NAP_ENABLED`), and since #373 the only way in. (#372)
 
+- The Super Administrator can provision, re-role, suspend and reinstate Operators
+  through `/admin/users`. Suspension rather than deletion: an Operator named in the
+  Audit Trail has to stay resolvable, so the row survives with `active = false` and
+  the resolver refuses them on their next request. SUPER_ADMIN cannot be assigned
+  through the API and the configured Super Administrator cannot be modified through
+  it, so the account that recovers the deployment cannot be edited out of existence
+  by someone who may edit roles. Every change writes an `operator_access_audit` row
+  in the same transaction as the change itself. (#374)
+- Operators sign in to the admin UI with a NIP-07 browser extension, or with a key
+  encrypted in the browser under a passphrase for machines with no extension. The
+  in-browser key is held only for the session; a reload asks for the passphrase
+  again rather than keeping a decrypted key at rest. (#375, #376)
+- An Operator management page: the listing names each Operator by npub, shows the
+  configured Super Administrator marked as configuration-anchored rather than
+  editable, and offers suspend / reinstate with a reason. The page is gated on the
+  `users:manage` permission rather than a role, so the Super Administrator — who
+  holds every permission and no page's role — reaches the pages they exist for. (#378)
+- ADR 0008 records why authorisation is resolved by the admin rather than delegated
+  to NAP's `AclStore`, and a how-to covers configuring the super-admin npub, the two
+  startup failures, and enrolling the first Administrator. (#379)
+
 ### Fixed
+
+- Dropped a readiness alert that could never fire: it tested an expression no
+  exporter in the stack publishes, so it read as coverage while watching nothing.
 
 - The mint could not boot with `cashu.mint.jpa.enabled=true`. `byte-buddy` was
   pinned to `test` scope in the parent `dependencyManagement`, which overrides
