@@ -54,7 +54,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         final String credential = OperatorCredentials.issue();
         final OperatorAccessAccount record = new OperatorAccessAccount(
             request.targetAccountId(), request.displayName(), request.email(),
-            Set.copyOf(request.roles()), true, 1, OperatorCredentials.hash(credential), Instant.now());
+            Set.copyOf(request.roles()), true, 1, OperatorCredentials.hash(credential), Instant.now(), null);
         final boolean created = operatorAccessRepository.create(record);
         if (!created) {
             throw new IllegalStateException("operator already exists: " + request.targetAccountId());
@@ -80,7 +80,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.active(),
             record.credentialResetCount(),
             record.credentialHash(),
-            record.lastResetAt());
+            record.lastResetAt(),
+            record.pubkey());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User updated", null);
     }
@@ -96,7 +97,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             false,
             record.credentialResetCount(),
             record.credentialHash(),
-            record.lastResetAt());
+            record.lastResetAt(),
+            record.pubkey());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "User deactivated", null);
     }
@@ -115,7 +117,8 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.active(),
             resetCount,
             OperatorCredentials.hash(credential),
-            Instant.now());
+            Instant.now(),
+            record.pubkey());
         operatorAccessRepository.update(updated);
         return buildResponse(updated, request.versionTag(), "Credential issued", credential);
     }

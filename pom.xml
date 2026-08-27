@@ -54,6 +54,8 @@
         <cashu-voucher.version>0.10.0</cashu-voucher.version>
         <!-- cashu-ledger trace producer SDK (spec 036) -->
         <cashu-ledger.version>0.3.0</cashu-ledger.version>
+        <!-- NAP: Nostr authentication for the admin API (issue #372) -->
+        <nap-java.version>0.6.1</nap-java.version>
 
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.10</spring-boot.version>
@@ -136,6 +138,23 @@
                 <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- NAP Java (issue #372) -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nap-spring</artifactId>
+                <version>${nap-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nap-jdbc</artifactId>
+                <version>${nap-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>nap-client</artifactId>
+                <version>${nap-java.version}</version>
             </dependency>
 
             <!-- cashu-ledger trace producer SDK (spec 036) -->

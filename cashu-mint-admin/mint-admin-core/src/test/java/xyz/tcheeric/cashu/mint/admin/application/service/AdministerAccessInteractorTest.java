@@ -140,6 +140,13 @@ class AdministerAccessInteractorTest {
         }
 
         @Override
+        public Optional<OperatorAccessAccount> findByPubkey(final String pubkey) {
+            return accounts.values().stream()
+                .filter(a -> pubkey != null && pubkey.equals(a.pubkey()))
+                .findFirst();
+        }
+
+        @Override
         public Optional<OperatorAccessAccount> findByCredentialHash(final String credentialHash) {
             return accounts.values().stream()
                 .filter(account -> credentialHash != null && credentialHash.equals(account.credentialHash()))

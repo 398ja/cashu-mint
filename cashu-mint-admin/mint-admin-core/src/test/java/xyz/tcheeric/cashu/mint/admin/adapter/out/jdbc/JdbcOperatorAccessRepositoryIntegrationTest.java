@@ -32,6 +32,7 @@ class JdbcOperatorAccessRepositoryIntegrationTest {
             true,
             0,
             null,
+            null,
             null);
 
         final boolean created = repository.create(account);
@@ -54,6 +55,7 @@ class JdbcOperatorAccessRepositoryIntegrationTest {
             true,
             0,
             null,
+            null,
             null);
         repository.create(account);
 
@@ -65,7 +67,8 @@ class JdbcOperatorAccessRepositoryIntegrationTest {
             false,
             1,
             "user-002-reset-1",
-            Instant.parse("2026-02-15T00:30:00Z"));
+            Instant.parse("2026-02-15T00:30:00Z"),
+            null);
         repository.update(updated);
 
         final OperatorAccessAccount reloaded = repository.findById("user-002").orElseThrow();
@@ -73,5 +76,38 @@ class JdbcOperatorAccessRepositoryIntegrationTest {
         assertThat(reloaded.active()).isFalse();
         assertThat(reloaded.credentialResetCount()).isEqualTo(1);
         assertThat(reloaded.credentialHash()).isNotNull();
+    }
+
+    // Verifies an operator is found by the Nostr public key NAP reports -- whatever
+    // case it was stored in -- and that an operator without one is not reachable by
+    // a blank key.
+    @Test
+    void shouldFindOperatorByPubkey() {
+        final String pubkey = "e8b487c079b0f67c695ae6c4c2552a47f38adfa2533cc5926bd2c102942fdcb7";
+        repository.create(new OperatorAccessAccount(
+            "user-003",
+            "Carol Ops",
+            "carol@example.com",
+            Set.of("MINT_ADMIN"),
+            true,
+            0,
+            null,
+            null,
+            pubkey.toUpperCase()));
+        repository.create(new OperatorAccessAccount(
+            "user-004",
+            "Dave Ops",
+            "dave@example.com",
+            Set.of("MINT_ADMIN"),
+            true,
+            0,
+            null,
+            null,
+            null));
+
+        assertThat(repository.findByPubkey(pubkey).orElseThrow().accountId()).isEqualTo("user-003");
+        assertThat(repository.findByPubkey(pubkey.toUpperCase()).orElseThrow().accountId()).isEqualTo("user-003");
+        assertThat(repository.findByPubkey(null)).isEmpty();
+        assertThat(repository.findByPubkey(" ")).isEmpty();
     }
 }

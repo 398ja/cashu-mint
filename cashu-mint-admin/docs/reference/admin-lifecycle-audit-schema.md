@@ -20,7 +20,7 @@ Indexes:
 - `idx_outbox_published_created_at` on (`published`, `created_at`)
 
 Migrations:
-- Flyway defaults: `classpath:db/migration/admin/{postgres|h2}` per Spring profile
+- Flyway defaults: `classpath:db/migration-admin/{postgres|h2}` per Spring profile
 - Baseline/validate strategies configured per environment
 
 See the application configuration for profile-specific migration locations and Flyway/Liquibase settings.

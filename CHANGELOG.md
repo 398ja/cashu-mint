@@ -4,6 +4,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Operators can authenticate to the admin API with their Nostr key (NAP), alongside
+  the existing token. A completed NIP-98 handshake yields a session whose role and
+  permissions come from one `AclResolver`: the configured Super Administrator npub
+  (read from the environment as bech32, compared as hex, never looked up) first,
+  otherwise the Operator profile. An npub with no profile, or a suspended one, is
+  refused — authenticating grants no default role. Startup fails when the
+  super-admin npub is missing or does not decode. Role and permission names are
+  declared in `mint-admin-core`, which has no NAP dependency; NAP's own `AclStore`
+  is unused, since it cannot list, update or delete and so cannot express Operator
+  management. NAP's migrations run unmodified in a `nap` schema with their own
+  history table; the admin's moved to `db/migration-admin` so the recursive scan
+  cannot pick them up. Operator profiles gained a nullable `pubkey` column.
+  Sessions are 15 minutes idle / 12 hours absolute with refresh tokens off, on an
+  `HttpOnly`, `SameSite=Lax`, production-`Secure` `cashu_admin_session` cookie.
+  Off by default (`NAP_ENABLED`); the token path is untouched. (#372)
+
 ### Fixed
 
 - The mint could not boot with `cashu.mint.jpa.enabled=true`. `byte-buddy` was

@@ -33,8 +33,9 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 reset_count,
                 credential_hash,
                 reset_requested_at,
-                updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                updated_at,
+                pubkey)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     private static final String UPDATE_SQL =
@@ -47,7 +48,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                 reset_count = ?,
                 credential_hash = ?,
                 reset_requested_at = ?,
-                updated_at = ?
+                updated_at = ?,
+                pubkey = ?
             WHERE user_id = ?
         """;
 
@@ -60,7 +62,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    active,
                    reset_count,
                    credential_hash,
-                   reset_requested_at
+                   reset_requested_at,
+                   pubkey
             FROM admin_users
             WHERE user_id = ?
         """;
@@ -74,9 +77,25 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    active,
                    reset_count,
                    credential_hash,
-                   reset_requested_at
+                   reset_requested_at,
+                   pubkey
             FROM admin_users
             WHERE credential_hash = ?
+        """;
+
+    private static final String SELECT_BY_PUBKEY_SQL =
+        """
+            SELECT user_id,
+                   display_name,
+                   email,
+                   roles,
+                   active,
+                   reset_count,
+                   credential_hash,
+                   reset_requested_at,
+                   pubkey
+            FROM admin_users
+            WHERE pubkey = ?
         """;
 
     private static final TypeReference<Set<String>> ROLE_TYPE = new TypeReference<>() { };
@@ -98,7 +117,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
                    active,
                    reset_count,
                    credential_hash,
-                   reset_requested_at
+                   reset_requested_at,
+                   pubkey
             FROM admin_users
             ORDER BY display_name
         """;
@@ -171,6 +191,25 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
     }
 
     @Override
+    public Optional<OperatorAccessAccount> findByPubkey(final String pubkey) {
+        if (pubkey == null || pubkey.isBlank()) {
+            return Optional.empty();
+        }
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_BY_PUBKEY_SQL)) {
+            statement.setString(1, pubkey.toLowerCase());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (final SQLException | IOException ex) {
+            throw new JdbcRepositoryException("Failed to load admin user by pubkey", ex);
+        }
+    }
+
+    @Override
     public void update(final OperatorAccessAccount account) {
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(UPDATE_SQL)) {
@@ -199,6 +238,7 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
             statement.setTimestamp(8, Timestamp.from(account.lastResetAt()));
         }
         statement.setTimestamp(9, Timestamp.from(Instant.now()));
+        statement.setString(10, account.pubkey());
     }
 
     private void bindForUpdate(final PreparedStatement statement, final OperatorAccessAccount account)
@@ -215,7 +255,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
             statement.setTimestamp(7, Timestamp.from(account.lastResetAt()));
         }
         statement.setTimestamp(8, Timestamp.from(Instant.now()));
-        statement.setString(9, account.accountId());
+        statement.setString(9, account.pubkey());
+        statement.setString(10, account.accountId());
     }
 
     private OperatorAccessAccount mapRow(final ResultSet resultSet) throws SQLException, IOException {
@@ -229,7 +270,8 @@ public class JdbcOperatorAccessRepository implements OperatorAccessRepository {
             resultSet.getBoolean("active"),
             resultSet.getInt("reset_count"),
             resultSet.getString("credential_hash"),
-            resetAt != null ? resetAt.toInstant() : null);
+            resetAt != null ? resetAt.toInstant() : null,
+            resultSet.getString("pubkey"));
     }
 
     private boolean isUniqueViolation(final SQLException ex) {

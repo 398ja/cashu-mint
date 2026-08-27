@@ -296,12 +296,12 @@ class ManageMintLifecycleEndToEndTest {
     }
 
     private static String readSchemaScript() throws IOException {
-        final String v1 = readMigration("/db/migration/admin/V1__create_admin_schema.sql");
-        final String v2 = readMigration("/db/migration/admin/V2__link_audit_events.sql");
-        final String v3 = readMigration("/db/migration/admin/V3__extend_audit_metadata.sql");
-        final String v4 = readMigration("/db/migration/admin/V4__create_mint_lifecycle_history.sql");
-        final String v5 = readMigration("/db/migration/admin/V5__create_mint_lifecycle_approval_states.sql");
-        final String v6 = readMigration("/db/migration/admin/V6__extend_lifecycle_audit_linkage.sql");
+        final String v1 = readMigration("/db/migration-admin/V1__create_admin_schema.sql");
+        final String v2 = readMigration("/db/migration-admin/V2__link_audit_events.sql");
+        final String v3 = readMigration("/db/migration-admin/V3__extend_audit_metadata.sql");
+        final String v4 = readMigration("/db/migration-admin/V4__create_mint_lifecycle_history.sql");
+        final String v5 = readMigration("/db/migration-admin/V5__create_mint_lifecycle_approval_states.sql");
+        final String v6 = readMigration("/db/migration-admin/V6__extend_lifecycle_audit_linkage.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");

@@ -47,21 +47,22 @@ final class H2TestDataSourceFactory {
     // Every migration must be listed here, in order. A missing entry gives tests a
     // stale schema that differs from production.
     private static String readSchemaScript() throws IOException {
-        final String v1 = readMigration("/db/migration/admin/V1__create_admin_schema.sql");
-        final String v2 = readMigration("/db/migration/admin/V2__link_audit_events.sql");
-        final String v3 = readMigration("/db/migration/admin/V3__extend_audit_metadata.sql");
-        final String v4 = readMigration("/db/migration/admin/V4__create_mint_lifecycle_history.sql");
-        final String v5 = readMigration("/db/migration/admin/V5__create_mint_lifecycle_approval_states.sql");
-        final String v6 = readMigration("/db/migration/admin/V6__extend_lifecycle_audit_linkage.sql");
-        final String v7 = readMigration("/db/migration/admin/V7__create_admin_user_accounts.sql");
-        final String v8 = readMigration("/db/migration/admin/V8__create_alerts_and_alert_escalations.sql");
-        final String v9 = readMigration("/db/migration/admin/V9__create_mint_health_snapshots.sql");
-        final String v10 = readMigration("/db/migration/admin/V10__create_operational_controls.sql");
-        final String v11 = readMigration("/db/migration/admin/V11__drop_health_and_alert_tables.sql");
-        final String v12 = readMigration("/db/migration/admin/V12__operator_credential_hash.sql");
-        final String v13 = readMigration("/db/migration/admin/V13__operational_control_outcome.sql");
+        final String v1 = readMigration("/db/migration-admin/V1__create_admin_schema.sql");
+        final String v2 = readMigration("/db/migration-admin/V2__link_audit_events.sql");
+        final String v3 = readMigration("/db/migration-admin/V3__extend_audit_metadata.sql");
+        final String v4 = readMigration("/db/migration-admin/V4__create_mint_lifecycle_history.sql");
+        final String v5 = readMigration("/db/migration-admin/V5__create_mint_lifecycle_approval_states.sql");
+        final String v6 = readMigration("/db/migration-admin/V6__extend_lifecycle_audit_linkage.sql");
+        final String v7 = readMigration("/db/migration-admin/V7__create_admin_user_accounts.sql");
+        final String v8 = readMigration("/db/migration-admin/V8__create_alerts_and_alert_escalations.sql");
+        final String v9 = readMigration("/db/migration-admin/V9__create_mint_health_snapshots.sql");
+        final String v10 = readMigration("/db/migration-admin/V10__create_operational_controls.sql");
+        final String v11 = readMigration("/db/migration-admin/V11__drop_health_and_alert_tables.sql");
+        final String v12 = readMigration("/db/migration-admin/V12__operator_credential_hash.sql");
+        final String v13 = readMigration("/db/migration-admin/V13__operational_control_outcome.sql");
+        final String v14 = readMigration("/db/migration-admin/V14__operator_pubkey.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6
-            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12 + "\n" + v13)
+            + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12 + "\n" + v13 + "\n" + v14)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }

@@ -50,6 +50,14 @@ public interface OperatorAccessRepository {
     Optional<OperatorAccessAccount> findByCredentialHash(String credentialHash);
 
     /**
+     * Look up an operator by their Nostr public key.
+     *
+     * @param pubkey lower-case hex public key, as NAP reports it
+     * @return the matching account when one exists
+     */
+    Optional<OperatorAccessAccount> findByPubkey(String pubkey);
+
+    /**
      * Immutable representation of a persisted operator account.
      */
     record OperatorAccessAccount(String accountId,
@@ -59,12 +67,16 @@ public interface OperatorAccessRepository {
                                  boolean active,
                                  int credentialResetCount,
                                  String credentialHash,
-                                 Instant lastResetAt) {
+                                 Instant lastResetAt,
+                                 String pubkey) {
 
         public OperatorAccessAccount {
             Objects.requireNonNull(accountId, "account id must not be null");
             Objects.requireNonNull(roles, "roles must not be null");
             roles = Set.copyOf(roles);
+            // NAP reports the pubkey as lower-case hex, and lookups compare on it,
+            // so an upper-case key stored here would be one nobody could sign in with.
+            pubkey = pubkey == null ? null : pubkey.toLowerCase();
         }
     }
 }
