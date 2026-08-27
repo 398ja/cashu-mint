@@ -49,6 +49,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
+- [Architecture decision records](adr/) - The decisions behind the current design, newest last.
 
 ## Runbooks
 

@@ -28,6 +28,7 @@ export function UserListPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<string>("");
   const [pending, setPending] = useState<UserResponse | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["users", { q: search, active: activeFilter, page }],
@@ -52,8 +53,15 @@ export function UserListPage() {
         : reinstateUser(user.userId, { reason }),
     onSuccess: () => {
       setPending(null);
+      setRefusal(null);
       reload();
     },
+    // The API refuses some of what the page offers -- the Super Administrator
+    // most of all. Left unsaid, the dialog just sits there having done nothing.
+    onError: (e) =>
+      setRefusal(
+        (e as ApiRequestError).message ?? "The change was refused.",
+      ),
   });
 
   const columns: Column<UserResponse>[] = [
@@ -183,12 +191,18 @@ export function UserListPage() {
 
       <ConfirmDialog
         open={pending !== null}
-        onOpenChange={(open) => !open && setPending(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPending(null);
+            setRefusal(null);
+          }
+        }}
         title={pending?.active ? "Suspend Operator" : "Reinstate Operator"}
         description={
-          pending?.active
-            ? `${pending?.displayName} loses access to the admin as soon as this is confirmed.`
-            : `${pending?.displayName} regains the access their roles carry.`
+          refusal ??
+          (pending?.active
+            ? `${pending.displayName} loses access to the admin as soon as this is confirmed.`
+            : `${pending?.displayName} regains the access their roles carry.`)
         }
         confirmLabel={pending?.active ? "Suspend" : "Reinstate"}
         destructive={pending?.active}

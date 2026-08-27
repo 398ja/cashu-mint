@@ -47,11 +47,39 @@ async function mockListing(page: import("@playwright/test").Page, users = USERS)
   await mockApiResponse(page, "**/admin/users", pagedResponse(users));
 }
 
+/**
+ * A listing that answers with the Operator's new state once `changed()` is true,
+ * so the refetch after a lifecycle call sees what the server would have stored.
+ */
+async function mockLifecycleListing(
+  page: import("@playwright/test").Page,
+  userId: string,
+  active: boolean,
+  changed: () => boolean,
+) {
+  const respond = (route: import("@playwright/test").Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        pagedResponse(
+          changed()
+            ? USERS.map((u) => (u.userId === userId ? { ...u, active } : u))
+            : USERS,
+        ),
+      ),
+    });
+  await page.route("**/admin/users?**", respond);
+  await page.route("**/admin/users", respond);
+}
+
 test.describe("Operator Management", () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page, ["SUPER_ADMIN"]);
   });
 
+  // An account id identifies nobody: the listing has to name Operators by
+  // something a person can recognise, and say whether they still have access.
   test("lists each Operator by name, identity and status", async ({ page }) => {
     await mockListing(page);
 
@@ -67,6 +95,8 @@ test.describe("Operator Management", () => {
     );
   });
 
+  // The API refuses to suspend the Super Administrator, so offering the control
+  // would only ever produce a 403 the Operator could not have predicted.
   test("marks the Super Administrator anchored, with no lifecycle control", async ({
     page,
   }) => {
@@ -80,6 +110,7 @@ test.describe("Operator Management", () => {
     ).toHaveCount(0);
   });
 
+  // A mistyped key should be answered in the form, not as a 400 from the create call.
   test("refuses a mistyped npub in the browser", async ({ page }) => {
     await mockListing(page);
 
@@ -91,6 +122,7 @@ test.describe("Operator Management", () => {
     await expect(page.getByRole("alert")).toContainText("not a valid npub");
   });
 
+  // Enrolment is the whole point of the page: name plus npub, and they appear.
   test("adds an Operator and shows them in the list", async ({ page }) => {
     const added = {
       ...USERS[1],
@@ -129,6 +161,8 @@ test.describe("Operator Management", () => {
     await expect(page.getByText("Carol Operator")).toBeVisible();
   });
 
+  // Suspension is not undoable by accident, so it asks first -- and the row it
+  // changed has to show the change without a reload.
   test("suspends an Operator after confirmation, updating status in place", async ({
     page,
   }) => {
@@ -141,22 +175,7 @@ test.describe("Operator Management", () => {
         body: JSON.stringify({ ...USERS[1], active: false }),
       });
     });
-    const listing = (route: import("@playwright/test").Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(
-          pagedResponse(
-            suspended
-              ? USERS.map((u) =>
-                  u.userId === "user-1" ? { ...u, active: false } : u,
-                )
-              : USERS,
-          ),
-        ),
-      });
-    await page.route("**/admin/users?**", listing);
-    await page.route("**/admin/users", listing);
+    await mockLifecycleListing(page, "user-1", false, () => suspended);
 
     await page.goto("/users");
     const alice = page.locator("tr", { hasText: "Alice Admin" });
@@ -169,6 +188,8 @@ test.describe("Operator Management", () => {
     await expect(alice.getByText("Suspended")).toBeVisible();
   });
 
+  // Suspension keeps the row rather than deleting it, so reinstatement is a
+  // control on the same listing rather than a second enrolment.
   test("reinstates a suspended Operator from the same page", async ({
     page,
   }) => {
@@ -181,22 +202,7 @@ test.describe("Operator Management", () => {
         body: JSON.stringify({ ...USERS[2], active: true }),
       });
     });
-    const listing = (route: import("@playwright/test").Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(
-          pagedResponse(
-            reinstated
-              ? USERS.map((u) =>
-                  u.userId === "user-2" ? { ...u, active: true } : u,
-                )
-              : USERS,
-          ),
-        ),
-      });
-    await page.route("**/admin/users?**", listing);
-    await page.route("**/admin/users", listing);
+    await mockLifecycleListing(page, "user-2", true, () => reinstated);
 
     await page.goto("/users");
     const bob = page.locator("tr", { hasText: "Bob Operator" });
@@ -209,6 +215,8 @@ test.describe("Operator Management", () => {
     await expect(bob.getByText("Active")).toBeVisible();
   });
 
+  // Operators bring their own Nostr key: there is no secret for the admin to
+  // show, reset, or offer once. A control implying otherwise would be a lie.
   test("shows no credential affordance anywhere on the page", async ({
     page,
   }) => {
@@ -249,6 +257,7 @@ test.describe("Operator Management, as an Administrator", () => {
     await loginAsAdmin(page, ["MINT_ADMIN"]);
   });
 
+  // Hiding the entry is presentation; refusing the route is the actual gate.
   test("hides the navigation entry and refuses the page directly", async ({
     page,
   }) => {

@@ -51,8 +51,9 @@ Configuration
 Authentication
 - Operators sign in over the NAP handshake with their own Nostr key. There is no
   admin password and no shared token; the Super Administrator is named in
-  configuration as an npub (`admin.security.super-admin-npub`), and the admin
-  refuses to start without a valid one.
+  configuration as an npub (`admin.security.super-admin-npub`, environment
+  `ADMIN_SUPER_ADMIN_NPUB`), and with `nap.enabled=true` the admin refuses to
+  start without a valid one.
 - Setup, enrolment and signer choice: [docs/how-to/configure-nap-admin-authentication.md](docs/how-to/configure-nap-admin-authentication.md).
 - Why the integration resolves authorisation itself: [ADR 0008](../docs/adr/0008-nap-authenticates-operators-the-admin-resolves-authorisation.md).
 

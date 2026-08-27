@@ -16,7 +16,8 @@ admin.security.super-admin-npub=npub1...
 nap.enabled=true
 ```
 
-or, as an environment variable, `ADMIN_SECURITY_SUPER_ADMIN_NPUB`.
+or, as an environment variable, `ADMIN_SUPER_ADMIN_NPUB` (the compose
+stacks pass it through as `CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB`).
 
 Use the npub of a key the operator team can still sign with if every other way
 in is lost — this is the account that recovers the deployment. It holds every
@@ -25,8 +26,8 @@ the Operator listing marked *configuration-anchored*.
 
 ### If it is missing or malformed
 
-The admin **fails to start**. `AdminNapConfiguration#adminAclResolver` throws at
-context refresh:
+With `nap.enabled=true`, the admin **fails to start**.
+`AdminNapConfiguration#adminAclResolver` throws at context refresh:
 
 - unset or blank →
   `admin.security.super-admin-npub is not set. NAP cannot start without a Super
@@ -37,6 +38,10 @@ context refresh:
 Both are startup failures rather than bad requests, on purpose: an admin that
 started with no reachable Super Administrator would accept sign-ins and grant
 nobody anything.
+
+The resolver is conditional on `nap.enabled`, so this check is too: an admin
+started with `nap.enabled=false` has no authentication at all and will not
+complain about a missing npub. Never run a deployment that way.
 
 ## Enrol the first Administrator
 

@@ -30,6 +30,7 @@ describe("isNpub", () => {
     ).toBe(false);
   });
 
+  // Anything that is not bech32 at all fails before the prefix is even read.
   it("rejects gibberish", () => {
     expect(isNpub("alice")).toBe(false);
     expect(isNpub("")).toBe(false);
