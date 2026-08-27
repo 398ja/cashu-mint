@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import { useGranted, type Access } from "@/auth/access";
 import { LockScreen } from "@/auth/LockScreen";
 import {
   LayoutDashboard,
@@ -14,8 +15,7 @@ interface NavItem {
   label: string;
   to: string;
   icon: React.ReactNode;
-  role?: string;
-  permission?: string;
+  access?: Access;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -28,13 +28,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Mints",
     to: "/mints",
     icon: <Server className="h-4 w-4" />,
-    role: "MINT_ADMIN",
+    access: { role: "MINT_ADMIN" },
   },
   {
     label: "Users",
     to: "/users",
     icon: <Users className="h-4 w-4" />,
-    permission: "users:manage",
+    access: { permission: "users:manage" },
   },
   {
     label: "Audit Log",
@@ -44,14 +44,11 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Layout() {
-  const { hasRole, hasPermission, roles, npub, locked, logout } = useAuth();
+  const { roles, npub, locked, logout } = useAuth();
+  const granted = useGranted();
   const navigate = useNavigate();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) =>
-      (!item.role || hasRole(item.role)) &&
-      (!item.permission || hasPermission(item.permission)),
-  );
+  const visibleItems = NAV_ITEMS.filter((item) => granted(item.access));
 
   return (
     <div className="flex h-screen">

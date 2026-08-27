@@ -3,6 +3,8 @@ package xyz.tcheeric.cashu.mint.admin.rest.nap;
 import nostr.crypto.bech32.Bech32;
 import nostr.crypto.bech32.Bech32Prefix;
 
+import java.util.Objects;
+
 /**
  * Converts between the {@code npub} form Operators are given and the lower-case hex NAP reports.
  *
@@ -44,10 +46,14 @@ public final class Npubs {
     /**
      * The lower-case hex key NAP reports, as the npub an Operator recognises.
      *
-     * @param pubkeyHex 64 hex characters, or null
-     * @return the {@code npub1...} form, or null when there is no key
+     * <p>Every Operator has a key -- {@code admin_users.pubkey} is NOT NULL since V15 --
+     * so a null here is a bug upstream, not an Operator without an npub.
+     *
+     * @param pubkeyHex 64 hex characters
+     * @return the {@code npub1...} form
      */
     public static String toNpub(final String pubkeyHex) {
-        return pubkeyHex == null ? null : Bech32.toBech32(Bech32Prefix.NPUB, pubkeyHex);
+        return Bech32.toBech32(Bech32Prefix.NPUB,
+            Objects.requireNonNull(pubkeyHex, "pubkey must not be null"));
     }
 }

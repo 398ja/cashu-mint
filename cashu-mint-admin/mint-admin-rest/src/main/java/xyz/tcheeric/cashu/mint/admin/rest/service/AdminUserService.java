@@ -130,7 +130,7 @@ public class AdminUserService {
                     AccessCommand.PROVISION, DEFAULT_VERSION_TAG, request.displayName(),
                     request.email(), Set.copyOf(request.roles()),
                     Npubs.toPubkeyHex(request.npub()), null));
-            return toUserResponse(response);
+            return toUserResponse(response.targetAccountId(), response.message());
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
@@ -167,7 +167,8 @@ public class AdminUserService {
     private UserResponse administer(final String userId, final AdministerAccessRequest request) {
         requireNotSuperAdmin(userId);
         try {
-            return toUserResponse(accessUseCase.handle(request));
+            final AdministerAccessResponse response = accessUseCase.handle(request);
+            return toUserResponse(response.targetAccountId(), response.message());
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
@@ -187,17 +188,21 @@ public class AdminUserService {
         }
     }
 
+    /**
+     * The stored account as the caller sees it. The use case answers about the change
+     * rather than the profile, so a mutation re-reads the account it just wrote: one
+     * answer shape for the listing and for every write, npub included.
+     */
+    private UserResponse toUserResponse(final String accountId, final String message) {
+        return toUserResponse(operatorRepository.findById(accountId)
+            .orElseThrow(() -> new AdminServiceException(
+                HttpStatus.NOT_FOUND, "user_not_found", "User not found: " + accountId)), message);
+    }
+
     private UserResponse toUserResponse(final OperatorAccessAccount account, final String message) {
         return new UserResponse(account.accountId(), Npubs.toNpub(account.pubkey()),
             account.displayName(), account.email(),
             account.roles(), account.active(), message, isSuperAdmin(account));
-    }
-
-    private static UserResponse toUserResponse(final AdministerAccessResponse response) {
-        // The use case answers about the change, not the profile: the npub travels on the
-        // listing the caller reloads, so it is not restated here.
-        return new UserResponse(response.targetAccountId(), null, response.displayName(),
-            response.email(), response.roles(), response.active(), response.message(), false);
     }
 
     private static AdminServiceException mapDomainException(final IllegalStateException e) {

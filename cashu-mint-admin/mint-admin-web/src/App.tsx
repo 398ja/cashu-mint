@@ -7,7 +7,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/useAuth";
-import { RequireRole } from "@/auth/RequireRole";
+import { RequireAccess } from "@/auth/RequireAccess";
 import { Layout } from "@/components/Layout";
 import { LoginPage } from "@/features/login/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
@@ -55,49 +55,49 @@ export function App() {
               <Route
                 path="/mints"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess role="MINT_ADMIN">
                     <MintListPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/create"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess role="MINT_ADMIN">
                     <CreateMintPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/:mintId"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess role="MINT_ADMIN">
                     <MintDetailPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/:mintId/operations"
                 element={
-                  <RequireRole role="OPS_ADMIN">
+                  <RequireAccess role="OPS_ADMIN">
                     <OperationsPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/users"
                 element={
-                  <RequireRole permission="users:manage">
+                  <RequireAccess permission="users:manage">
                     <UserListPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/users/:userId"
                 element={
-                  <RequireRole permission="users:manage">
+                  <RequireAccess permission="users:manage">
                     <UserDetailPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route path="/audit" element={<AuditTimelinePage />} />

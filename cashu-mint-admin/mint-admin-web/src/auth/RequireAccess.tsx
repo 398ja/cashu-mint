@@ -1,19 +1,15 @@
 import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
+import { useGranted, type Access } from "./access";
 
-interface RequireRoleProps {
-  /** Gate on a role. Mutually exclusive with `permission`. */
-  role?: string;
-  /** Gate on a permission, for a page more than one role may reach. */
-  permission?: string;
-  children: ReactNode;
-}
+type RequireAccessProps = Access & { children: ReactNode };
 
-export function RequireRole({ role, permission, children }: RequireRoleProps) {
-  const { hasRole, hasPermission, roles } = useAuth();
-  const granted = permission ? hasPermission(permission) : hasRole(role ?? "");
+export function RequireAccess(props: RequireAccessProps) {
+  const { roles } = useAuth();
+  const granted = useGranted();
 
-  if (!granted) {
+  if (!granted(props)) {
+    const needed = props.permission ?? props.role;
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-8 text-center max-w-md">
@@ -22,10 +18,8 @@ export function RequireRole({ role, permission, children }: RequireRoleProps) {
           </h2>
           <p className="text-sm text-zinc-400">
             This page requires the{" "}
-            <span className="font-mono text-amber-400">
-              {permission ?? role}
-            </span>{" "}
-            {permission ? "permission" : "role"}.
+            <span className="font-mono text-amber-400">{needed}</span>{" "}
+            {props.permission !== undefined ? "permission" : "role"}.
           </p>
           <p className="text-sm text-zinc-500 mt-2">
             Your current roles:{" "}
@@ -44,6 +38,5 @@ export function RequireRole({ role, permission, children }: RequireRoleProps) {
       </div>
     );
   }
-
-  return <>{children}</>;
+  return <>{props.children}</>;
 }

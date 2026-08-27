@@ -49,6 +49,9 @@ export async function loginAsAdmin(
  * What each role carries, mirroring AdminRole in mint-admin-core. The server
  * resolves permissions from roles, so a fixture that skipped them would sign in
  * an Operator the real one never issues.
+ *
+ * A copy of server knowledge, so AdminRoleWebFixtureContractTest reads this literal
+ * and fails the build when the two disagree.
  */
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   SUPER_ADMIN: [
