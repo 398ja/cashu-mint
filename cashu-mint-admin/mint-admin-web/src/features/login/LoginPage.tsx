@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { AuthRequestError, Nip07Error, createNip07Signer } from "@imani/nap-client-web";
 import { useNip07 } from "@imani/nap-react";
 import { useAuth } from "@/auth/useAuth";
+import { KeySignIn } from "./KeySignIn";
 import { Shield } from "lucide-react";
 
 /**
@@ -115,6 +116,14 @@ export function LoginPage() {
               {signingIn ? "Signing in..." : "Sign in with extension"}
             </button>
           )}
+
+          <div className="flex items-center gap-3 pt-1">
+            <span className="h-px flex-1 bg-zinc-800" />
+            <span className="text-xs text-zinc-600">or use a key in this browser</span>
+            <span className="h-px flex-1 bg-zinc-800" />
+          </div>
+
+          <KeySignIn onSignedIn={() => navigate("/dashboard", { replace: true })} />
         </div>
       </div>
     </div>

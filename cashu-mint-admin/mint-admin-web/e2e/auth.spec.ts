@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { TEST_NPUB, installSigner, loginAsAdmin, mockApiResponse } from "./fixtures/auth";
+import {
+  TEST_NPUB,
+  TEST_NSEC,
+  installSigner,
+  loginAsAdmin,
+  mockApiResponse,
+  mockAuthRoutes,
+} from "./fixtures/auth";
 
 test.describe("Authentication", () => {
   test("shows login page when not authenticated", async ({ page }) => {
@@ -127,5 +134,50 @@ test.describe("Authentication", () => {
     await loginAsAdmin(page, ["MINT_ADMIN"]);
     await page.goto("/users");
     await expect(page.getByText(/access denied|not authorized/i)).toBeVisible();
+  });
+
+  test("enrols an encrypted key and signs in with it again after a reload", async ({
+    page,
+  }) => {
+    // No extension in this browser: the key in the page is the only signer.
+    await mockAuthRoutes(page, ["MINT_ADMIN"], { resume: false });
+    await mockApiResponse(page, "**/admin/dashboard/summary", {
+      mintsByState: {},
+      alertsBySeverity: {},
+      activeControls: 0,
+    });
+    await mockApiResponse(page, "**/admin/audit/events**", {
+      items: [],
+      page: 0,
+      size: 5,
+      totalItems: 0,
+      totalPages: 0,
+    });
+
+    await page.goto("/login");
+    await page.getByLabel(/private key/i).fill(TEST_NSEC);
+    await page.getByLabel(/passphrase/i).fill("correct horse battery");
+    await page.getByRole("button", { name: /encrypt key and sign in/i }).click();
+
+    await expect(page).toHaveURL(/dashboard/);
+    // The identity the mint reports is the enrolled key's own npub.
+    await expect(page.getByTitle(TEST_NPUB)).toBeVisible();
+
+    // A reload drops the in-memory session; the encrypted key stays behind, so
+    // the Operator is asked for a passphrase rather than for a key again.
+    await page.reload();
+    await expect(page).toHaveURL(/login/);
+    await expect(page.getByLabel(/private key/i)).toHaveCount(0);
+
+    await page.getByLabel(/passphrase/i).fill("wrong passphrase");
+    await page.getByRole("button", { name: /sign in with stored key/i }).click();
+    await expect(page.getByRole("alert")).toContainText(/unchanged/i);
+    await expect(page).toHaveURL(/login/);
+
+    // The failed attempt left the record readable, so the right passphrase works.
+    await page.getByLabel(/passphrase/i).fill("correct horse battery");
+    await page.getByRole("button", { name: /sign in with stored key/i }).click();
+    await expect(page).toHaveURL(/dashboard/);
+    await expect(page.getByTitle(TEST_NPUB)).toBeVisible();
   });
 });

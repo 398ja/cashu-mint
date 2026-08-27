@@ -7,7 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import { createNapSession } from "@imani/nap-client-web";
-import type { NapSession, SessionSigner } from "@imani/nap-client-web";
+import type { KeyStore, NapSession, SessionSigner } from "@imani/nap-client-web";
+import { IDLE_LOCK_MS } from "@/auth/keySigner";
 import { fetchAuthMe } from "@/api/auth";
 
 export interface AuthState {
@@ -15,10 +16,13 @@ export interface AuthState {
   npub: string | null;
   authenticated: boolean;
   loading: boolean;
+  /** The signing key was evicted after an idle spell; the cookie is still good. */
+  locked: boolean;
 }
 
 export interface AuthContextValue extends AuthState {
-  signIn: (signer: SessionSigner) => Promise<void>;
+  signIn: (signer: SessionSigner, keyStore?: KeyStore) => Promise<void>;
+  unlock: (passphrase: string) => Promise<void>;
   refresh: () => Promise<boolean>;
   logout: () => void;
   hasRole: (role: string) => boolean;
@@ -29,6 +33,7 @@ const SIGNED_OUT: AuthState = {
   npub: null,
   authenticated: false,
   loading: false,
+  locked: false,
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       npub: me.npub,
       authenticated: me.authenticated,
       loading: false,
+      locked: false,
     });
     return me.authenticated;
   }, []);
@@ -57,8 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Whoever built the signer decides what kind it is; this only runs the
   // handshake with it. Errors propagate: the login page is what knows how to
   // word a refusal, and a failed sign-in must not look like a signed-in state.
-  const signIn = useCallback(async (signer: SessionSigner) => {
-    const session = createNapSession({ baseUrl: "/api/v1", signer });
+  const signIn = useCallback(async (signer: SessionSigner, keyStore?: KeyStore) => {
+    // The idle lock is armed only for a signer that keeps a key in this page.
+    // An extension or a remote signer holds its own key and evicting nothing
+    // would prompt for a passphrase that unlocks nothing.
+    const session = createNapSession({
+      baseUrl: "/api/v1",
+      signer,
+      ...(keyStore
+        ? { keyStore, autoLock: { enabled: true, timeoutMs: IDLE_LOCK_MS } }
+        : {}),
+      onLock: () => setState((s) => ({ ...s, locked: true })),
+    });
     await session.login();
     sessionRef.current = session;
     const current = session.getSession();
@@ -67,7 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       npub: current?.npub ?? null,
       authenticated: true,
       loading: false,
+      locked: false,
     });
+  }, []);
+
+  // Only the key was evicted, so putting it back is the whole of the recovery --
+  // no second handshake, and a wrong passphrase leaves the stored key untouched.
+  const unlock = useCallback(async (passphrase: string) => {
+    const session = sessionRef.current;
+    if (!session) {
+      throw new Error("no session to unlock");
+    }
+    await session.reunlock(passphrase);
+    setState((s) => ({ ...s, locked: false }));
   }, []);
 
   // The cookie is the credential, so clearing local state alone leaves the operator
@@ -93,7 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, refresh, logout, hasRole }}>
+    <AuthContext.Provider
+      value={{ ...state, signIn, unlock, refresh, logout, hasRole }}
+    >
       {children}
     </AuthContext.Provider>
   );

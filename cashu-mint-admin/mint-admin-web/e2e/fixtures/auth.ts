@@ -5,6 +5,9 @@ export const TEST_PUBKEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 export const TEST_NPUB =
   "npub10xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpkge6d";
+/** The same Operator's private key, for the in-browser key sign-in. */
+export const TEST_NSEC =
+  "nsec1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsmhltgl";
 
 /**
  * Inject a NIP-07 provider. The page builds its signer from `window.nostr`, so
@@ -35,7 +38,18 @@ export async function loginAsAdmin(
   options: { resume?: boolean } = {},
 ) {
   await installSigner(page);
+  await mockAuthRoutes(page, roles, options);
+}
 
+/**
+ * A NAP server that accepts the test Operator, with no signer in the page --
+ * for the sign-in kinds that bring their own key rather than an extension.
+ */
+export async function mockAuthRoutes(
+  page: Page,
+  roles: string[] = ["MINT_ADMIN", "USER_ADMIN", "ALERTS_ADMIN", "OPS_ADMIN"],
+  options: { resume?: boolean } = {},
+) {
   const principal = { npub: TEST_NPUB, pubkey: TEST_PUBKEY };
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
   const json = (body: unknown) => ({

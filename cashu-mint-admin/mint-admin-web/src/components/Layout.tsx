@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import { LockScreen } from "@/auth/LockScreen";
 import {
   LayoutDashboard,
   Server,
@@ -42,7 +43,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Layout() {
-  const { hasRole, roles, npub, logout } = useAuth();
+  const { hasRole, roles, npub, locked, logout } = useAuth();
   const navigate = useNavigate();
 
   const visibleItems = NAV_ITEMS.filter(
@@ -51,6 +52,7 @@ export function Layout() {
 
   return (
     <div className="flex h-screen">
+      {locked && <LockScreen />}
       <nav className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-900/50 flex flex-col">
         <div className="flex items-center gap-2 px-4 py-4 border-b border-zinc-800">
           <Shield className="h-5 w-5 text-zinc-400" />
