@@ -3,11 +3,9 @@ package xyz.tcheeric.cashu.mint.admin.rest.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -24,6 +22,7 @@ import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
@@ -47,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:LifecycleAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class LifecycleAdminControllerTest {
 
     private static final String MINT_ID_1 = "11111111-1111-1111-1111-111111111111";
@@ -55,13 +55,6 @@ class LifecycleAdminControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    // NapSessionFilter clears only the context it set itself, so a seated session
-    // would otherwise leak onto the next test sharing this thread.
-    @AfterEach
-    void clearSession() {
-        SecurityContextHolder.clearContext();
-    }
 
     @Autowired
     private MintRepository mintRepository;

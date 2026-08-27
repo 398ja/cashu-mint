@@ -15,3 +15,11 @@ ALTER TABLE admin_users DROP COLUMN reset_requested_at;
 DELETE FROM admin_users WHERE pubkey IS NULL;
 
 ALTER TABLE admin_users ALTER COLUMN pubkey SET NOT NULL;
+
+-- NOT NULL alone would still admit '' or a truncated key, and a row like that is an
+-- account nobody can sign in as that nonetheless holds roles. Uniqueness already comes
+-- from V14's idx_admin_users_pubkey — this pins the shape.
+DELETE FROM admin_users WHERE NOT REGEXP_LIKE(pubkey, '^[0-9a-f]{64}$');
+
+ALTER TABLE admin_users ADD CONSTRAINT ck_admin_users_pubkey_hex
+    CHECK (REGEXP_LIKE(pubkey, '^[0-9a-f]{64}$'));

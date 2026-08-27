@@ -207,7 +207,7 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
             "userId", UUID.randomUUID().toString(),
             "displayName", "Alice",
             "email", "alice@example.com",
-            "roles", List.of("ADMIN"),
+            "roles", List.of("USER_ADMIN"),
             "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey()));
     }
 

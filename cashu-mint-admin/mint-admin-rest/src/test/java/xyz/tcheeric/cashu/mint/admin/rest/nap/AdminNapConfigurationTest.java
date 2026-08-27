@@ -23,7 +23,7 @@ class AdminNapConfigurationTest {
     @Test
     @DisplayName("A missing super-admin npub fails startup")
     void missingNpubFailsStartup() {
-        assertThatThrownBy(() -> configuration.adminAclResolver("  ", operators))
+        assertThatThrownBy(() -> configuration.adminAclResolver(new AdminSecurityProperties("  "), operators))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("admin.security.super-admin-npub is not set");
     }
@@ -32,7 +32,7 @@ class AdminNapConfigurationTest {
     @Test
     @DisplayName("An undecodable super-admin npub fails startup")
     void undecodableNpubFailsStartup() {
-        assertThatThrownBy(() -> configuration.adminAclResolver("npub1nonsense", operators))
+        assertThatThrownBy(() -> configuration.adminAclResolver(new AdminSecurityProperties("npub1nonsense"), operators))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("not a valid npub");
     }
@@ -41,7 +41,7 @@ class AdminNapConfigurationTest {
     @Test
     @DisplayName("A valid npub builds the resolver without querying operators")
     void validNpubBuildsResolver() {
-        assertThat(configuration.adminAclResolver(VALID_NPUB, operators)).isNotNull();
+        assertThat(configuration.adminAclResolver(new AdminSecurityProperties(VALID_NPUB), operators)).isNotNull();
         Mockito.verifyNoInteractions(operators);
     }
 }

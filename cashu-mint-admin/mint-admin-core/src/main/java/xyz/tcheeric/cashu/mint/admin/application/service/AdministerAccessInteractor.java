@@ -30,7 +30,7 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             throw new IllegalArgumentException("access command must not be null");
         }
         validateVersionTag(validated.versionTag());
-        rejectSuperAdminRole(validated.roles());
+        validateRoles(validated.roles());
 
         return switch (validated.command()) {
             case PROVISION -> provision(validated);
@@ -40,15 +40,26 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
     }
 
     /**
-     * The Super Administrator is named in configuration and resolved from it, so granting
-     * the role here would write an entitlement nothing honours -- or, worse, one that a
-     * future reader honours, letting any operator who may write roles outrank the account
-     * that recovers the deployment.
+     * Roles are a closed vocabulary, so a string outside it is refused rather than stored.
+     * {@code AdminAclResolver} grants nothing for a role it does not recognise, so persisting
+     * one writes an entitlement that looks granted and is not.
+     *
+     * <p>SUPER_ADMIN is refused for the opposite reason: it is named in configuration and
+     * resolved from there, so writing it here would hand any operator who may edit roles a
+     * path past the account that recovers the deployment.
      */
-    private static void rejectSuperAdminRole(final Set<String> roles) {
-        if (roles != null && roles.stream().anyMatch(AdminRole.SUPER_ADMIN.key()::equalsIgnoreCase)) {
-            throw new IllegalArgumentException(
-                "SUPER_ADMIN is configured, not assigned: it cannot be granted through the admin API");
+    private static void validateRoles(final Set<String> roles) {
+        if (roles == null) {
+            return;
+        }
+        for (final String role : roles) {
+            if (AdminRole.SUPER_ADMIN.key().equalsIgnoreCase(role)) {
+                throw new IllegalArgumentException(
+                    "SUPER_ADMIN is configured, not assigned: it cannot be granted through the admin API");
+            }
+            if (AdminRole.fromKey(role).isEmpty()) {
+                throw new IllegalArgumentException("unknown role: " + role);
+            }
         }
     }
 

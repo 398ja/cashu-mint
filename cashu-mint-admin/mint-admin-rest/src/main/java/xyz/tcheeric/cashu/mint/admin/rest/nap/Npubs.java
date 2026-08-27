@@ -23,9 +23,14 @@ public final class Npubs {
      * @throws IllegalArgumentException when the value is not a decodable npub
      */
     public static String toPubkeyHex(final String npub) {
+        // bech32 is defined as all-lower or all-upper, and the decoder only takes lower, so
+        // an npub copied out of an upper-cased QR code is normalised rather than refused.
+        final String normalised = npub == null ? null
+            : npub.equals(npub.toUpperCase()) ? npub.toLowerCase() : npub;
         final String hex;
         try {
-            hex = npub != null && npub.startsWith("npub1") ? Bech32.fromBech32(npub) : null;
+            // Bech32.fromBech32 declares `throws Exception`, so there is no narrower catch.
+            hex = normalised != null && normalised.startsWith("npub1") ? Bech32.fromBech32(normalised) : null;
         } catch (final Exception ex) {
             throw new IllegalArgumentException(NOT_AN_NPUB, ex);
         }

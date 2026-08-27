@@ -93,9 +93,23 @@ class AdministerAccessInteractorTest {
             .hasMessageContaining("SUPER_ADMIN");
     }
 
+    // Checks a role string outside the build's vocabulary is refused rather than stored:
+    // the resolver grants nothing for a role it does not recognise, so persisting one
+    // writes an entitlement that reads as granted and is not.
+    @Test
+    void shouldRejectAnUnknownRole() {
+        interactor.handle(provision(PUBKEY));
+
+        assertThatThrownBy(() -> interactor.handle(new AdministerAccessRequest(OPERATOR_ID, USER_ID,
+            AccessCommand.UPDATE_ROLES, "v1", "Alice", "alice@example.com",
+            Set.of("ANALYST"), null, "typo")))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("ANALYST");
+    }
+
     private static AdministerAccessRequest provision(final String pubkey) {
         return new AdministerAccessRequest(OPERATOR_ID, USER_ID, AccessCommand.PROVISION, "v1",
-            "Alice", "alice@example.com", Set.of("ADMIN"), pubkey, null);
+            "Alice", "alice@example.com", Set.of("MINT_ADMIN"), pubkey, null);
     }
 
     private static final class InMemoryOperatorAccessRepository implements OperatorAccessRepository {

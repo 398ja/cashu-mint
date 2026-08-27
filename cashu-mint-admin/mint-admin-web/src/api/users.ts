@@ -24,16 +24,6 @@ export function getUser(userId: string): Promise<UserResponse> {
   return apiGet(`/admin/users/${encodeURIComponent(userId)}`);
 }
 
-export function createUser(body: {
-  userId: string;
-  displayName: string;
-  email: string;
-  roles: string[];
-  npub: string;
-}): Promise<UserResponse> {
-  return apiPost("/admin/users", body);
-}
-
 export function updateUser(
   userId: string,
   body: {

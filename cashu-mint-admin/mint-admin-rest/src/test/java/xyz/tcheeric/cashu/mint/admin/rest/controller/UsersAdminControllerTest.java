@@ -1,10 +1,8 @@
 package xyz.tcheeric.cashu.mint.admin.rest.controller;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -16,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -33,19 +32,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     // Own database per class: a shared in-memory store leaks operators between classes.
     "spring.datasource.url=jdbc:h2:mem:UsersAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class UsersAdminControllerTest {
 
     private static final String USER_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
     @Autowired
     private MockMvc mockMvc;
-
-    // NapSessionFilter clears only the context it set itself, so a seated session
-    // would otherwise leak onto the next test sharing this thread.
-    @AfterEach
-    void clearSession() {
-        SecurityContextHolder.clearContext();
-    }
 
     // Checks that creating a user without authentication is rejected.
     @Test
@@ -88,7 +81,7 @@ class UsersAdminControllerTest {
                                 {
                                   "displayName": "Alice Ops",
                                   "email": "alice@example.com",
-                                  "roles": ["admin", "viewer"]
+                                  "roles": ["USER_ADMIN", "OPS_ADMIN"]
                                 }
                                 """))
                 .andExpect(status().isOk())

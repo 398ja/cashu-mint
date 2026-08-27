@@ -1,10 +1,8 @@
 package xyz.tcheeric.cashu.mint.admin.rest.controller;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -16,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
@@ -33,19 +32,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:OperationsAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class OperationsAdminControllerTest {
 
     private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
 
     @Autowired
     private MockMvc mockMvc;
-
-    // NapSessionFilter clears only the context it set itself, so a seated session
-    // would otherwise leak onto the next test sharing this thread.
-    @AfterEach
-    void clearSession() {
-        SecurityContextHolder.clearContext();
-    }
 
     // Checks that scheduling maintenance requires authentication.
     @Test

@@ -33,7 +33,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN"),
+                "roles", java.util.List.of("USER_ADMIN"),
                 "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey())),
             superAdminSession());
         assertThat(created.getStatusCode().value()).isEqualTo(200);
@@ -43,7 +43,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             Map.of(
                 "displayName", "Alice Updated",
                 "email", "alice.updated@example.com",
-                "roles", java.util.List.of("VIEWER")),
+                "roles", java.util.List.of("OPS_ADMIN")),
             superAdminSession());
         assertThat(updated.getStatusCode().value()).isEqualTo(200);
 
@@ -62,7 +62,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             "SELECT active FROM admin_users WHERE user_id = ?",
             Boolean.class,
             USER_ID);
-        assertThat(roles).contains("VIEWER");
+        assertThat(roles).contains("OPS_ADMIN");
         assertThat(active).isFalse();
 
         final ResponseEntity<JsonNode> duplicate = adminApiClient().post(
@@ -71,7 +71,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
                 "userId", USER_ID,
                 "displayName", "Alice",
                 "email", "alice@example.com",
-                "roles", java.util.List.of("ADMIN"),
+                "roles", java.util.List.of("USER_ADMIN"),
                 "npub", NapTestHandshake.npub(NapTestHandshake.randomPrivateKey())),
             superAdminSession());
         assertThat(duplicate.getStatusCode().value()).isEqualTo(409);
@@ -87,7 +87,7 @@ class UsersPersistenceIT extends AbstractAdminIntegrationIT {
             superAdminSession());
 
         assertThat(reloaded.getStatusCode().value()).isEqualTo(200);
-        assertThat(reloaded.getBody().path("roles").toString()).contains("VIEWER");
+        assertThat(reloaded.getBody().path("roles").toString()).contains("OPS_ADMIN");
         assertThat(reloaded.getBody().path("active").asBoolean()).isFalse();
     }
 

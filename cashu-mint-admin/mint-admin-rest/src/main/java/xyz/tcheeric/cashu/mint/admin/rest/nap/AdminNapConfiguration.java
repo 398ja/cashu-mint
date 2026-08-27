@@ -9,19 +9,18 @@ import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
-import xyz.tcheeric.cashu.mint.admin.rest.service.AdminServiceException;
 import xyz.tcheeric.nap.core.ChallengeStore;
 import xyz.tcheeric.nap.core.SessionStore;
 import xyz.tcheeric.nap.jdbc.JdbcChallengeStore;
@@ -31,12 +30,9 @@ import xyz.tcheeric.nap.server.acl.PermissionDefinition;
 import xyz.tcheeric.nap.server.acl.PermissionRegistry;
 import xyz.tcheeric.nap.server.acl.RoleDefinition;
 import xyz.tcheeric.nap.spring.config.NapProperties;
-import xyz.tcheeric.nap.spring.filter.NapPermissionInterceptor;
 import xyz.tcheeric.nap.spring.filter.NapServletFilter;
 import xyz.tcheeric.nap.spring.filter.NapSessionFilter;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 import javax.sql.DataSource;
 import java.time.Duration;
@@ -53,6 +49,7 @@ import java.util.stream.Collectors;
 @Configuration
 @Import(AdminNapConfiguration.Stores.class)
 @PropertySource("classpath:nap-defaults.properties")
+@EnableConfigurationProperties(AdminSecurityProperties.class)
 @ConditionalOnProperty(prefix = "nap", name = "enabled", havingValue = "true")
 public class AdminNapConfiguration {
 
@@ -61,13 +58,14 @@ public class AdminNapConfiguration {
      * from configuration once, here: it is a fact about the deployment, not about
      * the operator store, so the resolver never queries the database to establish it.
      *
-     * @param npub bech32 npub from {@code admin.security.super-admin-npub}
+     * @param properties the admin identity configuration names rather than stores
      * @param operatorAccessRepository the operator profile store, for everyone else
      * @return the resolver NAP consults on every authenticated request
      */
     @Bean
-    public AclResolver adminAclResolver(@Value("${admin.security.super-admin-npub:}") final String npub,
+    public AclResolver adminAclResolver(final AdminSecurityProperties properties,
                                         final OperatorAccessRepository operatorAccessRepository) {
+        final String npub = properties.superAdminNpub();
         if (npub == null || npub.isBlank()) {
             throw new IllegalStateException("admin.security.super-admin-npub is not set. NAP cannot start without "
                 + "a Super Administrator: no other npub can grant the first operator a role.");
@@ -160,22 +158,7 @@ public class AdminNapConfiguration {
      */
     @Bean
     public HandlerInterceptor napPermissionInterceptor(final PermissionRegistry registry) {
-        final NapPermissionInterceptor delegate = new NapPermissionInterceptor(registry);
-        return new HandlerInterceptor() {
-            @Override
-            public boolean preHandle(final HttpServletRequest request, final HttpServletResponse response,
-                                     final Object handler) throws Exception {
-                if (delegate.preHandle(request, response, handler)) {
-                    return true;
-                }
-                if (response.getStatus() == HttpServletResponse.SC_UNAUTHORIZED) {
-                    throw new AdminServiceException(HttpStatus.UNAUTHORIZED, "unauthorized",
-                        "A valid admin session is required");
-                }
-                throw new AdminServiceException(HttpStatus.FORBIDDEN, "forbidden",
-                    "Your roles do not carry the permission this endpoint requires");
-            }
-        };
+        return new AdminPermissionInterceptor(registry);
     }
 
     /**
