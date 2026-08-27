@@ -15,6 +15,7 @@ interface NavItem {
   to: string;
   icon: React.ReactNode;
   role?: string;
+  permission?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -33,7 +34,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Users",
     to: "/users",
     icon: <Users className="h-4 w-4" />,
-    role: "USER_ADMIN",
+    permission: "users:manage",
   },
   {
     label: "Audit Log",
@@ -43,11 +44,13 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Layout() {
-  const { hasRole, roles, npub, locked, logout } = useAuth();
+  const { hasRole, hasPermission, roles, npub, locked, logout } = useAuth();
   const navigate = useNavigate();
 
   const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.role || hasRole(item.role),
+    (item) =>
+      (!item.role || hasRole(item.role)) &&
+      (!item.permission || hasPermission(item.permission)),
   );
 
   return (

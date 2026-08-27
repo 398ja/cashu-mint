@@ -45,12 +45,36 @@ export async function loginAsAdmin(
  * A NAP server that accepts the test Operator, with no signer in the page --
  * for the sign-in kinds that bring their own key rather than an extension.
  */
+/**
+ * What each role carries, mirroring AdminRole in mint-admin-core. The server
+ * resolves permissions from roles, so a fixture that skipped them would sign in
+ * an Operator the real one never issues.
+ */
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  SUPER_ADMIN: [
+    "mint:lifecycle",
+    "audit:read",
+    "dashboard:read",
+    "users:manage",
+    "operators:manage",
+    "operations:execute",
+  ],
+  MINT_ADMIN: ["mint:lifecycle", "audit:read", "dashboard:read"],
+  USER_ADMIN: ["users:manage", "dashboard:read"],
+  OPS_ADMIN: ["operations:execute", "dashboard:read"],
+};
+
+function permissionsFor(roles: string[]): string[] {
+  return [...new Set(roles.flatMap((r) => ROLE_PERMISSIONS[r] ?? []))];
+}
+
 export async function mockAuthRoutes(
   page: Page,
   roles: string[] = ["MINT_ADMIN", "USER_ADMIN", "ALERTS_ADMIN", "OPS_ADMIN"],
   options: { resume?: boolean } = {},
 ) {
   const principal = { npub: TEST_NPUB, pubkey: TEST_PUBKEY };
+  const permissions = permissionsFor(roles);
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
   const json = (body: unknown) => ({
     status: 200,
@@ -72,7 +96,7 @@ export async function mockAuthRoutes(
   );
   await page.route("**/api/v1/auth/complete", (route) =>
     route.fulfill(
-      json({ status: "ok", principal, roles, permissions: [], expires_at: expiresAt }),
+      json({ status: "ok", principal, roles, permissions, expires_at: expiresAt }),
     ),
   );
   // `resume: false` is the browser arriving with no cookie: the login page then
@@ -81,7 +105,7 @@ export async function mockAuthRoutes(
     options.resume === false
       ? route.fulfill({ status: 401, contentType: "application/json", body: "{}" })
       : route.fulfill(
-          json({ status: "ok", principal, roles, permissions: [], expires_at: expiresAt }),
+          json({ status: "ok", principal, roles, permissions, expires_at: expiresAt }),
         ),
   );
 }

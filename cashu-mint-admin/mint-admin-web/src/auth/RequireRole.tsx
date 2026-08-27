@@ -2,14 +2,18 @@ import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
 
 interface RequireRoleProps {
-  role: string;
+  /** Gate on a role. Mutually exclusive with `permission`. */
+  role?: string;
+  /** Gate on a permission, for a page more than one role may reach. */
+  permission?: string;
   children: ReactNode;
 }
 
-export function RequireRole({ role, children }: RequireRoleProps) {
-  const { hasRole, roles } = useAuth();
+export function RequireRole({ role, permission, children }: RequireRoleProps) {
+  const { hasRole, hasPermission, roles } = useAuth();
+  const granted = permission ? hasPermission(permission) : hasRole(role ?? "");
 
-  if (!hasRole(role)) {
+  if (!granted) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-8 text-center max-w-md">
@@ -18,7 +22,10 @@ export function RequireRole({ role, children }: RequireRoleProps) {
           </h2>
           <p className="text-sm text-zinc-400">
             This page requires the{" "}
-            <span className="font-mono text-amber-400">{role}</span> role.
+            <span className="font-mono text-amber-400">
+              {permission ?? role}
+            </span>{" "}
+            {permission ? "permission" : "role"}.
           </p>
           <p className="text-sm text-zinc-500 mt-2">
             Your current roles:{" "}

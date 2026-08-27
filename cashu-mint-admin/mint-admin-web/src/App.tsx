@@ -87,7 +87,7 @@ export function App() {
               <Route
                 path="/users"
                 element={
-                  <RequireRole role="USER_ADMIN">
+                  <RequireRole permission="users:manage">
                     <UserListPage />
                   </RequireRole>
                 }
@@ -95,7 +95,7 @@ export function App() {
               <Route
                 path="/users/:userId"
                 element={
-                  <RequireRole role="USER_ADMIN">
+                  <RequireRole permission="users:manage">
                     <UserDetailPage />
                   </RequireRole>
                 }

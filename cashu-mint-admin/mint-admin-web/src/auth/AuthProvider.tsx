@@ -13,6 +13,8 @@ import { fetchAuthMe } from "@/api/auth";
 
 export interface AuthState {
   roles: string[];
+  /** The permissions those roles carry, as the server resolved them. */
+  permissions: string[];
   npub: string | null;
   authenticated: boolean;
   loading: boolean;
@@ -26,10 +28,12 @@ export interface AuthContextValue extends AuthState {
   refresh: () => Promise<boolean>;
   logout: () => void;
   hasRole: (role: string) => boolean;
+  hasPermission: (permission: string) => boolean;
 }
 
 const SIGNED_OUT: AuthState = {
   roles: [],
+  permissions: [],
   npub: null,
   authenticated: false,
   loading: false,
@@ -52,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const me = await fetchAuthMe();
     setState({
       roles: me.roles,
+      permissions: me.permissions,
       npub: me.npub,
       authenticated: me.authenticated,
       loading: false,
@@ -80,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = session.getSession();
     setState({
       roles: current?.roles ?? [],
+      permissions: current?.permissions ?? [],
       npub: current?.npub ?? null,
       authenticated: true,
       loading: false,
@@ -116,13 +122,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [state.roles],
   );
 
+  // Roles are what an Operator is; permissions are what they may do. Pages gate on
+  // the permission, so the Super Administrator -- who holds every permission and no
+  // page's role -- is not locked out of the pages they exist to reach.
+  const hasPermission = useCallback(
+    (permission: string) => state.permissions.includes(permission),
+    [state.permissions],
+  );
+
   useEffect(() => {
     refresh().catch(() => setState(SIGNED_OUT));
   }, [refresh]);
 
   return (
     <AuthContext.Provider
-      value={{ ...state, signIn, unlock, refresh, logout, hasRole }}
+      value={{ ...state, signIn, unlock, refresh, logout, hasRole, hasPermission }}
     >
       {children}
     </AuthContext.Provider>

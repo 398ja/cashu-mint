@@ -1,9 +1,10 @@
 package xyz.tcheeric.cashu.mint.admin.rest.nap;
 
 import nostr.crypto.bech32.Bech32;
+import nostr.crypto.bech32.Bech32Prefix;
 
 /**
- * Converts the {@code npub} form Operators are given into the lower-case hex NAP reports.
+ * Converts between the {@code npub} form Operators are given and the lower-case hex NAP reports.
  *
  * <p>Operators are handed an npub and nothing else, while every lookup compares on hex,
  * so the conversion has to happen somewhere; here, once, rather than at each caller.
@@ -38,5 +39,15 @@ public final class Npubs {
             throw new IllegalArgumentException(NOT_AN_NPUB);
         }
         return hex.toLowerCase();
+    }
+
+    /**
+     * The lower-case hex key NAP reports, as the npub an Operator recognises.
+     *
+     * @param pubkeyHex 64 hex characters, or null
+     * @return the {@code npub1...} form, or null when there is no key
+     */
+    public static String toNpub(final String pubkeyHex) {
+        return pubkeyHex == null ? null : Bech32.toBech32(Bech32Prefix.NPUB, pubkeyHex);
     }
 }

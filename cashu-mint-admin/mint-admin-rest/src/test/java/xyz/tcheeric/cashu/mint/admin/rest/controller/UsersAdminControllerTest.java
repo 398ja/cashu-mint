@@ -109,6 +109,24 @@ class UsersAdminControllerTest {
                     .value(AdminRole.SUPER_ADMIN.key()));
     }
 
+    // An Operator is named by the npub they sign in with; the account id is a UUID that
+    // identifies nobody, so a listing without the npub cannot be read by a person.
+    @Test
+    @DisplayName("The listing names each Operator by their npub")
+    void listingCarriesTheOperatorNpub() throws Exception {
+        final String userId = "eeeeeeee-bbbb-cccc-dddd-eeeeeeeeeeee";
+        final String npub = "npub1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyfqrfha0z";
+        mockMvc.perform(post("/admin/users")
+                        .with(TestNapSessions.superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createUserJson(userId, npub)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/admin/users").with(TestNapSessions.superAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.userId == '" + userId + "')].npub").value(npub));
+    }
+
     // Suspending the account that recovers the deployment would lock everybody out, and its
     // entitlement comes from configuration, so a write here could only disagree with it.
     @Test

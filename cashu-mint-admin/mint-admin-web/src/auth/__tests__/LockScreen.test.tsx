@@ -8,6 +8,7 @@ import { LockScreen } from "../LockScreen";
 function renderLocked(unlock: AuthContextValue["unlock"]) {
   const value: AuthContextValue = {
     roles: [],
+    permissions: [],
     npub: null,
     authenticated: true,
     loading: false,
@@ -17,6 +18,7 @@ function renderLocked(unlock: AuthContextValue["unlock"]) {
     refresh: async () => true,
     logout: () => {},
     hasRole: () => true,
+    hasPermission: () => true,
   };
   render(
     <AuthContext.Provider value={value}>

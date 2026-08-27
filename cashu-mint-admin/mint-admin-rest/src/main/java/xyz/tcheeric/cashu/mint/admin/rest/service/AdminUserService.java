@@ -188,12 +188,15 @@ public class AdminUserService {
     }
 
     private UserResponse toUserResponse(final OperatorAccessAccount account, final String message) {
-        return new UserResponse(account.accountId(), account.displayName(), account.email(),
+        return new UserResponse(account.accountId(), Npubs.toNpub(account.pubkey()),
+            account.displayName(), account.email(),
             account.roles(), account.active(), message, isSuperAdmin(account));
     }
 
     private static UserResponse toUserResponse(final AdministerAccessResponse response) {
-        return new UserResponse(response.targetAccountId(), response.displayName(),
+        // The use case answers about the change, not the profile: the npub travels on the
+        // listing the caller reloads, so it is not restated here.
+        return new UserResponse(response.targetAccountId(), null, response.displayName(),
             response.email(), response.roles(), response.active(), response.message(), false);
     }
 

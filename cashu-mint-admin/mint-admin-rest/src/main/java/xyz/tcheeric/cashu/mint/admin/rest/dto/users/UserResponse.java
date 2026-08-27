@@ -10,6 +10,8 @@ import java.util.Set;
 @Schema(description = "Representation of an operator account returned by the administrative API.")
 public record UserResponse(
         @Schema(description = "Identifier of the operator account", example = "alice") String userId,
+        @Schema(description = "Nostr identity of the operator, as an npub",
+                example = "npub10xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpkge6d") String npub,
         @Schema(description = "Display name of the operator", example = "Alice Operations") String displayName,
         @Schema(description = "Email associated with the operator", example = "alice@example.com") String email,
         @Schema(description = "Roles currently assigned to the operator", example = "[\"MINT_ADMIN\", \"USER_ADMIN\"]") Set<String> roles,

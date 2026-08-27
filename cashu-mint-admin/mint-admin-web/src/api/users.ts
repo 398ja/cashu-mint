@@ -3,11 +3,15 @@ import type { PagedResponse } from "./lifecycle";
 
 export interface UserResponse {
   userId: string;
+  /** The Operator's Nostr identity. Absent on the answer to a change, which names none. */
+  npub: string | null;
   displayName: string;
   email: string;
   roles: string[];
   active: boolean;
   message: string | null;
+  /** The Super Administrator, named in configuration: no profile to suspend or remove. */
+  configurationAnchored: boolean;
 }
 
 export function listUsers(params: {
@@ -56,6 +60,25 @@ export function deactivateUser(
 ): Promise<UserResponse> {
   return apiPost(
     `/admin/users/${encodeURIComponent(userId)}/deactivate`,
+    body,
+  );
+}
+
+export function createUser(body: {
+  userId: string;
+  displayName: string;
+  npub: string;
+  roles: string[];
+}): Promise<UserResponse> {
+  return apiPost("/admin/users", body);
+}
+
+export function reinstateUser(
+  userId: string,
+  body: { reason: string },
+): Promise<UserResponse> {
+  return apiPost(
+    `/admin/users/${encodeURIComponent(userId)}/reinstate`,
     body,
   );
 }
