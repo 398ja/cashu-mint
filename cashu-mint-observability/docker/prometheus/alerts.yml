@@ -162,19 +162,14 @@ groups:
           summary: "Sustained voucher rate-limit breaches"
           description: "Voucher rate-limit breaches at {{ $value | printf \"%.2f\" }}/s — the breaching principal is in the mint logs, deliberately not a metric label"
 
-      # Backfill / readiness — if the actuator readiness probe stays
-      # DOWN for an hour, something's wrong with the backfill job.
-      - alert: VoucherBackfillStuck
-        expr: probe_success{job="cashu-mint-readiness"} == 0
-        for: 1h
-        labels:
-          severity: warning
-          spec: '004'
-          route: slack-vouchers-ops
-        annotations:
-          summary: "Voucher identity backfill stuck"
-          description: "/actuator/health/readiness has been DOWN for 1h — backfill may have failed mid-batch"
-          runbook_url: "https://github.com/398ja/cashu-mint/blob/master/specs/004-voucher-data-minimisation/quickstart.md#troubleshooting"
+      # VoucherBackfillStuck was removed here: it matched
+      # probe_success{job="cashu-mint-readiness"}, a series only a blackbox
+      # exporter produces, and no stack in this repo runs one. The job it
+      # named scraped the actuator's readiness endpoint as if it were a
+      # metrics endpoint, so it sat permanently DOWN and emitted `up`, never
+      # `probe_success`. The rule could not fire either way, and a rule that
+      # cannot fire is worse than no rule: it reads as coverage. Restore it
+      # together with a real blackbox-exporter target.
 
   # ---------------------------------------------------------------
   # Issue #344 / ADR 0002 — operational invariants exported as
