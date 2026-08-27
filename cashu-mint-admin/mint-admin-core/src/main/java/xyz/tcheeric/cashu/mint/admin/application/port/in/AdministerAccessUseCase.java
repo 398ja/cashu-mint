@@ -12,7 +12,8 @@ public interface AdministerAccessUseCase {
     enum AccessCommand {
         PROVISION,
         UPDATE_ROLES,
-        REVOKE
+        REVOKE,
+        REINSTATE
     }
 
     record AdministerAccessRequest(String operatorId,

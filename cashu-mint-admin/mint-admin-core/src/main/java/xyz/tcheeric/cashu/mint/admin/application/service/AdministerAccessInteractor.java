@@ -2,10 +2,13 @@ package xyz.tcheeric.cashu.mint.admin.application.service;
 
 import static java.util.Objects.requireNonNull;
 
+import java.time.Clock;
 import java.util.Set;
 
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository.OperatorAccessAuditEntry;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository.OperatorAccessAccount;
 
@@ -16,10 +19,16 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
     implements AdministerAccessUseCase {
 
     private final OperatorAccessRepository operatorAccessRepository;
+    private final OperatorAccessAuditRepository auditRepository;
+    private final Clock clock;
 
-    public AdministerAccessInteractor(final OperatorAccessRepository operatorAccessRepository) {
+    public AdministerAccessInteractor(final OperatorAccessRepository operatorAccessRepository,
+                                      final OperatorAccessAuditRepository auditRepository,
+                                      final Clock clock) {
         this.operatorAccessRepository =
             requireNonNull(operatorAccessRepository, "operator access repository must not be null");
+        this.auditRepository = requireNonNull(auditRepository, "operator access audit repository must not be null");
+        this.clock = requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -32,11 +41,17 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         validateVersionTag(validated.versionTag());
         validateRoles(validated.roles());
 
-        return switch (validated.command()) {
+        final AdministerAccessResponse response = switch (validated.command()) {
             case PROVISION -> provision(validated);
             case UPDATE_ROLES -> updateRoles(validated);
             case REVOKE -> revoke(validated);
+            case REINSTATE -> reinstate(validated);
         };
+        // Recorded after the write, so the trail carries actions that happened rather
+        // than actions that were attempted.
+        auditRepository.record(new OperatorAccessAuditEntry(validated.operatorId(),
+            validated.command().name(), response.targetAccountId(), clock.instant()));
+        return response;
     }
 
     /**
@@ -103,7 +118,22 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
         return buildResponse(updated, request.versionTag(), "User updated");
     }
 
+    /**
+     * Suspends rather than deletes. An Operator named in the Audit Trail has to stay
+     * resolvable, so the row survives with {@code active = false} and the ACL resolver
+     * refuses them — and revokes their live sessions — on their next request.
+     */
     private AdministerAccessResponse revoke(final AdministerAccessRequest request) {
+        return setActive(request, false, "User deactivated");
+    }
+
+    private AdministerAccessResponse reinstate(final AdministerAccessRequest request) {
+        return setActive(request, true, "User reinstated");
+    }
+
+    private AdministerAccessResponse setActive(final AdministerAccessRequest request,
+                                               final boolean active,
+                                               final String message) {
         validateUuid(request.targetAccountId(), "target account id");
         final OperatorAccessAccount record = requireExisting(request.targetAccountId());
         final OperatorAccessAccount updated = new OperatorAccessAccount(
@@ -111,10 +141,10 @@ public class AdministerAccessInteractor extends AbstractUseCaseInteractor
             record.displayName(),
             record.email(),
             record.roles(),
-            false,
+            active,
             record.pubkey());
         operatorAccessRepository.update(updated);
-        return buildResponse(updated, request.versionTag(), "User deactivated");
+        return buildResponse(updated, request.versionTag(), message);
     }
 
     private OperatorAccessAccount requireExisting(final String accountId) {

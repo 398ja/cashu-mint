@@ -14,6 +14,9 @@ public record UserResponse(
         @Schema(description = "Email associated with the operator", example = "alice@example.com") String email,
         @Schema(description = "Roles currently assigned to the operator", example = "[\"MINT_ADMIN\", \"USER_ADMIN\"]") Set<String> roles,
         @Schema(description = "Whether the operator account is active", example = "true") boolean active,
-        @Schema(description = "Message describing the outcome of the request", example = "User updated") String message
+        @Schema(description = "Message describing the outcome of the request", example = "User updated") String message,
+        @Schema(description = "Whether this entry is the Super Administrator named in configuration."
+            + " Such an entry has no stored profile, so it can be neither suspended nor removed.",
+            example = "false") boolean configurationAnchored
 ) {
 }

@@ -47,6 +47,16 @@ public class OperatorIdentity {
         // The Super Administrator is configuration, not a row, so there is no account id to
         // read. Deriving one from the key keeps their entries attributable and distinct,
         // where a shared sentinel would merge every Super Administrator into one actor.
-        .orElseGet(() -> UUID.nameUUIDFromBytes(pubkey.getBytes(StandardCharsets.UTF_8)).toString());
+        .orElseGet(() -> derivedAccountId(pubkey));
+  }
+
+  /**
+   * The account id an npub with no stored profile is known by.
+   *
+   * @param pubkey lower-case hex public key, as NAP reports it
+   * @return a stable id derived from the key
+   */
+  public static String derivedAccountId(final String pubkey) {
+    return UUID.nameUUIDFromBytes(pubkey.getBytes(StandardCharsets.UTF_8)).toString();
   }
 }

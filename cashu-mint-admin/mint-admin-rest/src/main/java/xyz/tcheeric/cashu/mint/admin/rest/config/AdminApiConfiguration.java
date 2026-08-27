@@ -4,15 +4,19 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
+import xyz.tcheeric.cashu.mint.admin.rest.nap.AdminSecurityProperties;
+
 /**
  * Spring configuration wiring the request filters and JSON customisations for admin endpoints.
  */
 @Configuration
+@EnableConfigurationProperties(AdminSecurityProperties.class)
 public class AdminApiConfiguration {
 
     @Bean

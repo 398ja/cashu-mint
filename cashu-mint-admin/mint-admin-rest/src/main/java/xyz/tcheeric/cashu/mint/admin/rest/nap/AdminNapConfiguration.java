@@ -9,7 +9,6 @@ import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,7 +48,6 @@ import java.util.stream.Collectors;
 @Configuration
 @Import(AdminNapConfiguration.Stores.class)
 @PropertySource("classpath:nap-defaults.properties")
-@EnableConfigurationProperties(AdminSecurityProperties.class)
 @ConditionalOnProperty(prefix = "nap", name = "enabled", havingValue = "true")
 public class AdminNapConfiguration {
 

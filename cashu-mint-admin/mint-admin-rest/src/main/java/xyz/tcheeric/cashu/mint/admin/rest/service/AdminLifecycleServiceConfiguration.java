@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcConfigurationSetReposi
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcMintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcMintRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperationalControlRepository;
+import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessAuditRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.TransactionalOutboxMintLifecycleEventPublisher;
@@ -26,6 +27,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPubl
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.TransactionManager;
@@ -79,6 +81,11 @@ public class AdminLifecycleServiceConfiguration {
     }
 
     @Bean
+    public OperatorAccessAuditRepository operatorAccessAuditRepository(final DataSource dataSource) {
+        return new JdbcOperatorAccessAuditRepository(dataSource);
+    }
+
+    @Bean
     public OperationalControlRepository operationalControlRepository(final DataSource dataSource) {
         return new JdbcOperationalControlRepository(dataSource);
     }
@@ -105,8 +112,10 @@ public class AdminLifecycleServiceConfiguration {
     }
 
     @Bean
-    public AdministerAccessUseCase administerAccessUseCase(final OperatorAccessRepository operatorAccessRepository) {
-        return new AdministerAccessInteractor(operatorAccessRepository);
+    public AdministerAccessUseCase administerAccessUseCase(final OperatorAccessRepository operatorAccessRepository,
+                                                           final OperatorAccessAuditRepository auditRepository,
+                                                           final Clock adminClock) {
+        return new AdministerAccessInteractor(operatorAccessRepository, auditRepository, adminClock);
     }
 
     @Bean

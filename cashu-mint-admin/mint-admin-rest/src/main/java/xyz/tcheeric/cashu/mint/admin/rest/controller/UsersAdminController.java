@@ -104,9 +104,22 @@ public class UsersAdminController {
         return ResponseEntity.ok(userService.assignRoles(userId, request));
     }
 
+    @Operation(summary = "Reinstate an operator", description = "Restore access to a suspended operator account.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "User reinstated", content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Target is the Super Administrator", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
+    })
+    @PostMapping("/{userId}/reinstate")
+    public ResponseEntity<UserResponse> reinstateUser(@PathVariable("userId") String userId,
+                                                      @Valid @RequestBody UserLifecycleRequest request) {
+        return ResponseEntity.ok(userService.reinstateUser(userId, request));
+    }
+
     @Operation(summary = "Deactivate an operator", description = "Deactivate an operator account, mirroring the CLI lifecycle flow.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User deactivated", content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Target is the Super Administrator", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
     })
     @PostMapping("/{userId}/deactivate")
