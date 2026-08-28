@@ -28,6 +28,7 @@ import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
+import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.KeySetResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleChangeRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.MintDetailResponse;
@@ -70,6 +71,20 @@ public class LifecycleAdminController {
     @GetMapping("/mints/{mintId}")
     public ResponseEntity<MintDetailResponse> getMint(@PathVariable("mintId") String mintId) {
         return ResponseEntity.ok(lifecycleService.getMint(mintId));
+    }
+
+    @Operation(summary = "List the keysets held for a mint",
+            description = "Reads the shared vault the admin provisions into: signing keyset first, archived keysets newest-first behind it. An archived keyset still verifies and redeems. A vault that cannot be read is an error, never an empty list.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Keysets held in the vault for this mint"),
+            @ApiResponse(responseCode = "502", description = "The vault could not be read", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
+    })
+    @GetMapping("/mints/{mintId}/keysets")
+    public ResponseEntity<PagedResponse<KeySetResponse>> listKeySets(
+            @PathVariable("mintId") String mintId,
+            @Parameter(description = "Page index (zero-indexed)") @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(lifecycleService.listKeySets(mintId, page, size));
     }
 
     @Operation(summary = "Provision a mint", description = "Creates a new mint instance just like the `mint create` CLI command.")

@@ -42,7 +42,8 @@ class AdminLifecycleServiceTest {
             new EmptyMintRepository(),
             new LifecycleSummaryPresenter(),
             new LifecycleSummaryApiPresenter(),
-            fixedOperatorIdentity());
+            fixedOperatorIdentity(),
+            mintId -> List.of());
     }
 
     // The filter chain does not run in this test, so stand in for the operator it

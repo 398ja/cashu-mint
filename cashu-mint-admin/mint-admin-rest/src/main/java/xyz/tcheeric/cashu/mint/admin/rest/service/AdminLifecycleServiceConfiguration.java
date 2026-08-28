@@ -19,10 +19,12 @@ import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessAuditRep
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOutboxRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.TransactionalOutboxMintLifecycleEventPublisher;
+import xyz.tcheeric.cashu.mint.admin.adapter.out.vault.VaultKeySetInventoryAdapter;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ExecuteOperationalControlsUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.ConfigurationSetRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintLifecycleHistoryRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
@@ -126,6 +128,11 @@ public class AdminLifecycleServiceConfiguration {
         final OutboxRepository outboxRepository,
         final Clock adminClock) {
         return new ExecuteOperationalControlsInteractor(operationalControlRepository, outboxRepository, adminClock);
+    }
+
+    @Bean
+    public KeySetInventoryPort keySetInventoryPort() {
+        return new VaultKeySetInventoryAdapter();
     }
 
     @Bean
