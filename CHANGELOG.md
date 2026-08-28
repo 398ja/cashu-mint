@@ -4,6 +4,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Key rotation no longer fails on every attempt. The vault permits a mint one
+  *active* keyset per unit, so provisioning the replacement before archiving the
+  keyset it replaces was rejected outright and every rotation ended
+  `KEY_ROTATION_FAILED`. A rotation now archives its predecessor first and
+  reinstates it if the replacement cannot be provisioned, so a failure part-way
+  never leaves the mint unable to sign. A mint holding no keysets is treated as
+  nothing to supersede rather than as a vault failure.
+
+- The dev stack no longer re-creates the constraint that makes rotation
+  impossible. A `vault-db-init` service applied `V1__init_schema.sql` with `psql`
+  on every `up`, restoring the `UNIQUE (unit, mint_id)` index that migration `V5`
+  drops precisely so a rotated-away keyset can coexist with its replacement. The
+  vault schema is owned by Flyway inside `cashu-vault-jpa`, so the service is
+  removed. An existing dev database needs
+  `DROP INDEX IF EXISTS idx_keyset_unit_mint_unq;` once.
+
 ## [0.31.0] - 2026-08-28
 
 ### Changed

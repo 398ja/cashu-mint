@@ -27,7 +27,7 @@ against this pattern before reaching for a new transport.
 | Retire (`RETIRED`) | **Actuates**, but see below | `vaultPort.archive(mintId)` archives the mint's vault keysets. |
 | Pause / Resume | Records only | `VaultProvisioningOutboxHandler` branches on `CREATED` and `RETIRED` only. `PAUSED` and `RESUMED` reach no handler. A paused mint keeps serving. |
 | Configuration update | Records only | `CONFIGURATION_UPDATED` likewise has no handler branch. Stored, versioned, never applied. |
-| Key rotation | Records only | `ExecuteOperationalControlsInteractor` returns the literal `"Key rotation initiated (placeholder)"` and writes one audit row — while the vault adapter it would need already exists a package away. |
+| Key rotation | **Actuates** | `ROTATE_KEYS` writes an outbox message in the same transaction as the control row; `VaultProvisioningOutboxHandler` drives `VaultProvisioningAdapter.rotate`, which archives the outgoing keyset, provisions the replacement, and records which keyset replaced which. |
 | Maintenance windows, force-close | Records only | Same shape: audit rows, no effect. |
 | Health monitoring | Decorative | `MonitorMintHealthInteractor.updateHealth` has exactly one caller in the repo — its own unit test. Health is permanently `UNKNOWN`. |
 | Alerts / notifications | Decorative | Alerts exist only where an Operator posted them. No detection, and no delivery mechanism of any kind. |
@@ -47,8 +47,10 @@ nowhere in the signing path.
 So a retired mint keeps signing for any client that names the old keyset id.
 The admin believes it has decommissioned a mint; the mint carries on issuing.
 
-The same gap is why rotation cannot simply be built on the existing adapter:
-writing a new keyset and archiving the old one would leave both signing.
+This gap is now closed: `MintProtocolUtil.getPrivateKeyForSigning` refuses an
+archived keyset with `keyset_inactive`, so archiving is what retires a keyset
+and rotation can be built on it. Archiving the predecessor is also forced by
+the vault, which permits a mint one active keyset per unit.
 
 ## The security finding
 

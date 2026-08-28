@@ -34,27 +34,17 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-  vault-db-init:
-    image: postgres:16
-    depends_on:
-      cashu-vault-db:
-        condition: service_healthy
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cashu_vault
-      PGPASSWORD: postgres
-    volumes:
-      - ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration:/migrations:ro
-    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /migrations/V1__init_schema.sql"]
-    restart: "no"
-    networks:
-      - cashu
+  # The vault schema is owned by Flyway inside cashu-vault-jpa. A previous
+  # vault-db-init service applied V1__init_schema.sql with psql on every `up`,
+  # which re-created idx_keyset_unit_mint_unq — the UNIQUE (unit, mint_id) that
+  # V5 drops precisely so a mint can hold a rotated-away keyset alongside its
+  # replacement. Rotation then failed on every attempt against a dev stack.
+  # Seeding therefore waits on the service, not on a hand-rolled schema step.
   vault-db-seed:
     image: postgres:16
     depends_on:
-      vault-db-init:
-        condition: service_completed_successfully
+      cashu-vault-jpa:
+        condition: service_healthy
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -151,13 +141,17 @@ services:
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       # HashiCorp Vault configuration
       VAULT_BACKEND: HASHICORP
+      # Every class in cashu-vault-hashi is @ConditionalOnProperty(vault.hashi.enabled=true).
+      # Without this the registrar never runs and VaultClientFactory silently falls back
+      # to the database vault, so t_key rows are written with a null vault_path.
+      VAULT_HASHI_ENABLED: "true"
       VAULT_HASHI_URI: http://hashicorp-vault:8200
       VAULT_HASHI_AUTH_METHOD: TOKEN
       VAULT_HASHI_AUTH_TOKEN: dev-root-token
       VAULT_HASHI_ENGINE_MOUNT: cashu
     depends_on:
-      vault-db-init:
-        condition: service_completed_successfully
+      cashu-vault-db:
+        condition: service_healthy
       hashicorp-vault:
         condition: service_healthy
     ports:
@@ -323,6 +317,18 @@ services:
       ADMIN_SESSION_COOKIE_SECURE: "false"
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      # VaultProvisioningAdapter writes key secrets through the backend-aware vault
+      # (default HASHICORP), which stamps t_key.vault_path. Without these the write
+      # lands nowhere and the row is rejected by the NOT NULL on vault_path.
+      VAULT_BACKEND: HASHICORP
+      # Every class in cashu-vault-hashi is @ConditionalOnProperty(vault.hashi.enabled=true).
+      # Without this the registrar never runs and VaultClientFactory silently falls back
+      # to the database vault, so t_key rows are written with a null vault_path.
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: http://hashicorp-vault:8200
+      VAULT_HASHI_AUTH_METHOD: TOKEN
+      VAULT_HASHI_AUTH_TOKEN: dev-root-token
+      VAULT_HASHI_ENGINE_MOUNT: cashu
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
     depends_on:
