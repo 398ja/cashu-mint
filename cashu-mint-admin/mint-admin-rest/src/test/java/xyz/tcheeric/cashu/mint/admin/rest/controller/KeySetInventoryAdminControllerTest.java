@@ -51,6 +51,18 @@ class KeySetInventoryAdminControllerTest {
     private KeySetInventoryPort keySetInventory;
 
     /**
+     * A typo in the URL is the caller's mistake, not the vault's: answering 500 would send
+     * an Operator looking for an outage that isn't there.
+     */
+    @Test
+    @DisplayName("A mint id that is not a mint id is a bad request, not a vault failure")
+    void malformedMintIdIsABadRequest() throws Exception {
+        mockMvc.perform(get("/admin/lifecycle/mints/not-a-uuid/keysets").with(TestNapSessions.superAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_mint_id"));
+    }
+
+    /**
      * The load-bearing case. An unreachable vault rendered as an empty list would tell an
      * Operator that a rotation destroyed key material that is in fact still there, so the
      * two outcomes must never collapse into one another.

@@ -100,6 +100,12 @@ export interface KeySet {
   createdAt: string;
 }
 
-export function listKeySets(mintId: string): Promise<PagedResponse<KeySet>> {
-  return apiGet(`/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets`);
+export function listKeySets(
+  mintId: string,
+  page = 0,
+): Promise<PagedResponse<KeySet>> {
+  return apiGet(
+    `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets`,
+    { page },
+  );
 }

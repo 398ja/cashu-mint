@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Comparator;
 import java.util.Optional;
-import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.presenter.LifecycleSummaryApiPresenter
  */
 @Service
 public class AdminLifecycleService {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminLifecycleService.class);
 
     private static final String DEFAULT_VERSION_TAG = "v1";
 
@@ -96,13 +99,19 @@ public class AdminLifecycleService {
      * destroyed key material that is in fact still there.
      */
     public PagedResponse<KeySetResponse> listKeySets(final String mintId, final int page, final int size) {
+        final MintId id;
+        try {
+            id = MintId.fromString(mintId);
+        } catch (final IllegalArgumentException e) {
+            throw new AdminServiceException(HttpStatus.BAD_REQUEST, "invalid_mint_id", e.getMessage());
+        }
         final List<VaultKeySet> keySets;
         try {
-            keySets = keySetInventory.listByMint(UUID.fromString(mintId));
-        } catch (final IllegalArgumentException e) {
-            throw new AdminServiceException(HttpStatus.BAD_REQUEST, "invalid_mint_id",
-                    "Not a mint id: " + mintId);
+            keySets = keySetInventory.listByMint(id.value());
         } catch (final RuntimeException e) {
+            // Logged with its cause: the operator is told the vault is unreachable, which is
+            // all they can act on, but a bug in the adapter would otherwise leave no trace.
+            log.warn("Could not read keysets for mint {} from the vault", mintId, e);
             throw new AdminServiceException(HttpStatus.BAD_GATEWAY, "vault_unavailable",
                     "Could not read keysets from the vault: " + e.getMessage());
         }

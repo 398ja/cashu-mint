@@ -73,7 +73,7 @@ public class LifecycleAdminController {
         return ResponseEntity.ok(lifecycleService.getMint(mintId));
     }
 
-    @Operation(summary = "List the keysets held for a mint",
+    @Operation(summary = "List the keysets the shared vault holds for a mint",
             description = "Reads the shared vault the admin provisions into: signing keyset first, archived keysets newest-first behind it. An archived keyset still verifies and redeems. A vault that cannot be read is an error, never an empty list.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Keysets held in the vault for this mint"),
