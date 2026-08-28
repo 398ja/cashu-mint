@@ -6,6 +6,18 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Documentation
 
+- **Audited `cashu-mint`, `cashu-lib` and `cashu-wallet` against the NUT
+  specifications at pinned commit `49a909c`, and recorded the result in
+  `docs/explanations/nut-compliance-audit.md`.** Fourteen divergences, tracked as
+  21 issues across the three repositories. The interoperability-breaking ones are
+  the secret encoding fed into `hash_to_curve`, the non-spec error wire format,
+  and NUT-11 `SIG_ALL`, which verifies each input and output separately instead of
+  signing one aggregated message. Fees turn out not to be wired up at any layer:
+  `input_fee_ppk` is never set, is absent from `/v1/keysets`, is priced off the
+  wrong keyset, is ignored by the wallet, and the swap path enforces two
+  contradictory balance equations that only agree when the fee is zero. Keyset ID
+  v2 and NUT-20 are carded rather than scheduled.
+
 - **Audited every document against the code and fixed or deleted what no longer
   described it.** The admin API reference listed 13 endpoints that do not exist
   (all of `/admin/alerts/*`, `/admin/configuration/*`, `/admin/health/*`) and

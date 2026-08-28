@@ -44,6 +44,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions and request flow.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
+- [NUT compliance audit](explanations/nut-compliance-audit.md) - Where cashu-mint, cashu-lib and cashu-wallet diverge from the specifications, why it matters, and where each gap is tracked.
 - [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
 - [Voucher mock payment and free splitting](explanations/voucher-mock-payment.md) - How voucher tokens skip payment verification and support arbitrary denominations.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
