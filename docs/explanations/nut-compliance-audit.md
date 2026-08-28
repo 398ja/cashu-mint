@@ -2,11 +2,12 @@
 
 This document records an audit of `cashu-mint`, `cashu-lib` and `cashu-wallet`
 against the [cashubtc/nuts](https://github.com/cashubtc/nuts) specifications. It
-explains what diverges, why each divergence matters, and where the work to close
-it is tracked.
+explains what diverges, why each divergence matters, where the work to close it
+is tracked, and in what order that work should be done.
 
-It is a snapshot, not a live status page. The issues it links to are the source
-of truth for what has since been fixed.
+The findings are a snapshot; the linked issues are the source of truth for what
+has since been fixed. The [implementation plan](#implementation-plan) is the part
+intended to be acted on.
 
 **Audited at:** 2026-08-28
 **Spec commit:** [`49a909ce4d0739824b3859d4b3da21e6c1abdaeb`](https://github.com/cashubtc/nuts/tree/49a909ce4d0739824b3859d4b3da21e6c1abdaeb)
@@ -169,26 +170,260 @@ must not regress:
   choice — leaving a stuck payment for a human — is the right call and is
   documented as such.
 
-## Sequencing
+## Implementation plan
 
-The findings are not independent. Roughly:
+The findings are not independent, and the dependency that shapes everything is
+release order: `cashu-mint` consumes `cashu-lib` as a published artifact
+(`${cashu-lib.version}`), so any mint-side work that needs a library change waits
+on a `cashu-lib` release. The milestones below are ordered so that each one ends
+at a releasable, coherent state rather than at an arbitrary commit boundary.
 
-1. **`cashu-lib` first.** The error format (L2), the fee resolver (L4) and the
-   keyset fields (L5) are all prerequisites for mint-side work. Vendoring the
-   test vectors (L8) should come before any crypto change, so there is a
-   regression net.
-2. **Settle L1 early**, because if the encoding changes, it invalidates
-   assumptions everywhere else and needs a migration plan more than a patch. The
-   interop test (M10) is what settles it.
-3. **Mint protocol layer:** M2 and M5 together (both are "validate properly,
-   before signing"), then M1, then M7.
-4. **Mint REST layer:** M6 depends on L2. M8 depends on M1 and M7 being done, or
-   on deciding to advertise less.
-5. **Wallet last**, mirroring the library changes.
+Two constraints worth stating up front, because they explain the ordering:
 
-Two things are worth doing regardless of order, because they change how
-confidently everything else can be done: the vendored vectors (L8) and the
-interop test (M10).
+- **`cashu-wallet` does not block the mint.** The mint declares
+  `cashu-wallet-protocol` and `cashu-wallet-client` in `dependencyManagement` but
+  no module consumes them, so wallet work can proceed in parallel with everything
+  else.
+- **The swap path has no transaction boundary.** `SwapTask` calls no
+  `@Transactional` method, so the fix for signing-before-validating (M2) is to
+  reorder the steps, not to add a rollback. That keeps M2 much cheaper than it
+  first looks.
+
+### Milestone 0 — Establish the evidence base
+
+**Findings:** L8, M10
+**Repos:** cashu-lib, cashu-mint
+**Releases:** none
+
+Nothing else should be attempted first. Every subsequent milestone changes
+cryptographic or wire-format behaviour, and today there is no regression net and
+no way to tell whether a change helps or hurts interoperability.
+
+1. Vendor the NUT test vectors at pinned commit `49a909c` into `cashu-lib` and
+   drive them from parameterized tests (NUT-00, 01, 02, 11, 12, 13). **(L8)**
+2. Stand up an interoperability test against an external implementation
+   (`cashu-ts` or Nutshell) driving mint → swap → melt. The `payment-adapter-ln-dummy`
+   adapter and the phoenixd mock already exist, so this needs no real Lightning
+   node for the mint and swap legs. **(M10)**
+3. Record which properties the vectors **cannot** pin down, starting with the
+   `hash_to_curve` secret encoding.
+
+**Exit criteria:** vectors run in `mvn verify` and fail the build on a mismatch;
+the interop test executes end to end, whether or not it currently passes. A
+failing interop test here is a successful milestone — it is the instrument, not
+the result.
+
+### Milestone 1 — Settle the secret encoding
+
+**Findings:** L1
+**Repos:** cashu-lib (+ cashu-mint if the encoding changes)
+**Releases:** `cashu-lib` minor, or major if the encoding changes
+
+Isolated into its own milestone because it is the one finding whose answer
+changes the shape of everything after it, and because the answer is not yet
+known.
+
+1. Use the Milestone 0 interop test to determine which encoding actually
+   interoperates: mint a token externally, and check whether our `verify` accepts
+   it under hex-decoding, UTF-8, or neither.
+2. Record the answer in this document and in an ADR.
+3. If the current behaviour is wrong, treat it as a **migration, not a patch**:
+   already-issued proofs must keep verifying under the legacy encoding while new
+   ones use the spec encoding. That dual-path requirement reaches into
+   `cashu-mint`'s verification, so it is not contained in the library.
+
+**Exit criteria:** the encoding question is answered with evidence from a
+reference implementation, and either closed as a non-issue or landed with a
+migration path.
+
+**Decision gate:** if the encoding must change, everything downstream is affected
+and the remaining milestones should be re-estimated before starting Milestone 2.
+
+### Milestone 2 — Library foundations
+
+**Findings:** L2, L4, L5, L3
+**Repos:** cashu-lib
+**Releases:** `cashu-lib` minor (breaking for error-format consumers)
+
+The prerequisites for all mint-side work, grouped because they release together.
+
+1. **Error format (L2).** One `ErrorResponse` emitting `{"detail": <str>, "code": <int>}`,
+   serialized by Jackson rather than `String.format`, plus a `CashuErrorCode` enum
+   carrying the `error_codes.md` numeric codes. Keep the existing string keys as
+   enum constant names so downstream `switch` sites keep compiling.
+2. **Per-proof fee resolution (L4).** Replace `getFees(KeySet)` with a resolver
+   keyed on each proof's own keyset id, raising `12001` for an unknown keyset
+   instead of using `assert`.
+3. **Keyset listing fields (L5).** Add `input_fee_ppk` and `final_expiry` to the
+   `/v1/keysets` entry type.
+4. **Quote response fields (L3).** Add the NUT-04/05/23 fields, including a melt
+   quote `state` that can express `PENDING`.
+
+**Exit criteria:** `cashu-lib` released; the error format has a round-trip test
+proving the mint's output is what the client parses.
+
+**Coordination note:** L2 changes a wire format that `imani-gateway` and the
+admin also consume. Those consumers need to be checked before this releases.
+
+### Milestone 3 — Mint transaction integrity
+
+**Findings:** M2, M5
+**Repos:** cashu-mint
+**Releases:** `cashu-mint` minor
+
+Grouped because they are one change described twice: *validate properly, and do
+it before signing*. Splitting them would mean touching `SwapTask` twice.
+
+1. Remove the balance check from `VerifyProofsTask.validateAmounts`, leaving one
+   equation: `sum(inputs) - fees == sum(outputs)`. **(M2)**
+2. Move fee-aware validation **before** the signing loop, so a rejected swap
+   leaves no signatures in the vault. This is the security-relevant half: today a
+   rejected swap's signatures are retrievable through NUT-09 restore. **(M2)**
+3. Extract the protocol validations into one step shared by swap/mint/melt:
+   duplicate inputs (`11007`), duplicate outputs (`11008`), mixed units
+   (`11009`/`11010`), inactive-keyset outputs (`12002`), already-signed outputs
+   (`11003`). **(M5)**
+
+**Exit criteria:** a test asserts the signature vault is untouched after a
+rejected swap; a doubled input cannot inflate the output sum; a fee-bearing
+keyset swaps successfully.
+
+**Sequencing note:** the duplicate-input check should be written as a test
+first — whether it is exploitable end to end depends on `ProofLockManager`
+behaviour that has not been confirmed either way.
+
+### Milestone 4 — NUT-11 SIG_ALL
+
+**Findings:** M1
+**Repos:** cashu-mint
+**Releases:** `cashu-mint` minor
+
+Alone in its milestone: it is the most intricate change, it is self-contained,
+and it carries a compatibility risk the others do not.
+
+1. Extract message aggregation into its own type, with `forSwap(inputs, outputs)`
+   and `forMelt(inputs, quoteId, blankOutputs)`.
+2. Enforce the uniformity precondition (all inputs same kind, flag, `data`,
+   `tags` when any input is `SIG_ALL`).
+3. Verify the aggregated message against the **first input's** witness only.
+4. Thread the quote id into the melt path, closing the replay gap where a witness
+   is not bound to the quote it pays.
+
+**Exit criteria:** NUT-11 vectors pass; reordering an output invalidates the
+signature; a witness from one melt quote fails against another.
+
+**Before starting:** confirm no deployed proof relies on the current
+non-standard `SIG_ALL` behaviour. Fixing this correctly invalidates any such
+proof, because the signed message changes. Dalia phase 9 escrow uses
+`SIG_INPUTS`, which is unaffected — but that needs verifying, not assuming.
+
+### Milestone 5 — Mint surface honesty
+
+**Findings:** M6, M4, M7, M8
+**Repos:** cashu-mint
+**Releases:** `cashu-mint` minor
+
+What the mint tells the outside world about itself. Grouped because each one is
+"the response does not match what the spec or our own capability says", and
+because M8 can only be settled once the others land.
+
+1. **HTTP status mapping (M6).** Protocol errors default to `400`. Give the error
+   code its status as an attribute, deleting the `switch`, the message
+   substring-matching and the `Throwable.detailMessage` reflection. *Depends on L2.*
+2. **`/v1/checkstate` (M4).** Key the cross-mint merge on the requested `Y` list
+   so the response matches the request in length and order, carry the witness
+   through, and consult archived mints unconditionally.
+3. **DLEQ fail-closed (M7).** Stop returning an unproven signature when proof
+   generation fails; add the deterministic nonce per NUT-12.
+4. **`/v1/info` (M8).** Real identity from deployment config, version from the
+   build, advertise NUT-19, and a test that fails when the advertised `nuts` map
+   disagrees with what is wired.
+
+**Exit criteria:** a double-spend attempt returns `400` with the spec error body;
+`states.length == Ys.length` always; every swap/mint response carries a `dleq`;
+no placeholder identity survives.
+
+### Milestone 6 — Fees end to end
+
+**Findings:** M3, W1
+**Repos:** cashu-mint (admin), cashu-wallet
+**Releases:** `cashu-mint` minor, `cashu-wallet` minor
+
+Deliberately last of the functional milestones. Fees cannot work until L4, L5 and
+M2 have all landed, and turning them on before then takes the mint down.
+
+1. **Admin fee configuration (M3).** Set `input_fee_ppk` when provisioning a
+   keyset, persist it, serve it, and record changes in the Audit Trail.
+2. **Decide fee-change-vs-rotation** and capture it in an ADR. Under keyset ID v2
+   a fee change is a new keyset by definition; deciding now keeps us aligned for
+   later.
+3. **Wallet fee handling (W1).** A keyset cache tracking `active` and
+   `input_fee_ppk`; outputs built only from active keysets; fees subtracted from
+   outputs; input selection preferring inactive-keyset proofs.
+
+**Exit criteria:** an end-to-end test mints, then swaps against a fee-bearing
+keyset, and the mint's balance reflects the collected fee.
+
+### Milestone 7 — Wallet correctness
+
+**Findings:** W2, W3
+**Repos:** cashu-wallet
+**Releases:** `cashu-wallet` minor
+
+Independent of the mint, and can run in parallel with Milestones 3–5.
+
+1. **DLEQ policy (W2).** A missing proof from a mint advertising NUT-12 is a
+   failure; make "verified" and "no proof present" distinguishable by the caller.
+2. **Melt change (W3).** Construct `ceil(log2(fee_reserve))` blank outputs and
+   unblind the returned change. This is a direct, recurring loss of user funds
+   today, so it is the highest-value item in the wallet.
+
+**Exit criteria:** a melt whose routing fee is below the reserve recovers the
+difference, asserted against the balance.
+
+### Deferred
+
+**L6** (keyset ID v2) and **M9** (NUT-20 signed mint quotes) are carded, and
+**L7** (NUT-13 version dispatch) is blocked on L6. They are not scheduled here.
+
+L7 has one piece worth doing early regardless: make derivation dispatch on the
+keyset version byte and fail loudly on a v2 keyset, rather than silently deriving
+v1 secrets and recovering nothing. Silent recovery failure is indistinguishable
+from an empty wallet, which is the worst failure mode available.
+
+### Critical path
+
+The chain that determines total elapsed time:
+
+```
+M0 ──> M1 ──> M2 ──> M3 ──> M4 ──> M5 ──> M6
+```
+
+Everything on that line is blocked by what precedes it. Off the critical path:
+
+- **M7 (wallet correctness)** can start immediately. W2 and W3 need nothing from
+  any other milestone.
+- **W1**, the wallet half of M6, is the one wallet item that waits — it needs the
+  fee resolver from M2 and something to read a fee from.
+- **M3 → M4 → M5** are sequenced because they touch overlapping code
+  (`SwapTask`, the validator package, the error handler), not because of a
+  logical dependency. Given separate people they could overlap, at the cost of
+  merge conflicts.
+
+M6 is last because it is the only milestone that *enables* a behaviour rather
+than correcting one, and switching fees on before M2 and M3 have landed would
+take the mint down.
+
+### What this plan does not do
+
+It does not schedule the deliberate divergences below, and it does not treat the
+compliance table as a to-do list to be driven to zero. Two findings (L6, M9) are
+open decisions rather than defects, and closing them without deciding first would
+be worse than leaving them open.
+
+It also assigns no dates or estimates. The one real unknown — the encoding
+question in M1 — can change the size of everything after it, so estimating past
+that gate before it is answered would be inventing numbers.
 
 ## Deliberate divergences
 

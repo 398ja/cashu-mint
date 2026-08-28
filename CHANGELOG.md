@@ -4,6 +4,18 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- The NUT compliance audit gains an implementation plan: eight milestones, each
+  ending at a releasable state, with all 21 findings assigned exactly once (18
+  scheduled, 3 deferred). The ordering is driven by two constraints found in the
+  code rather than by severity — `cashu-mint` consumes `cashu-lib` as a published
+  artifact, so library work gates mint work; and the swap path has no
+  transactional boundary, which makes the sign-before-validate fix a reordering
+  rather than a rollback. Establishing the test vectors and an interoperability
+  harness comes first, because the `hash_to_curve` encoding question cannot be
+  settled without one and every later milestone changes crypto or wire format.
+
 ## [0.32.0] - 2026-08-28
 
 ### Added
