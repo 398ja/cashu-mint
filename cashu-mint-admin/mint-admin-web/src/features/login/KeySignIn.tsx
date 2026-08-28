@@ -4,8 +4,19 @@ import { adminKeyStore, InvalidKeyError, toPrivateKeyHex } from "@/auth/keySigne
 import { useAuth } from "@/auth/useAuth";
 import { describeSignInError } from "./LoginPage";
 
+/** The two enrolment boxes disagree, so there is nothing to encrypt the key under. */
+export class PassphraseMismatchError extends Error {
+  constructor() {
+    super("The two passphrases do not match.");
+    this.name = "PassphraseMismatchError";
+  }
+}
+
 /** Wrong passphrase, unusable key, or a failed handshake -- one message each. */
 export function describeKeySignInError(error: unknown): string {
+  if (error instanceof PassphraseMismatchError) {
+    return error.message;
+  }
   if (error instanceof InvalidKeyError) {
     return error.message;
   }
@@ -26,6 +37,7 @@ export function KeySignIn({ onSignedIn }: { onSignedIn: () => void }) {
   const [enrolled, setEnrolled] = useState(false);
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,6 +51,12 @@ export function KeySignIn({ onSignedIn }: { onSignedIn: () => void }) {
     setError(null);
     try {
       if (!enrolled) {
+        // A typo here encrypts the key under a passphrase nobody knows, and the
+        // key is only in this browser -- so it is caught before the save, not
+        // on the next visit when nothing can be done about it.
+        if (passphrase !== confirmation) {
+          throw new PassphraseMismatchError();
+        }
         await adminKeyStore.save(toPrivateKeyHex(privateKey), passphrase);
       }
       // Always read the key back out of the store rather than reusing what was
@@ -48,6 +66,7 @@ export function KeySignIn({ onSignedIn }: { onSignedIn: () => void }) {
       await signIn(createPrivateKeySessionSigner(hex), adminKeyStore);
       setPrivateKey("");
       setPassphrase("");
+      setConfirmation("");
       onSignedIn();
     } catch (e) {
       setError(describeKeySignInError(e));
@@ -91,12 +110,28 @@ export function KeySignIn({ onSignedIn }: { onSignedIn: () => void }) {
         <input
           id="passphrase"
           type="password"
-          autoComplete="current-password"
+          autoComplete={enrolled ? "current-password" : "new-password"}
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
           className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
         />
       </div>
+
+      {!enrolled && (
+        <div className="space-y-1">
+          <label htmlFor="passphrase-confirmation" className="block text-sm text-zinc-400">
+            Confirm passphrase
+          </label>
+          <input
+            id="passphrase-confirmation"
+            type="password"
+            autoComplete="new-password"
+            value={confirmation}
+            onChange={(e) => setConfirmation(e.target.value)}
+            className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+          />
+        </div>
+      )}
 
       <button
         type="submit"
