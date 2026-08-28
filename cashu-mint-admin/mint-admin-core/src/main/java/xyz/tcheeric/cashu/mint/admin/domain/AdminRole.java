@@ -19,10 +19,18 @@ public enum AdminRole {
      * recovers a deployment whose other Operators are locked out.
      */
     SUPER_ADMIN("SUPER_ADMIN", Set.of(AdminPermission.values())),
+    /**
+     * Every role reads the audit trail. It is read-only, it is how an Operator
+     * checks what was done to the deployment they are on call for, and the
+     * dashboard's own recent-activity panel is built from it — withholding it
+     * buys no confidentiality and breaks the first screen after sign-in.
+     */
     MINT_ADMIN("MINT_ADMIN", Set.of(AdminPermission.MINT_LIFECYCLE, AdminPermission.AUDIT_READ,
         AdminPermission.DASHBOARD_READ)),
-    USER_ADMIN("USER_ADMIN", Set.of(AdminPermission.USERS_MANAGE, AdminPermission.DASHBOARD_READ)),
-    OPS_ADMIN("OPS_ADMIN", Set.of(AdminPermission.OPERATIONS_EXECUTE, AdminPermission.DASHBOARD_READ));
+    USER_ADMIN("USER_ADMIN", Set.of(AdminPermission.USERS_MANAGE, AdminPermission.AUDIT_READ,
+        AdminPermission.DASHBOARD_READ)),
+    OPS_ADMIN("OPS_ADMIN", Set.of(AdminPermission.OPERATIONS_EXECUTE, AdminPermission.AUDIT_READ,
+        AdminPermission.DASHBOARD_READ));
 
     private final String key;
     private final Set<AdminPermission> permissions;

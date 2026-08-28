@@ -48,6 +48,16 @@ class AdminRoleTest {
         assertThat(holders).containsExactly(AdminRole.SUPER_ADMIN);
     }
 
+    // The dashboard's recent-activity panel is built from the audit trail, so a role
+    // without audit:read lands on a first screen that reports forbidden.
+    @Test
+    @DisplayName("Every role reads the audit trail")
+    void everyRoleReadsTheAuditTrail() {
+        assertThat(Arrays.stream(AdminRole.values())
+            .filter(role -> !role.permissions().contains(AdminPermission.AUDIT_READ))
+            .toList()).isEmpty();
+    }
+
     // Resolving a stored role string is how the ACL turns a profile into
     // permissions; an unknown string must not resolve to a default role.
     @Test

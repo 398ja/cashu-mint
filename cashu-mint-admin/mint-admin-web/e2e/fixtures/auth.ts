@@ -63,8 +63,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "operations:execute",
   ],
   MINT_ADMIN: ["mint:lifecycle", "audit:read", "dashboard:read"],
-  USER_ADMIN: ["users:manage", "dashboard:read"],
-  OPS_ADMIN: ["operations:execute", "dashboard:read"],
+  USER_ADMIN: ["users:manage", "audit:read", "dashboard:read"],
+  OPS_ADMIN: ["operations:execute", "audit:read", "dashboard:read"],
 };
 
 function permissionsFor(roles: string[]): string[] {
