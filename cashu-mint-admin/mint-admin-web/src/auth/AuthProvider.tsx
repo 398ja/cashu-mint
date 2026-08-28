@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createNapSession } from "@imani/nap-client-web";
 import type { KeyStore, NapSession, SessionSigner } from "@imani/nap-client-web";
-import { IDLE_LOCK_MS } from "@/auth/keySigner";
+import { adminKeyStore, IDLE_LOCK_MS } from "@/auth/keySigner";
 import { fetchAuthMe } from "@/api/auth";
 
 export interface AuthState {
@@ -106,6 +106,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // The cookie is the credential, so clearing local state alone leaves the operator
   // signed in and the next page load walks them straight back to the dashboard.
+  //
+  // The enrolled key goes with it. An idle lock keeps the key on purpose -- the
+  // same Operator is coming back -- but signing out is how someone hands the
+  // browser over, and a key left behind means the next person is offered a
+  // passphrase box for a key that is not theirs and no way to use their own.
   const logout = useCallback(() => {
     const session = sessionRef.current;
     sessionRef.current = null;
@@ -113,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? session.logout()
       : fetch("/api/v1/auth/logout", { method: "POST" });
     void Promise.resolve(ended).catch(() => undefined);
+    void adminKeyStore.clear().catch(() => undefined);
     setState(SIGNED_OUT);
   }, []);
 
