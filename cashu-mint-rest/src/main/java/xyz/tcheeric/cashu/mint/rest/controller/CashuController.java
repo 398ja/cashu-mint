@@ -730,6 +730,14 @@ public class CashuController<T extends Secret> implements org.springframework.co
             // An archived keyset is a client error: the wallet asked to be signed
             // against a retired keyset and should re-read /v1/keys and retry.
             case "keyset_inactive":
+            // error_codes.md protocol validations shared by swap/mint/melt. Each is decidable
+            // from the request alone, so all are client errors.
+            case "outputs_already_signed":   // 11003
+            case "transaction_not_balanced": // 11005
+            case "duplicate_inputs":         // 11007
+            case "duplicate_outputs":        // 11008
+            case "multiple_units":           // 11009
+            case "inputs_outputs_unit_mismatch": // 11010
                 status = HttpStatus.BAD_REQUEST;
                 break;
             // A suspended mint is temporarily not issuing; the wallet should retry
