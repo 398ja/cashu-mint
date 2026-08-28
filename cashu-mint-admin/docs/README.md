@@ -15,11 +15,12 @@ This directory contains documentation for the admin components, organized using 
 
 ## How-to guides
 
+- [Create a mint and put it into service](how-to/create-a-mint.md) — Create it in the admin interface, activate it, and point a mint service at the same vault.
+- [Manage the mint lifecycle via the Admin REST API](how-to/manage-mint-lifecycle-api.md) — The same sequence with `curl`, for scripts and CI.
 - [Back up a keyset's private keys](how-to/back-up-keyset-private-keys.md) — Find the vault path of every denomination and read the keys out of HashiCorp Vault.
 - [Configure NAP admin authentication](how-to/configure-nap-admin-authentication.md) — Super Administrator npub, enrolling Operators, choosing a signer.
 - [Configure persistence](how-to/configure-mint-admin-persistence.md) — Database setup, Flyway migrations, and profiles.
 - [Deploy the web interface to production](how-to/deploy-web-production.md) — Single-origin deployment, health checks, and rollback.
-- [Create a mint instance and link it to a mint service](how-to/link-a-mint-service-to-a-mint-instance.md) — Create the mint, provision its keyset, and point a mint service at the same vault.
 - [Troubleshoot the web interface](how-to/troubleshoot-web-interface.md) — Common issues, performance baselines, and correlation ID tracing.
 
 ## Reference
