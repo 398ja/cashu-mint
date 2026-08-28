@@ -1,35 +1,36 @@
 # Tools Reference
 
-This page documents the developer tooling packaged in the `cashu-mint-tools` module for generating deterministic preload data and rendering SQL fixtures.
+The `cashu-mint-tools` module generates deterministic preload data: a reproducible
+mint id, keyset and set of private keys, derived from a fixed algorithm so the same
+inputs always yield the same keyset id.
 
-## Profiles
+## Generating preload JSON
 
-- `preload-json` – runs the JSON generator (`MintPreloadDataGenerator`).
-- `preload-sql` – runs the SQL renderer (`MintPreloadSqlRenderer`).
-- `preload-all` – runs both in sequence (JSON first, then SQL) bound to the `validate` phase.
+```bash
+./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
+```
 
-## Commands
-
-- One‑shot (emit JSON, then render SQL):
-  - `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate`
-  - Load into vault Postgres (docker-compose dev defaults):
-    - Host connection:
-      - `PGPASSWORD=postgres psql -h localhost -p 55433 -U postgres -d cashu_vault -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
-      - or `psql "postgresql://postgres:postgres@localhost:55433/cashu_vault" -v ON_ERROR_STOP=1 -f scripts/preload-test-data.sql`
-    - Inside container:
-      - `docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql`
-
-Note: The `cashu-mint-rest` service in `docker-compose.yml` runs with `SPRING_PROFILES_ACTIVE=dev`, which uses the preload-based loader to expose active keysets from `scripts/preload-test-data.json`. Unset the profile for production to revert to the vault-backed loader.
-
-- Individual steps:
-  - JSON: `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java`
-  - SQL: `./mvnw -q -pl cashu-mint-tools -Ppreload-sql exec:java`
+This writes `scripts/preload-test-data.json`, which the mint's `VaultPreloadSeeder`
+reads at startup to seed the shared vault: the keyset row goes to the vault
+database and the private keys go to HashiCorp, which is why seeding happens through
+the mint rather than by loading SQL.
 
 ## Defaults and overrides
 
-- Defaults come from `cashu-mint-tools/mint-preload.properties`.
-- Override with `-D` properties, for example:
-  - `-Dmint.preload.mint-id=$(uuidgen)`
-  - `-Dmint.preload.json.output=target/preload.json`
-  - `-Dmint.preload.sql.input=target/preload.json`
-  - `-Dmint.preload.sql.output=target/preload.sql`
+Defaults come from `cashu-mint-tools/mint-preload.properties`. Override with `-D`:
+
+```bash
+-Dmint.preload.mint-id=$(uuidgen)
+-Dmint.preload.json.output=target/preload.json
+```
+
+## The SQL renderer is obsolete
+
+`MintPreloadSqlRenderer`, the `preload-sql` and `preload-all` profiles, and
+`scripts/render-preload-sql.sh` emit `INSERT`s against `t_key.private_key` — a
+column dropped when key material moved to HashiCorp Vault and was replaced by
+`vault_path`. Running them produces SQL the vault database rejects.
+
+Key material cannot be seeded over SQL any more: only the backend-aware vault
+client knows where a secret goes and how to stamp the row that points at it. Use
+the JSON path above.

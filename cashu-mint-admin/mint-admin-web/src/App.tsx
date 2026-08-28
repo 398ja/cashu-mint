@@ -7,12 +7,13 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { useAuth } from "@/auth/useAuth";
-import { RequireRole } from "@/auth/RequireRole";
+import { RequireAccess } from "@/auth/RequireAccess";
 import { Layout } from "@/components/Layout";
 import { LoginPage } from "@/features/login/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { MintListPage } from "@/features/mints/MintListPage";
 import { MintDetailPage } from "@/features/mints/MintDetailPage";
+import { MintKeySetsPage } from "@/features/mints/MintKeySetsPage";
 import { CreateMintPage } from "@/features/mints/CreateMintPage";
 import { UserListPage } from "@/features/users/UserListPage";
 import { UserDetailPage } from "@/features/users/UserDetailPage";
@@ -55,49 +56,57 @@ export function App() {
               <Route
                 path="/mints"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <MintListPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/create"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <CreateMintPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/:mintId"
                 element={
-                  <RequireRole role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <MintDetailPage />
-                  </RequireRole>
+                  </RequireAccess>
+                }
+              />
+              <Route
+                path="/mints/:mintId/keysets"
+                element={
+                  <RequireAccess permission="mint:lifecycle">
+                    <MintKeySetsPage />
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/mints/:mintId/operations"
                 element={
-                  <RequireRole role="OPS_ADMIN">
+                  <RequireAccess permission="operations:execute">
                     <OperationsPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/users"
                 element={
-                  <RequireRole role="USER_ADMIN">
+                  <RequireAccess permission="users:manage">
                     <UserListPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route
                 path="/users/:userId"
                 element={
-                  <RequireRole role="USER_ADMIN">
+                  <RequireAccess permission="users:manage">
                     <UserDetailPage />
-                  </RequireRole>
+                  </RequireAccess>
                 }
               />
               <Route path="/audit" element={<AuditTimelinePage />} />

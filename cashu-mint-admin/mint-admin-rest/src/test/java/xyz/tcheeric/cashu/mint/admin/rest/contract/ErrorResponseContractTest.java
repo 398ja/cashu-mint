@@ -13,7 +13,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
@@ -33,16 +35,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class,
     AdminUserService.class, AdminOperationsService.class})
 @TestPropertySource(properties = {
-    "admin.security.api-token=test-token",
     // Own database per class: a shared in-memory store leaks operators between
-    // classes, and the bootstrap credential is inert once any operator exists.
+    // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:ErrorResponseContractTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class ErrorResponseContractTest {
 
-    private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "99999999-9999-9999-9999-999999999999";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -55,7 +55,7 @@ class ErrorResponseContractTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("unauthorized"));
+                .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     // Verifies forbidden requests return standard error format with status, error, code, message fields.
@@ -77,14 +77,13 @@ class ErrorResponseContractTest {
     @DisplayName("Pausing non-existent mint returns standard error with mint_not_found")
     void notFoundLifecyclePauseReturnsStandardError() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID + "/pause")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "reason": "maintenance",
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                                  "reason": "maintenance"
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").exists())
@@ -97,15 +96,14 @@ class ErrorResponseContractTest {
     @DisplayName("Operations schedule returns consistent response structure")
     void operationsScheduleReturnsConsistentStructure() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "reason": "test",
-                                  "durationMinutes": 30,
-                                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                                  "durationMinutes": 30
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mintId").exists())
                 .andExpect(jsonPath("$.controlId").exists())

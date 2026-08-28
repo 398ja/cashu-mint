@@ -5,13 +5,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.Denomination;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.VaultKeySet;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.framework.CorrelationIdContext;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
-import xyz.tcheeric.cashu.mint.admin.rest.dto.common.ActorDto;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleChangeRequest;
@@ -32,7 +35,6 @@ class AdminLifecycleServiceTest {
 
     private static final String MINT_ID = "mint-ctx";
     private static final String OPERATOR_UUID = UUID.randomUUID().toString();
-    private static final ActorDto ACTOR = new ActorDto(OPERATOR_UUID, "Ops");
     private static final MintMetadataDto METADATA = new MintMetadataDto("Mint", "Primary mint", List.of("prod"));
 
     private AdminLifecycleService service;
@@ -43,15 +45,16 @@ class AdminLifecycleServiceTest {
             new EmptyMintRepository(),
             new LifecycleSummaryPresenter(),
             new LifecycleSummaryApiPresenter(),
-            fixedOperatorIdentity());
+            fixedOperatorIdentity(),
+            new EmptyKeySetInventory());
     }
 
     // The filter chain does not run in this test, so stand in for the operator it
     // would otherwise have resolved onto the request.
     private static OperatorIdentity fixedOperatorIdentity() {
-        return new OperatorIdentity() {
+        return new OperatorIdentity(org.mockito.Mockito.mock(OperatorAccessRepository.class)) {
             @Override
-            public String requireActor(final String claimedOperatorId) {
+            public String currentOperatorId() {
                 return OPERATOR_UUID;
             }
         };
@@ -179,20 +182,33 @@ class AdminLifecycleServiceTest {
     }
 
     private CreateMintRequest createRequest(final String mintId, final String versionTag) {
-        return new CreateMintRequest(mintId, ACTOR, METADATA, Map.of("versionTag", versionTag));
+        return new CreateMintRequest(mintId, METADATA, Map.of("versionTag", versionTag));
     }
 
     private UpdateMintRequest updateRequest(final String versionTag, final String revisionId) {
-        return new UpdateMintRequest(ACTOR, METADATA, Map.of("versionTag", versionTag, "maxPeers", 5), revisionId);
+        return new UpdateMintRequest(METADATA, Map.of("versionTag", versionTag, "maxPeers", 5), revisionId);
     }
 
     private LifecycleChangeRequest changeRequest(final String reason, final String correlationId) {
-        return new LifecycleChangeRequest(ACTOR, reason, correlationId);
+        return new LifecycleChangeRequest(reason, correlationId);
     }
 
     private void assertMissingMintFailure(final AdminServiceException failure) {
         assertThat(failure.getStatus()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
         assertThat(failure.getCode()).isEqualTo("mint_not_found");
+    }
+
+    /** No keysets and no denominations: this test is about lifecycle, not the vault. */
+    private static final class EmptyKeySetInventory implements KeySetInventoryPort {
+        @Override
+        public List<VaultKeySet> listByMint(final UUID mintId) {
+            return List.of();
+        }
+
+        @Override
+        public List<Denomination> listDenominations(final UUID mintId, final String keySetId) {
+            return List.of();
+        }
     }
 
     private static final class EmptyMintRepository implements MintRepository {

@@ -21,12 +21,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.AssignRolesRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.CreateUserRequest;
-import xyz.tcheeric.cashu.mint.admin.rest.dto.users.CredentialResetResponse;
-import xyz.tcheeric.cashu.mint.admin.rest.dto.users.ResetCredentialsRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UpdateUserRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UserLifecycleRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.users.UserResponse;
@@ -36,8 +38,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
  * REST endpoints for operator account management.
  */
 @Tag(name = "Admin Users", description = "Operator management workflows mirrored from CLI commands")
-@SecurityRequirement(name = "AdminToken")
-@SecurityRequirement(name = "AdminRoles")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.USERS_MANAGE)
 @RestController
 @RequestMapping("/admin/users")
 public class UsersAdminController {
@@ -102,20 +104,22 @@ public class UsersAdminController {
         return ResponseEntity.ok(userService.assignRoles(userId, request));
     }
 
-    @Operation(summary = "Reset operator credentials", description = "Initiate a credential reset workflow for an operator.")
+    @Operation(summary = "Reinstate an operator", description = "Restore access to a suspended operator account.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Reset token issued", content = @Content(schema = @Schema(implementation = CredentialResetResponse.class))),
+            @ApiResponse(responseCode = "200", description = "User reinstated", content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Target is the Super Administrator", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
     })
-    @PostMapping("/{userId}/reset-credentials")
-    public ResponseEntity<CredentialResetResponse> resetCredentials(@PathVariable("userId") String userId,
-                                                                    @Valid @RequestBody ResetCredentialsRequest request) {
-        return ResponseEntity.ok(userService.resetCredentials(userId, request));
+    @PostMapping("/{userId}/reinstate")
+    public ResponseEntity<UserResponse> reinstateUser(@PathVariable("userId") String userId,
+                                                      @Valid @RequestBody UserLifecycleRequest request) {
+        return ResponseEntity.ok(userService.reinstateUser(userId, request));
     }
 
     @Operation(summary = "Deactivate an operator", description = "Deactivate an operator account, mirroring the CLI lifecycle flow.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "User deactivated", content = @Content(schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Target is the Super Administrator", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "User not found", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
     })
     @PostMapping("/{userId}/deactivate")

@@ -63,15 +63,8 @@ Key entity groups:
 - **Operations**: `operational_controls`, `mint_health_snapshots`
 - **Audit**: `audit_events`, `admin_outbox`
 
-## Planning documents
-
-Detailed design documents live in the `project/` directory:
-
-- `project/specification.md` — functional and non-functional requirements
-- `project/technical-analysis.md` — Clean Architecture deep-dive with port contracts
-- `project/M1.md` through `project/M8.md` — milestone breakdowns
 
 ## See also
 
-- [Architecture overview (main mint)](../../docs/explanations/architecture-overview.md) — how the admin fits with the mint
+- [Architecture overview (main mint)](../../../docs/explanations/architecture-overview.md) — how the admin fits with the mint
 - [Configure persistence](../how-to/configure-mint-admin-persistence.md) — database setup

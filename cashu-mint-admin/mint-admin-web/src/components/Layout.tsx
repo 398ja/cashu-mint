@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
+import { useGranted, type Access } from "@/auth/access";
+import { LockScreen } from "@/auth/LockScreen";
 import {
   LayoutDashboard,
   Server,
@@ -13,7 +15,7 @@ interface NavItem {
   label: string;
   to: string;
   icon: React.ReactNode;
-  role?: string;
+  access?: Access;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -26,13 +28,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Mints",
     to: "/mints",
     icon: <Server className="h-4 w-4" />,
-    role: "MINT_ADMIN",
+    access: { permission: "mint:lifecycle" },
   },
   {
     label: "Users",
     to: "/users",
     icon: <Users className="h-4 w-4" />,
-    role: "USER_ADMIN",
+    access: { permission: "users:manage" },
   },
   {
     label: "Audit Log",
@@ -42,15 +44,15 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Layout() {
-  const { hasRole, roles, logout } = useAuth();
+  const { roles, npub, locked, logout } = useAuth();
+  const granted = useGranted();
   const navigate = useNavigate();
 
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.role || hasRole(item.role),
-  );
+  const visibleItems = NAV_ITEMS.filter((item) => granted(item.access));
 
   return (
     <div className="flex h-screen">
+      {locked && <LockScreen />}
       <nav className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-900/50 flex flex-col">
         <div className="flex items-center gap-2 px-4 py-4 border-b border-zinc-800">
           <Shield className="h-5 w-5 text-zinc-400" />
@@ -79,6 +81,14 @@ export function Layout() {
         </div>
 
         <div className="border-t border-zinc-800 p-3">
+          {npub && (
+            <div
+              className="text-xs text-zinc-300 mb-1 px-1 truncate"
+              title={npub}
+            >
+              {npub}
+            </div>
+          )}
           <div className="text-xs text-zinc-500 mb-2 px-1">
             {roles.join(", ")}
           </div>

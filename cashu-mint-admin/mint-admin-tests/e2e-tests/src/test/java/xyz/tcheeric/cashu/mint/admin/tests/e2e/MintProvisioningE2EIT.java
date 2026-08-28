@@ -22,8 +22,7 @@ class MintProvisioningE2EIT extends AbstractAdminE2EIT {
         // Create mint (starts in PROVISIONING state).
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/lifecycle/mints",
-            createMintPayload(mintId),
-            MINT_ADMIN_ROLE);
+            createMintPayload(mintId));
         assertThat(created.getStatusCode().value()).isEqualTo(200);
         assertThat(created.getBody().path("mintId").asText()).isEqualTo(mintId);
 
@@ -33,8 +32,7 @@ class MintProvisioningE2EIT extends AbstractAdminE2EIT {
             .pollInterval(Duration.ofSeconds(2))
             .untilAsserted(() -> {
                 final ResponseEntity<JsonNode> detail = adminApiClient().get(
-                    "/admin/lifecycle/mints/" + mintId,
-                    MINT_ADMIN_ROLE);
+                    "/admin/lifecycle/mints/" + mintId);
                 assertThat(detail.getStatusCode().value()).isEqualTo(200);
                 assertThat(detail.getBody().path("lifecycleState").asText()).isEqualTo("PROVISIONED");
             });
@@ -46,7 +44,6 @@ class MintProvisioningE2EIT extends AbstractAdminE2EIT {
     private Map<String, Object> createMintPayload(final String mintId) {
         return Map.of(
             "mintId", mintId,
-            "requestedBy", actor("E2E Mint Admin"),
             "metadata", Map.of(
                 "displayName", "E2E Mint " + mintId.substring(0, 8),
                 "description", "Provisioned during e2e tests",

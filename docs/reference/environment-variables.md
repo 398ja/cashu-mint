@@ -21,13 +21,26 @@ This reference lists the environment variables used to configure the Cashu mint 
 | `VAULT_BASE_URL` | — | Alias for `CASHU_VAULT_BASE_URL` |
 | `CASHU_VAULT_PORT` | `3333` | HTTP port for the vault service |
 | `CASHU_VAULT_VERSION` | `latest` | Docker image version for vault |
+| `VAULT_BACKEND` | `HASHICORP` | Where private keys live: `HASHICORP` or `DB` |
+| `VAULT_HASHI_ENABLED` | `false` | Must be `true` for the HashiCorp backend to wire up; otherwise the client silently falls back to the database vault and reads a null private key |
+| `VAULT_HASHI_URI` | — | HashiCorp Vault address |
+| `VAULT_HASHI_AUTH_METHOD` | — | e.g. `TOKEN` |
+| `VAULT_HASHI_AUTH_TOKEN` | — | Token for the above |
+| `VAULT_HASHI_ENGINE_MOUNT` | — | Secrets-engine mount. Must match on the mint and the admin, or each looks for the other's keys under a path that does not exist |
+
+## Keyset source
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MINT_PRELOAD_ENABLED` | `true` | When `true`, the mint serves a fixed keyset from the preload JSON. Set `false` to read keysets from the shared vault, which is what makes a mint the admin provisioned — and every rotation — visible at `/v1/keysets` |
+| `MINT_PRELOAD_JSON_INPUT` | `scripts/preload-test-data.json` | The preload keyset. Read either way: the mint seeds it into the vault at startup |
 
 ## Gateway and payments
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GATEWAY_BOLT11_SAT` | `xyz.tcheeric.gateway.phoenixd.PhoenixdGateway` | Gateway class for BOLT11 sat payments |
-| `GATEWAY_BOLT11` | `xyz.tcheeric.gateway.phoenixd.PhoenixdGateway` | Fallback gateway class for BOLT11 |
+| `GATEWAY_BOLT11_SAT` | `xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway` | Gateway class for BOLT11 sat payments |
+| `GATEWAY_BOLT11` | `xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway` | Fallback gateway class for BOLT11 |
 | `GATEWAY_API_BASE_URL` | — | Base URL of the payment adapter REST service |
 | `GATEWAY_CLIENT_CONNECT_TIMEOUT` | `5s` | HTTP connect timeout for gateway calls |
 | `GATEWAY_CLIENT_READ_TIMEOUT` | `30s` | HTTP read timeout for gateway calls |
@@ -68,7 +81,8 @@ This reference lists the environment variables used to configure the Cashu mint 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CASHU_MINT_ADMIN_PORT` | `7778` | HTTP port for the admin REST API |
-| `CASHU_MINT_ADMIN_API_TOKEN` | `local-dev-token` | API token for admin authentication |
+| `CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB` | _(none)_ | npub of the admin Super Administrator |
+| `CASHU_MINT_ADMIN_EXTERNAL_BASE_URL` | `http://localhost:7778` | Audience admin handshake proofs must name |
 | `CASHU_MINT_ADMIN_VERSION` | `latest` | Docker image version for admin |
 | `CASHU_MINT_ADMIN_WEB_PORT` | `3000` | Port for the admin web UI |
 

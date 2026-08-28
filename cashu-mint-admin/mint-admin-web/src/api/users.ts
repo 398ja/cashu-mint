@@ -3,17 +3,15 @@ import type { PagedResponse } from "./lifecycle";
 
 export interface UserResponse {
   userId: string;
+  /** The Operator's Nostr identity. Absent on the answer to a change, which names none. */
+  npub: string | null;
   displayName: string;
   email: string;
   roles: string[];
   active: boolean;
   message: string | null;
-}
-
-export interface CredentialResetResponse {
-  userId: string;
-  resetToken: string;
-  message: string;
+  /** The Super Administrator, named in configuration: no profile to suspend or remove. */
+  configurationAnchored: boolean;
 }
 
 export function listUsers(params: {
@@ -30,20 +28,9 @@ export function getUser(userId: string): Promise<UserResponse> {
   return apiGet(`/admin/users/${encodeURIComponent(userId)}`);
 }
 
-export function createUser(body: {
-  requestedBy: { id: string; displayName: string };
-  userId: string;
-  displayName: string;
-  email: string;
-  roles: string[];
-}): Promise<UserResponse> {
-  return apiPost("/admin/users", body);
-}
-
 export function updateUser(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     displayName: string;
     email: string;
     roles: string[];
@@ -55,7 +42,6 @@ export function updateUser(
 export function assignRoles(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     roles: string[];
     justification: string;
   },
@@ -66,28 +52,33 @@ export function assignRoles(
   );
 }
 
-export function resetCredentials(
-  userId: string,
-  body: {
-    requestedBy: { id: string; displayName: string };
-    reason: string;
-  },
-): Promise<CredentialResetResponse> {
-  return apiPost(
-    `/admin/users/${encodeURIComponent(userId)}/reset-credentials`,
-    body,
-  );
-}
-
 export function deactivateUser(
   userId: string,
   body: {
-    requestedBy: { id: string; displayName: string };
     reason: string;
   },
 ): Promise<UserResponse> {
   return apiPost(
     `/admin/users/${encodeURIComponent(userId)}/deactivate`,
+    body,
+  );
+}
+
+export function createUser(body: {
+  userId: string;
+  displayName: string;
+  npub: string;
+  roles: string[];
+}): Promise<UserResponse> {
+  return apiPost("/admin/users", body);
+}
+
+export function reinstateUser(
+  userId: string,
+  body: { reason: string },
+): Promise<UserResponse> {
+  return apiPost(
+    `/admin/users/${encodeURIComponent(userId)}/reinstate`,
     body,
   );
 }

@@ -204,7 +204,7 @@ If OOM or high memory usage:
 
 ## Go/No-Go Criteria
 
-Based on [loom-assessment.md](../../../project/loom-assessment.md):
+Based on the Loom assessment (see git history for `project/loom-assessment.md`):
 
 | Metric | Go Criteria |
 |--------|-------------|

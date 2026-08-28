@@ -121,3 +121,22 @@ test.describe("Mint Lifecycle", () => {
     await expect(page.getByRole("textbox")).toBeVisible();
   });
 });
+
+test.describe("Super Administrator", () => {
+  // The Super Administrator holds every permission and none of the pages' roles,
+  // so gating on the role left the account that recovers a deployment with a
+  // dashboard and nothing else.
+  test("reaches the mints they hold every permission over", async ({ page }) => {
+    await loginAsAdmin(page, ["SUPER_ADMIN"]);
+    await mockApiResponse(
+      page,
+      "**/admin/lifecycle/mints**",
+      pagedResponse([MINT]),
+    );
+
+    await page.goto("/mints");
+
+    await expect(page.getByRole("link", { name: "Mints" })).toBeVisible();
+    await expect(page.getByText("mint-abc")).toBeVisible();
+  });
+});

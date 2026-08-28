@@ -26,7 +26,7 @@ You should receive a JSON response with details about the mint.
 The dev profile maps Bolt11 to the Phoenixd gateway, backed by the `phoenixd-mock` service. Override the mapping by exporting `GATEWAY_BOLT11_SAT` when starting compose, e.g.:
 
 ```bash
-GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.dummy.DummyGateway \
+GATEWAY_BOLT11_SAT=xyz.tcheeric.payment.adapter.ln.dummy.DummyGateway \
   docker compose --profile dev up
 ```
 

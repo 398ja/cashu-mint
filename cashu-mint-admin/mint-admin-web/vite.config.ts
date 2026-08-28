@@ -17,6 +17,11 @@ export default defineConfig({
         target: process.env.VITE_API_BASE_URL || "http://localhost:7778",
         changeOrigin: true,
       },
+      // The NAP handshake and session endpoint live here.
+      "/api/v1/auth": {
+        target: process.env.VITE_API_BASE_URL || "http://localhost:7778",
+        changeOrigin: true,
+      },
     },
   },
 });

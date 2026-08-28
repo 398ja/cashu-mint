@@ -1,6 +1,6 @@
 # Triage: what in mint-admin actually works
 
-Point-in-time assessment, 2026-08-19. Every administrative capability and every
+Point-in-time assessment, revised 2026-08-28. Every administrative capability and every
 surface, given one of three verdicts:
 
 - **Actuates** — causes a real change outside this module.
@@ -19,58 +19,53 @@ material at boot through `MintLoadService`.
 Shared state is the integration point. Any future actuation should be weighed
 against this pattern before reaching for a new transport.
 
+This only holds when the mint actually reads that vault. `PreloadMintLoadService`
+is `@Primary` and on by default, serving a fixed keyset from JSON; a deployment
+that leaves it enabled shares a vault with the admin and still disagrees with it.
+Both the dev and E2E stacks therefore set `MINT_PRELOAD_ENABLED=false`.
+
 ## Verdicts
 
 | Capability | Verdict | Evidence |
 |---|---|---|
 | Provisioning (`CREATED`) | **Actuates** | Full saga through `VaultProvisioningAdapter`; `PROVISIONING → PROVISIONED`, or compensated and failed. |
 | Retire (`RETIRED`) | **Actuates**, but see below | `vaultPort.archive(mintId)` archives the mint's vault keysets. |
-| Pause / Resume | Records only | `VaultProvisioningOutboxHandler` branches on `CREATED` and `RETIRED` only. `PAUSED` and `RESUMED` reach no handler. A paused mint keeps serving. |
+| Pause / Resume | Records only, but the mint is ready | The mint honours suspension durably: `MintSuspensionEntity` is read on the issuance path and a suspended mint refuses to issue with `mint_suspended` while still honouring swaps and melts (ADR-0006, ADR-0007). What is missing is the write — `VaultProvisioningOutboxHandler` branches on `CREATED`, `RETIRED` and `KEYS_ROTATED` only, so nothing in the admin ever sets that state. A mint paused in the admin keeps issuing. |
 | Configuration update | Records only | `CONFIGURATION_UPDATED` likewise has no handler branch. Stored, versioned, never applied. |
-| Key rotation | Records only | `ExecuteOperationalControlsInteractor` returns the literal `"Key rotation initiated (placeholder)"` and writes one audit row — while the vault adapter it would need already exists a package away. |
+| Key rotation | **Actuates** | `ROTATE_KEYS` writes an outbox message in the same transaction as the control row; `VaultProvisioningOutboxHandler` drives `VaultProvisioningAdapter.rotate`, which archives the outgoing keyset, provisions the replacement, and records which keyset replaced which. |
 | Maintenance windows, force-close | Records only | Same shape: audit rows, no effect. |
-| Health monitoring | Decorative | `MonitorMintHealthInteractor.updateHealth` has exactly one caller in the repo — its own unit test. Health is permanently `UNKNOWN`. |
-| Alerts / notifications | Decorative | Alerts exist only where an Operator posted them. No detection, and no delivery mechanism of any kind. |
-| Access / RBAC | Decorative, and unsound | See below. |
+| Access / RBAC | **Sound** | Closed by #370 and #373: every controller names the permission it requires, Operators authenticate through NAP, and `SUPER_ADMIN` is configuration rather than data. See the security finding below. |
 
-## Retiring a mint does not stop it signing
+Health monitoring and alerts were removed rather than fixed; both were decorative,
+with no detection and no delivery. Their endpoints and domain types are gone.
 
-This is the most serious functional defect, and it spans both modules.
+## Retiring a mint stops it signing
 
-`RETIRED` archives the mint's keysets in the vault. But in the mint, the
-active/archived flag is **advertising metadata only**: `ActiveKeySetsTask` uses
-it to populate `/v1/keysets`, `MintLoadService.keySets()` loads archived
-keysets alongside active ones, and `SignBlindedMessageTask` resolves the private
-key by whatever keyset id the *client* supplied. The string `active` appears
-nowhere in the signing path.
+**Closed.** This was once the most serious functional defect here: `RETIRED`
+archived the mint's keysets, but the archived flag was advertising metadata only —
+`SignBlindedMessageTask` resolved the key by whatever keyset id the *client*
+supplied, so a retired mint kept signing for anyone naming the old id.
 
-So a retired mint keeps signing for any client that names the old keyset id.
-The admin believes it has decommissioned a mint; the mint carries on issuing.
-
-The same gap is why rotation cannot simply be built on the existing adapter:
-writing a new keyset and archiving the old one would leave both signing.
+`MintProtocolUtil.getPrivateKeyForSigning` now refuses an archived keyset with
+`keyset_inactive`, so archiving genuinely retires a keyset for issuance while
+redemption paths keep verifying it (ADR-0004). Rotation is built on that, and the
+vault reinforces it by permitting one active keyset per unit.
 
 ## The security finding
 
-`AdminRbacFilter:68` reads the caller's roles from `X-Admin-Roles` — a request
-header the caller sets — and compares it to a required role per path.
-Authentication is a single shared static token, and there is no Spring Security
-on the classpath. Any holder of the token asserts every role:
+**Closed by issues #370 and #373.** It is recorded here because the shape of the
+fix explains the current design.
 
-```
-X-Admin-Roles: MINT_ADMIN,USER_ADMIN,ALERTS_ADMIN,OPS_ADMIN
-```
+Access control used to read the caller's roles from an `X-Admin-Roles` request
+header behind a single shared static token, so any token holder could assert
+every role, and the operator store was never consulted at the enforcement point.
+The audit trail recorded whichever operator id the caller supplied.
 
-The web client sends this header from the browser, and `AuthAdminController:33`
-reads it too. `AdministerAccessUseCase` — the operator accounts and role grants,
-with their own schema, endpoints and tests — is referenced only by the service
-that maintains it, never at the enforcement point. The store is, for
-access-control purposes, write-only.
-
-Two knock-ons: the audit trail records whichever operator id the caller
-supplied, so it attributes actions to a claimed rather than a proven identity;
-and `/admin/audit/**` sits in the no-role-required list, so the audit record is
-readable by any token holder.
+Operators now complete a NAP handshake with their Nostr key. `AdminAclResolver`
+resolves their roles and permissions from the operator store on every request,
+each controller names the permission it requires, and the audit actor is the
+authenticated Operator. The shared token, the header and the credential reset
+workflow no longer exist.
 
 Unlike the gaps above, this is not a missing feature. It is a control that
 appears to exist, has passing tests, and does not hold.
@@ -80,16 +75,25 @@ appears to exist, has passing tests, and does not hold.
 | Surface | Verdict | Evidence |
 |---|---|---|
 | REST API | Sound | Genuinely wired to the core interactors. |
-| Web UI | Sound client | Real API client per feature. Inherits the RBAC flaw by design. |
-| CLI | Unsound | `MintAdminCliApplication:76-84` — connected mode wires one real port, `HttpMintLifecyclePort`. Status, config, users and alerts stay on `Stub*`. `StubMintAlertsPort` returns hardcoded rows including `"Lightning backend unreachable"`, presented as live data. |
+| Web UI | Sound | Real API client per feature, and the login page completes a NAP handshake against the operator's key. |
+
+The CLI was removed rather than fixed. Its connected mode wired exactly one real
+port and served hardcoded rows — including `"Lightning backend unreachable"` — as
+though they were live data.
 
 ## Where the tests stop short
 
-The suite is green, and the gaps above survive it:
+Largely addressed. `KeyRotationE2EIT` now asserts rotation against the mint's own
+`/v1/keysets` rather than against the admin's echo, which is only meaningful because
+the stack runs a vault-backed mint (`MINT_PRELOAD_ENABLED=false`).
 
-- `VaultProvisioningSagaIT` stubs `VaultProvisioningPort`, so it proves the saga's state transitions and not that anything reaches the vault.
-- `MintProvisioningE2EIT` waits for the admin to report `PROVISIONED` and then calls the mint's `/v1/info`. It never asserts the mint can see or use the keyset just provisioned.
-- `OperationalControlsE2EIT` asserts that rotation returned the string `"KEY_ROTATION_INITIATED"` — the admin echoing its own status, with nothing read from the mint.
+What remains:
+
+- `VaultProvisioningSagaIT` stubs `VaultProvisioningPort`, so it proves the saga's
+  state transitions and not that anything reaches the vault.
+- `MintProvisioningE2EIT` waits for the admin to report `PROVISIONED` and then calls
+  the mint's `/v1/info`. It never asserts the mint can use the keyset just
+  provisioned.
 
 The E2E stack boots a real mint next to the admin, so the assertions needed to
 catch all three are available; they are simply not made.

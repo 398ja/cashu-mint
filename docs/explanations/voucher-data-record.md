@@ -198,7 +198,6 @@ For anyone verifying these claims against the implementation:
 - Schema: `cashu-mint-jpa/src/main/resources/db/migration/spec001/V20260524_*.sql` (spec 003) + `V20260601_*.sql` (spec 004)
 - Retention purge job: `cashu-mint-jpa/src/main/java/.../jpa/service/VoucherIdentityRetentionPurgeService.java`
 - Forensic admin endpoint: `cashu-mint-rest/src/main/java/.../rest/admin/VoucherForensicController.java`
-- Spec: `specs/004-voucher-data-minimisation/spec.md`
 
 ## Changes to this document
 

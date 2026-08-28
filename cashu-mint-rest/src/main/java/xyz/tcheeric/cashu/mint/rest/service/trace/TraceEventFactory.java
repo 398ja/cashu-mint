@@ -25,7 +25,7 @@ import xyz.tcheeric.cashu.mint.rest.event.TraceProofInput;
  * Spec 036 — maps internal trace application events to the SDK's
  * {@link TransactionEvent} wire shape. Pure mapping; performs no I/O.
  *
- * <p>Mint-side rules (see {@code specs/036-.../contracts/trace-events.md}):
+ * <p>Mint-side rules:
  * {@code producerPubkey} is set to the signer's public key
  * ({@code TraceEventSigner.publicKeyHex()}) because the signer rejects a
  * mismatching event; {@code initiatorPubkey} is omitted (Principle VII — no

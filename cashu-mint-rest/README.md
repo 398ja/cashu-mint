@@ -283,13 +283,9 @@ Two follow-up tracking issues:
 Neither blocks spec 004 from landing — the cashu-mint side is
 self-contained.
 
-## Spec 001 / 002 / 003 / 004 reference
+## Further reading
 
-- Spec 001 spec: `specs/001-mint-quote-webhook-integrity/`
-- Spec 002 spec: `specs/002-melt-burn-ordering/`
-- Spec 003 spec: `specs/003-voucher-quote-durability/`
-- Spec 004 spec: `specs/004-voucher-data-minimisation/` (operator
-  runbook: `specs/004-voucher-data-minimisation/quickstart.md`)
+- Voucher data custody, operator runbook: `docs/runbooks/voucher-data-minimisation.md`
 - Customer-facing disclosure: `docs/explanations/voucher-data-record.md`
 - Operator reconciliation queries: Javadoc on `MintQuoteJpaRepository`,
   `MeltSagaJpaRepository`, and `VoucherIssuanceJpaRepository`.

@@ -34,38 +34,18 @@ services:
     restart: unless-stopped
     networks:
       - cashu
-  vault-db-init:
-    image: postgres:16
-    depends_on:
-      cashu-vault-db:
-        condition: service_healthy
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cashu_vault
-      PGPASSWORD: postgres
-    volumes:
-      - ../cashu-vault/cashu-vault-jpa/src/main/resources/db/migration:/migrations:ro
-    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /migrations/V1__init_schema.sql"]
-    restart: "no"
-    networks:
-      - cashu
-  vault-db-seed:
-    image: postgres:16
-    depends_on:
-      vault-db-init:
-        condition: service_completed_successfully
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cashu_vault
-      PGPASSWORD: postgres
-    volumes:
-      - ./scripts/preload-test-data.sql:/preload-test-data.sql:ro
-    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /preload-test-data.sql"]
-    restart: "no"
-    networks:
-      - cashu
+  # The vault schema is owned by Flyway inside cashu-vault-jpa. A previous
+  # vault-db-init service applied V1__init_schema.sql with psql on every `up`,
+  # which re-created idx_keyset_unit_mint_unq — the UNIQUE (unit, mint_id) that
+  # V5 drops precisely so a mint can hold a rotated-away keyset alongside its
+  # replacement. Rotation then failed on every attempt against a dev stack.
+  #
+  # A vault-db-seed service loaded scripts/preload-test-data.sql alongside it. That
+  # seed inserts t_key.private_key, a column removed when key material moved to
+  # HashiCorp and replaced by vault_path, so every run failed with "column
+  # private_key does not exist" and seeded no keys at all. Key material cannot be
+  # seeded over SQL any more: only the backend-aware vault knows where the secret
+  # goes. VaultPreloadSeeder in the mint does it instead, from the same JSON.
   hashicorp-vault:
     image: hashicorp/vault:1.18
     cap_add:
@@ -151,13 +131,17 @@ services:
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       # HashiCorp Vault configuration
       VAULT_BACKEND: HASHICORP
+      # Every class in cashu-vault-hashi is @ConditionalOnProperty(vault.hashi.enabled=true).
+      # Without this the registrar never runs and VaultClientFactory silently falls back
+      # to the database vault, so t_key rows are written with a null vault_path.
+      VAULT_HASHI_ENABLED: "true"
       VAULT_HASHI_URI: http://hashicorp-vault:8200
       VAULT_HASHI_AUTH_METHOD: TOKEN
       VAULT_HASHI_AUTH_TOKEN: dev-root-token
       VAULT_HASHI_ENGINE_MOUNT: cashu
     depends_on:
-      vault-db-init:
-        condition: service_completed_successfully
+      cashu-vault-db:
+        condition: service_healthy
       hashicorp-vault:
         condition: service_healthy
     ports:
@@ -241,6 +225,16 @@ services:
       - "127.0.0.1:${CASHU_MINT_MANAGEMENT_PORT:-9000}:${CASHU_MINT_MANAGEMENT_PORT:-9000}"
     environment:
       SPRING_PROFILES_ACTIVE: dev
+      # The mint reads its keysets from the shared vault, which is what links it to
+      # the mints the admin provisions: a mint created there, and every rotation of
+      # its keyset, shows up at /v1/keysets here. Left enabled (the default),
+      # PreloadMintLoadService is @Primary and serves a fixed keyset from JSON
+      # instead, so the admin and the mint would share a vault and still disagree.
+      MINT_PRELOAD_ENABLED: "false"
+      # Still read, by VaultPreloadSeeder: it seeds this keyset into the vault at
+      # startup so a clean stack has something to serve. Seeding is separate from
+      # serving precisely so disabling preload above does not take the dev data
+      # with it.
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
@@ -248,6 +242,14 @@ services:
       # cashu-mint-protocol (VaultClientFactory), VAULT_BASE_URL by cashu-mint-admin.
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      # Signing keys live in HashiCorp; the t_key row only points at them. Without
+      # this the mint falls back to the database vault and reads a null private key.
+      VAULT_BACKEND: HASHICORP
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: http://hashicorp-vault:8200
+      VAULT_HASHI_AUTH_METHOD: TOKEN
+      VAULT_HASHI_AUTH_TOKEN: dev-root-token
+      VAULT_HASHI_ENGINE_MOUNT: cashu
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_API_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.phoenixd.PhoenixdGateway}
@@ -267,8 +269,12 @@ services:
       GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
       GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
-      vault-db-seed:
-        condition: service_completed_successfully
+      # The mint seeds the vault itself at startup (VaultPreloadSeeder), so it needs
+      # the vault up and migrated rather than a seed step to have run.
+      cashu-vault-jpa:
+        condition: service_healthy
+      hashicorp-vault:
+        condition: service_healthy
       payment-adapter-rest:
         condition: service_healthy
       phoenixd-mock:
@@ -312,9 +318,29 @@ services:
       DATASOURCE_USERNAME: postgres
       DATASOURCE_PASSWORD: postgres
       DATASOURCE_DRIVER: org.postgresql.Driver
-      ADMIN_API_TOKEN: ${CASHU_MINT_ADMIN_API_TOKEN:-local-dev-token}
+      # The admin API is reachable only through a NAP session, so the deployment must
+      # name the npub that outranks every stored profile or the app refuses to start.
+      # Defaults to the throwaway key the E2E suite signs with (privkey 00..01); override
+      # with your own npub to sign in from a real signer.
+      ADMIN_SUPER_ADMIN_NPUB: ${CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB:-npub10xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqpkge6d}
+      # Handshake proofs name this audience; it must be the URL the browser uses.
+      ADMIN_EXTERNAL_BASE_URL: http://localhost:${CASHU_MINT_ADMIN_PORT:-7778}
+      # Local dev is plain HTTP, so a Secure-only cookie would never be sent back.
+      ADMIN_SESSION_COOKIE_SECURE: "false"
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      # VaultProvisioningAdapter writes key secrets through the backend-aware vault
+      # (default HASHICORP), which stamps t_key.vault_path. Without these the write
+      # lands nowhere and the row is rejected by the NOT NULL on vault_path.
+      VAULT_BACKEND: HASHICORP
+      # Every class in cashu-vault-hashi is @ConditionalOnProperty(vault.hashi.enabled=true).
+      # Without this the registrar never runs and VaultClientFactory silently falls back
+      # to the database vault, so t_key rows are written with a null vault_path.
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: http://hashicorp-vault:8200
+      VAULT_HASHI_AUTH_METHOD: TOKEN
+      VAULT_HASHI_AUTH_TOKEN: dev-root-token
+      VAULT_HASHI_ENGINE_MOUNT: cashu
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
     depends_on:

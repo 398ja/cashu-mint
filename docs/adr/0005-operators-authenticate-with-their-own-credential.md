@@ -1,5 +1,10 @@
 # Operators authenticate with their own credential; roles are resolved server-side
 
+**Superseded (issue #373).** Operators now authenticate with a NAP handshake over
+their Nostr key and carry a session cookie; the per-operator credential, its reset
+workflow and the shared bootstrap token are gone. The decision below stands only in
+its second half — roles are still resolved server-side from the operator store.
+
 Access control on the admin API read the caller's roles from an `X-Admin-Roles`
 request header, behind a single shared static token — so any token holder could
 assert any role, and the operator store was never consulted at the enforcement
@@ -19,12 +24,10 @@ source of truth either way.
 
 ## Consequences
 
-`admin.security.api-token` survives only as a bootstrap credential, usable while
-the operator store is empty and inert the moment any Operator exists. Creating
-an Operator issues that Operator's own credential in the same response, so one
-bootstrap request is enough to hand over — a shared token that stayed valid
-would reproduce the defect this ADR exists to close, under a different name.
+The shared token survived here as a bootstrap credential. Issue #373 removed it
+along with the per-operator credential: the Super Administrator is configured by
+npub, so an empty operator store is no longer a reason to keep a second way in.
 
-The audit actor is the authenticated Operator. A request whose body names a
-different one is refused rather than silently recorded, because an Audit Trail
-that stores a claimed identity is evidence of nothing.
+The audit actor is the authenticated Operator. No request field or header offers
+one, so there is nothing for a caller to claim — an Audit Trail that stores a
+claimed identity is evidence of nothing.

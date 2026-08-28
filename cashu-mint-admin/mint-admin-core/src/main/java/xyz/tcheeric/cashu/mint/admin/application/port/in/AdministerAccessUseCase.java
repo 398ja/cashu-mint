@@ -13,7 +13,7 @@ public interface AdministerAccessUseCase {
         PROVISION,
         UPDATE_ROLES,
         REVOKE,
-        RESET_CREDENTIALS
+        REINSTATE
     }
 
     record AdministerAccessRequest(String operatorId,
@@ -23,13 +23,14 @@ public interface AdministerAccessUseCase {
                                    String displayName,
                                    String email,
                                    Set<String> roles,
+                                   String pubkey,
                                    String reason) {
 
         public AdministerAccessRequest(String operatorId,
                                        String targetAccountId,
                                        AccessCommand command,
                                        String versionTag) {
-            this(operatorId, targetAccountId, command, versionTag, null, null, Set.of(), null);
+            this(operatorId, targetAccountId, command, versionTag, null, null, Set.of(), null, null);
         }
     }
 
@@ -39,6 +40,5 @@ public interface AdministerAccessUseCase {
                                     String email,
                                     Set<String> roles,
                                     boolean active,
-                                    String message,
-                                    String resetToken) { }
+                                    String message) { }
 }

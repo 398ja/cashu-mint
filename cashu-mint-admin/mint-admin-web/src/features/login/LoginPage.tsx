@@ -1,86 +1,130 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { AuthRequestError, Nip07Error, createNip07Signer } from "@imani/nap-client-web";
+import { useNip07 } from "@imani/nap-react";
 import { useAuth } from "@/auth/useAuth";
+import { KeySignIn } from "./KeySignIn";
 import { Shield } from "lucide-react";
 
+/**
+ * One message per way a sign-in can fail. Extracted because the mapping is the
+ * only part of this page with a decision in it.
+ */
+export function describeSignInError(error: unknown): string {
+  if (error instanceof Nip07Error) {
+    switch (error.code) {
+      case "NOT_AVAILABLE":
+        return "No signing extension is available. Install one and try again.";
+      case "DECLINED":
+        return "Your signing extension declined the request.";
+      case "TIMEOUT":
+        return "Your signing extension did not answer in time.";
+      default:
+        return "Your signing extension could not complete the request.";
+    }
+  }
+  if (error instanceof AuthRequestError && error.terminal) {
+    // Every refusal is the same 401 by design, so this cannot name the reason.
+    // Of the reasons there are, an unprovisioned npub is the one an Operator
+    // can do something about.
+    return "This mint did not accept that key. If you are new, ask a Super "
+      + "Administrator to provision an Operator profile for your npub.";
+  }
+  return "Sign-in failed. Please try again.";
+}
+
 export function LoginPage() {
-  const { login } = useAuth();
+  const { refresh, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const expired = searchParams.get("expired") === "true";
+  const { status, provider, retry } = useNip07();
+  const [error, setError] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
 
-  const [token, setToken] = useState("");
-  const [error, setError] = useState<string | null>(
-    expired ? "Session expired. Please log in again." : null,
-  );
-  const [loading, setLoading] = useState(false);
+  // A session may already be open -- the cookie outlives this page.
+  useEffect(() => {
+    refresh().then((ok) => {
+      if (ok) navigate("/dashboard", { replace: true });
+    });
+  }, [refresh, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleSignIn() {
+    if (!provider) return;
+    setSigningIn(true);
     setError(null);
-    setLoading(true);
     try {
-      const ok = await login(token);
-      if (ok) {
-        navigate("/dashboard", { replace: true });
-      } else {
-        setError("Authentication failed. Check your token.");
-      }
-    } catch {
-      setError("Connection failed. Is the backend running?");
+      await signIn(createNip07Signer(provider));
+      navigate("/dashboard", { replace: true });
+    } catch (e) {
+      setError(describeSignInError(e));
     } finally {
-      setLoading(false);
+      setSigningIn(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
           <Shield className="h-8 w-8 text-zinc-400" />
-          <h1 className="text-2xl font-bold text-zinc-100">
-            Cashu Mint Admin
-          </h1>
+          <h1 className="text-2xl font-bold text-zinc-100">Cashu Mint Admin</h1>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4"
-        >
-          {error && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4">
+          {expired && (
             <div className="rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
+              Session expired. Please sign in again.
+            </div>
+          )}
+          <p className="text-sm text-zinc-300">Sign in with your Nostr key.</p>
+
+          {error && (
+            <div
+              role="alert"
+              className="rounded border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300"
+            >
               {error}
             </div>
           )}
 
-          <div>
-            <label
-              htmlFor="token"
-              className="block text-sm font-medium text-zinc-300 mb-1"
+          {status === "detecting" && (
+            <p className="text-sm text-zinc-500">Looking for a signing extension...</p>
+          )}
+
+          {status === "absent" && (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-500">
+                No signing extension found. Install a NIP-07 browser extension,
+                then check again.
+              </p>
+              <button
+                onClick={retry}
+                className="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800 transition-colors"
+              >
+                Check again
+              </button>
+            </div>
+          )}
+
+          {status === "present" && (
+            <button
+              onClick={() => void handleSignIn()}
+              disabled={signingIn}
+              className="w-full rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-white disabled:opacity-50 transition-colors"
             >
-              Admin Token
-            </label>
-            <input
-              id="token"
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-              autoFocus
-              className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
-              placeholder="Enter your admin token"
-            />
+              {signingIn ? "Signing in..." : "Sign in with extension"}
+            </button>
+          )}
+
+          <div className="flex items-center gap-3 pt-1">
+            <span className="h-px flex-1 bg-zinc-800" />
+            <span className="text-xs text-zinc-600">or use a key in this browser</span>
+            <span className="h-px flex-1 bg-zinc-800" />
           </div>
 
-
-          <button
-            type="submit"
-            disabled={!token || loading}
-            className="w-full rounded bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Authenticating..." : "Sign In"}
-          </button>
-        </form>
+          <KeySignIn onSignedIn={() => navigate("/dashboard", { replace: true })} />
+        </div>
       </div>
     </div>
   );

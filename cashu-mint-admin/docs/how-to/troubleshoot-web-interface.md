@@ -6,12 +6,12 @@ Common issues and resolution steps for the mint-admin-web frontend.
 
 **Symptom**: Redirected to `/login?expired=true` with "Session expired" message.
 
-**Cause**: The backend returned HTTP 401, indicating the admin token is invalid or expired.
+**Cause**: The backend returned HTTP 401, so there is no session — it expired, or it was revoked.
 
 **Resolution**:
-1. Log in again with a valid token and roles.
-2. If the issue persists, verify the backend is accepting the token format by checking `GET /admin/auth/me` directly.
-3. Check that the reverse proxy is forwarding `X-Admin-Token` and `X-Admin-Roles` headers.
+1. Sign in again with your Nostr key.
+2. If the issue persists, check `GET /api/v1/auth/session` directly to see what the backend makes of the cookie.
+3. Check that the reverse proxy is forwarding the `cashu_admin_session` cookie.
 
 ## Access Denied
 

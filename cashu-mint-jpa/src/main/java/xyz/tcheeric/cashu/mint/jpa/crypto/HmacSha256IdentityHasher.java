@@ -37,7 +37,8 @@ import java.util.HexFormat;
  * "hash of empty" placeholder is persisted. This is what makes
  * anonymous voucher purchases produce zero identity storage end-to-end.
  *
- * <p>Contract: see {@code specs/004-voucher-data-minimisation/contracts/identity-hasher.md}.
+ * <p>Operator procedure — salt generation, rotation, retention — is in
+ * {@code docs/runbooks/voucher-data-minimisation.md}.
  */
 @Slf4j
 @Component
@@ -65,7 +66,7 @@ public class HmacSha256IdentityHasher implements IdentityHasher {
         if (saltBytes.length == 0) {
             throw new IllegalStateException(
                     "cashu.mint.voucher.identity-salt is required (set CASHU_MINT_VOUCHER_IDENTITY_SALT); "
-                            + "see specs/004-voucher-data-minimisation/quickstart.md § 1 for the runbook");
+                            + "see docs/runbooks/voucher-data-minimisation.md § 1 for the runbook");
         }
         if (saltBytes.length < MIN_SALT_BYTES) {
             throw new IllegalStateException(

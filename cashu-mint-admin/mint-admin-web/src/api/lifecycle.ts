@@ -42,14 +42,8 @@ export function getMint(mintId: string): Promise<MintDetail> {
   return apiGet(`/admin/lifecycle/mints/${encodeURIComponent(mintId)}`);
 }
 
-interface ActorDto {
-  id: string;
-  displayName: string;
-}
-
 export function createMint(body: {
   mintId: string;
-  requestedBy: ActorDto;
   metadata: { displayName: string; description: string; tags: string[] };
   configuration: Record<string, unknown>;
 }): Promise<LifecycleActionResponse> {
@@ -59,7 +53,6 @@ export function createMint(body: {
 export function updateMint(
   mintId: string,
   body: {
-    requestedBy: ActorDto;
     metadata: { displayName: string; description: string; tags: string[] };
     configuration: Record<string, unknown>;
     revisionId: string;
@@ -70,7 +63,7 @@ export function updateMint(
 
 export function pauseMint(
   mintId: string,
-  body: { requestedBy: ActorDto; reason: string; correlationId?: string },
+  body: { reason: string; correlationId?: string },
 ): Promise<LifecycleActionResponse> {
   return apiPost(
     `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/pause`,
@@ -80,7 +73,7 @@ export function pauseMint(
 
 export function resumeMint(
   mintId: string,
-  body: { requestedBy: ActorDto; reason: string; correlationId?: string },
+  body: { reason: string; correlationId?: string },
 ): Promise<LifecycleActionResponse> {
   return apiPost(
     `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/resume`,
@@ -90,10 +83,47 @@ export function resumeMint(
 
 export function retireMint(
   mintId: string,
-  body: { requestedBy: ActorDto; reason: string; correlationId?: string },
+  body: { reason: string; correlationId?: string },
 ): Promise<LifecycleActionResponse> {
   return apiPost(
     `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/retire`,
     body,
+  );
+}
+
+/** A keyset the shared vault holds for a mint. Never carries key material. */
+export interface KeySet {
+  keySetId: string;
+  unit: string;
+  /** SIGNING or ARCHIVED. Archived keysets still verify and redeem (ADR-0004). */
+  state: string;
+  createdAt: string;
+}
+
+export function listKeySets(
+  mintId: string,
+  page = 0,
+): Promise<PagedResponse<KeySet>> {
+  return apiGet(
+    `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets`,
+    { page },
+  );
+}
+
+/**
+ * One denomination of a keyset. Carries where the private key lives, never the key:
+ * reading the path needs HashiCorp Vault credentials the browser does not hold.
+ */
+export interface Denomination {
+  amount: number;
+  vaultPath: string;
+}
+
+export function listDenominations(
+  mintId: string,
+  keySetId: string,
+): Promise<Denomination[]> {
+  return apiGet(
+    `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets/${encodeURIComponent(keySetId)}/denominations`,
   );
 }

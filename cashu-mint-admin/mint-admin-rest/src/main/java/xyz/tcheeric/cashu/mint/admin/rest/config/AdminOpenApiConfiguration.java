@@ -8,6 +8,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import xyz.tcheeric.nap.spring.config.NapProperties;
 
 /**
  * OpenAPI configuration for the administrative API surface.
@@ -15,25 +16,25 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 @Configuration
 public class AdminOpenApiConfiguration {
 
-    private static final String ADMIN_TOKEN_SCHEME = "AdminToken";
+    /** Name of the session-cookie security scheme every admin endpoint requires. */
+    public static final String ADMIN_SESSION_SCHEME = "AdminSession";
 
     @Bean
-    public OpenAPI adminOpenApi() {
+    public OpenAPI adminOpenApi(final NapProperties napProperties) {
         final Components components = new Components()
-                .addSecuritySchemes(ADMIN_TOKEN_SCHEME, new SecurityScheme()
+                .addSecuritySchemes(ADMIN_SESSION_SCHEME, new SecurityScheme()
                         .type(SecurityScheme.Type.APIKEY)
-                        .name(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER)
-                        .in(SecurityScheme.In.HEADER));
-
-        final SecurityRequirement securityRequirement = new SecurityRequirement()
-                .addList(ADMIN_TOKEN_SCHEME);
-
+                        .description("Session cookie issued by the NAP handshake at /api/v1/auth/complete")
+                        .name(napProperties.cookie().name())
+                        .in(SecurityScheme.In.COOKIE));
+        final SecurityRequirement requirement = new SecurityRequirement()
+                .addList(ADMIN_SESSION_SCHEME);
         return new OpenAPI()
                 .components(components)
                 .info(new Info()
                         .title("Cashu Mint Admin API")
                         .description("Administrative endpoints for operating the mint")
                         .version("v1"))
-                .addSecurityItem(securityRequirement);
+                .addSecurityItem(requirement);
     }
 }

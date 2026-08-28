@@ -21,7 +21,9 @@ import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
@@ -40,15 +42,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminLifecycleService.class})
 @TestPropertySource(properties = {
-    "admin.security.api-token=test-token",
     // Own database per class: a shared in-memory store leaks operators between
-    // classes, and the bootstrap credential is inert once any operator exists.
+    // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:LifecycleAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class LifecycleAdminControllerTest {
 
-    private static final String ADMIN_TOKEN = "test-token";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
     private static final String MINT_ID_1 = "11111111-1111-1111-1111-111111111111";
     private static final String MINT_ID_2 = "22222222-2222-2222-2222-222222222222";
     private static final String MISSING_MINT_ID = "99999999-9999-9999-9999-999999999999";
@@ -86,7 +86,7 @@ class LifecycleAdminControllerTest {
     @DisplayName("Lifecycle pause returns transition summary")
     void pauseMintReturnsLifecycleResponse() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_1)))
                 .andExpect(status().isOk());
@@ -96,13 +96,13 @@ class LifecycleAdminControllerTest {
 
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/resume")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("activation")))
                 .andExpect(status().isOk());
 
         final MvcResult pauseResult = mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_1 + "/pause")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("maintenance")))
                 .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class LifecycleAdminControllerTest {
     @DisplayName("Lifecycle pause reuses provided correlation header")
     void pauseMintHonoursProvidedCorrelationId() throws Exception {
         mockMvc.perform(post("/admin/lifecycle/mints")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createMintJson(MINT_ID_2)))
                 .andExpect(status().isOk());
@@ -132,7 +132,7 @@ class LifecycleAdminControllerTest {
 
         // Activate first (PROVISIONED -> ACTIVE), then pause
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/resume")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("activation")))
                 .andExpect(status().isOk());
@@ -140,7 +140,7 @@ class LifecycleAdminControllerTest {
         final String provided = "manual-correlation";
 
         mockMvc.perform(post("/admin/lifecycle/mints/" + MINT_ID_2 + "/pause")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .header(AdminCorrelationIdFilter.CORRELATION_ID_HEADER, provided)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(lifecycleChangeJson("manual")))
@@ -153,16 +153,15 @@ class LifecycleAdminControllerTest {
     @DisplayName("Lifecycle update returns structured not-found error")
     void updateMintReturnsStructuredError() throws Exception {
         mockMvc.perform(put("/admin/lifecycle/mints/" + MISSING_MINT_ID)
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "requestedBy": {"id":"%s","displayName":"Ops"},
                                   "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
                                   "configuration": {"versionTag":"v2"},
                                   "revisionId": "rev-2"
                                 }
-                                """.formatted(OPERATOR_ID)))
+                                """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
@@ -173,20 +172,18 @@ class LifecycleAdminControllerTest {
         return """
             {
               "mintId": "%s",
-              "requestedBy": {"id":"%s","displayName":"Ops"},
               "metadata": {"displayName":"Primary","description":"Mint","tags":["prod"]},
               "configuration": {"versionTag":"2024-Q1"}
             }
-            """.formatted(mintId, OPERATOR_ID);
+            """.formatted(mintId);
     }
 
     private String lifecycleChangeJson(final String reason) {
         return """
             {
-              "requestedBy": {"id":"%s","displayName":"Ops"},
               "reason": "%s"
             }
-            """.formatted(OPERATOR_ID, reason);
+            """.formatted(reason);
     }
 
     // Simulates vault provisioning completion by advancing PROVISIONING → PROVISIONED.

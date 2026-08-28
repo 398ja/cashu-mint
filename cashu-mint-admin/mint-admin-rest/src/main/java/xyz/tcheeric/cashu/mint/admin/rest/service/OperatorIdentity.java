@@ -1,62 +1,64 @@
 package xyz.tcheeric.cashu.mint.admin.rest.service;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AuthenticatedOperator;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
- * Resolves the Operator the authentication filter identified, for the Audit Trail.
+ * Resolves the Operator the NAP session identified, for the Audit Trail.
  *
- * <p>The actor on an audit entry must be the Operator the server authenticated, not one a request
- * body claims to be. A request that names someone else is refused rather than silently preferring
- * one or the other — an audit trail that records a claimed identity is evidence of nothing. See
+ * <p>The actor on an audit entry is the Operator the server authenticated. No request field or
+ * header offers one — an audit trail that records a claimed identity is evidence of nothing. See
  * ADR-0005.
  */
 @Component
 public class OperatorIdentity {
 
-  /**
-   * The Operator authenticated for the request in flight.
-   *
-   * @return the authenticated Operator
-   * @throws AdminServiceException when no Operator was resolved
-   */
-  public AuthenticatedOperator current() {
-    final var attributes = RequestContextHolder.getRequestAttributes();
-    if (attributes instanceof ServletRequestAttributes servletAttributes) {
-      final HttpServletRequest request = servletAttributes.getRequest();
-      final Object operator = request.getAttribute(AuthenticatedOperator.ATTRIBUTE);
-      if (operator instanceof AuthenticatedOperator authenticated) {
-        return authenticated;
-      }
-    }
-    throw new AdminServiceException(
-        HttpStatus.UNAUTHORIZED, "unauthorized", "No authenticated operator on the request");
+  private final OperatorAccessRepository operatorAccessRepository;
+
+  public OperatorIdentity(final OperatorAccessRepository operatorAccessRepository) {
+    this.operatorAccessRepository =
+        Objects.requireNonNull(operatorAccessRepository, "operator access repository");
   }
 
   /**
-   * The actor to record, having checked the request does not claim to be someone else.
+   * The id of the Operator authenticated for the request in flight.
    *
-   * @param claimedOperatorId operator id the request body carries, may be null
    * @return the authenticated Operator's id
-   * @throws AdminServiceException when the body names a different Operator
+   * @throws AdminServiceException when no session authenticated the request
    */
-  public String requireActor(final String claimedOperatorId) {
-    final AuthenticatedOperator operator = current();
-    if (claimedOperatorId != null
-        && !claimedOperatorId.isBlank()
-        && !claimedOperatorId.equals(operator.operatorId())) {
+  public String currentOperatorId() {
+    final Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !authentication.isAuthenticated()) {
       throw new AdminServiceException(
-          HttpStatus.FORBIDDEN,
-          "operator_mismatch",
-          "Request names operator "
-              + claimedOperatorId
-              + " but was authenticated as "
-              + operator.operatorId());
+          HttpStatus.UNAUTHORIZED, "unauthorized", "No authenticated operator on the request");
     }
-    return operator.operatorId();
+    // NAP names the principal by public key; the audit trail names it by account id.
+    final String pubkey = authentication.getName();
+    return operatorAccessRepository
+        .findByPubkey(pubkey)
+        .map(OperatorAccessRepository.OperatorAccessAccount::accountId)
+        // The Super Administrator is configuration, not a row, so there is no account id to
+        // read. Deriving one from the key keeps their entries attributable and distinct,
+        // where a shared sentinel would merge every Super Administrator into one actor.
+        .orElseGet(() -> derivedAccountId(pubkey));
+  }
+
+  /**
+   * The account id an npub with no stored profile is known by.
+   *
+   * @param pubkey lower-case hex public key, as NAP reports it
+   * @return a stable id derived from the key
+   */
+  public static String derivedAccountId(final String pubkey) {
+    // Lower-cased here rather than at the call sites: the hash is byte-exact, so the same
+        // key in a different case would otherwise derive a different operator.
+        return UUID.nameUUIDFromBytes(pubkey.toLowerCase().getBytes(StandardCharsets.UTF_8)).toString();
   }
 }

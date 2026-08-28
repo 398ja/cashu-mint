@@ -13,7 +13,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.rest.config.AdminAuthenticationFilter;
+import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
+import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 
@@ -26,16 +28,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import({AdminApiConfiguration.class, AdminLifecycleServiceConfiguration.class, AdminOperationsService.class})
 @TestPropertySource(properties = {
-    "admin.security.api-token=test-token",
     // Own database per class: a shared in-memory store leaks operators between
-    // classes, and the bootstrap credential is inert once any operator exists.
+    // classes, so one class's profiles decide another class's ACL decisions.
     "spring.datasource.url=jdbc:h2:mem:OperationsAdminControllerTest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
 })
+@ExtendWith(NapSessionCleanup.class)
 class OperationsAdminControllerTest {
 
-    private static final String ADMIN_TOKEN = "test-token";
     private static final String MINT_ID = "55555555-5555-5555-5555-555555555555";
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @Autowired
     private MockMvc mockMvc;
@@ -65,7 +65,7 @@ class OperationsAdminControllerTest {
     @DisplayName("Schedule maintenance returns scheduled response")
     void scheduleMaintenanceReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/maintenance/schedule")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())
@@ -79,7 +79,7 @@ class OperationsAdminControllerTest {
     @DisplayName("Force close returns response")
     void forceCloseReturnsResponse() throws Exception {
         mockMvc.perform(post("/admin/operations/mints/" + MINT_ID + "/force-close")
-                        .header(AdminAuthenticationFilter.ADMIN_TOKEN_HEADER, ADMIN_TOKEN)
+                        .with(TestNapSessions.superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(maintenanceJson()))
                 .andExpect(status().isOk())
@@ -91,9 +91,8 @@ class OperationsAdminControllerTest {
         return """
                 {
                   "reason": "Scheduled update",
-                  "durationMinutes": 60,
-                  "requestedBy": {"id":"%s","displayName":"Ops"}
+                  "durationMinutes": 60
                 }
-                """.formatted(OPERATOR_ID);
+                """;
     }
 }

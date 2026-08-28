@@ -7,7 +7,7 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>mint-admin-tests</artifactId>
-        <version>0.30.0</version>
+        <version>0.32.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -20,6 +20,13 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>mint-admin-rest</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <!-- For NapTestHandshake: both suites sign in through the same helper. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>integration-tests</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

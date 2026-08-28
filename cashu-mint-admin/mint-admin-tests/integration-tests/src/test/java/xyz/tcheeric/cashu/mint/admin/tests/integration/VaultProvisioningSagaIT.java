@@ -48,7 +48,6 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
     @Autowired
     private VaultProvisioningPort vaultProvisioningPort;
 
-    private static final String OPERATOR_ID = "00000000-0000-0000-0000-000000000000";
 
     @BeforeEach
     void resetStub() {
@@ -63,8 +62,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> created = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(created.getStatusCode().value()).isEqualTo(200);
 
         assertMintState(mintId, "PROVISIONING");
@@ -84,8 +82,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // First dispatch: attempt 1 fails, schedules retry with backoff
         outboxDispatcher.dispatchPending(100);
@@ -108,44 +105,39 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         assertMintState(mintId, "PROVISIONED");
 
         // PROVISIONED -> ACTIVE
         final ResponseEntity<JsonNode> activated = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Activate after provisioning"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Activate after provisioning"),
+            superAdminSession());
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "ACTIVE");
 
         // ACTIVE -> SUSPENDED
         final ResponseEntity<JsonNode> paused = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/pause",
-            Map.of("requestedBy", actor(), "reason", "Maintenance"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Maintenance"),
+            superAdminSession());
         assertThat(paused.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "SUSPENDED");
 
         // SUSPENDED -> ACTIVE
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Maintenance complete"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Maintenance complete"),
+            superAdminSession());
         assertThat(resumed.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "ACTIVE");
 
         // ACTIVE -> DECOMMISSIONED
         final ResponseEntity<JsonNode> retired = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/retire",
-            Map.of("requestedBy", actor(), "reason", "Retire"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Retire"),
+            superAdminSession());
         assertThat(retired.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintId, "DECOMMISSIONED");
     }
@@ -159,14 +151,12 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
             "/admin/lifecycle/mints",
             Map.of(
                 "mintId", mintId,
-                "requestedBy", actor(),
                 "metadata", Map.of("displayName", "Config Mint"),
                 "configuration", Map.of(
                     "versionTag", "v1",
                     "name", "config-mint",
                     "parameters", Map.of("cashu.unit", "usd", "cashu.denominations", "1,2,4,8"))),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         final Integer revisionCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM configuration_revisions WHERE mint_id = ?",
@@ -183,15 +173,13 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // Attempt resume without dispatching outbox (state is still PROVISIONING)
         final ResponseEntity<JsonNode> resumed = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintId + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Premature activation"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Premature activation"),
+            superAdminSession());
         assertThat(resumed.getStatusCode().value()).isEqualTo(409);
     }
 
@@ -204,8 +192,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayload(mintId),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
 
         // Exhaust retries (maxRetries=2)
         outboxDispatcher.dispatchPending(100);
@@ -226,17 +213,15 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdA, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         assertMintState(mintIdA, "PROVISIONED");
 
         // Activate mint A
         final ResponseEntity<JsonNode> activatedA = adminApiClient().post(
             "/admin/lifecycle/mints/" + mintIdA + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Activate A"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Activate A"),
+            superAdminSession());
         assertThat(activatedA.getStatusCode().value()).isEqualTo(200);
         assertMintState(mintIdA, "ACTIVE");
 
@@ -244,8 +229,7 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         final ResponseEntity<JsonNode> createdB = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdB, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(createdB.getStatusCode().value()).isEqualTo(409);
     }
 
@@ -259,22 +243,19 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
         adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdA, "sat"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         outboxDispatcher.dispatchPending(100);
         adminApiClient().post(
             "/admin/lifecycle/mints/" + mintIdA + "/resume",
-            Map.of("requestedBy", actor(), "reason", "Activate A"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            Map.of("reason", "Activate A"),
+            superAdminSession());
         assertMintState(mintIdA, "ACTIVE");
 
         // Create mint B with unit=usd → should succeed
         final ResponseEntity<JsonNode> createdB = adminApiClient().post(
             "/admin/lifecycle/mints",
             createMintPayloadWithUnit(mintIdB, "usd"),
-            ADMIN_TOKEN,
-            MINT_ADMIN_ROLE);
+            superAdminSession());
         assertThat(createdB.getStatusCode().value()).isEqualTo(200);
     }
 
@@ -299,7 +280,6 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
     private Map<String, Object> createMintPayloadWithUnit(final String mintId, final String unit) {
         return Map.of(
             "mintId", mintId,
-            "requestedBy", actor(),
             "metadata", Map.of(
                 "displayName", "Unit Mint " + mintId.substring(0, 8),
                 "description", "Unit enforcement mint",
@@ -313,7 +293,6 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
     private Map<String, Object> createMintPayload(final String mintId) {
         return Map.of(
             "mintId", mintId,
-            "requestedBy", actor(),
             "metadata", Map.of(
                 "displayName", "Saga Mint " + mintId.substring(0, 8),
                 "description", "Saga integration mint",
@@ -323,7 +302,4 @@ class VaultProvisioningSagaIT extends AbstractAdminIntegrationIT {
                 "name", "saga-mint"));
     }
 
-    private Map<String, Object> actor() {
-        return Map.of("id", OPERATOR_ID, "displayName", "Saga Operator");
-    }
 }

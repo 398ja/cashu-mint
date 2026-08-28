@@ -5,7 +5,7 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint-admin</artifactId>
-        <version>0.30.0</version>
+        <version>0.32.0</version>
     </parent>
     <artifactId>mint-admin-rest</artifactId>
     <name>mint-admin-rest</name>
@@ -35,6 +35,25 @@
                  reads from it. -->
             <groupId>xyz.tcheeric</groupId>
             <artifactId>cashu-vault-hashi</artifactId>
+        </dependency>
+        <!-- NAP authenticates Operators alongside the admin token (issue #372).
+             nap-spring brings nap-core/nap-server and the /api/v1/auth/* controller;
+             nap-jdbc supplies the durable stores and their migrations. -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nap-spring</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nap-jdbc</artifactId>
+        </dependency>
+
+        <!-- Signs the NIP-98 proof in the handshake test; production code never
+             signs, it only verifies. -->
+        <dependency>
+            <groupId>xyz.tcheeric</groupId>
+            <artifactId>nap-client</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>

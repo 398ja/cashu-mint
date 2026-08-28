@@ -1,8 +1,11 @@
 {
   "name": "mint-admin-web",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "vendor/*"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -15,6 +18,11 @@
     "analyze": "npm run build && node scripts/analyze-bundle.mjs"
   },
   "dependencies": {
+    "@imani/nap-client-http": "*",
+    "@imani/nap-client-nip46": "*",
+    "@imani/nap-client-web": "*",
+    "@imani/nap-core": "*",
+    "@imani/nap-react": "*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.8",

@@ -3,8 +3,30 @@ This reference lists the public endpoints exposed by `cashu-mint-rest`. All rout
 
 ## Keys
 
+### `GET /v1/keys`
+Return the public keys of every currently-active keyset, per NUT-01. No parameters.
+
+Example:
+```http
+GET /v1/keys HTTP/1.1
+```
+Sample response:
+```json
+{
+  "keysets": [
+    {
+      "id": "00e3372e61d05605",
+      "unit": "sat",
+      "keys": { "1": "0275…", "2": "03ab…" }
+    }
+  ]
+}
+```
+
 ### `GET /v1/keys/keyset/{keyset_id}`
-Return the public keys for a specific keyset id.
+Return the public keys for a specific keyset id. Also served at
+`GET /v1/keys/{keyset_id}`. Works for archived keysets too, so a wallet holding
+older tokens can still fetch the keys that signed them.
 - `keyset_id` (path) – keyset identifier.
 
 Example:
@@ -132,6 +154,23 @@ Issue a voucher (gift card) signed by the mint's issuer key.
 
 ### `GET /v1/vouchers/{voucherId}/status`
 Return the status of a voucher from the Nostr ledger (`ISSUED`, `REDEEMED`, `REVOKED`, `EXPIRED`).
+
+### `GET /v1/vouchers/{voucherId}/provenance`
+Return what the voucher was issued against: its face value and unit, the original
+token amount, the issuance ratio, and its lifecycle state. `404` when the voucher
+is unknown.
+
+Sample response:
+```json
+{
+  "voucherId": "v-abc123",
+  "faceValue": 1000,
+  "unit": "sat",
+  "originalTokenAmount": 950,
+  "issuanceRatio": 0.95,
+  "lifecycleState": "ISSUED"
+}
+```
 
 ## WebSocket Subscriptions (NUT-17)
 

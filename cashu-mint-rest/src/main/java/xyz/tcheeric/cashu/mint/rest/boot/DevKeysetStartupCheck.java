@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @Profile("dev")
+// After VaultPreloadSeeder, so a seeded keyset is not reported as missing.
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 @RequiredArgsConstructor
 public class DevKeysetStartupCheck implements ApplicationRunner {
 

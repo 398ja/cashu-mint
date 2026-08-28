@@ -7,6 +7,8 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository.OperatorAccessAuditEntry;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.audit.AuditEventResponse;
@@ -18,10 +20,17 @@ import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 @Service
 public class AdminAuditQueryService {
 
-    private final MintRepository mintRepository;
+    /** Only a mint's own trail numbers its entries; an operator-access entry has no sequence. */
+    private static final long NO_SEQUENCE = 0;
 
-    public AdminAuditQueryService(final MintRepository mintRepository) {
+    private final MintRepository mintRepository;
+    private final OperatorAccessAuditRepository operatorAccessAuditRepository;
+
+    public AdminAuditQueryService(final MintRepository mintRepository,
+                                  final OperatorAccessAuditRepository operatorAccessAuditRepository) {
         this.mintRepository = Objects.requireNonNull(mintRepository);
+        this.operatorAccessAuditRepository =
+            Objects.requireNonNull(operatorAccessAuditRepository, "operator access audit repository");
     }
 
     public PagedResponse<AuditEventResponse> listAuditEvents(final String mintId,
@@ -53,9 +62,23 @@ public class AdminAuditQueryService {
                         entry.actor(),
                         entry.action(),
                         entry.timestamp(),
-                        revisionId));
+                        revisionId,
+                        null));
             }
         }
+        // Operator management is not about a mint, so it lives in its own table; it belongs on
+        // the same timeline all the same, or suspending an Operator is the one privileged action
+        // the Audit Trail does not show.
+        if (mintId == null) {
+            for (final OperatorAccessAuditEntry entry : operatorAccessAuditRepository.findAll()) {
+                if ((actor == null || actor.equals(entry.actor()))
+                        && (action == null || action.equals(entry.action()))) {
+                    allEvents.add(new AuditEventResponse(null, NO_SEQUENCE, entry.actor(),
+                        entry.action(), entry.occurredAt(), null, entry.targetAccountId()));
+                }
+            }
+        }
+
         allEvents.sort((a, b) -> b.timestamp().compareTo(a.timestamp()));
         return PagedResponse.of(allEvents, page, size);
     }

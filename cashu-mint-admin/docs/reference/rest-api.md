@@ -1,41 +1,88 @@
 # REST API reference
 
-The admin REST API runs on port 7778 by default. All endpoints except `/admin/auth/me` require the `X-Admin-Token` header.
+The admin REST API runs on port 7778 by default. Every `/admin` endpoint requires a
+`cashu_admin_session` cookie from a NAP handshake, and the permission its controller
+names. OpenAPI is served at `/v3/api-docs`.
 
-## Authentication — `/admin/auth`
+## Authentication — `/api/v1/auth`
+
+Provided by the NAP library rather than by this module.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/auth/me` | Returns caller identity and roles (public) |
+| `POST` | `/api/v1/auth/init` | Start a handshake for an npub; returns a challenge |
+| `POST` | `/api/v1/auth/complete` | Answer the challenge with a signed proof; sets the session cookie |
+| `GET` | `/api/v1/auth/session` | Returns the caller's roles and permissions |
+
+The Super Administrator's npub comes from `ADMIN_SUPER_ADMIN_NPUB`; every other
+Operator needs a stored profile carrying their npub. See
+[Configure NAP admin authentication](../how-to/configure-nap-admin-authentication.md).
+
+## Roles and permissions
+
+Each controller names one permission. Roles are bundles of permissions:
+
+| Role | Permissions |
+|------|-------------|
+| `SUPER_ADMIN` | all of them; the account that recovers a deployment whose other Operators are locked out |
+| `MINT_ADMIN` | `mint:lifecycle`, `operations:execute`, `audit:read`, `dashboard:read` |
+| `OPS_ADMIN` | `operations:execute`, `audit:read`, `dashboard:read` |
+| `USER_ADMIN` | `users:manage`, `audit:read`, `dashboard:read` |
+
+Every role reads the audit trail: it is read-only, it is how an Operator checks what
+was done to a deployment they are on call for, and the dashboard's recent-activity
+panel is built from it.
 
 ## Dashboard — `/admin/dashboard`
 
+Permission: `dashboard:read`.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/dashboard/summary` | Aggregated counts of mints, alerts, and active controls |
+| `GET` | `/admin/dashboard/summary` | Aggregated counts of mints by state and active controls |
 
 ## Lifecycle — `/admin/lifecycle`
+
+Permission: `mint:lifecycle`.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/admin/lifecycle/mints` | List mints (paginated, filterable by state) |
 | `GET` | `/admin/lifecycle/mints/{mintId}` | Get mint detail |
+| `GET` | `/admin/lifecycle/mints/{mintId}/keysets` | List the mint's keysets (paginated) |
+| `GET` | `/admin/lifecycle/mints/{mintId}/keysets/{keySetId}/denominations` | List a keyset's denominations and vault paths |
 | `POST` | `/admin/lifecycle/mints` | Provision a new mint |
-| `PUT` | `/admin/lifecycle/mints/{mintId}` | Update a mint |
-| `POST` | `/admin/lifecycle/mints/{mintId}/pause` | Pause mint operations |
-| `POST` | `/admin/lifecycle/mints/{mintId}/resume` | Resume a paused mint |
+| `PUT` | `/admin/lifecycle/mints/{mintId}` | Update metadata or configuration |
+| `POST` | `/admin/lifecycle/mints/{mintId}/pause` | Pause mint operations (`ACTIVE → SUSPENDED`) |
+| `POST` | `/admin/lifecycle/mints/{mintId}/resume` | Activate a provisioned mint, or resume a paused one |
 | `POST` | `/admin/lifecycle/mints/{mintId}/retire` | Retire and decommission a mint |
 
-## Configuration — `/admin/configuration`
+`resume` does double duty: against a `PROVISIONED` mint it is the activation call
+(`PROVISIONED → ACTIVE`), which is why the web interface labels that button
+**Activate**. It returns `409 unit_conflict` when another mint is already active for
+the same unit, and `409 invalid_transition` for a transition illegal in the mint's
+current state.
+
+## Operations — `/admin/operations`
+
+Permission: `operations:execute`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin/configuration/mints/{mintId}/revisions` | List configuration revisions (paginated) |
-| `POST` | `/admin/configuration/mints/{mintId}/preview` | Preview configuration changes without persisting |
-| `POST` | `/admin/configuration/mints/{mintId}/apply` | Apply configuration changes |
-| `POST` | `/admin/configuration/mints/{mintId}/rollback` | Rollback to a previous revision |
+| `GET` | `/admin/operations/mints/{mintId}/controls` | List operational controls (paginated) |
+| `POST` | `/admin/operations/mints/{mintId}/maintenance/schedule` | Schedule a maintenance window |
+| `POST` | `/admin/operations/mints/{mintId}/maintenance/start` | Start maintenance |
+| `POST` | `/admin/operations/mints/{mintId}/maintenance/complete` | Complete maintenance |
+| `POST` | `/admin/operations/mints/{mintId}/keys/rotate` | Rotate the mint's signing keyset |
+| `POST` | `/admin/operations/mints/{mintId}/force-close` | Emergency decommission |
+
+Rotation is asynchronous: the call returns a `controlId`, and the controls listing
+carries the `status` and an `outcome` naming which keyset replaced which once the
+saga completes.
 
 ## Users — `/admin/users`
+
+Permission: `users:manage`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -44,40 +91,15 @@ The admin REST API runs on port 7778 by default. All endpoints except `/admin/au
 | `POST` | `/admin/users` | Create an operator |
 | `PUT` | `/admin/users/{userId}` | Update an operator |
 | `POST` | `/admin/users/{userId}/roles` | Assign roles |
-| `POST` | `/admin/users/{userId}/reset-credentials` | Reset credentials |
 | `POST` | `/admin/users/{userId}/deactivate` | Deactivate an operator |
+| `POST` | `/admin/users/{userId}/reinstate` | Reinstate a deactivated operator |
 
-## Alerts — `/admin/alerts`
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/admin/alerts` | List alerts (paginated, filterable by severity/mint) |
-| `GET` | `/admin/alerts/{alertId}` | Get alert detail |
-| `POST` | `/admin/alerts` | Create an alert |
-| `POST` | `/admin/alerts/{alertId}/acknowledge` | Acknowledge an alert |
-| `POST` | `/admin/alerts/{alertId}/silence` | Silence notifications |
-| `POST` | `/admin/alerts/{alertId}/unsilence` | Unsilence an alert |
-| `POST` | `/admin/alerts/{alertId}/escalate` | Escalate an alert |
-
-## Operations — `/admin/operations`
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/admin/operations/mints/{mintId}/controls` | List operational controls (paginated) |
-| `POST` | `/admin/operations/mints/{mintId}/maintenance/schedule` | Schedule maintenance window |
-| `POST` | `/admin/operations/mints/{mintId}/maintenance/start` | Start maintenance |
-| `POST` | `/admin/operations/mints/{mintId}/maintenance/complete` | Complete maintenance |
-| `POST` | `/admin/operations/mints/{mintId}/keys/rotate` | Rotate keys |
-| `POST` | `/admin/operations/mints/{mintId}/force-close` | Emergency decommission |
-
-## Health — `/admin/health`
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/admin/health/mints/{mintId}` | Get health snapshot |
-| `POST` | `/admin/health/mints/{mintId}/acknowledge` | Acknowledge health alert |
+`SUPER_ADMIN` cannot be granted through this API: it is configuration, so an
+Operator who may edit roles cannot grant themselves the role that outranks them.
 
 ## Audit — `/admin/audit`
+
+Permission: `audit:read`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -85,20 +107,22 @@ The admin REST API runs on port 7778 by default. All endpoints except `/admin/au
 
 ## Pagination
 
-List endpoints accept `page` (zero-indexed, default 0) and `size` (default 20) query parameters. Responses use `PagedResponse` with `content`, `page`, `size`, and `totalElements` fields.
+List endpoints accept `page` (zero-indexed, default 0) and `size` (default 20).
+Responses carry `items`, `page`, `size`, `totalItems` and `totalPages`.
 
 ## Errors
 
-Standard error responses use HTTP status codes:
-
 | Status | Meaning |
 |--------|---------|
-| 400 | Validation error (see response body for details) |
-| 401 | Missing or invalid `X-Admin-Token` |
+| 400 | Validation error (see the response body) |
+| 401 | No session, or an expired one |
+| 403 | Authenticated, but the role lacks the permission the endpoint requires |
 | 404 | Resource not found |
-| 409 | Conflict (duplicate resource or revision conflict) |
+| 409 | Conflict: `invalid_transition`, `unit_conflict`, or a duplicate resource |
 | 500 | Internal server error |
 
 ## See also
 
+- [Create a mint and put it into service](../how-to/create-a-mint.md)
+- [Manage the mint lifecycle via the Admin REST API](../how-to/manage-mint-lifecycle-api.md)
 - [Configuration](configuration.md) — application properties

@@ -6,14 +6,11 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
 
-import xyz.tcheeric.cashu.mint.admin.rest.dto.common.ActorDto;
-
 /**
  * Request payload for provisioning a new mint instance.
  */
 public record CreateMintRequest(
         @NotBlank(message = "mint id is required") String mintId,
-        @NotNull(message = "requestedBy is required") @Valid ActorDto requestedBy,
         @NotNull(message = "metadata is required") @Valid MintMetadataDto metadata,
         @NotNull(message = "configuration is required") Map<String, Object> configuration
 ) {

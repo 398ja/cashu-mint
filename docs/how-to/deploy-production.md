@@ -57,7 +57,7 @@ Set secrets via environment variables. Never commit them to source control.
 | `PHOENIXD_API_KEY` | Lightning backend API key |
 | `CASHU_VAULT_BASE_URL` | Vault service URL |
 | `WEBHOOK_SECRET` | Shared secret for payment webhook HMAC |
-| `ADMIN_TOKEN` | Admin API authentication token (if running admin) |
+| `CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB` | Super Administrator's npub (if running admin) — see [Configure NAP admin authentication](../../cashu-mint-admin/docs/how-to/configure-nap-admin-authentication.md) |
 
 Store these in a secrets manager (Vault, AWS Secrets Manager, systemd credentials) or a `.env` file with restricted permissions (`chmod 600`).
 
@@ -73,7 +73,7 @@ services:
       - "127.0.0.1:7777:7777"
     environment:
       - CASHU_VAULT_BASE_URL=http://cashu-vault:3333
-      - GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+      - GATEWAY_BOLT11_SAT=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
       - PHOENIXD_BASE_URL=${PHOENIXD_BASE_URL}
       - PHOENIXD_API_KEY=${PHOENIXD_API_KEY}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}

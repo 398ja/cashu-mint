@@ -21,9 +21,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
+import java.util.List;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
+import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.DenominationResponse;
+import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.KeySetResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleChangeRequest;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.MintDetailResponse;
@@ -35,8 +43,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleService;
  * request DTOs that will later be passed to the lifecycle use case.
  */
 @Tag(name = "Admin Lifecycle", description = "Lifecycle workflows mirrored from CLI commands")
-@SecurityRequirement(name = "AdminToken")
-@SecurityRequirement(name = "AdminRoles")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.MINT_LIFECYCLE)
 @RestController
 @RequestMapping("/admin/lifecycle")
 public class LifecycleAdminController {
@@ -66,6 +74,33 @@ public class LifecycleAdminController {
     @GetMapping("/mints/{mintId}")
     public ResponseEntity<MintDetailResponse> getMint(@PathVariable("mintId") String mintId) {
         return ResponseEntity.ok(lifecycleService.getMint(mintId));
+    }
+
+    @Operation(summary = "List the keysets the shared vault holds for a mint",
+            description = "Reads the shared vault the admin provisions into: signing keyset first, archived keysets newest-first behind it. An archived keyset still verifies and redeems. A vault that cannot be read is an error, never an empty list.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Keysets held in the vault for this mint"),
+            @ApiResponse(responseCode = "502", description = "The vault could not be read", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
+    })
+    @GetMapping("/mints/{mintId}/keysets")
+    public ResponseEntity<PagedResponse<KeySetResponse>> listKeySets(
+            @PathVariable("mintId") String mintId,
+            @Parameter(description = "Page index (zero-indexed)") @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(lifecycleService.listKeySets(mintId, page, size));
+    }
+
+    @Operation(summary = "List the denominations of one of a mint's keysets",
+            description = "Each denomination and the HashiCorp Vault path holding its private key. The path is a locator, never the secret: reading it needs credentials this API does not hold. No public key -- the vault stores none, and the admin does not ask the mint (ADR-0003).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Denominations of the keyset, ascending by amount"),
+            @ApiResponse(responseCode = "502", description = "The vault could not be read", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
+    })
+    @GetMapping("/mints/{mintId}/keysets/{keySetId}/denominations")
+    public ResponseEntity<List<DenominationResponse>> listDenominations(
+            @PathVariable("mintId") String mintId,
+            @PathVariable("keySetId") String keySetId) {
+        return ResponseEntity.ok(lifecycleService.listDenominations(mintId, keySetId));
     }
 
     @Operation(summary = "Provision a mint", description = "Creates a new mint instance just like the `mint create` CLI command.")

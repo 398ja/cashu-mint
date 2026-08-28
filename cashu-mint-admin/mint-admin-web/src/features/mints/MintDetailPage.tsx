@@ -13,7 +13,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
-import { ArrowLeft, Activity, Wrench } from "lucide-react";
+import { ArrowLeft, Activity, KeyRound, Wrench } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 
 interface ActionConfig {
@@ -38,12 +38,10 @@ const ACTIONS_BY_STATE: Record<string, ActionConfig[]> = {
   DECOMMISSIONED: [],
 };
 
-const ACTOR = { id: "ce114fe1-944a-43c2-b9c2-b1e21b83e0ae", displayName: "Web Operator" };
-
 export function MintDetailPage() {
   const { mintId } = useParams<{ mintId: string }>();
   const queryClient = useQueryClient();
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
 
   const [confirmAction, setConfirmAction] = useState<ActionConfig | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
@@ -62,7 +60,7 @@ export function MintDetailPage() {
       endpoint: string;
       reason: string;
     }) => {
-      const body = { requestedBy: ACTOR, reason };
+      const body = { reason };
       switch (endpoint) {
         case "pause":
           return pauseMint(mintId!, body);
@@ -176,26 +174,32 @@ export function MintDetailPage() {
             </section>
           )}
 
-          {hasRole("MINT_ADMIN") && (
-            <div className="flex gap-3">
-              <a
-                href={import.meta.env.VITE_GRAFANA_URL ?? "http://localhost:3000"}
-                target="_blank"
-                rel="noreferrer"
+          {/* Reaching this page already needs mint:lifecycle; Operations is its own
+              permission, so it is offered to whoever holds that one. */}
+          <div className="flex gap-3">
+            <a
+              href={import.meta.env.VITE_GRAFANA_URL ?? "http://localhost:3000"}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
+            >
+              <Activity className="h-4 w-4" /> Health (Grafana)
+            </a>
+            <Link
+              to={`/mints/${mintId}/keysets`}
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
+            >
+              <KeyRound className="h-4 w-4" /> Keysets
+            </Link>
+            {hasPermission("operations:execute") && (
+              <Link
+                to={`/mints/${mintId}/operations`}
                 className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
               >
-                <Activity className="h-4 w-4" /> Health (Grafana)
-              </a>
-              {hasRole("OPS_ADMIN") && (
-                <Link
-                  to={`/mints/${mintId}/operations`}
-                  className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
-                >
-                  <Wrench className="h-4 w-4" /> Operations
-                </Link>
-              )}
-            </div>
-          )}
+                <Wrench className="h-4 w-4" /> Operations
+              </Link>
+            )}
+          </div>
         </>
       )}
 

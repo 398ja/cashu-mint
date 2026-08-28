@@ -4,9 +4,13 @@ import type { PagedResponse } from "./lifecycle";
 export interface OperationalControlResponse {
   mintId: string;
   controlId: string;
+  controlType: string;
   status: string;
   scheduledAt: string | null;
-  reason: string | null;
+  /** Human-readable description of the action; the API field is `message`. */
+  message: string | null;
+  /** What the control did, e.g. which keyset a rotation replaced. Null until it completes. */
+  outcome: string | null;
 }
 
 export function listControls(
@@ -20,7 +24,6 @@ export function listControls(
 }
 
 interface MaintenanceBody {
-  requestedBy: { id: string; displayName: string };
   reason: string;
   durationMinutes?: number;
 }

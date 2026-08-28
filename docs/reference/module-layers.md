@@ -38,7 +38,7 @@ Administrative surfaces are published from the separate `cashu-mint-admin` repos
 ## `cashu-mint-tools`
 
 - **Generators.** `MintPreloadDataGenerator` emits deterministic JSON for mint/keyset/key material; `MintPreloadSqlRenderer` renders SQL from that JSON.
-- **Profiles.** Maven profiles `preload-json`, `preload-sql`, and `preload-all` run the generators (see `mint-preload.properties` for defaults).
+- **Profiles.** The `preload-json` Maven profile runs the generator (see `mint-preload.properties` for defaults). The `preload-sql` and `preload-all` profiles are obsolete; see [Tools reference](tools.md).
 
 ## `cashu-mint-rest-it`
 

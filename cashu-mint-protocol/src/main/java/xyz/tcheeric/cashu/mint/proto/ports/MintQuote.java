@@ -9,9 +9,7 @@ import java.time.Instant;
  * adapter ({@code cashu-mint-jpa}) implements this as a JPA entity.
  *
  * <p>All financial-amount fields are {@code long} per Constitution I / FR-009.
- *
- * <p>Spec: {@code specs/001-mint-quote-webhook-integrity/data-model.md} §
- * MintQuote.
+
  */
 public interface MintQuote {
 

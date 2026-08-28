@@ -31,6 +31,5 @@ public class PostgresContainerExtension implements BeforeAllCallback {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.flyway.enabled", () -> true);
-        registry.add("admin.security.api-token", () -> "integration-token");
     }
 }

@@ -12,9 +12,18 @@ package xyz.tcheeric.cashu.mint.proto.ports;
  * stub (preserves the spec 001/002/003 pattern where the JPA module is
  * opt-in via {@code cashu.mint.jpa.enabled=true}).
  *
- * <p>Contract: see {@code specs/004-voucher-data-minimisation/contracts/identity-hasher.md}.
- *
- * @see <a href="../../../../../../../../specs/004-voucher-data-minimisation/spec.md">spec 004</a>
+ * <p>The contract an implementation must honour:
+ * <ul>
+ *   <li>Deterministic — the same input always yields the same hash, because the
+ *       operator forensic lookup depends on recomputing it.</li>
+ *   <li>Null, empty and whitespace-only input return {@code null} rather than a
+ *       hash, so an anonymous purchase stays anonymous instead of acquiring a
+ *       fingerprint for the empty string.</li>
+ *   <li>Output is 64-char lowercase hex.</li>
+ *   <li>Thread-safe.</li>
+ *   <li>Results are never cached: a cache is a memory-only re-identification
+ *       channel, so every hash is recomputed from salt and input.</li>
+ * </ul>
  */
 public interface IdentityHasher {
 

@@ -28,8 +28,8 @@ Gateway implementations can be configured per method or per method+unit. Environ
 - `GATEWAY_<METHOD>` (for example `GATEWAY_BOLT11`)
 
 Fallbacks come from `rest.properties` and `proto.properties`:
-- `gateway.bolt11.sat=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway`
-- `gateway.bolt11=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway`
+- `gateway.bolt11.sat=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway`
+- `gateway.bolt11=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway`
 
 Keep NUT-06 (`mint.yaml`) methods/units aligned with the gateway mappings you configure.
 
@@ -40,7 +40,7 @@ Keep NUT-06 (`mint.yaml`) methods/units aligned with the gateway mappings you co
 | `mint.preload.enabled` | `true` | Enable the preload-based `MintLoadService` (dev/test). |
 | `mint.preload.json.input` | `scripts/preload-test-data.json` | Path to the preload JSON used to seed the vault and expose keysets. |
 
-The dev Docker Compose profile mounts `scripts/preload-test-data.json` and seeds the vault using `scripts/preload-test-data.sql`.
+The dev Docker Compose stack mounts `scripts/preload-test-data.json`; the mint seeds that keyset into the vault at startup.
 
 ## WebSocket subscriptions (NUT-17)
 
@@ -133,6 +133,6 @@ see [Enable the trace producer](../how-to/enable-trace-producer.md) for the full
 - Change the port:
   - `CASHU_MINT_PORT=8888 ./mvnw -pl cashu-mint-rest spring-boot:run`
 - Switch the Bolt11 gateway at runtime:
-  - `GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.dummy.DummyGateway docker compose --profile dev up`
-- Run without preload seeding:
+  - `GATEWAY_BOLT11_SAT=xyz.tcheeric.payment.adapter.ln.dummy.DummyGateway docker compose --profile dev up`
+- Serve keysets from the shared vault rather than the preload JSON:
   - `MINT_PRELOAD_ENABLED=false ./mvnw -pl cashu-mint-rest spring-boot:run`

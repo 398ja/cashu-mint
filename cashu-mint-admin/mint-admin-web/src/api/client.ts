@@ -17,16 +17,8 @@ export class ApiRequestError extends Error {
   }
 }
 
-function getAuthHeaders(): Record<string, string> {
-  const token = sessionStorage.getItem("admin_token");
-  const headers: Record<string, string> = {};
-  if (token) headers["X-Admin-Token"] = token;
-  return headers;
-}
-
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) {
-    sessionStorage.removeItem("admin_token");
     window.location.href = "/login?expired=true";
     throw new ApiRequestError(401, "unauthorized", "Session expired");
   }
@@ -83,7 +75,6 @@ export async function apiGet<T>(
     {
       method: "GET",
       headers: {
-        ...getAuthHeaders(),
         "X-Correlation-Id": generateCorrelationId(),
       },
     },
@@ -99,7 +90,6 @@ export async function apiPost<T>(
   const response = await fetch(path, {
     method: "POST",
     headers: {
-      ...getAuthHeaders(),
       "Content-Type": "application/json",
       "X-Correlation-Id": generateCorrelationId(),
     },
@@ -115,7 +105,6 @@ export async function apiPut<T>(
   const response = await fetch(path, {
     method: "PUT",
     headers: {
-      ...getAuthHeaders(),
       "Content-Type": "application/json",
       "X-Correlation-Id": generateCorrelationId(),
     },

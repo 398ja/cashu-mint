@@ -10,7 +10,7 @@ import { useAuth } from "@/auth/useAuth";
 import type { ApiRequestError } from "@/api/client";
 
 export function DashboardPage() {
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
 
   const summary = useQuery({
     queryKey: ["dashboard-summary"],
@@ -41,7 +41,7 @@ export function DashboardPage() {
           <SummaryCard
             title="Mints by State"
             entries={summary.data.mintsByState}
-            linkTo={hasRole("MINT_ADMIN") ? "/mints" : undefined}
+            linkTo={hasPermission("mint:lifecycle") ? "/mints" : undefined}
           />
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
             <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-3">

@@ -7,6 +7,7 @@ It includes a core domain layer, a command-line interface, and a REST API.
 Project Modules
 - mint-admin-core: Domain model, use cases, and core services (no runtime).
 - mint-admin-rest: Spring Boot REST API with OpenAPI UI and Jib image build.
+- mint-admin-web: React admin UI. Vendors the `@imani/*` NAP packages under `mint-admin-web/vendor/` — see [VENDORED.md](mint-admin-web/vendor/VENDORED.md).
 
 Prerequisites
 - Java 21 (JDK)
@@ -46,6 +47,27 @@ Configuration
 - Examples:
   - Change port: `SERVER_PORT=8081`
   - Externalize config: place an `application.yml` on the classpath or supply `--spring.config.location`.
+
+Authentication
+- Operators sign in over the NAP handshake with their own Nostr key. There is no
+  admin password and no shared token; the Super Administrator is named in
+  configuration as an npub (`admin.security.super-admin-npub`, environment
+  `ADMIN_SUPER_ADMIN_NPUB`), and with `nap.enabled=true` the admin refuses to
+  start without a valid one.
+- Setup, enrolment and signer choice: [docs/how-to/configure-nap-admin-authentication.md](docs/how-to/configure-nap-admin-authentication.md).
+- Why the integration resolves authorisation itself: [ADR 0008](../docs/adr/0008-nap-authenticates-operators-the-admin-resolves-authorisation.md).
+
+How the test suites authenticate
+- `mint-admin-rest` unit tests: `TestNapSessions` seats an authenticated
+  `NapAuthenticationToken` on the MockMvc request. `AdminNapHandshakeTest`
+  covers the handshake itself end to end, so the other tests do not repeat it.
+- `mint-admin-tests/integration-tests`: `NapTestHandshake` runs a real handshake
+  against the running context and returns a session cookie; the Super
+  Administrator npub is registered as a dynamic property from the same key.
+- `mint-admin-web` unit tests: the auth context is supplied directly.
+  Playwright specs use `e2e/fixtures/auth.ts`, which installs a `window.nostr`
+  signer and mocks the three NAP endpoints, deriving permissions from roles the
+  way the server does.
 
 Development Notes
 - Parent POM manages versions via Spring Boot BOM; modules inherit versions.

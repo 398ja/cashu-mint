@@ -6,8 +6,6 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import type { ApiRequestError } from "@/api/client";
 import { ArrowLeft } from "lucide-react";
 
-const ACTOR = { id: "ce114fe1-944a-43c2-b9c2-b1e21b83e0ae", displayName: "Web Operator" };
-
 export function CreateMintPage() {
   const navigate = useNavigate();
 
@@ -29,7 +27,6 @@ export function CreateMintPage() {
       };
       return createMint({
         mintId,
-        requestedBy: ACTOR,
         metadata: {
           displayName,
           description,

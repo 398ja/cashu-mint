@@ -10,6 +10,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import xyz.tcheeric.cashu.mint.admin.domain.AdminPermission;
+import xyz.tcheeric.cashu.mint.admin.rest.config.AdminOpenApiConfiguration;
+import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.dashboard.DashboardSummaryResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminDashboardService;
 
@@ -17,7 +21,8 @@ import xyz.tcheeric.cashu.mint.admin.rest.service.AdminDashboardService;
  * Aggregated dashboard endpoint for the web UI.
  */
 @Tag(name = "Admin Dashboard", description = "Dashboard summary for the admin web interface")
-@SecurityRequirement(name = "AdminToken")
+@SecurityRequirement(name = AdminOpenApiConfiguration.ADMIN_SESSION_SCHEME)
+@RequiresPermission(AdminPermission.Keys.DASHBOARD_READ)
 @RestController
 @RequestMapping("/admin/dashboard")
 public class DashboardAdminController {

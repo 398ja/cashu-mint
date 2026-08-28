@@ -35,7 +35,8 @@ The admin modules require **Java 21**. The Maven Enforcer plugin rejects other J
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `admin.security.api-token` | `local-dev-token` | API authentication token (`ADMIN_API_TOKEN`) |
+| `admin.security.super-admin-npub` | _(none)_ | npub of the Super Administrator (`ADMIN_SUPER_ADMIN_NPUB`) |
+| `nap.external-base-url` | `http://localhost:7778` | Audience handshake proofs must name (`ADMIN_EXTERNAL_BASE_URL`) |
 
 ## Actuator
 
@@ -58,7 +59,8 @@ The admin modules require **Java 21**. The Maven Enforcer plugin rejects other J
 |----------|---------|-------------|
 | `CASHU_MINT_ADMIN_PORT` | `7778` | Admin REST API port |
 | `SERVER_PORT` | `7778` | Alias for admin port |
-| `ADMIN_API_TOKEN` | `local-dev-token` | API token for authentication |
+| `ADMIN_SUPER_ADMIN_NPUB` | _(none)_ | npub of the Super Administrator |
+| `ADMIN_EXTERNAL_BASE_URL` | `http://localhost:7778` | Audience handshake proofs must name |
 | `DATASOURCE_URL` | _(H2 in-memory)_ | JDBC connection URL |
 | `DATASOURCE_USERNAME` | `sa` | Database username |
 | `DATASOURCE_PASSWORD` | _(empty)_ | Database password |

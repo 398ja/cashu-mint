@@ -12,8 +12,10 @@
 
 # Build outputs
 **/target
-**/out
-**/build
+# Root-anchored: the hexagonal packages adapter/out and port/out are source,
+# and **/out swallowed all 50 of their files out of every build context.
+/out
+/build
 
 # OS cruft
 .DS_Store
