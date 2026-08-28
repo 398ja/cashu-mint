@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.client.HttpClientErrorException;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort;
 import xyz.tcheeric.cashu.vault.api.VaultClientFactory;
@@ -42,11 +43,14 @@ public class VaultKeySetInventoryAdapter implements KeySetInventoryPort {
         final Set<KeySetEntity> keySets;
         try {
             keySets = keySetClient.get().getByMintId(mintId.toString());
-        } catch (final IllegalArgumentException e) {
-            // The vault client reports "this mint holds no keysets" by throwing rather than
-            // by answering an empty set. A mint nobody has provisioned yet holds none, and
-            // that is an answer; translating it here keeps it from reaching an operator as
-            // a vault failure. Transport faults are a different type and still propagate.
+        } catch (final HttpClientErrorException.NotFound | IllegalArgumentException e) {
+            // The vault client reports "this mint holds no keysets" by throwing rather than by
+            // answering an empty set, and it has two ways of doing it: the vault answers 404,
+            // which the client's plain RestTemplate raises as NotFound, and a 200 carrying an
+            // empty body raises IllegalArgumentException. A mint nobody has provisioned yet
+            // holds none, and that is an answer; translating both here keeps it from reaching
+            // an operator as a vault failure. Every other fault is a different type and still
+            // propagates.
             log.debug("Vault holds no keysets for mint {}", mintId);
             return List.of();
         }

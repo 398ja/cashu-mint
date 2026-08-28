@@ -10,6 +10,9 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.VaultKeySet;
@@ -24,12 +27,29 @@ class VaultKeySetInventoryAdapterTest {
     private static final UUID MINT_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
     /**
-     * The vault client signals "this mint holds no keysets" by throwing, so an
-     * unprovisioned mint reached the operator as a failure until this was translated.
+     * What a running vault actually answers: 404, which the client's plain RestTemplate
+     * raises as NotFound. Verified against the dev stack -- GET /vault/keyset/mint/{id}
+     * for an unprovisioned mint returns 404 "No KeySetEntity found for the specified mintId".
      */
     @Test
-    @DisplayName("A mint the vault holds no keysets for is an empty list, not a failure")
+    @DisplayName("A mint the vault answers 404 for is an empty list, not a failure")
     void unprovisionedMintIsEmpty() {
+        final var adapter = new VaultKeySetInventoryAdapter(() -> new StubKeySetVaultClient(
+            HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found",
+                HttpHeaders.EMPTY, new byte[0], null)));
+
+        final List<VaultKeySet> keySets = adapter.listByMint(MINT_ID);
+
+        assertTrue(keySets.isEmpty());
+    }
+
+    /**
+     * The other way the client says the same thing: a 200 whose body carries no keysets
+     * makes it throw IllegalArgumentException rather than answer an empty set.
+     */
+    @Test
+    @DisplayName("A vault answering an empty body is also an empty list")
+    void emptyVaultBodyIsEmpty() {
         final var adapter = new VaultKeySetInventoryAdapter(() -> new StubKeySetVaultClient(
             new IllegalArgumentException("No KeySet found for mintId: " + MINT_ID)));
 
