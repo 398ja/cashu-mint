@@ -46,6 +46,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Architecture overview](explanations/architecture-overview.md) - High-level component interactions and request flow.
 - [Architecture and NUTs](explanations/architecture-and-nuts.md) - Module responsibilities and spec mapping.
 - [NUT compliance audit](explanations/nut-compliance-audit.md) - Where cashu-mint, cashu-lib and cashu-wallet diverge from the specifications, why it matters, and where each gap is tracked.
+- [Spending a proof exactly once across the secret encoding change](explanations/spent-proof-key-encoding.md) - Why the `hash_to_curve` correction could reopen double spending, and how the spent-proof store is keyed on both values of `Y`.
 - [Representing vouchers as structured secrets](explanations/voucher-structured-secrets.md) - Encode voucher metadata in custom secrets without changing the mint API.
 - [Voucher mock payment and free splitting](explanations/voucher-mock-payment.md) - How voucher tokens skip payment verification and support arbitrary denominations.
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
@@ -53,6 +54,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
 - [Why `/v1/info` is derived from the wiring](explanations/mint-info-advertisement.md) - Why the advertised NUT-06 capabilities are generated from the code rather than written down, and what that costs.
 - [Why the mint fails closed on DLEQ](explanations/dleq-fail-closed.md) - Why a NUT-12 proof failure fails the request, and why the nonce is deterministic.
+- [Why validation runs before signing](explanations/validation-before-signing.md) - Why a rejected transaction must leave no blind signature in the vault, and how the checks are ordered to guarantee it.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
 - [Voucher data record](explanations/voucher-data-record.md) - What the mint stores about a customer, in customer-facing language. Kept in step with the schema by a CI check.
 - [Architecture decision records](adr/) - The decisions behind the current design, newest last.

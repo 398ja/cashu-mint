@@ -2,15 +2,16 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import xyz.tcheeric.cashu.common.BlindSignature;
+import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.nut02.KeySetResolver;
 import xyz.tcheeric.cashu.common.KeysetId;
+import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
-import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
 
@@ -34,58 +35,57 @@ public class VerifyFeesTaskTest {
         return proof;
     }
 
-    private BlindSignature createSignature(int amount) {
-        return new BlindSignature(
-                amount,
-                KeysetId.fromString(VALID_KEYSET_ID),
-                SignatureTestData.sampleSignature(),
-                null
-        );
+    private BlindedMessage createOutput(int amount) {
+        BlindedMessage output = new BlindedMessage();
+        output.setAmount(amount);
+        output.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
+        output.setBlindedMessage(PublicKey.fromString(
+                "02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+        return output;
     }
 
     /**
-     * Checks that fee validation passes when proofs, fees, and responses align.
+     * Checks that the balance equation passes when inputs, fees and requested outputs align.
+     * The equation is read from the request, because it is checked before anything is signed.
      */
     @Test
     public void executeSuccess() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
-        PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
 
         RSSProof proof = createProof(10);
-        BlindSignature sig = createSignature(10);
+        BlindedMessage output = createOutput(10);
 
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
-        Mockito.when(request.getFees(any(KeySet.class))).thenReturn(0);
-        Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
+        Mockito.when(request.getFees(any(KeySetResolver.class))).thenReturn(0);
+        Mockito.when(request.getBlindedMessages()).thenReturn(List.of(output));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
-        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, mintLoadService);
         assertDoesNotThrow(task::execute);
     }
 
     /**
-     * Ensures the task throws when reported signatures cannot cover the requested amount.
+     * Ensures an unbalanced request is refused: inputs minus fees must equal the outputs.
      */
     @Test
     public void executeFailure() throws CashuErrorException {
         PostSwapRequest<RandomStringSecret> request = Mockito.mock(PostSwapRequest.class);
-        PostSwapResponse response = Mockito.mock(PostSwapResponse.class);
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
 
         RSSProof proof = createProof(10);
-        BlindSignature sig = createSignature(5);
+        BlindedMessage output = createOutput(5);
 
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
-        Mockito.when(request.getFees(any(KeySet.class))).thenReturn(1);
-        Mockito.when(response.getBlindSignatures()).thenReturn(List.of(sig));
+        Mockito.when(request.getFees(any(KeySetResolver.class))).thenReturn(1);
+        Mockito.when(request.getBlindedMessages()).thenReturn(List.of(output));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
         Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
-        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, response, mintLoadService);
+        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, mintLoadService);
         assertThrows(CashuErrorException.class, task::execute);
     }
 }

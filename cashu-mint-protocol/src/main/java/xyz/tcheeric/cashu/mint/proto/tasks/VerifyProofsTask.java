@@ -12,7 +12,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
@@ -86,20 +86,31 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         return null;
     }
 
+    /**
+     * Checks that every amount in the request is a positive integer.
+     *
+     * <p>The transaction balance is deliberately not checked here. NUT-02 states one
+     * equation, {@code sum(inputs) - fees == sum(outputs)}, and {@link VerifyFeesTask}
+     * enforces it. A second, fee-unaware equation here contradicted it for any keyset
+     * with a non-zero {@code input_fee_ppk}.
+     */
     private void validateAmounts() throws CashuErrorException {
         log.debug("Validate Amounts...");
-        var proofs = request.getInputs();
-        var blindedMessages = request.getBlindedMessages();
 
-        int proofsAmount = proofs.stream().mapToInt(Proof::getAmount).sum();
-        int blindedMessagesAmount = blindedMessages.stream().mapToInt(BlindedMessage::getAmount).sum();
-
-        if (proofsAmount != blindedMessagesAmount) {
-            log.error("validate_amounts_error");
-            ErrorResponse error = new ErrorResponse("validate_amounts_error");
-            throw new CashuErrorException(error.toJson());
+        for (Proof<T> proof : request.getInputs()) {
+            requirePositiveAmount(proof.getAmount());
+        }
+        for (BlindedMessage blindedMessage : request.getBlindedMessages()) {
+            requirePositiveAmount(blindedMessage.getAmount());
         }
         log.info("validate_amounts_ok");
+    }
+
+    private void requirePositiveAmount(int amount) throws CashuErrorException {
+        if (amount <= 0) {
+            log.error("validate_amounts_error amount={}", amount);
+            throw new CashuErrorException(new ErrorResponse("validate_amounts_error").toJson());
+        }
     }
 
     private void verifyProofs(@NonNull PostSwapRequest<T> request) throws CashuErrorException {

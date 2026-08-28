@@ -8,7 +8,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
@@ -102,7 +102,17 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                 validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
             }
 
+            new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
+                    KeySetDirectory.of(mintLoadService), signatureVaultService).execute();
+
             new VerifyProofsTask<>(mint, request, service).execute();
+
+            // NUT-02: the balance equation is checked before signing, so a rejected swap
+            // leaves no blind signature behind for NUT-09 restore to hand back. Voucher
+            // swaps carry no fees and were balanced above.
+            if (!isVoucherSwap) {
+                new VerifyFeesTask<>(request, mintLoadService).execute();
+            }
 
             // Voucher swaps use standard keyset keys (power-of-2 amounts)
             // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
@@ -115,10 +125,6 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
             PostSwapResponse response = new PostSwapResponse(blindSignatures);
 
-            // Skip fee verification for voucher swaps (no fees apply)
-            if (!isVoucherSwap) {
-                new VerifyFeesTask<>(request, response, mintLoadService).execute();
-            }
             new InvalidateProofsTask<>(mint, proofsToSwap).execute();
 
             return response;
