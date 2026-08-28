@@ -19,6 +19,9 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultDLEQProofGenerator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherKeyDerivation;
+import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
+
+import java.math.BigInteger;
 
 
 @Slf4j
@@ -179,27 +182,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
             log.debug("Normalized blind signature hex={}", hex);
         }
 
-        DLEQProof dleqProof = null;
-        try {
-            ECPoint blindedMessagePoint = CURVE.getCurve()
-                    .decodePoint(blindedMessage.getBlindedMessage().getBytes())
-                    .normalize();
-            ECPoint blindSignaturePoint = CURVE.getCurve()
-                    .decodePoint(sigObj.getCompressedBytes())
-                    .normalize();
-            dleqProof = dleqProofGenerator.generateProof(
-                    new java.math.BigInteger(1, privateKey.getBytes()),
-                    blindedMessagePoint,
-                    blindSignaturePoint
-            );
-            if (log.isDebugEnabled()) {
-                log.debug("Generated DLEQ proof for amount={} keySetId={}",
-                        blindedMessage.getAmount(), blindedMessage.getKeySetId());
-            }
-        } catch (Exception e) {
-            log.warn("Failed to generate DLEQ proof for blinded message amount={} keySetId={}: {}",
-                    blindedMessage.getAmount(), blindedMessage.getKeySetId(), e.getMessage());
-        }
+        DLEQProof dleqProof = generateDleqProof(privateKey, sigObj);
 
         BlindSignature blindSignature = new BlindSignature(
                 blindedMessage.getAmount(),
@@ -215,6 +198,40 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
         return blindSignature;
     }
 
+
+    /**
+     * Generates the NUT-12 DLEQ proof, failing the request when it cannot be produced.
+     *
+     * <p>The mint advertises NUT-12, so returning a signature without a proof would silently
+     * turn a verifiable signature into an unverifiable one; a wallet could not tell that
+     * degradation apart from a mint that never supported NUT-12. Failing closed keeps the
+     * advertised guarantee honest, and the failure is counted so it is visible.
+     */
+    private DLEQProof generateDleqProof(PrivateKey privateKey, Signature blindSignature)
+            throws CashuErrorException {
+        try {
+            ECPoint blindedMessagePoint = CURVE.getCurve()
+                    .decodePoint(blindedMessage.getBlindedMessage().getBytes())
+                    .normalize();
+            ECPoint blindSignaturePoint = CURVE.getCurve()
+                    .decodePoint(blindSignature.getCompressedBytes())
+                    .normalize();
+            return dleqProofGenerator.generateProof(
+                    new BigInteger(1, privateKey.getBytes()),
+                    blindedMessagePoint,
+                    blindSignaturePoint
+            );
+        } catch (CashuErrorException e) {
+            MetricRecorders.dleq().generationFailed();
+            throw e;
+        } catch (RuntimeException e) {
+            MetricRecorders.dleq().generationFailed();
+            log.error("DLEQ proof generation failed for amount={} keySetId={}",
+                    blindedMessage.getAmount(), blindedMessage.getKeySetId(), e);
+            throw new CashuErrorException(new ErrorResponse("dleq_generation_failed",
+                    "Unable to produce the NUT-12 DLEQ proof for this blind signature").toJson());
+        }
+    }
 
     private static String bytesToHex(byte[] bytes) {
         if (bytes == null) return null;

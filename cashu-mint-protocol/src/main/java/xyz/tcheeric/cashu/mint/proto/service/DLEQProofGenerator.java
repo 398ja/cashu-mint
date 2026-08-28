@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.service;
 
 import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.nut12.DLEQProof;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 
 import java.math.BigInteger;
 
@@ -18,6 +19,9 @@ public interface DLEQProofGenerator {
      * @param blindedMessage the blinded message point B'
      * @param blindSignature the blind signature point C' = a * B'
      * @return DLEQ proof (e, s) ready to attach to a blind signature
+     * @throws CashuErrorException if the proof cannot be produced; NUT-12 is advertised, so a
+     *                            signature without a proof is not a valid response
      */
-    DLEQProof generateProof(BigInteger privateKey, ECPoint blindedMessage, ECPoint blindSignature);
+    DLEQProof generateProof(BigInteger privateKey, ECPoint blindedMessage, ECPoint blindSignature)
+            throws CashuErrorException;
 }

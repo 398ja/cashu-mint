@@ -13,7 +13,7 @@ This reference lists the NUT specifications implemented in the repository, their
 | NUT-06 | Mint information | [06.md](https://github.com/cashubtc/nuts/blob/main/06.md) | `NUT06.java` | Implemented |
 | NUT-07 | Token state check | [07.md](https://github.com/cashubtc/nuts/blob/main/07.md) | `NUT07.java` | Implemented |
 | NUT-09 | Restore signatures | [09.md](https://github.com/cashubtc/nuts/blob/main/09.md) | `NUT09.java` | Implemented |
-| NUT-12 | DLEQ proofs | [12.md](https://github.com/cashubtc/nuts/blob/main/12.md) | via `cashu-lib-crypto` | Implemented |
+| NUT-12 | DLEQ proofs | [12.md](https://github.com/cashubtc/nuts/blob/main/12.md) | `DefaultDLEQProofGenerator.java` | Implemented (deterministic nonce, [fail-closed](../explanations/dleq-fail-closed.md)) |
 | NUT-17 | WebSocket subscriptions | [17.md](https://github.com/cashubtc/nuts/blob/main/17.md) | `NUT17.java`, `WebSocketHandler` | Implemented |
 
 Implementation classes are located in `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/`.

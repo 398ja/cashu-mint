@@ -123,6 +123,7 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
+| `cashu_mint_dleq_generation_failures_total` | counter | — | NUT-12 DLEQ proof generations that failed, failing the signing request |
 | `cashu_mint_invariant_poll_failures_total` | counter | — | Invariant poll attempts that failed; a non-zero rate means the gauges are stale |
 | `cashu_mint_issuance_amount_mismatch_total` | counter | — | Mint requests whose blinded outputs did not sum to the quote amount (FR-001) |
 | `cashu_mint_issuance_cross_check_failure_total` | counter | — | Gateway amount cross-checks that failed before the PAID to ISSUING CAS (FR-010) |

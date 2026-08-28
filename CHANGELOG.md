@@ -4,6 +4,37 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`POST /v1/checkstate` returns one state per requested `Y`, in request order**
+  (audit finding M4, issue #386). The cross-mint merge was keyed on whatever the
+  mints happened to know, so a wallet checking N proofs could get back fewer than
+  N entries with no way to tell which were missing, and would silently misread
+  which proof is spent. The merge is now keyed on the requested `Ys`: an unknown
+  `Y` returns `UNSPENT`, the NUT-10 `witness` is carried through so a spent P2PK
+  proof can be validated offline, and archived mints are consulted
+  unconditionally rather than only when no active mint answered — reporting a
+  spent proof as unspent is the dangerous direction of this error. Precedence
+  `SPENT > PENDING > UNSPENT` is preserved. Extracted to
+  `CrossMintCheckStateMerger` with unit tests.
+
+### Changed
+
+- **A DLEQ proof failure now fails the signing request instead of returning an
+  unproven signature** (audit finding M7, issue #389). The mint advertises
+  NUT-12, so a blind signature without a proof silently degraded a verifiable
+  signature into an unverifiable one, indistinguishable to a wallet from a mint
+  that never supported NUT-12. Every swap and mint response now carries a `dleq`,
+  because any response that would not have is an error instead. Failures
+  increment the new `cashu_mint_dleq_generation_failures_total` counter, so the
+  condition is alertable rather than buried in a WARN line. See
+  [Why the mint fails closed on DLEQ](docs/explanations/dleq-fail-closed.md).
+- **The DLEQ nonce is derived deterministically per NUT-12**
+  (`r = HMAC-SHA256(key=a, "Cashu_DLEQ_R_v1" || A || B' || C' || ctr)`, with the
+  `ctr` rejection-sampling loop) rather than drawn from the RNG. Nonce reuse
+  leaks the mint private key outright; deriving `r` from the key and the message
+  removes that failure mode. Checked against the published NUT-12 vector.
+
 ### Added
 
 - **An interoperability test drives an external Cashu implementation through

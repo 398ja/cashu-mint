@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -23,6 +24,8 @@ public class SignBlindedMessage33ByteTest {
 
     // Verifies that when BDHKE returns a 33-byte blind signature (compressed point),
     // SignBlindedMessageTask converts it to hex and builds a Signature via fromString (66 hex chars).
+    // The bytes must be a real curve point: the DLEQ proof is generated over them and NUT-12 is
+    // advertised, so an undecodable signature now fails the request rather than losing its proof.
     @Test
     public void signReturns33ByteSignatureHandled() throws CashuErrorException {
         // Arrange
@@ -37,10 +40,7 @@ public class SignBlindedMessage33ByteTest {
         Mockito.when(service.getPrivateKeyForSigning(anyString(), anyInt(), any())).thenReturn(
                 PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-        byte[] thirtyThree = new byte[33];
-        for (int i = 0; i < thirtyThree.length; i++) {
-            thirtyThree[i] = (byte) i;
-        }
+        byte[] thirtyThree = Hex.decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798");
 
         Mint mint = new Mint();
         SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());

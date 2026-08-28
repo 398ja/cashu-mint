@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.observability.health.GatewayHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerDleqMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerInvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerIssuanceMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerVoucherMetricsRecorder;
@@ -29,6 +30,7 @@ import xyz.tcheeric.cashu.mint.proto.metrics.LockMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MeltMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.TaskExecutionRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.DleqMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.IssuanceMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
@@ -212,6 +214,23 @@ public class ObservabilityAutoConfiguration {
         log.info("Registering invariant metrics recorder for DB-derived gauges");
         InvariantMetricsRecorder recorder = new MicrometerInvariantMetricsRecorder(registry);
         MetricRecorders.registerInvariant(recorder);
+        return recorder;
+    }
+
+    /**
+     * Registers the NUT-12 DLEQ recorder so a proof-generation failure — which
+     * now fails the signing request rather than degrading it (issue #389) — is
+     * countable and alertable.
+     *
+     * @param registry the Micrometer registry
+     * @return the DLEQ metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public DleqMetricsRecorder dleqMetricsRecorder(MeterRegistry registry) {
+        log.info("Registering DLEQ metrics recorder for NUT-12 proof generation failures");
+        DleqMetricsRecorder recorder = new MicrometerDleqMetricsRecorder(registry);
+        MetricRecorders.registerDleq(recorder);
         return recorder;
     }
 

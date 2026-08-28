@@ -53,6 +53,7 @@ public final class MetricCatalogue {
         new MicrometerVoucherMetricsRecorder(registry);
         new MicrometerIssuanceMetricsRecorder(registry);
         new MicrometerWebhookMetricsRecorder(registry);
+        new MicrometerDleqMetricsRecorder(registry);
 
         // Gauges declare themselves when bound, so bind them to a constant.
         MicrometerInvariantMetricsRecorder invariant = new MicrometerInvariantMetricsRecorder(registry);

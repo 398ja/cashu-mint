@@ -92,6 +92,8 @@ public final class MetricRecorders {
         }
     };
 
+    private static final DleqMetricsRecorder NO_OP_DLEQ = () -> { };
+
     private static volatile MeltMetricsRecorder melt = NO_OP_MELT;
 
     private static volatile VoucherMetricsRecorder voucher = NO_OP_VOUCHER;
@@ -101,6 +103,8 @@ public final class MetricRecorders {
     private static volatile WebhookMetricsRecorder webhook = NO_OP_WEBHOOK;
 
     private static volatile InvariantMetricsRecorder invariant = NO_OP_INVARIANT;
+
+    private static volatile DleqMetricsRecorder dleq = NO_OP_DLEQ;
 
     private MetricRecorders() {
     }
@@ -189,5 +193,23 @@ public final class MetricRecorders {
      */
     public static void registerInvariant(InvariantMetricsRecorder recorder) {
         invariant = recorder != null ? recorder : NO_OP_INVARIANT;
+    }
+
+    /**
+     * The NUT-12 DLEQ area recorder. Never {@code null}.
+     *
+     * @return the registered recorder, or a no-op when none is wired
+     */
+    public static DleqMetricsRecorder dleq() {
+        return dleq;
+    }
+
+    /**
+     * Registers the DLEQ recorder. Passing {@code null} resets to the no-op.
+     *
+     * @param recorder the recorder to use, or {@code null} to disable reporting
+     */
+    public static void registerDleq(DleqMetricsRecorder recorder) {
+        dleq = recorder != null ? recorder : NO_OP_DLEQ;
     }
 }
