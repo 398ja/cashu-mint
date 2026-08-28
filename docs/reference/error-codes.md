@@ -32,7 +32,7 @@ The HTTP status code depends on the error category:
 | `mint_request_contains_null_output` | Null output | 400 | One or more blinded messages in the request are null. | Remove null entries from the `outputs` array. |
 | `missing_keyset_id` | Missing keyset ID | 400 | A blinded message is missing its `keyset_id` field. | Set `keyset_id` on every blinded message. |
 | `invalid_output_amount` | Invalid output amount | 400 | A blinded message has a non-positive amount. | Use positive denomination amounts only. |
-| `invalid_denominations` | Invalid denominations | 400 | Blinded message amounts do not match valid keyset denominations. | Use only power-of-two denominations supported by the keyset. |
+| `invalid_denominations` | Invalid denominations | 400 | An output amount is not a denomination the keyset holds a key for. Any combination of valid denominations that sums to the quote amount is accepted; the split need not be minimal. | Use amounts listed for the keyset in `GET /v1/keys`. |
 | `keyset_not_found` | Keyset not found | 404 | The referenced keyset ID does not exist or is inactive. | Use an active keyset ID from `GET /v1/keysets`. |
 | `too_many_outputs` | Maximum N outputs allowed | 400 | The number of blinded messages exceeds the configured limit. | Reduce the number of outputs. |
 
@@ -58,6 +58,22 @@ The HTTP status code depends on the error category:
 | `mixed_proof_types_error` | Cannot mix voucher and regular proofs in same operation | 400 | The inputs contain both voucher and non-voucher proofs. | Submit voucher and regular proofs in separate swap requests. |
 | `voucher_split_amount_mismatch` | Voucher split amounts must match | 400 | Voucher swap output total does not equal the input total. | Ensure output amounts sum exactly to the voucher input amount. |
 | `unsupported_proof_type` | Unsupported proof type for swap | 400 | A proof uses an unrecognized spending condition type. | Use only supported proof types (regular, P2PK, HTLC, voucher). |
+
+### Shared protocol validations
+
+Raised by `ValidateTransactionTask` on swap, mint and melt alike, before any
+blinded message is signed. The numeric codes are those of
+[error_codes.md](https://github.com/cashubtc/nuts/blob/main/error_codes.md).
+
+| Code | Spec code | Message | HTTP | Cause | Resolution |
+|------|-----------|---------|------|-------|------------|
+| `duplicate_inputs` | 11007 | Duplicate inputs provided | 400 | The same proof appears more than once in `inputs`. | Send each proof once. |
+| `duplicate_outputs` | 11008 | Duplicate outputs provided | 400 | The same blinded message appears more than once in `outputs`. | Blind each output with its own secret and blinding factor. |
+| `multiple_units` | 11009 | Inputs/Outputs of multiple units | 400 | The inputs, or the outputs, span more than one unit. | Send one unit per transaction. |
+| `inputs_outputs_unit_mismatch` | 11010 | Inputs and outputs not of same unit | 400 | The outputs are in a different unit from the inputs. | Match the output unit to the input unit. |
+| `keyset_inactive` | 12002 | Keyset is inactive, cannot sign | 400 | An output names a keyset the mint has retired. Inputs from a retired keyset remain spendable. | Re-read `GET /v1/keys` and target an active keyset. |
+| `outputs_already_signed` | 11003 | Outputs already signed | 400 | The output set was signed by an earlier request. | Recover the signatures with `POST /v1/restore` (NUT-09) instead of re-sending. |
+| `transaction_not_balanced` | 11005 | Transaction is not balanced | 400 | `sum(inputs) - fees != sum(outputs)`. | Subtract the keyset fees from the outputs, per NUT-02. |
 
 ## Proof Verification Errors (NUT-07)
 

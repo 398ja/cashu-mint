@@ -9,8 +9,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.SplittingService;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
@@ -46,7 +45,6 @@ import java.time.Instant;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +93,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private final PaymentStatusChecker paymentStatusChecker;
     private final MintQuoteRepository mintQuoteRepository;
     private final IssuanceRecordRepository issuanceRecordRepository;
-    private final SplittingService splittingService = new SplittingService();
 
 
     public MintTask(@NonNull PostMintRequest<T> postMintRequest,
@@ -412,7 +409,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 // (no stranding risk, and the single-issuance contract is
                 // preserved over output-shape errors).
                 if (durableQuote.lifecycleState() == LifecycleState.PAID) {
-                    validateDenominations(blindedMessages, mint);
+                    validateOutputs(blindedMessages, mint);
                 }
 
                 outputsHash = OutputsHash.compute(blindedMessages);
@@ -472,7 +469,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.info("mint_task voucher_quote amount={} arbitrary_denominations=true",
                         blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
             } else if (mintQuoteRepository == null) {
-                validateDenominations(blindedMessages, mint);
+                validateOutputs(blindedMessages, mint);
             }
 
             log.debug("Signing {} blinded messages...", blindedMessages.size());
@@ -845,6 +842,19 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
     }
 
+    /**
+     * Runs every deterministic output check the mint owes a wallet before it signs.
+     *
+     * <p>The shared protocol rules (duplicate outputs, mixed units, inactive keysets) come
+     * first, then the NUT-04 denomination rule. Already-signed outputs are deliberately not
+     * refused here: NUT-19 makes replaying the same outputs against an issued quote the
+     * intended retry, and MintTask answers that from its own cache.
+     */
+    private void validateOutputs(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
+        new ValidateTransactionTask<T>(null, blindedMessages, KeySetDirectory.of(mint), null).execute();
+        validateDenominations(blindedMessages, mint);
+    }
+
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
         // Spec 007 — these are deterministic client errors (computable from the
         // request + static keyset config). Throw typed ErrorResponse JSON so the
@@ -882,27 +892,31 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
 
         for (var entry : outputsByKeyset.entrySet()) {
-            String keysetId = entry.getKey();
-            KeySet keySet = findKeySet(mint, keysetId);
-            Set<Integer> availableDenoms = keySet.getKeys() == null
-                    ? Set.of()
-                    : keySet.getKeys().getValues().keySet().stream()
-                    .map(BigInteger::intValue)
-                    .filter(value -> value > 0)
-                    .collect(Collectors.toSet());
-            long total = entry.getValue().stream().mapToLong(Integer::longValue).sum();
-            List<Integer> expected;
-            try {
-                expected = splittingService.split(total, availableDenoms);
-            } catch (IllegalStateException e) {
-                throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
-            }
-            List<Integer> actual = new ArrayList<>(entry.getValue());
-            actual.sort(Comparator.reverseOrder());
-            if (!actual.equals(expected)) {
-                throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
+            KeySet keySet = findKeySet(mint, entry.getKey());
+            Set<Integer> offeredDenominations = offeredDenominations(keySet);
+            for (Integer amount : entry.getValue()) {
+                if (!offeredDenominations.contains(amount)) {
+                    throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
+                }
             }
         }
+    }
+
+    /**
+     * The positive amounts this keyset holds a key for.
+     *
+     * <p>NUT-04 asks only that each blinded output carry a denomination the keyset can
+     * sign, and that the outputs sum to the quote amount. It does not prescribe how the
+     * wallet splits that sum, so any combination of offered denominations is acceptable.
+     */
+    private Set<Integer> offeredDenominations(KeySet keySet) {
+        if (keySet.getKeys() == null) {
+            return Set.of();
+        }
+        return keySet.getKeys().getValues().keySet().stream()
+                .map(BigInteger::intValue)
+                .filter(amount -> amount > 0)
+                .collect(Collectors.toSet());
     }
 
     /** Whether every blinded message targets the zero-value IOU keyset (Dalia Phase 9). */

@@ -61,16 +61,16 @@ filed M10 to end.
 
 ## Known failures
 
-Both cases fail today, and that is the expected state until the audit's later
-milestones land. See the audit's
+The mint leg now passes with Nutshell's own output split: the denomination rule
+was relaxed to what NUT-04 actually requires (issue #394). The swap leg still
+fails, and that is the expected state until the audit's later milestones land.
+See the audit's
 [implementation plan](../explanations/nut-compliance-audit.md#implementation-plan)
 for the sequencing.
 
 | Stage | Mint error | Related finding |
 | --- | --- | --- |
-| `mint` | `invalid_denominations` | The mint requires one canonical minimal split of the quote amount; wallets choose their own denominations. |
 | `swap` | `verify_proof_failed_error` | Consistent with L1, the `hash_to_curve` secret encoding: Nutshell's proofs verify for Nutshell but not for us. |
 
-The mint leg succeeding under the canonical split is itself a result: Nutshell
-accepted and unblinded our blind signatures, so the BDHKE signing path
-interoperates.
+The mint leg succeeding is itself a result: Nutshell accepted and unblinded our
+blind signatures, so the BDHKE signing path interoperates.

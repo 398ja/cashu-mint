@@ -206,15 +206,34 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
     }
 
     @Test
-    void wrongSplit_amountSumsButNotCanonical_quoteStaysPaid() {
-        // Outputs sum to 10 with valid keyset denoms but a non-canonical split
-        // ([4,4,2] vs the NUT-00 minimal [8,2]) → invalid_denominations, before
-        // the CAS. Quote stays PAID.
+    void walletChosenSplit_amountSumsWithValidDenominations_isAccepted() {
+        // NUT-04 obliges the wallet only to make its outputs sum to the quote amount using
+        // denominations the keyset can sign. [4,4,2] is not the minimal split of 10 but every
+        // amount is a valid denomination, so the mint must issue rather than reject it: no
+        // external wallet computes the minimal split.
         ResponseEntity<String> response = postMint(
                 "q-it-mint-bind",
                 List.of(Map.of("amount", 4, "id", TEST_KEYSET_ID, "B_", B_AMT_8),
                         Map.of("amount", 4, "id", TEST_KEYSET_ID, "B_", B_AMT_1),
                         Map.of("amount", 2, "id", TEST_KEYSET_ID, "B_", B_AMT_2)));
+
+        assertThat(response.getStatusCode().is2xxSuccessful())
+                .as("a wallet-chosen split must be accepted — status=%s body=%s",
+                        response.getStatusCode(), response.getBody())
+                .isTrue();
+        assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
+                .isEqualTo(LifecycleState.ISSUED);
+    }
+
+    @Test
+    void unsupportedDenomination_rejected_quoteStaysPaid() {
+        // An amount the keyset holds no key for is still invalid_denominations: the mint could
+        // not sign it. Outputs sum to 10 so only the denomination rule can reject this.
+        ResponseEntity<String> response = postMint(
+                "q-it-mint-bind",
+                List.of(Map.of("amount", 7, "id", TEST_KEYSET_ID, "B_", B_AMT_8),
+                        Map.of("amount", 2, "id", TEST_KEYSET_ID, "B_", B_AMT_2),
+                        Map.of("amount", 1, "id", TEST_KEYSET_ID, "B_", B_AMT_1)));
 
         assertThat(response.getStatusCode().is4xxClientError())
                 .as("deterministic output error must be a clean 4xx, not 500 — status=%s body=%s",
