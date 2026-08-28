@@ -135,8 +135,13 @@ Return NUT-06 mint information plus legacy helper fields (`units`, `mint_methods
 ## Token state checks
 
 ### `POST /v1/checkstate`
-Return the token state (UNSPENT/PENDING/SPENT) for each secret, merging results across active and archived mints.
-- Body: `{ "hash_to_curve_secrets": [ "02ab…" ] }`.
+Return the token state (`UNSPENT`/`PENDING`/`SPENT`) for each requested `Y`, merging results
+across active and archived mints.
+- Body: `{ "Ys": [ "02ab…" ] }`.
+- The `states` array always has the same length as `Ys` and preserves its order (NUT-07). A `Y`
+  no mint knows returns `UNSPENT` rather than being omitted.
+- `witness` carries the serialized NUT-10 witness that spent the proof, when there is one.
+- Precedence across mints is `SPENT` > `PENDING` > `UNSPENT`.
 
 ## Restore signatures
 
