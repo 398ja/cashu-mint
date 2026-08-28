@@ -15,6 +15,7 @@ This directory contains documentation for the admin components, organized using 
 
 ## How-to guides
 
+- [Back up a keyset's private keys](how-to/back-up-keyset-private-keys.md) — Find the vault path of every denomination and read the keys out of HashiCorp Vault.
 - [Configure NAP admin authentication](how-to/configure-nap-admin-authentication.md) — Super Administrator npub, enrolling Operators, choosing a signer.
 - [Configure persistence](how-to/configure-mint-admin-persistence.md) — Database setup, Flyway migrations, and profiles.
 - [Deploy the web interface to production](how-to/deploy-web-production.md) — Single-origin deployment, health checks, and rollback.

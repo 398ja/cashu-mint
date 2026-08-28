@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.admin.application.port.out;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -35,5 +36,29 @@ public interface KeySetInventoryPort {
      *                 still verifies and redeems indefinitely (ADR-0004)
      */
     record VaultKeySet(String keySetId, String unit, Instant createdAt, boolean archived) {
+    }
+
+    /**
+     * The denominations one of a mint's keysets holds, ascending by amount.
+     *
+     * <p>Scoped to the mint on purpose: the keyset id alone would let one mint's URL address
+     * another's keyset, and an Operator reading denominations off the wrong mint would draw
+     * exactly the wrong conclusion about a rotation.
+     *
+     * <p>A keyset the mint does not hold is an empty list, on the same reasoning as
+     * {@link #listByMint(UUID)}: absence is an answer, unreadability is a failure.
+     *
+     * @throws RuntimeException when the vault cannot be read
+     */
+    List<Denomination> listDenominations(UUID mintId, String keySetId);
+
+    /**
+     * One denomination and where its private key lives. The path is a locator, not the
+     * secret: reading it requires HashiCorp Vault credentials the browser never holds.
+     *
+     * @param amount the denomination this key signs
+     * @param vaultPath where the private key is stored, for backup and recovery
+     */
+    record Denomination(BigInteger amount, String vaultPath) {
     }
 }

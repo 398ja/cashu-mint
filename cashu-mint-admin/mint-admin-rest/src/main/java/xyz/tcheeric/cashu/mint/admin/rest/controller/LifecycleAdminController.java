@@ -27,7 +27,10 @@ import xyz.tcheeric.nap.spring.annotation.RequiresPermission;
 
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.AdminErrorResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
+import java.util.List;
+
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
+import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.DenominationResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.KeySetResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleChangeRequest;
@@ -85,6 +88,19 @@ public class LifecycleAdminController {
             @Parameter(description = "Page index (zero-indexed)") @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(lifecycleService.listKeySets(mintId, page, size));
+    }
+
+    @Operation(summary = "List the denominations of one of a mint's keysets",
+            description = "Each denomination and the HashiCorp Vault path holding its private key. The path is a locator, never the secret: reading it needs credentials this API does not hold. No public key -- the vault stores none, and the admin does not ask the mint (ADR-0003).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Denominations of the keyset, ascending by amount"),
+            @ApiResponse(responseCode = "502", description = "The vault could not be read", content = @Content(schema = @Schema(implementation = AdminErrorResponse.class)))
+    })
+    @GetMapping("/mints/{mintId}/keysets/{keySetId}/denominations")
+    public ResponseEntity<List<DenominationResponse>> listDenominations(
+            @PathVariable("mintId") String mintId,
+            @PathVariable("keySetId") String keySetId) {
+        return ResponseEntity.ok(lifecycleService.listDenominations(mintId, keySetId));
     }
 
     @Operation(summary = "Provision a mint", description = "Creates a new mint instance just like the `mint create` CLI command.")

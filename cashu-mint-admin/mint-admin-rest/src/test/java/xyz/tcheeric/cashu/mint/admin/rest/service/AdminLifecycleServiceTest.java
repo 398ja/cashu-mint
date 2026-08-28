@@ -5,6 +5,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.in.ManageMintLifecycleUseCase;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.Denomination;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.VaultKeySet;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
@@ -43,7 +46,7 @@ class AdminLifecycleServiceTest {
             new LifecycleSummaryPresenter(),
             new LifecycleSummaryApiPresenter(),
             fixedOperatorIdentity(),
-            mintId -> List.of());
+            new EmptyKeySetInventory());
     }
 
     // The filter chain does not run in this test, so stand in for the operator it
@@ -193,6 +196,19 @@ class AdminLifecycleServiceTest {
     private void assertMissingMintFailure(final AdminServiceException failure) {
         assertThat(failure.getStatus()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
         assertThat(failure.getCode()).isEqualTo("mint_not_found");
+    }
+
+    /** No keysets and no denominations: this test is about lifecycle, not the vault. */
+    private static final class EmptyKeySetInventory implements KeySetInventoryPort {
+        @Override
+        public List<VaultKeySet> listByMint(final UUID mintId) {
+            return List.of();
+        }
+
+        @Override
+        public List<Denomination> listDenominations(final UUID mintId, final String keySetId) {
+            return List.of();
+        }
     }
 
     private static final class EmptyMintRepository implements MintRepository {

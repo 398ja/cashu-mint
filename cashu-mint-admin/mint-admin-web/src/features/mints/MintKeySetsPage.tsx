@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { listKeySets } from "@/api/lifecycle";
+import { listDenominations, listKeySets } from "@/api/lifecycle";
 import { SkeletonLoader } from "@/components/SkeletonLoader";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
 import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
-import { ArrowLeft, Check, Copy } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 
 export function MintKeySetsPage() {
   const { mintId } = useParams<{ mintId: string }>();
   const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["keysets", mintId, page],
@@ -62,17 +63,36 @@ export function MintKeySetsPage() {
         <>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 divide-y divide-zinc-800">
             {data.items.map((keySet) => (
-              <div
-                key={keySet.keySetId}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <CopyableId value={keySet.keySetId} />
-                  <p className="text-xs text-zinc-500 mt-1">
-                    {keySet.unit} · {formatTimestamp(keySet.createdAt)}
-                  </p>
+              <div key={keySet.keySetId} className="px-4 py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <CopyableId value={keySet.keySetId} />
+                    <p className="text-xs text-zinc-500 mt-1">
+                      {keySet.unit} · {formatTimestamp(keySet.createdAt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <KeySetBadge state={keySet.state} />
+                    <button
+                      type="button"
+                      aria-expanded={expanded === keySet.keySetId}
+                      onClick={() =>
+                        setExpanded(expanded === keySet.keySetId ? null : keySet.keySetId)
+                      }
+                      className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200"
+                    >
+                      {expanded === keySet.keySetId ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                      Denominations
+                    </button>
+                  </div>
                 </div>
-                <KeySetBadge state={keySet.state} />
+                {expanded === keySet.keySetId && (
+                  <Denominations mintId={mintId!} keySetId={keySet.keySetId} />
+                )}
               </div>
             ))}
           </div>
@@ -84,6 +104,66 @@ export function MintKeySetsPage() {
           />
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The denominations of one keyset, loaded only once an Operator asks for them: a mint
+ * serving many powers of two would otherwise fetch every key row to render a list nobody
+ * opened. Archived keysets answer the same way -- past key material is what a recovery
+ * needs, and ADR-0004 keeps those keys redeeming indefinitely.
+ */
+function Denominations({ mintId, keySetId }: { mintId: string; keySetId: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["denominations", mintId, keySetId],
+    queryFn: () => listDenominations(mintId, keySetId),
+  });
+
+  if (isLoading) return <div className="mt-3"><SkeletonLoader rows={2} /></div>;
+
+  // Same rule as the keyset listing: an unreadable vault must never render as "no keys".
+  if (error)
+    return (
+      <div className="mt-3">
+        <ErrorBanner
+          code={(error as ApiRequestError).code}
+          message={(error as ApiRequestError).message}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+
+  if (!data?.length)
+    return (
+      <p className="mt-3 text-xs text-zinc-500">
+        The vault holds no keys for this keyset.
+      </p>
+    );
+
+  return (
+    <div className="mt-3 rounded border border-zinc-800 bg-zinc-950/50">
+      {/* The path, never the key: reading it needs vault credentials the browser
+          does not hold, which is what makes it safe to show an Operator taking a backup. */}
+      <p className="px-3 pt-2 text-xs text-zinc-500">
+        Private keys stay in HashiCorp Vault. These are the paths to back up.
+      </p>
+      <table className="w-full text-xs">
+        <thead className="text-zinc-500">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">Amount</th>
+            <th className="px-3 py-2 text-left font-medium">Vault path</th>
+          </tr>
+        </thead>
+        <tbody className="font-mono text-zinc-300">
+          {data.map((denomination) => (
+            <tr key={denomination.vaultPath} className="border-t border-zinc-800/60">
+              <td className="px-3 py-1.5 whitespace-nowrap">{denomination.amount}</td>
+              <td className="px-3 py-1.5 break-all">{denomination.vaultPath}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

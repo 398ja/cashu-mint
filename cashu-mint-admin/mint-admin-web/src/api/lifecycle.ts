@@ -109,3 +109,21 @@ export function listKeySets(
     { page },
   );
 }
+
+/**
+ * One denomination of a keyset. Carries where the private key lives, never the key:
+ * reading the path needs HashiCorp Vault credentials the browser does not hold.
+ */
+export interface Denomination {
+  amount: number;
+  vaultPath: string;
+}
+
+export function listDenominations(
+  mintId: string,
+  keySetId: string,
+): Promise<Denomination[]> {
+  return apiGet(
+    `/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets/${encodeURIComponent(keySetId)}/denominations`,
+  );
+}

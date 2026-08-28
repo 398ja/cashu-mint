@@ -13,6 +13,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.Denomination;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.KeySetInventoryPort.VaultKeySet;
 import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
@@ -20,6 +21,7 @@ import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +45,7 @@ class KeySetInventoryAdminControllerTest {
 
     private static final String MINT_ID = "11111111-2222-3333-4444-555555555555";
     private static final String PATH = "/admin/lifecycle/mints/" + MINT_ID + "/keysets";
+    private static final String DENOMINATIONS_PATH = PATH + "/00signing/denominations";
 
     @Autowired
     private MockMvc mockMvc;
@@ -124,6 +127,38 @@ class KeySetInventoryAdminControllerTest {
                 .andExpect(jsonPath("$.items[0].unit").value("sat"))
                 .andExpect(jsonPath("$.items[0].createdAt").value("2026-08-28T10:00:00Z"))
                 .andExpect(jsonPath("$.items[0].length()").value(4));
+    }
+
+    /**
+     * What an Operator taking a backup needs, and the line the API must not cross: the path
+     * that locates the private key, never the key. Reading the path needs HashiCorp Vault
+     * credentials this API does not hold, which is what makes it safe to answer.
+     */
+    @Test
+    @DisplayName("A denomination carries its amount and vault path, and nothing else")
+    void denominationCarriesThePathNotTheKey() throws Exception {
+        given(keySetInventory.listDenominations(UUID.fromString(MINT_ID), "00signing")).willReturn(List.of(
+            new Denomination(BigInteger.ONE, "cashu/keys/" + MINT_ID + "/00signing/1"),
+            new Denomination(BigInteger.TWO, "cashu/keys/" + MINT_ID + "/00signing/2")));
+
+        mockMvc.perform(get(DENOMINATIONS_PATH).with(TestNapSessions.superAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].amount").value(1))
+                .andExpect(jsonPath("$[0].vaultPath").value("cashu/keys/" + MINT_ID + "/00signing/1"))
+                .andExpect(jsonPath("$[0].length()").value(2))
+                .andExpect(jsonPath("$[1].amount").value(2));
+    }
+
+    // Same reasoning as the listing: an unreadable vault must never render as "no denominations".
+    @Test
+    @DisplayName("A denomination read that fails is an error, never an empty list")
+    void denominationVaultFailureIsNotAnEmptyList() throws Exception {
+        given(keySetInventory.listDenominations(any(), any()))
+            .willThrow(new RuntimeException("connection refused"));
+
+        mockMvc.perform(get(DENOMINATIONS_PATH).with(TestNapSessions.superAdmin()))
+                .andExpect(status().is5xxServerError())
+                .andExpect(jsonPath("$.code").value("vault_unavailable"));
     }
 
     // Key material inventory is not readable by every signed-in account.

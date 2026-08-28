@@ -1,10 +1,11 @@
 package xyz.tcheeric.cashu.mint.admin.rest.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Comparator;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummary;
 import xyz.tcheeric.cashu.mint.admin.presentation.lifecycle.LifecycleSummaryPresenter;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.common.PagedResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.CreateMintRequest;
+import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.DenominationResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleActionResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.KeySetResponse;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.lifecycle.LifecycleChangeRequest;
@@ -99,28 +101,54 @@ public class AdminLifecycleService {
      * destroyed key material that is in fact still there.
      */
     public PagedResponse<KeySetResponse> listKeySets(final String mintId, final int page, final int size) {
-        final MintId id;
-        try {
-            id = MintId.fromString(mintId);
-        } catch (final IllegalArgumentException e) {
-            throw new AdminServiceException(HttpStatus.BAD_REQUEST, "invalid_mint_id", e.getMessage());
-        }
-        final List<VaultKeySet> keySets;
-        try {
-            keySets = keySetInventory.listByMint(id.value());
-        } catch (final RuntimeException e) {
-            // Logged with its cause: the operator is told the vault is unreachable, which is
-            // all they can act on, but a bug in the adapter would otherwise leave no trace.
-            log.warn("Could not read keysets for mint {} from the vault", mintId, e);
-            throw new AdminServiceException(HttpStatus.BAD_GATEWAY, "vault_unavailable",
-                    "Could not read keysets from the vault: " + e.getMessage());
-        }
+        final MintId id = parseMintId(mintId);
+        final List<VaultKeySet> keySets = readFromVault(mintId,
+                () -> keySetInventory.listByMint(id.value()));
         final List<KeySetResponse> items = keySets.stream()
                 .sorted(Comparator.comparing((VaultKeySet k) -> k.archived())
                         .thenComparing(VaultKeySet::createdAt, Comparator.reverseOrder()))
                 .map(AdminLifecycleService::toKeySetResponse)
                 .toList();
         return PagedResponse.of(items, page, size);
+    }
+
+    /**
+     * The denominations of one of a mint's keysets, ascending by amount.
+     *
+     * <p>Not paged: a keyset holds one key per power of two it serves, so the whole set fits
+     * an answer. A keyset the mint does not hold is an empty list rather than a 404 — the page
+     * asks about a keyset it just listed, so absence means the vault changed underneath it,
+     * which reads better as "no denominations" than as a dead URL.
+     */
+    public List<DenominationResponse> listDenominations(final String mintId, final String keySetId) {
+        final MintId id = parseMintId(mintId);
+        return readFromVault(mintId, () -> keySetInventory.listDenominations(id.value(), keySetId)).stream()
+                .map(d -> new DenominationResponse(d.amount(), d.vaultPath()))
+                .toList();
+    }
+
+    private static MintId parseMintId(final String mintId) {
+        try {
+            return MintId.fromString(mintId);
+        } catch (final IllegalArgumentException e) {
+            throw new AdminServiceException(HttpStatus.BAD_REQUEST, "invalid_mint_id", e.getMessage());
+        }
+    }
+
+    /**
+     * Runs a vault read, turning any failure into one 502 the Operator can act on.
+     *
+     * <p>Logged with its cause: the operator is told the vault is unreachable, which is all
+     * they can act on, but a bug in the adapter would otherwise leave no trace.
+     */
+    private static <T> T readFromVault(final String mintId, final Supplier<T> read) {
+        try {
+            return read.get();
+        } catch (final RuntimeException e) {
+            log.warn("Could not read keysets for mint {} from the vault", mintId, e);
+            throw new AdminServiceException(HttpStatus.BAD_GATEWAY, "vault_unavailable",
+                    "Could not read keysets from the vault: " + e.getMessage());
+        }
     }
 
     private static KeySetResponse toKeySetResponse(final VaultKeySet keySet) {

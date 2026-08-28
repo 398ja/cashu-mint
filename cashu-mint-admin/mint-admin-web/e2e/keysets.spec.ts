@@ -59,6 +59,77 @@ test.describe("Keysets", () => {
     await expect(page.getByText(/not been provisioned/i)).toHaveCount(0);
   });
 
+  // What an Operator taking a backup came for: the denominations of a keyset and the
+  // vault paths to back up -- for an archived keyset too, since past key material is
+  // exactly what a recovery needs.
+  test("reveals the denominations of an archived keyset as vault paths", async ({
+    page,
+  }) => {
+    await mockApiResponse(
+      page,
+      KEYSETS_URL,
+      pagedResponse([
+        {
+          keySetId: "009a1bb5c7de4028",
+          unit: "sat",
+          state: "ARCHIVED",
+          createdAt: "2026-05-02T09:00:00Z",
+        },
+      ]),
+    );
+    // Registered last so it wins over the keysets pattern, which also matches this URL.
+    await mockApiResponse(
+      page,
+      "**/keysets/009a1bb5c7de4028/denominations",
+      [
+        { amount: 1, vaultPath: "cashu/keys/mint-abc/009a1bb5c7de4028/1" },
+        { amount: 2, vaultPath: "cashu/keys/mint-abc/009a1bb5c7de4028/2" },
+      ],
+    );
+
+    await page.goto("/mints/mint-abc/keysets");
+
+    // Closed until asked: the keys are not fetched to render a list nobody opened.
+    await expect(page.getByText("cashu/keys/mint-abc/009a1bb5c7de4028/1")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /denominations/i }).click();
+
+    await expect(page.getByText("cashu/keys/mint-abc/009a1bb5c7de4028/1")).toBeVisible();
+    await expect(page.getByText("cashu/keys/mint-abc/009a1bb5c7de4028/2")).toBeVisible();
+    // The page says where the key is, and that it is not the key.
+    await expect(page.getByText(/stay in HashiCorp Vault/i)).toBeVisible();
+  });
+
+  // Same rule as the listing: an unreadable vault must never read as "no keys".
+  test("shows an error rather than an empty denomination list when the read fails", async ({
+    page,
+  }) => {
+    await mockApiResponse(
+      page,
+      KEYSETS_URL,
+      pagedResponse([
+        {
+          keySetId: "00ffd73b2eaa1d3f",
+          unit: "sat",
+          state: "SIGNING",
+          createdAt: "2026-08-28T10:00:00Z",
+        },
+      ]),
+    );
+    await mockApiResponse(
+      page,
+      "**/keysets/00ffd73b2eaa1d3f/denominations",
+      { code: "vault_unavailable", message: "Could not read keysets from the vault" },
+      502,
+    );
+
+    await page.goto("/mints/mint-abc/keysets");
+    await page.getByRole("button", { name: /denominations/i }).click();
+
+    await expect(page.getByRole("alert")).toContainText(/vault/i);
+    await expect(page.getByText(/holds no keys/i)).toHaveCount(0);
+  });
+
   test("says plainly when a mint has no keysets", async ({ page }) => {
     await mockApiResponse(page, KEYSETS_URL, pagedResponse([]));
 
