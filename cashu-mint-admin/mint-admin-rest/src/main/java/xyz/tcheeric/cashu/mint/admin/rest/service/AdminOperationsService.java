@@ -42,7 +42,7 @@ public class AdminOperationsService {
         final List<OperationalControlRecord> records = controlRepository.findByMintId(MintId.fromString(mintId));
         final List<OperationalControlResponse> items = records.stream()
                 .map(r -> new OperationalControlResponse(r.mintId().asString(), r.controlId(),
-                        r.status(), r.scheduledAt(), r.reason()))
+                        r.controlType().name(), r.status(), r.scheduledAt(), r.reason(), r.outcome()))
                 .toList();
         return PagedResponse.of(items, page, size);
     }
@@ -80,15 +80,18 @@ public class AdminOperationsService {
             final ExecuteOperationalControlsResponse response = operationalUseCase.handle(
                 new ExecuteOperationalControlsRequest(mintId, operatorIdentity.currentOperatorId(),
                     command, "v1", request.reason(), request.durationMinutes()));
-            return toResponse(response);
+            return toResponse(response, command);
         } catch (final IllegalStateException e) {
             throw mapDomainException(e);
         }
     }
 
-    private static OperationalControlResponse toResponse(final ExecuteOperationalControlsResponse response) {
+    private static OperationalControlResponse toResponse(final ExecuteOperationalControlsResponse response,
+                                                        final OperationalCommand command) {
+        // A command has only just been accepted, so it has no outcome yet; the
+        // controls listing carries that once the saga records it.
         return new OperationalControlResponse(response.mintId(), response.controlId(),
-            response.status(), response.scheduledAt(), response.message());
+            command.name(), response.status(), response.scheduledAt(), response.message(), null);
     }
 
     private static AdminServiceException mapDomainException(final IllegalStateException e) {

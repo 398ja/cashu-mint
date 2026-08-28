@@ -19,6 +19,7 @@ This directory contains documentation for the admin components, organized using 
 - [Configure NAP admin authentication](how-to/configure-nap-admin-authentication.md) — Super Administrator npub, enrolling Operators, choosing a signer.
 - [Configure persistence](how-to/configure-mint-admin-persistence.md) — Database setup, Flyway migrations, and profiles.
 - [Deploy the web interface to production](how-to/deploy-web-production.md) — Single-origin deployment, health checks, and rollback.
+- [Create a mint instance and link it to a mint service](how-to/link-a-mint-service-to-a-mint-instance.md) — Create the mint, provision its keyset, and point a mint service at the same vault.
 - [Troubleshoot the web interface](how-to/troubleshoot-web-interface.md) — Common issues, performance baselines, and correlation ID tracing.
 
 ## Reference

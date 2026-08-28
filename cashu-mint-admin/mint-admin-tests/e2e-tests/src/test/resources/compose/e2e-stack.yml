@@ -205,6 +205,13 @@ services:
     image: docker.398ja.xyz/cashu-mint-rest:${PROJECT_VERSION}
     environment:
       SPRING_PROFILES_ACTIVE: dev
+      # The mint reads its keysets from the shared vault, so a mint the admin
+      # provisions — and every rotation of its keyset — is visible at /v1/keysets.
+      # Left enabled (the default) PreloadMintLoadService is @Primary and serves a
+      # fixed keyset from JSON instead, and KeyRotationE2EIT cannot see a rotation.
+      MINT_PRELOAD_ENABLED: "false"
+      # Still read, by VaultPreloadSeeder, which seeds this keyset into the vault at
+      # startup so the suite has a keyset to rotate.
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: 7777
       SERVER_ADDRESS: 0.0.0.0

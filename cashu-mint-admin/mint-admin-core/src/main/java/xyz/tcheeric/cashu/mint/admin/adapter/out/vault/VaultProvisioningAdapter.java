@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.admin.adapter.out.vault;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -35,15 +36,20 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
     private final DeterministicKeyGenerator keyGenerator;
     private final Supplier<KeySetVaultClient> keySetClientSupplier;
     private final Supplier<KeyVault> keyVaultSupplier;
+    private final Supplier<VaultClient<MintEntity>> mintClientSupplier;
 
     public VaultProvisioningAdapter(final DeterministicKeyGenerator keyGenerator) {
-        this(keyGenerator, VaultClientFactory::keySetClient, VaultClientFactory::keyVault);
+        this(keyGenerator, VaultClientFactory::keySetClient, VaultClientFactory::keyVault,
+            () -> VaultClientFactory.getClient(MintEntity.class));
     }
 
     /** Seam for the test that pins the order a rotation archives and provisions in. */
     VaultProvisioningAdapter(final DeterministicKeyGenerator keyGenerator,
                              final Supplier<KeySetVaultClient> keySetClientSupplier,
-                             final Supplier<KeyVault> keyVaultSupplier) {
+                             final Supplier<KeyVault> keyVaultSupplier,
+                             final Supplier<VaultClient<MintEntity>> mintClientSupplier) {
+        this.mintClientSupplier = Objects.requireNonNull(mintClientSupplier,
+            "mint client supplier must not be null");
         this.keyGenerator = Objects.requireNonNull(keyGenerator, "key generator must not be null");
         this.keySetClientSupplier = Objects.requireNonNull(keySetClientSupplier,
             "keyset client supplier must not be null");
@@ -57,11 +63,27 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         Objects.requireNonNull(unit, "unit must not be null");
         Objects.requireNonNull(denominations, "denominations must not be null");
 
-        final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+        final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
         final KeySetVaultClient keySetClient = keySetClientSupplier.get();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
         final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations);
+
+        // A mint may already hold an active keyset for this unit, provisioned by
+        // something other than this saga. Adding a second one would leave the unit
+        // with two keysets claiming to sign, and the next rotation would archive
+        // both and be unable to say which it replaced. Provisioning is meant to
+        // establish a keyset, not to add one, so an existing active keyset stands.
+        final Optional<KeySetEntity> active = readKeySets(keySetClient, mintId).stream()
+            .filter(keySet -> unit.equals(keySet.getUnit()))
+            .filter(keySet -> !keySet.isArchived())
+            .findFirst();
+        if (active.isPresent() && !keySetId.equals(active.get().getKeySetId())) {
+            log.info("Mint {} already holds active keyset {} for unit {}; leaving it in place",
+                mintId, active.get().getKeySetId(), unit);
+            return;
+        }
+
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
         storeKeyEntities(mintId, unit, denominations, keySetEntity);
@@ -77,7 +99,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         Objects.requireNonNull(denominations, "denominations must not be null");
         Objects.requireNonNull(rotationId, "rotation id must not be null");
 
-        final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+        final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
         final KeySetVaultClient keySetClient = keySetClientSupplier.get();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
@@ -164,7 +186,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
     @Override
     public boolean isProvisioned(final UUID mintId) {
         try {
-            final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+            final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
             return mintClient.retrieve(mintId.toString()) != null;
         } catch (final Exception e) {
             return false;
@@ -189,7 +211,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
     @Override
     public void compensate(final UUID mintId) {
         try {
-            final VaultClient<MintEntity> mintClient = VaultClientFactory.getClient(MintEntity.class);
+            final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
             mintClient.delete(mintId.toString());
             log.info("Vault compensation: deleted mint entity {}", mintId);
         } catch (final HttpClientErrorException.NotFound e) {

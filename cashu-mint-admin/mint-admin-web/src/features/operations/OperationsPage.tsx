@@ -35,6 +35,11 @@ const COLUMNS: Column<OperationalControlResponse>[] = [
     render: (c) => <span className="font-mono text-xs">{c.controlId}</span>,
   },
   {
+    key: "controlType",
+    header: "Type",
+    render: (c) => <span className="text-xs">{c.controlType ?? "—"}</span>,
+  },
+  {
     key: "status",
     header: "Status",
     render: (c) => <StateBadge state={c.status} />,
@@ -47,9 +52,15 @@ const COLUMNS: Column<OperationalControlResponse>[] = [
     ),
   },
   {
-    key: "reason",
-    header: "Reason",
-    render: (c) => c.reason ?? "—",
+    // The outcome, not the reason: the reason is what an operator typed on the way
+    // in, while this is what the control did — for a rotation, the keyset that now
+    // signs and the one it replaced. The API never sent `reason`, so this column
+    // was permanently blank.
+    key: "outcome",
+    header: "Outcome",
+    render: (c) => (
+      <span className="font-mono text-xs">{c.outcome ?? c.message ?? "—"}</span>
+    ),
   },
 ];
 

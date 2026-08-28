@@ -39,23 +39,13 @@ services:
   # which re-created idx_keyset_unit_mint_unq — the UNIQUE (unit, mint_id) that
   # V5 drops precisely so a mint can hold a rotated-away keyset alongside its
   # replacement. Rotation then failed on every attempt against a dev stack.
-  # Seeding therefore waits on the service, not on a hand-rolled schema step.
-  vault-db-seed:
-    image: postgres:16
-    depends_on:
-      cashu-vault-jpa:
-        condition: service_healthy
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cashu_vault
-      PGPASSWORD: postgres
-    volumes:
-      - ./scripts/preload-test-data.sql:/preload-test-data.sql:ro
-    entrypoint: ["bash", "-c", "psql -h cashu-vault-db -U postgres -d cashu_vault -f /preload-test-data.sql"]
-    restart: "no"
-    networks:
-      - cashu
+  #
+  # A vault-db-seed service loaded scripts/preload-test-data.sql alongside it. That
+  # seed inserts t_key.private_key, a column removed when key material moved to
+  # HashiCorp and replaced by vault_path, so every run failed with "column
+  # private_key does not exist" and seeded no keys at all. Key material cannot be
+  # seeded over SQL any more: only the backend-aware vault knows where the secret
+  # goes. VaultPreloadSeeder in the mint does it instead, from the same JSON.
   hashicorp-vault:
     image: hashicorp/vault:1.18
     cap_add:
@@ -235,6 +225,16 @@ services:
       - "127.0.0.1:${CASHU_MINT_MANAGEMENT_PORT:-9000}:${CASHU_MINT_MANAGEMENT_PORT:-9000}"
     environment:
       SPRING_PROFILES_ACTIVE: dev
+      # The mint reads its keysets from the shared vault, which is what links it to
+      # the mints the admin provisions: a mint created there, and every rotation of
+      # its keyset, shows up at /v1/keysets here. Left enabled (the default),
+      # PreloadMintLoadService is @Primary and serves a fixed keyset from JSON
+      # instead, so the admin and the mint would share a vault and still disagree.
+      MINT_PRELOAD_ENABLED: "false"
+      # Still read, by VaultPreloadSeeder: it seeds this keyset into the vault at
+      # startup so a clean stack has something to serve. Seeding is separate from
+      # serving precisely so disabling preload above does not take the dev data
+      # with it.
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
@@ -242,6 +242,14 @@ services:
       # cashu-mint-protocol (VaultClientFactory), VAULT_BASE_URL by cashu-mint-admin.
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      # Signing keys live in HashiCorp; the t_key row only points at them. Without
+      # this the mint falls back to the database vault and reads a null private key.
+      VAULT_BACKEND: HASHICORP
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: http://hashicorp-vault:8200
+      VAULT_HASHI_AUTH_METHOD: TOKEN
+      VAULT_HASHI_AUTH_TOKEN: dev-root-token
+      VAULT_HASHI_ENGINE_MOUNT: cashu
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_API_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_BOLT11_SAT: ${GATEWAY_BOLT11_SAT:-xyz.tcheeric.gateway.phoenixd.PhoenixdGateway}
@@ -261,8 +269,12 @@ services:
       GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
       GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
-      vault-db-seed:
-        condition: service_completed_successfully
+      # The mint seeds the vault itself at startup (VaultPreloadSeeder), so it needs
+      # the vault up and migrated rather than a seed step to have run.
+      cashu-vault-jpa:
+        condition: service_healthy
+      hashicorp-vault:
+        condition: service_healthy
       payment-adapter-rest:
         condition: service_healthy
       phoenixd-mock:

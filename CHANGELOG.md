@@ -4,7 +4,37 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **The dev and E2E stacks run a vault-backed mint, so the admin and the mint are
+  one system.** The mint served keysets from `preload-test-data.json` because
+  `PreloadMintLoadService` is `@Primary` and on by default, and neither compose
+  file disabled it. A mint the admin provisioned, and every rotation of its
+  keyset, therefore landed in the vault and was invisible at `/v1/keysets`. Both
+  stacks now set `MINT_PRELOAD_ENABLED=false` and point the mint at HashiCorp.
+  `KeyRotationE2EIT` is no longer `@Disabled`: it asserts a rotation against the
+  mint rather than against the admin's own echo.
+
+- Seeding the dev keyset is separate from serving it. `VaultPreloadSeeder` seeds
+  the vault at startup from the same JSON, so disabling preload no longer takes
+  the bootstrap data with it. The `vault-db-seed` compose service is removed: it
+  loaded SQL inserting `t_key.private_key`, a column dropped when key material
+  moved to HashiCorp, so every run failed and seeded nothing. Key material cannot
+  be seeded over SQL, because only the backend-aware vault knows where the secret
+  goes.
+
+- The operational controls listing reports `controlType` and `outcome`. Without
+  them an operator could see that a rotation completed but not which keyset
+  replaced which. The admin UI showed a permanently blank "Reason" column bound
+  to a field the API never sent; it now shows the type and the outcome.
+
 ### Fixed
+
+- **Provisioning no longer gives a unit a second active keyset.** A mint whose
+  keyset was established by something other than the create-mint saga would get a
+  second one, leaving two keysets claiming to sign for the unit; the next
+  rotation then archived both and could not say which it replaced. An existing
+  active keyset now stands.
 
 - Key rotation no longer fails on every attempt. The vault permits a mint one
   *active* keyset per unit, so provisioning the replacement before archiving the

@@ -21,8 +21,10 @@ import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort.RotationResult;
 import xyz.tcheeric.cashu.vault.api.KeyVault;
 import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
+import xyz.tcheeric.cashu.vault.db.client.VaultClient;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
+import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
 /**
  * The order a rotation touches the vault in, which the vault's own
@@ -112,10 +114,48 @@ class VaultProvisioningAdapterRotationTest {
         assertEquals(List.of("store"), vault.calls);
     }
 
-    private RotationResult rotateWith(final KeySetVaultClient keySetClient, final KeyVault keyVault) {
+    /**
+   * Provisioning runs against a mint whose keyset something else already established
+   * (in the dev and E2E stacks, the preload seeder). Adding a second active keyset for
+   * the unit would leave two keysets claiming to sign, and the next rotation would
+   * archive both and be unable to name the one it replaced.
+   */
+  @Test
+  @DisplayName("Provisioning leaves an existing active keyset alone")
+  void provisioningKeepsAnExistingActiveKeySet() {
+    final RecordingKeySetVaultClient vault = new RecordingKeySetVaultClient(activeKeySet());
+
+    new VaultProvisioningAdapter(
+            new StubKeyGenerator(), () -> vault, RecordingKeyVault::new, StubMintVaultClient::new)
+        .provision(MINT_ID, UNIT, DENOMINATIONS);
+
+    assertTrue(vault.calls.isEmpty());
+  }
+
+  private RotationResult rotateWith(final KeySetVaultClient keySetClient, final KeyVault keyVault) {
         final var adapter = new VaultProvisioningAdapter(
-            new StubKeyGenerator(), () -> keySetClient, () -> keyVault);
+            new StubKeyGenerator(), () -> keySetClient, () -> keyVault, StubMintVaultClient::new);
         return adapter.rotate(MINT_ID, UNIT, DENOMINATIONS, "rotation-1");
+    }
+
+    /** Answers for the mint row without reaching a vault over the network. */
+    private static final class StubMintVaultClient extends VaultClient<MintEntity> {
+
+        private StubMintVaultClient() {
+            super(MintEntity.class, "http://vault.invalid");
+        }
+
+        @Override
+        public MintEntity store(final MintEntity entity) {
+            return entity;
+        }
+
+        @Override
+        public MintEntity retrieve(final String id) {
+            final MintEntity entity = new MintEntity();
+            entity.setId(UUID.fromString(id));
+            return entity;
+        }
     }
 
     private static KeySetEntity activeKeySet() {
