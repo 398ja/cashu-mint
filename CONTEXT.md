@@ -29,6 +29,12 @@ to the shared vault; rotation is the same act applied to a Mint that already has
 keys.
 _Avoid_: Key change, re-key, cycle
 
+**Keyset Drift**: Disagreement between the keysets the admin wrote to the
+shared vault and the keysets the Mint advertises on `/v1/keysets`. Not
+observable today — the admin reads only the vault — and naming it keeps the
+gap visible rather than assumed shut.
+_Avoid_: Out of sync, mismatch, stale keyset
+
 **Actuate**: To cause a change outside the admin's own tables — in the shared
 vault, or in the Mint's behaviour. The counterpart is to *record*. A command
 that records without actuating has not been carried out.
