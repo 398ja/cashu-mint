@@ -258,7 +258,7 @@ Each Cashu specification (NUT) is implemented as a static class in `cashu-mint-p
 1. Consult the official specification at https://github.com/cashubtc/nuts/blob/main/{NN}.md
 2. Implement protocol logic in the corresponding NUT class
 3. Delegate complex workflows to Task classes
-4. Update mint.yaml if adding new capabilities
+4. Declare the NUT in `NutSupport` if adding new capabilities (this is what `/v1/info` advertises)
 
 ### Task-Based Orchestration
 
@@ -315,7 +315,7 @@ cashu.expiry=15
 gateway.bolt11.sat=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
 ```
 
-**Mint metadata:** `cashu-mint-protocol/src/main/resources/mint.yaml`
+**Mint metadata:** advertised NUTs come from `NutSupport` (derived from the wiring); identity and limits come from `mint.identity.*` / `mint.capabilities.*` deployment properties
 - Mint name, description, contact info
 - Supported NUTs and payment methods
 - Min/max amounts per method
@@ -552,7 +552,7 @@ docs/
 2. Consult specification at https://github.com/cashubtc/nuts/blob/main/{NN}.md
 3. Create task classes in `tasks/` for complex workflows
 4. Add REST endpoint in `cashu-mint-rest` if needed
-5. Update `mint.yaml` with new capability
+5. Declare the NUT in `NutSupport` with a wiring witness
 6. Write unit tests for task classes
 7. Add integration tests for end-to-end flows
 

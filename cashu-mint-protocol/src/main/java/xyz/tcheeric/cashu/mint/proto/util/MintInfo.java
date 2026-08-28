@@ -1,255 +1,207 @@
 package xyz.tcheeric.cashu.mint.proto.util;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.PropertySource;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.Yaml;
 
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
-
-@Component
-@ConfigurationProperties(prefix = "mint")
-@PropertySource(name = "NUT06 Mint Informtion", value = "classpath:mint.yaml", factory = YamlPropertySourceFactory.class)
+/**
+ * The NUT-06 {@code GetInfoResponse} body served from {@code /v1/info}.
+ *
+ * <p>A pure response object: it is assembled by {@code DefaultMintInfoService}
+ * from deployment configuration ({@link MintIdentityProperties},
+ * {@link MintCapabilityProperties}), the build ({@link MintVersion}) and the
+ * wired capability registry. It deliberately reads no configuration of its own,
+ * so there is exactly one place where the mint decides what to say about itself.
+ *
+ * <p>Unset fields are omitted rather than serialised as null, so a deployment
+ * that has not declared, say, a {@code motd} simply does not advertise one.
+ *
+ * @see <a href="https://github.com/cashubtc/nuts/blob/main/06.md">NUT-06</a>
+ */
+@Getter
 @Setter
-@Slf4j
+@NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class MintInfo {
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("name")
     private String name;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("pubkey")
     private String pubkey;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("version")
     private String version;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("description")
     private String description;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("description_long")
     private String descriptionLong;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("motd")
     private String motd;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("icon_url")
     private String iconUrl;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("urls")
     private List<String> urls;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("time")
     private long time;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("tos_url")
     private String tosUrl;
 
-    @JsonProperty
-    @Getter
+    @JsonProperty("contact")
     private List<Contact> contact;
 
+    @JsonProperty("nuts")
     private Map<String, Nut> nuts;
 
-    @JsonIgnore
-    private volatile boolean nut17Loaded = false;
-
     /**
-     * Sets the nuts configuration map and loads NUT-17 from raw YAML.
-     * Called by Spring during property binding.
+     * A way to reach the mint operator, per NUT-06 {@code contact}.
      */
-    public void setNuts(Map<String, Nut> nuts) {
-        // Use mutable map to allow adding NUT-17 dynamically
-        if (nuts != null) {
-            this.nuts = new java.util.HashMap<>(nuts);
-        } else {
-            this.nuts = null;
-        }
-
-        if (this.nuts != null && !this.nuts.containsKey("17")) {
-            loadNut17Configuration();
-        }
-    }
-
-    /**
-     * Returns the nuts configuration map with NUT-17 included.
-     *
-     * <p><b>Security:</b> Returns an unmodifiable view to prevent external modification
-     * of internal state (per Oracle Secure Coding Guidelines MUTABLE-2).
-     *
-     * @return unmodifiable view of the nuts configuration map
-     */
-    @JsonProperty("nuts")
-    public Map<String, Nut> getNuts() {
-        // Ensure NUT-17 is loaded if not present
-        if (nuts != null && !nuts.containsKey("17") && !nut17Loaded) {
-            loadNut17Configuration();
-        }
-        return nuts == null ? null : java.util.Collections.unmodifiableMap(nuts);
-    }
-
-    /**
-     * Loads NUT-17 configuration from raw YAML since Spring's property binding
-     * cannot correctly bind complex nested list structures to Object type fields.
-     */
-    @SuppressWarnings("unchecked")
-    private synchronized void loadNut17Configuration() {
-        if (nut17Loaded) {
-            return;
-        }
-        nut17Loaded = true;
-
-        try {
-            ClassPathResource resource = new ClassPathResource("mint.yaml");
-            if (!resource.exists()) {
-                log.warn("mint.yaml not found on classpath, NUT-17 configuration not loaded");
-                return;
-            }
-            Yaml yaml = new Yaml();
-            try (InputStream inputStream = resource.getInputStream()) {
-                Map<String, Object> root = yaml.load(inputStream);
-                Map<String, Object> mint = (Map<String, Object>) root.get("mint");
-                if (mint == null) {
-                    return;
-                }
-                Map<String, Object> nutsMap = (Map<String, Object>) mint.get("nuts");
-                if (nutsMap == null) {
-                    return;
-                }
-                // SnakeYAML parses unquoted numeric YAML keys as Integer, not String
-                @SuppressWarnings("SuspiciousMethodCalls")
-                Object nut17Config = nutsMap.get(17);
-                if (nut17Config == null) {
-                    nut17Config = nutsMap.get("17");
-                }
-                if (nut17Config instanceof Map) {
-                    Map<String, Object> nut17 = (Map<String, Object>) nut17Config;
-                    Object supported = nut17.get("supported");
-                    if (supported instanceof List) {
-                        if (nuts == null) {
-                            nuts = new java.util.HashMap<>();
-                        }
-                        Nut nut = nuts.get("17");
-                        if (nut == null) {
-                            nut = new Nut();
-                            nuts.put("17", nut);
-                        }
-                        nut.setSupported(supported);
-                        log.debug("NUT-17 configuration loaded: {} supported configs", ((List<?>) supported).size());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Failed to load NUT-17 configuration from mint.yaml", e);
-        }
-    }
-
-    @Setter
     @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Contact {
 
-        @JsonProperty
+        @JsonProperty("method")
         private String method;
 
-        @JsonProperty
+        @JsonProperty("info")
         private String info;
     }
 
-    @Setter
+    /**
+     * One entry in the {@code nuts} map. NUT-06 gives each optional NUT its own
+     * entry shape, so the unused fields stay null and are omitted.
+     */
     @Getter
+    @Setter
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class Nut {
 
-        @JsonProperty
+        /** NUT-04 / NUT-05: the payment methods and their amount limits. */
+        @JsonProperty("methods")
         private List<Method> methods;
 
         /**
-         * For simple NUTs (7, 8, 9, 10, 12), this is a boolean.
-         * For NUT-17, this is a list of WebSocket supported configurations.
-         * Use {@link #getSupportedConfigs()} for NUT-17.
+         * A boolean for simple NUTs (7, 8, 9, 10, 11, 12); a list of
+         * {@link WebSocketConfig} for NUT-17.
          */
-        @JsonProperty
+        @JsonProperty("supported")
         private Object supported;
 
-        @JsonProperty
+        @JsonProperty("disabled")
         private Boolean disabled;
 
         @JsonProperty("fee_reserve_percent")
         private Double feeReservePercent;
 
+        /** NUT-19: how many seconds a cached response stays replayable. */
+        @JsonProperty("ttl")
+        private Long ttl;
+
+        /** NUT-19: the routes on which responses are cached. */
+        @JsonProperty("cached_endpoints")
+        private List<CachedEndpoint> cachedEndpoints;
+
         /**
-         * Returns true if this NUT has simple boolean support.
+         * Answers whether this entry advertises plain boolean support.
+         *
+         * @return true when {@code supported} is boolean true
          */
+        @JsonIgnore
         public boolean isSupportedSimple() {
-            return supported instanceof Boolean && (Boolean) supported;
+            return Boolean.TRUE.equals(supported);
         }
 
         /**
-         * Returns the supported configurations for NUT-17 style complex support.
-         * Returns null for simple boolean support.
+         * Returns the NUT-17 WebSocket configurations carried by this entry.
+         *
+         * @return the configurations, or null when support is a plain boolean
          */
         @SuppressWarnings("unchecked")
+        @JsonIgnore
         public List<WebSocketConfig> getSupportedConfigs() {
-            if (supported instanceof List) {
-                return ((List<Map<String, Object>>) supported).stream()
-                        .map(WebSocketConfig::fromMap)
-                        .toList();
+            if (supported instanceof List<?> configs) {
+                return (List<WebSocketConfig>) configs;
             }
             return null;
         }
 
-        @Setter
+        /**
+         * A payment method the mint serves, with the amounts it accepts on it.
+         */
         @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class Method {
 
-            @JsonProperty
+            @JsonProperty("method")
             private String method;
 
-            @JsonProperty
+            @JsonProperty("unit")
             private String unit;
 
-            @JsonProperty
+            @JsonProperty("min_amount")
             private int minAmount;
 
-            @JsonProperty
+            @JsonProperty("max_amount")
             private int maxAmount;
         }
 
         /**
-         * NUT-17 WebSocket configuration (method, unit, commands).
+         * A NUT-17 WebSocket configuration: the commands served for a
+         * method/unit pair.
          */
-        @Setter
         @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         public static class WebSocketConfig {
-            private String method;
-            private String unit;
-            private List<String> commands;
 
-            @SuppressWarnings("unchecked")
-            public static WebSocketConfig fromMap(Map<String, Object> map) {
-                WebSocketConfig config = new WebSocketConfig();
-                config.method = (String) map.get("method");
-                config.unit = (String) map.get("unit");
-                config.commands = (List<String>) map.get("commands");
-                return config;
-            }
+            @JsonProperty("method")
+            private String method;
+
+            @JsonProperty("unit")
+            private String unit;
+
+            @JsonProperty("commands")
+            private List<String> commands;
+        }
+
+        /**
+         * A NUT-19 cached route.
+         */
+        @Getter
+        @Setter
+        @NoArgsConstructor
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class CachedEndpoint {
+
+            @JsonProperty("method")
+            private String method;
+
+            @JsonProperty("path")
+            private String path;
         }
     }
 }

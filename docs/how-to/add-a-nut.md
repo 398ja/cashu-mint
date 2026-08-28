@@ -36,9 +36,18 @@ cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/controller/
 
 The controller delegates to the NUT class and returns the appropriate HTTP response. Use Spring's `@RestController` and `@RequestMapping` annotations.
 
-## 5. Update mint.yaml
+## 5. Declare the NUT in the capability registry
 
-Add the new NUT to the supported capabilities in `cashu-mint-protocol/src/main/resources/mint.yaml`. This is what the `/v1/info` endpoint advertises to clients.
+Add a constant to `NutSupport` (`cashu-mint-protocol/.../proto/nut/NutSupport.java`). This is what `/v1/info` advertises; there is no YAML file to edit.
+
+Each constant carries a `Visibility` (how the entry is shaped in the `nuts` map) and a *wiring witness*: the class, and optionally the member, whose existence makes the claim true.
+
+```java
+P2PK_SPENDING_CONDITIONS(11, Visibility.SIMPLE,
+        "xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition", null),
+```
+
+Skipping this step fails `NutWiringContractTest`: a `@Nut`-annotated class that is not declared cannot be advertised, and the build says so. See [why /v1/info is derived from the wiring](../explanations/mint-info-advertisement.md).
 
 ## 6. Write unit tests
 
@@ -66,7 +75,7 @@ Integration tests use Testcontainers for PostgreSQL and WireMock for gateway stu
 - [ ] `NUT{NN}.java` protocol class created
 - [ ] Task classes for complex workflows
 - [ ] REST controller (if new endpoint needed)
-- [ ] `mint.yaml` updated with new capability
+- [ ] `NutSupport` constant added with a wiring witness
 - [ ] Unit tests with 80%+ coverage
 - [ ] Integration tests for end-to-end flow
 - [ ] `mvn clean verify` passes

@@ -152,6 +152,25 @@
     </repositories>
 
     <build>
+        <resources>
+            <!-- Only mint-build.properties is filtered; it carries the Maven
+                 coordinates the mint reports as its NUT-06 version, so the
+                 advertised version can never drift from the built artifact. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>mint-build.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>mint-build.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.jacoco</groupId>

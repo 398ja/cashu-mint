@@ -51,6 +51,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
+- [Why `/v1/info` is derived from the wiring](explanations/mint-info-advertisement.md) - Why the advertised NUT-06 capabilities are generated from the code rather than written down, and what that costs.
 - [Why the mint fails closed on DLEQ](explanations/dleq-fail-closed.md) - Why a NUT-12 proof failure fails the request, and why the nonce is deterministic.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
 - [Voucher data record](explanations/voucher-data-record.md) - What the mint stores about a customer, in customer-facing language. Kept in step with the schema by a CI check.

@@ -19,7 +19,7 @@ Administrative surfaces are published from the separate `cashu-mint-admin` repos
 - **NUT entry points.** Static helpers under `xyz.tcheeric.cashu.mint.proto.nut` wrap the Cashu NUT specs. For example, `NUT04` handles mint quotes, voucher mint quotes, and minting, while `NUT05` handles melt quotes and melts (see `cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut`).
 - **Task orchestration.** `xyz.tcheeric.cashu.mint.proto.tasks` contains small command objects (`MintTokensTask`, `SwapTask`, `MeltTask`, `RestoreSignaturesTask`, etc.) that compose protocol services with vault/gateway adapters.
 - **Integration services.** Beans in `xyz.tcheeric.cashu.mint.proto.service` load mints from the vault, resolve gateway implementations, and expose utilities such as `SignatureVaultService` and `MintProtocolServiceFactory`.
-- **Defaults and metadata.** `proto.properties` pins gateway defaults and voucher quote fees; `mint.yaml` carries NUT-06 metadata used by the REST app.
+- **Defaults and metadata.** `proto.properties` pins gateway defaults and voucher quote fees; `NutSupport` declares the NUT-06 capabilities the REST app advertises, derived from the wiring rather than a file.
 
 ## `cashu-mint-rest`
 

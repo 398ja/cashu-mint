@@ -6,6 +6,26 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **`GET /v1/info` advertises the mint that is actually running** (audit finding
+  M8, issue #390). The response was served from a `mint.yaml` packaged inside the
+  jar: the mint called itself "Bob's Cashu mint", reported `Nutshell/0.15.0`, and
+  published a `pubkey` and `.onion` address identical for every deployment of
+  this codebase. The `nuts` map was wrong in both directions — NUT-19 had been
+  implemented since spec 002 (`melt_response_cache`) and was never advertised, so
+  wallets that could safely replay an interrupted melt did not know it. `/v1/info`
+  is how a wallet decides what it may attempt, so this made wallets take code
+  paths the mint could not honour.
+
+  The advertisement is now **derived from the wiring** rather than written down.
+  `NutSupport` pairs each NUT with the class (and where useful the member) whose
+  existence makes the claim true, and `DefaultMintInfoService` builds the `nuts`
+  map by walking it. `NutWiringContractTest` fails the build when a declared NUT
+  loses its implementation, when a `@Nut`-annotated implementation is not
+  declared, or when the served map disagrees with the registry. The previous
+  guard compared the YAML against a hand-maintained constant, which could not
+  catch either failure. See
+  [why /v1/info is derived from the wiring](docs/explanations/mint-info-advertisement.md).
+
 - **`POST /v1/checkstate` returns one state per requested `Y`, in request order**
   (audit finding M4, issue #386). The cross-mint merge was keyed on whatever the
   mints happened to know, so a wallet checking N proofs could get back fewer than

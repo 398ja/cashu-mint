@@ -31,7 +31,42 @@ Fallbacks come from `rest.properties` and `proto.properties`:
 - `gateway.bolt11.sat=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway`
 - `gateway.bolt11=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway`
 
-Keep NUT-06 (`mint.yaml`) methods/units aligned with the gateway mappings you configure.
+Keep NUT-06 methods/units (`mint.capabilities.*`, below) aligned with the gateway mappings you configure.
+
+## Mint identity (NUT-06)
+
+Every field below is empty by default and an unset field is **omitted** from `/v1/info` rather than filled with a placeholder. Set them per deployment; two deployments of this codebase must not claim the same identity.
+
+| Property | Environment variable | Description |
+| --- | --- | --- |
+| `mint.identity.name` | `MINT_NAME` | Display name shown to wallets. |
+| `mint.identity.pubkey` | `MINT_PUBKEY` | The mint's public key. Leave unset until the deployment has one to publish. |
+| `mint.identity.description` | `MINT_DESCRIPTION` | Short description. |
+| `mint.identity.description-long` | `MINT_DESCRIPTION_LONG` | Long description. |
+| `mint.identity.motd` | `MINT_MOTD` | Message of the day. |
+| `mint.identity.icon-url` | `MINT_ICON_URL` | Icon URL. |
+| `mint.identity.tos-url` | `MINT_TOS_URL` | Terms of service URL. |
+| `mint.identity.urls` | `MINT_URLS` | Comma-separated public base URLs. |
+| `mint.identity.contacts` | `MINT_CONTACTS` | Comma-separated `method:info` pairs, e.g. `email:ops@example.com,nostr:npub1...`. |
+
+The NUT-06 `version` is **not** configurable. It is `cashu-mint/<project version>`, filled in by the Maven build, so the advertised version always matches the running artifact.
+
+## Advertised capabilities (NUT-06)
+
+Which NUTs appear in the `nuts` map is derived from the code (`NutSupport`) and is not configurable. Only the operational numbers a deployment legitimately varies live here, and they **must** match the limits the deployment actually enforces.
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `mint.capabilities.mint-methods[n].method` | `bolt11` | Advertised mint payment method. |
+| `mint.capabilities.mint-methods[n].unit` | `sat` | Advertised mint unit. |
+| `mint.capabilities.mint-methods[n].min-amount` | `1` | Minimum mint amount. |
+| `mint.capabilities.mint-methods[n].max-amount` | `10000` | Maximum mint amount. |
+| `mint.capabilities.melt-methods[n].*` | as above | Same shape for melt. |
+| `mint.capabilities.mint-disabled` | `false` | Advertise minting as disabled. |
+| `mint.capabilities.melt-disabled` | `false` | Advertise melting as disabled. |
+| `mint.capabilities.cached-response-ttl` | `PT15M` | NUT-19 `ttl`; how long a cached response stays replayable. |
+
+See [why /v1/info is derived from the wiring](../explanations/mint-info-advertisement.md).
 
 ## Preload and vault seeding
 

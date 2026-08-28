@@ -1,93 +1,79 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.test.context.SpringBootTest;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
+import xyz.tcheeric.cashu.mint.proto.nut.NutSupport;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintInfoService;
+import xyz.tcheeric.cashu.mint.proto.util.MintCapabilityProperties;
+import xyz.tcheeric.cashu.mint.proto.util.MintIdentityProperties;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(classes = {NUT06.class, DefaultMintInfoService.class})
-@EnableConfigurationProperties(value = MintInfo.class)
+/**
+ * NUT-06 shape checks over the assembled {@code /v1/info} body. Whether the map
+ * agrees with the wiring is covered by {@code NutWiringContractTest}; this class
+ * covers the entry shapes each NUT requires.
+ */
 class NUT06Test {
 
-    @Autowired
-    private NUT06 nut06;
+    private final NUT06 nut06 = new NUT06(new DefaultMintInfoService(
+            new MintIdentityProperties(), new MintCapabilityProperties()));
 
+    // NUT-04 and NUT-05 advertise the deployment's payment methods and limits,
+    // and NUT-05 additionally advertises the configured fee reserve.
     @Test
-    // Ensures mint info YAML is parsed and provides NUT-04 and NUT-05 details
-    void testInfo() throws CashuErrorException {
-        MintInfo mintInfo = nut06.mintInfo();
-        assertNotNull(mintInfo);
+    void paymentMethodEntriesCarryMethodsAndLimits() throws CashuErrorException {
+        Map<String, MintInfo.Nut> nuts = nut06.mintInfo().getNuts();
 
-        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
+        MintInfo.Nut mintNut = nuts.get(NutSupport.MINT.key());
+        assertThat(mintNut.getDisabled()).isFalse();
+        MintInfo.Nut.Method method = mintNut.getMethods().get(0);
+        assertThat(method.getMethod()).isEqualTo("bolt11");
+        assertThat(method.getUnit()).isEqualTo("sat");
+        assertThat(method.getMaxAmount()).isPositive();
 
-        MintInfo.Nut nut = nuts.get("4");
-        assertFalse(nut.getDisabled());
-
-        MintInfo.Nut.Method method = nut.getMethods().get(0);
-        assertEquals("bolt11", method.getMethod());
-        assertEquals("sat", method.getUnit());
-        assertEquals(0, method.getMinAmount());
-
-        MintInfo.Nut nut5 = nuts.get("5");
-        assertEquals(0.05d, nut5.getFeeReservePercent(), 0.0001);
+        MintInfo.Nut meltNut = nuts.get(NutSupport.MELT.key());
+        assertThat(meltNut.getFeeReservePercent()).isEqualTo(0.05d);
     }
 
+    // Restore signatures (NUT-09) is a simple boolean capability.
     @Test
-    // Ensures the mint advertises support for NUT-09 restore signatures
-    void nut9Supported() throws CashuErrorException {
-        MintInfo mintInfo = nut06.mintInfo();
-        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
+    void restoreSignaturesIsAdvertisedAsSimpleSupport() throws CashuErrorException {
+        MintInfo.Nut nut9 = nut06.mintInfo().getNuts().get(NutSupport.RESTORE_SIGNATURES.key());
 
-        MintInfo.Nut nut9 = nuts.get("9");
-        assertNotNull(nut9);
-        assertTrue(nut9.isSupportedSimple());
+        assertThat(nut9).isNotNull();
+        assertThat(nut9.isSupportedSimple()).isTrue();
     }
 
+    // P2PK spending conditions (NUT-11) are advertised so clients that gate a
+    // P2PK flow on /v1/info can pick the right code path.
     @Test
-    // Ensures the mint advertises NUT-11 P2PK spending conditions so clients
-    // that gate P2PK use on /v1/info (including imani-gateway-core's spec-029
-    // in-person delivery saga branch) can pick the right code path. Backing
-    // verifier wiring lives in P2PKSpendingCondition + VerifyProofsTask.
-    void nut11Supported() throws CashuErrorException {
-        MintInfo mintInfo = nut06.mintInfo();
-        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
+    void p2pkSpendingConditionsAreAdvertised() throws CashuErrorException {
+        MintInfo.Nut nut11 = nut06.mintInfo().getNuts()
+                .get(NutSupport.P2PK_SPENDING_CONDITIONS.key());
 
-        MintInfo.Nut nut11 = nuts.get("11");
-        assertNotNull(nut11, "NUT-11 should be present in mint info");
-        assertTrue(nut11.isSupportedSimple(),
-                "NUT-11 should be advertised as supported (simple capability, no per-method config)");
+        assertThat(nut11).isNotNull();
+        assertThat(nut11.isSupportedSimple()).isTrue();
     }
 
+    // NUT-17 advertises the WebSocket commands the subscription handler serves.
     @Test
-    // Ensures the mint advertises NUT-17 WebSocket subscription support
-    void nut17Supported() throws CashuErrorException {
-        MintInfo mintInfo = nut06.mintInfo();
-        Map<String, MintInfo.Nut> nuts = mintInfo.getNuts();
+    void webSocketSubscriptionsAdvertiseTheServedCommands() throws CashuErrorException {
+        MintInfo.Nut nut17 = nut06.mintInfo().getNuts()
+                .get(NutSupport.WEBSOCKET_SUBSCRIPTIONS.key());
 
-        MintInfo.Nut nut17 = nuts.get("17");
-        assertNotNull(nut17, "NUT-17 should be present in mint info");
+        assertThat(nut17).isNotNull();
+        var configs = nut17.getSupportedConfigs();
+        assertThat(configs).isNotEmpty();
 
-        var supportedConfigs = nut17.getSupportedConfigs();
-        assertNotNull(supportedConfigs, "NUT-17 should have supported configurations");
-        assertFalse(supportedConfigs.isEmpty(), "NUT-17 should have at least one supported configuration");
-
-        var config = supportedConfigs.get(0);
-        assertEquals("bolt11", config.getMethod());
-        assertEquals("sat", config.getUnit());
-        assertNotNull(config.getCommands());
-        assertTrue(config.getCommands().contains("bolt11_mint_quote"));
-        assertTrue(config.getCommands().contains("bolt11_melt_quote"));
-        assertTrue(config.getCommands().contains("proof_state"));
+        var config = configs.get(0);
+        assertThat(config.getMethod()).isEqualTo("bolt11");
+        assertThat(config.getUnit()).isEqualTo("sat");
+        assertThat(config.getCommands())
+                .contains("bolt11_mint_quote", "bolt11_melt_quote", "proof_state");
     }
 }

@@ -2,19 +2,17 @@
 
 This guide shows how to map payment methods and units to gateway implementations without changing the REST API.
 
-- The mint selects a gateway based on the payment method from the request and the unit configured in NUT‑06 (`mint.yaml`).
+- The mint selects a gateway based on the payment method from the request and the unit configured in NUT‑06 (`mint.capabilities.*`).
 - You configure gateway classes in `rest.properties` using either a method-wide key or a method+unit key.
 
 ## Steps
 
-1. Ensure NUT‑06 (`mint.yaml`) advertises methods and units you support. For example:
-   ```yaml
-   mint:
-     nuts:
-       4:
-         methods:
-           - method: bolt11
-             unit: sat
+1. Ensure NUT‑06 advertises the methods and units you support. These come from deployment properties:
+   ```properties
+   mint.capabilities.mint-methods[0].method=bolt11
+   mint.capabilities.mint-methods[0].unit=sat
+   mint.capabilities.melt-methods[0].method=bolt11
+   mint.capabilities.melt-methods[0].unit=sat
    ```
 2. Map gateways in `rest.properties` (file-based) or override via environment:
    - Prefer unit-specific mapping and keep a method fallback.
@@ -41,7 +39,7 @@ This guide shows how to map payment methods and units to gateway implementations
 
 ## Tips
 
-- Keep `mint.yaml` and `proto.properties` aligned: only advertise methods/units for which you have a gateway mapping.
+- Keep `mint.capabilities.*` and `proto.properties` aligned: only advertise methods/units for which you have a gateway mapping.
 - Use different gateways per unit if needed (e.g., `usd` via a card processor, `sat` via LN).
 - The dev Docker Compose stack sets both `GATEWAY_BOLT11_SAT` and `GATEWAY_BOLT11` to `PhoenixdGateway`, pointed at the `phoenixd-mock` service rather than a real Lightning node.
 
