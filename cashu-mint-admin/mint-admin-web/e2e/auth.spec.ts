@@ -156,7 +156,9 @@ test.describe("Authentication", () => {
 
     await page.goto("/login");
     await page.getByLabel(/private key/i).fill(TEST_NSEC);
-    await page.getByLabel(/passphrase/i).fill("correct horse battery");
+    // Enrolment asks twice; only the stored-key form has a single passphrase box.
+    await page.getByLabel("Passphrase", { exact: true }).fill("correct horse battery");
+    await page.getByLabel(/confirm passphrase/i).fill("correct horse battery");
     await page.getByRole("button", { name: /encrypt key and sign in/i }).click();
 
     await expect(page).toHaveURL(/dashboard/);
