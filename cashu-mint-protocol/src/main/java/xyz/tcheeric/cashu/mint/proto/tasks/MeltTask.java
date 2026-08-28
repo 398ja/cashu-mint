@@ -11,7 +11,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
 import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
@@ -27,6 +27,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.mint.proto.nut.MintKeySetResolver;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -186,6 +187,12 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
+            // NUT-03/05 protocol validation, shared with swap and mint, before anything is
+            // signed or the invoice is paid. The NUT-08 change outputs are validated with the
+            // inputs so a mixed-unit or replayed change set cannot reach the signing step.
+            new ValidateTransactionTask<>(proofsToMelt, postMeltRequest.getOutputs(),
+                    KeySetDirectory.of(mintLoadService), signatureVaultService).execute();
+
             for (Proof<T> proof : proofsToMelt) {
                 // Model B enforcement: Reject voucher secrets in melt operations
                 if (isVoucherSecret(proof.getSecret())) {
@@ -222,15 +229,14 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                 }
             }
 
-            var keySetId = proofsToMelt.get(0).getKeySetId();
-            var keyset = mintLoadService.keySet(keySetId);
             var quoteId = postMeltRequest.getQuoteId();
             var gateway = unit == null ? mintProtocolService.createGateway(method)
                     : mintProtocolService.createGateway(method, unit);
             long invoiceAmount = gateway.getAmount(quoteId);
             var request = gateway.getRequest(quoteId);
             ExactFeeReserveResolver.Resolved feeReserve =
-                    ExactFeeReserveResolver.resolve(gateway, quoteId, postMeltRequest, keyset);
+                    ExactFeeReserveResolver.resolve(gateway, quoteId, postMeltRequest,
+                            new MintKeySetResolver(mintLoadService));
             long proofSum = proofsToMelt.stream()
                     .mapToLong(Proof::getAmount)
                     .sum();

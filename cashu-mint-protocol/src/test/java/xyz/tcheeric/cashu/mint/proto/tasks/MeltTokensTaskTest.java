@@ -67,7 +67,11 @@ import static org.mockito.Mockito.when;
         MintLoadService loadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
         when(loadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
-        when(loadService.keySet(anyString())).thenReturn(KeySet.builder().id("ks1").unit("sat").build());
+        KeySet keySet = KeySet.builder().id("ks1").unit("sat").build();
+        when(loadService.keySet(anyString())).thenReturn(keySet);
+        // Input fees are now priced from each input's own keyset, so the resolver reads the full
+        // keyset list rather than one keyset chosen by the caller.
+        when(loadService.keySets()).thenReturn(java.util.List.of(keySet));
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());

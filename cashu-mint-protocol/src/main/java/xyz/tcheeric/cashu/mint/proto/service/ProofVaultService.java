@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 public interface ProofVaultService {
@@ -84,4 +85,20 @@ public interface ProofVaultService {
      * so passing an already-hashed Y does NOT double-hash and silently miss.
      */
     ProofEntity retrieveProofByY(String yHex) throws CashuErrorException;
+
+    /**
+     * The key under which a proof with this secret must be recorded.
+     *
+     * <p>The NUT-00 secret encoding correction gave every secret two possible curve points, so a
+     * proof recorded before the correction lives under the legacy point. Recording a later spend
+     * of that same proof under the spec point would create a second row for one logical proof and
+     * defeat the {@code (mint_id, secret)} uniqueness the double-spend check relies on. This
+     * returns the key an existing record already uses, and otherwise the spec key.
+     *
+     * <p>The default implementation returns the spec key, which is correct for any deployment
+     * that never issued a legacy proof.
+     */
+    default String storageKeyFor(String secret) throws CashuErrorException {
+        return SpentProofKey.issuanceKey(secret);
+    }
 }

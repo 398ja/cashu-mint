@@ -28,7 +28,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
@@ -74,7 +74,8 @@ class CashuControllerTraceTest {
     void quoteMint_publishesMintQuoteRequested() throws Exception {
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
         PostMintQuoteResponse resp =
-                new PostMintQuoteResponse("q-mint", "lnbc100n1", 100, "sat", "UNPAID", false, 1700000000);
+                PostMintQuoteResponse.builder().quoteId("q-mint").request("lnbc100n1").amount(100)
+                        .unit("sat").state("UNPAID").expiry(1700000000).build();
 
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
             nut04.when(() -> NUT04.quote(anyInt(), any())).thenReturn(resp);
@@ -122,7 +123,8 @@ class CashuControllerTraceTest {
     @Test
     void quoteMint_withoutPublisher_doesNotThrow() {
         PostMintQuoteResponse resp =
-                new PostMintQuoteResponse("q", "lnbc", 1, "sat", "UNPAID", false, 0);
+                PostMintQuoteResponse.builder().quoteId("q").request("lnbc").amount(1)
+                        .unit("sat").state("UNPAID").expiry(0).build();
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
             nut04.when(() -> NUT04.quote(anyInt(), any())).thenReturn(resp);
             assertThatCode(() -> controller(null).quoteMint(new PostMintQuoteRequest(1, "sat"), "bolt11"))

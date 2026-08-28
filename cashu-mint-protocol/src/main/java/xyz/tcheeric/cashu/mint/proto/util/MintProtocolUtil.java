@@ -13,7 +13,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.vault.db.model.KeyEntity;
 import xyz.tcheeric.cashu.vault.api.KeyVault;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;

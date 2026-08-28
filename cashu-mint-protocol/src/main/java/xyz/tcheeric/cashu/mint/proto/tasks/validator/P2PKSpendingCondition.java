@@ -13,7 +13,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.Schnorr;
 import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

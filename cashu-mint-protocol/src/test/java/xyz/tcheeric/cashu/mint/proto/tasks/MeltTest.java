@@ -23,7 +23,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
@@ -236,6 +236,9 @@ public class MeltTest {
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        // Input fees are priced per input from its own keyset, so the resolver reads the list.
+        Mockito.when(mintLoadService.keySets()).thenReturn(java.util.List.of(
+                KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -279,6 +282,9 @@ public class MeltTest {
         Mint mint = new Mint(UUID.randomUUID().toString());
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        // Input fees are priced per input from its own keyset, so the resolver reads the list.
+        Mockito.when(mintLoadService.keySets()).thenReturn(java.util.List.of(
+                KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -357,6 +363,8 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
         Mockito.when(mintLoadService.keySet(Mockito.anyString())).thenReturn(keySet);
+        // Input fees are priced per input from its own keyset, so the resolver reads the list.
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
         Mint mint = new Mint(UUID.randomUUID().toString());
         mint.addKeySet(keySet);
@@ -487,6 +495,8 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
         Mockito.when(mintLoadService.keySet(Mockito.anyString())).thenReturn(keySet);
+        // Input fees are priced per input from its own keyset, so the resolver reads the list.
+        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
 
         Mint mint = new Mint(UUID.randomUUID().toString());
         mint.addKeySet(keySet);

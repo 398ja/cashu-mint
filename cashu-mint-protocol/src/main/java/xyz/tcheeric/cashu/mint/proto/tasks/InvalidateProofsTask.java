@@ -50,10 +50,27 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
             // Build a minimal, database-ready ProofEntity without invoking heavy cryptographic conversions
             // that expect specific key encodings. This avoids errors when secrets are 32-byte values.
             ProofEntity proofEntity = MintProtocolUtil.toProofEntity(proof, mintEntity);
+            keyUnderTheEncodingTheProofWasIssuedUnder(proof, proofEntity);
             storeAndInvalidateIdempotent(proof, proofEntity);
         }
 
         return proofs;
+    }
+
+    /**
+     * Re-keys the row onto the curve point this proof is already recorded under, if any.
+     *
+     * <p>{@code toProofEntity} keys the row on the NUT-00 spec point. A proof issued before the
+     * secret encoding was corrected was recorded under the legacy point, so storing its spend
+     * under the spec point would leave the legacy row untouched and the proof would still look
+     * unspent to a legacy-keyed lookup.
+     */
+    private void keyUnderTheEncodingTheProofWasIssuedUnder(Proof<T> proof, ProofEntity proofEntity)
+            throws CashuErrorException {
+        if (proof.getSecret() == null) {
+            return;
+        }
+        proofEntity.setSecret(proofVaultService.storageKeyFor(proof.getSecret().toString()));
     }
 
     /**

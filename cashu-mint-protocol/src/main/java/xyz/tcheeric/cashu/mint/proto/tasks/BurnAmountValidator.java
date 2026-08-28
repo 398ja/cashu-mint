@@ -1,7 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
 /**
  * Spec 002 FR-001: enforces the

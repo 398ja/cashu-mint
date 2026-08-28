@@ -5,12 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.nut02.KeySetResolver;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
@@ -372,7 +373,7 @@ class MeltSagaStateMachineTest {
             }
         }
 
-        MeltTask task(long proofSum) {
+        MeltTask task(long proofSum) throws CashuErrorException {
             // Two proofs split across the requested sum (e.g. 100 + 5 = 105).
             long high = proofSum - 5;
             Proof p1 = stubProof((int) high);
@@ -380,7 +381,7 @@ class MeltSagaStateMachineTest {
             PostMeltRequest request = Mockito.mock(PostMeltRequest.class);
             when(request.getQuoteId()).thenReturn("quote-melt");
             when(request.getInputs()).thenReturn(List.of(p1, p2));
-            when(request.getFees(any(KeySet.class))).thenReturn(0);
+            when(request.getFees(any(KeySetResolver.class))).thenReturn(0);
 
             // Test subclass that bypasses BDHKE verification + uses a
             // no-op InvalidateProofsTask — these tests target the saga

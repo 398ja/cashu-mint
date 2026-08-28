@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.common.util.SecretUtil;
+import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -38,16 +38,44 @@ public class DefaultProofVaultService implements ProofVaultService {
     @Override
     public ProofEntity retrieveProof(String secret) throws CashuErrorException {
         try {
-            // Use toYFromString to compute Y directly from the secret string.
-            // Per Cashu spec, Y = hash_to_curve(secret_string) where secret_string
-            // is the UTF-8 encoding of the secret (e.g., "64hexchars" or "["VOUCHER",...]")
-            String normalizedSecret = SecretUtil.toYFromString(secret);
-            return DBProofVault.retrieveProof(normalizedSecret);
+            return firstStoredUnderAnyKey(secret);
         } catch (CashuErrorException e) {
             // Log and return null so callers can treat missing/errored lookups as no-proof-found
             log.warn("DefaultProofVaultService: failed to retrieve proof for secret {}: {}", secret, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Looks the proof up under every key it could have been recorded under.
+     *
+     * <p>A proof spent before the NUT-00 secret encoding was corrected is recorded under the
+     * legacy curve point. Checking only the spec point would report such a proof unspent and let
+     * it be spent a second time, so both points are queried before concluding it is unspent.
+     */
+    private ProofEntity firstStoredUnderAnyKey(String secret) throws CashuErrorException {
+        for (String key : SpentProofKey.lookupKeys(secret)) {
+            ProofEntity stored = DBProofVault.retrieveProof(key);
+            if (stored != null) {
+                return stored;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Records a spend under the key an existing record already uses, falling back to the spec key
+     * when the proof has never been seen. This keeps one logical proof to one row across the
+     * NUT-00 encoding migration.
+     */
+    @Override
+    public String storageKeyFor(String secret) throws CashuErrorException {
+        for (String key : SpentProofKey.lookupKeys(secret)) {
+            if (DBProofVault.retrieveProof(key) != null) {
+                return key;
+            }
+        }
+        return SpentProofKey.issuanceKey(secret);
     }
 
     @Override

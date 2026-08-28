@@ -18,6 +18,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
+import xyz.tcheeric.cashu.common.nut02.UnknownKeySetException;
 import xyz.tcheeric.cashu.common.nut11.MalformedP2PKSecretException;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Proof;
@@ -25,7 +27,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.entities.rest.ActiveKeySetResponse;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.KeySetResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
@@ -674,6 +676,22 @@ public class CashuController<T extends Secret> implements org.springframework.co
         for (String m : mintMethods) mintArr.add(m);
         var meltArr = node.putArray("melt_methods");
         for (String m : meltMethods) meltArr.add(m);
+    }
+
+    /**
+     * NUT-02 {@code 12001 Keyset is not known}.
+     *
+     * <p>Declared ahead of the generic {@link CashuErrorException} handler because the generic one
+     * recovers its code by parsing the exception message as JSON, and this exception carries a
+     * plain sentence. Spring picks the most specific handler, so the typed code is used directly
+     * rather than being lost to a failed parse and reported as an internal error.
+     */
+    @ExceptionHandler(UnknownKeySetException.class)
+    public ResponseEntity<ErrorResponse> handleUnknownKeySet(UnknownKeySetException ex) {
+        log.warn("keyset_not_known keyset_id={}", ex.getKeySetId());
+        return new ResponseEntity<>(
+                new ErrorResponse(CashuErrorCode.keyset_not_known.name(), ex.getMessage()),
+                HttpStatus.valueOf(CashuErrorCode.keyset_not_known.getHttpStatus()));
     }
 
     @ExceptionHandler(CashuErrorException.class)

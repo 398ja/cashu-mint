@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 import lombok.NonNull;
 import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;

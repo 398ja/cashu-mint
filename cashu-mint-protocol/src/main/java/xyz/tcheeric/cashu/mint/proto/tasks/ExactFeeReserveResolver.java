@@ -3,7 +3,8 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import xyz.tcheeric.cashu.common.KeySet;
+import xyz.tcheeric.cashu.common.nut02.KeySetResolver;
+import xyz.tcheeric.cashu.common.nut02.UnknownKeySetException;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
@@ -17,7 +18,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
  *   <li>lightning fee reserve: {@link Gateway#getFeeReserve(String)} —
  *       the gateway's own reported reserve for the specific quote; the
  *       gateway is the only party that knows its own routing economics.</li>
- *   <li>NUT-15 input fees: {@link PostMeltRequest#getFees(KeySet)} — fees
+ *   <li>NUT-15 input fees: {@link PostMeltRequest#getFees(KeySetResolver)} — fees
  *       the proofs themselves charge for transit; these are mint revenue
  *       but still come out of the customer's funding budget, so they
  *       belong on the same side of the {@code sum(proofs) &gt;= invoice +
@@ -39,14 +40,17 @@ public final class ExactFeeReserveResolver {
      * @param gateway  the gateway adapter that originated the quote
      * @param quoteId  the melt quote id
      * @param request  the incoming melt request (carries the input proofs)
-     * @param keyset   the keyset against which {@code PostMeltRequest#getFees}
-     *                 computes input fees
+     * @param keySetResolver resolves each input's own keyset, so a melt spending
+     *                 proofs from several keysets is priced per proof rather than
+     *                 from whichever keyset happened to come first
      * @return resolved fee reserve bundle
+     * @throws UnknownKeySetException when an input names a keyset this mint does not know
      */
     public static Resolved resolve(Gateway gateway, String quoteId,
-                                   PostMeltRequest<?> request, KeySet keyset) {
+                                   PostMeltRequest<?> request, KeySetResolver keySetResolver)
+            throws UnknownKeySetException {
         long lightningReserve = gateway.getFeeReserve(quoteId);
-        long inputFees = request.getFees(keyset);
+        long inputFees = request.getFees(keySetResolver);
         long total = Math.addExact(lightningReserve, inputFees);
         return new Resolved(lightningReserve, inputFees, total);
     }
