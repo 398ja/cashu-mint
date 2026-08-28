@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Mints",
     to: "/mints",
     icon: <Server className="h-4 w-4" />,
-    access: { role: "MINT_ADMIN" },
+    access: { permission: "mint:lifecycle" },
   },
   {
     label: "Users",

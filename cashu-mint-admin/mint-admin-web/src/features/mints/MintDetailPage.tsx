@@ -41,7 +41,7 @@ const ACTIONS_BY_STATE: Record<string, ActionConfig[]> = {
 export function MintDetailPage() {
   const { mintId } = useParams<{ mintId: string }>();
   const queryClient = useQueryClient();
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
 
   const [confirmAction, setConfirmAction] = useState<ActionConfig | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
@@ -174,26 +174,26 @@ export function MintDetailPage() {
             </section>
           )}
 
-          {hasRole("MINT_ADMIN") && (
-            <div className="flex gap-3">
-              <a
-                href={import.meta.env.VITE_GRAFANA_URL ?? "http://localhost:3000"}
-                target="_blank"
-                rel="noreferrer"
+          {/* Reaching this page already needs mint:lifecycle; Operations is its own
+              permission, so it is offered to whoever holds that one. */}
+          <div className="flex gap-3">
+            <a
+              href={import.meta.env.VITE_GRAFANA_URL ?? "http://localhost:3000"}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
+            >
+              <Activity className="h-4 w-4" /> Health (Grafana)
+            </a>
+            {hasPermission("operations:execute") && (
+              <Link
+                to={`/mints/${mintId}/operations`}
                 className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
               >
-                <Activity className="h-4 w-4" /> Health (Grafana)
-              </a>
-              {hasRole("OPS_ADMIN") && (
-                <Link
-                  to={`/mints/${mintId}/operations`}
-                  className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
-                >
-                  <Wrench className="h-4 w-4" /> Operations
-                </Link>
-              )}
-            </div>
-          )}
+                <Wrench className="h-4 w-4" /> Operations
+              </Link>
+            )}
+          </div>
         </>
       )}
 

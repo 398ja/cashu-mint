@@ -55,7 +55,7 @@ export function App() {
               <Route
                 path="/mints"
                 element={
-                  <RequireAccess role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <MintListPage />
                   </RequireAccess>
                 }
@@ -63,7 +63,7 @@ export function App() {
               <Route
                 path="/mints/create"
                 element={
-                  <RequireAccess role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <CreateMintPage />
                   </RequireAccess>
                 }
@@ -71,7 +71,7 @@ export function App() {
               <Route
                 path="/mints/:mintId"
                 element={
-                  <RequireAccess role="MINT_ADMIN">
+                  <RequireAccess permission="mint:lifecycle">
                     <MintDetailPage />
                   </RequireAccess>
                 }
@@ -79,7 +79,7 @@ export function App() {
               <Route
                 path="/mints/:mintId/operations"
                 element={
-                  <RequireAccess role="OPS_ADMIN">
+                  <RequireAccess permission="operations:execute">
                     <OperationsPage />
                   </RequireAccess>
                 }
