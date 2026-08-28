@@ -208,6 +208,20 @@ no way to tell whether a change helps or hurts interoperability.
 3. Record which properties the vectors **cannot** pin down, starting with the
    `hash_to_curve` secret encoding.
 
+Step 2 has landed as `NutshellInteropIT` (see
+[Run the interoperability test](../how-to/run-the-interoperability-test.md)). It
+fails, as expected, and what it reports is already useful:
+
+| Stage | Outcome |
+| --- | --- |
+| mint, wallet-chosen output split | `invalid_denominations` — the mint accepts only the canonical minimal split, which no wallet computes. |
+| mint, canonical output split | Succeeds. Nutshell unblinds our blind signatures, so the BDHKE signing path interoperates. |
+| swap | `verify_proof_failed_error` — a proof Nutshell considers valid does not verify for us. The first external evidence bearing on L1. |
+
+The swap failure is the measurement Milestone 1 was waiting for, though it does
+not yet isolate the cause: the secret encoding is the leading candidate, but the
+keyset-id derivation would present identically.
+
 **Exit criteria:** vectors run in `mvn verify` and fail the build on a mismatch;
 the interop test executes end to end, whether or not it currently passes. A
 failing interop test here is a successful milestone — it is the instrument, not

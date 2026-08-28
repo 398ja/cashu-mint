@@ -15,6 +15,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Development workflow](how-to/development-workflow.md) - Prepare dependencies, migrations, and tests.
 - [Run tests](how-to/run-tests.md) - Unit, integration, and E2E test instructions.
 - [Run E2E tests](how-to/run-e2e-tests.md) - End-to-end test infrastructure and execution.
+- [Run the interoperability test](how-to/run-the-interoperability-test.md) - Drive Nutshell through mint, swap and melt against this mint, and read what it reports.
 - [Add a NUT implementation](how-to/add-a-nut.md) - Step-by-step guide for implementing a new NUT.
 - [Publish a Docker image](how-to/publish-docker-image.md) - Build and push the REST image.
 - [Configure the mint](how-to/configure-mint.md) - Override configuration properties.

@@ -4,6 +4,23 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **An interoperability test drives an external Cashu implementation through
+  mint, swap and melt against this mint** (audit finding M10, Milestone 0).
+  `NutshellInteropIT` starts the reference Python implementation
+  (`cashubtc/nutshell:0.16.5`) in a container and has it transact against a mint
+  booted in the same JVM, with the dummy Lightning adapter and a scripted payment
+  port standing in for a node. Published NUT vectors cannot settle whether our
+  ecash is spendable elsewhere; only a foreign implementation can. It fails today
+  and that is the point — it is the instrument, not the result. Two findings it
+  already produced: the mint refuses any output split but the canonical minimal
+  one, which no wallet chooses; and Nutshell's proofs fail our swap verification,
+  the first external evidence for the `hash_to_curve` secret-encoding question
+  (L1) that Milestone 1 has to answer. Without a Docker daemon it fails loudly
+  rather than skipping, so a broken environment cannot hide a regression. See
+  [Run the interoperability test](docs/how-to/run-the-interoperability-test.md).
+
 ### Documentation
 
 - The NUT compliance audit gains an implementation plan: eight milestones, each
