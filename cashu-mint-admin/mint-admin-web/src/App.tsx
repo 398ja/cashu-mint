@@ -13,6 +13,7 @@ import { LoginPage } from "@/features/login/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { MintListPage } from "@/features/mints/MintListPage";
 import { MintDetailPage } from "@/features/mints/MintDetailPage";
+import { MintKeySetsPage } from "@/features/mints/MintKeySetsPage";
 import { CreateMintPage } from "@/features/mints/CreateMintPage";
 import { UserListPage } from "@/features/users/UserListPage";
 import { UserDetailPage } from "@/features/users/UserDetailPage";
@@ -73,6 +74,14 @@ export function App() {
                 element={
                   <RequireAccess permission="mint:lifecycle">
                     <MintDetailPage />
+                  </RequireAccess>
+                }
+              />
+              <Route
+                path="/mints/:mintId/keysets"
+                element={
+                  <RequireAccess permission="mint:lifecycle">
+                    <MintKeySetsPage />
                   </RequireAccess>
                 }
               />

@@ -90,3 +90,16 @@ export function retireMint(
     body,
   );
 }
+
+/** A keyset the shared vault holds for a mint. Never carries key material. */
+export interface KeySet {
+  keySetId: string;
+  unit: string;
+  /** SIGNING or ARCHIVED. Archived keysets still verify and redeem (ADR-0004). */
+  state: string;
+  createdAt: string;
+}
+
+export function listKeySets(mintId: string): Promise<PagedResponse<KeySet>> {
+  return apiGet(`/admin/lifecycle/mints/${encodeURIComponent(mintId)}/keysets`);
+}

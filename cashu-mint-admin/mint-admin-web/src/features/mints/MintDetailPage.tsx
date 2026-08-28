@@ -13,7 +13,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { formatTimestamp } from "@/lib/format";
 import type { ApiRequestError } from "@/api/client";
-import { ArrowLeft, Activity, Wrench } from "lucide-react";
+import { ArrowLeft, Activity, KeyRound, Wrench } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
 
 interface ActionConfig {
@@ -185,6 +185,12 @@ export function MintDetailPage() {
             >
               <Activity className="h-4 w-4" /> Health (Grafana)
             </a>
+            <Link
+              to={`/mints/${mintId}/keysets`}
+              className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded px-3 py-1.5"
+            >
+              <KeyRound className="h-4 w-4" /> Keysets
+            </Link>
             {hasPermission("operations:execute") && (
               <Link
                 to={`/mints/${mintId}/operations`}
