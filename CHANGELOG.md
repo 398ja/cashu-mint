@@ -4,6 +4,120 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-08-28
+
+### Added
+
+- **An Operator can see a mint's keysets, so a rotation can be confirmed without
+  reaching for `psql`.** `GET /admin/lifecycle/mints/{mintId}/keysets` answers
+  what the shared vault holds — keyset id, unit, created-at, and whether the mint
+  signs with it or has archived it — with the signing keyset first and archived
+  ones newest-first, ordered server-side so the rule is stated once. The admin
+  renders it at `/mints/:mintId/keysets`, reached from the mint detail page. A
+  vault read that fails is a `502`, never an empty list: reporting the one as the
+  other would tell an Operator that a rotation destroyed key material that is in
+  fact still there. The archived badge reads "Archived · still redeems", because
+  an Operator opens this page after a rotation afraid the old keyset went away.
+  Key material is dropped in the vault adapter, so no layer above it holds a
+  private key it could log or serialise. (#381, #382)
+
+- Each keyset expands into its denominations, ascending, each carrying the vault
+  path its key lives at. An Operator taking a backup needs to reach the private
+  keys, and the admin cannot hand one over: the vault stores none in its own
+  database, keys live in HashiCorp Vault behind credentials the admin does not
+  hold, and asking the mint over HTTP is closed by ADR-0003. Where each key lives
+  is what a backup actually needs. Archived keysets answer too, since past key
+  material is precisely what a recovery wants (ADR-0004).
+
+- `MINT_ADMIN` can run the operational controls. Operations are reachable only
+  from a mint's detail page, which needs `mint:lifecycle`, so `OPS_ADMIN` alone
+  could not get there and a `MINT_ADMIN` looking at a stuck mint needed a second
+  role to act on it. The ACL test now reads permissions off the enum rather than
+  restating them, so the two cannot drift apart again.
+
+- Enrolling a browser key asks for the passphrase twice. A typo encrypts the key
+  under a passphrase nobody knows, and the key lives only in that browser, so the
+  confirmation happens before the save rather than on the next visit.
+
+### Changed
+
+- **The dev and E2E stacks run a vault-backed mint, so the admin and the mint are
+  one system.** The mint served keysets from `preload-test-data.json` because
+  `PreloadMintLoadService` is `@Primary` and on by default, and neither compose
+  file disabled it. A mint the admin provisioned, and every rotation of its
+  keyset, therefore landed in the vault and was invisible at `/v1/keysets`. Both
+  stacks now set `MINT_PRELOAD_ENABLED=false` and point the mint at HashiCorp.
+  `KeyRotationE2EIT` is no longer `@Disabled`: it asserts a rotation against the
+  mint rather than against the admin's own echo.
+
+- Seeding the dev keyset is separate from serving it. `VaultPreloadSeeder` seeds
+  the vault at startup from the same JSON, so disabling preload no longer takes
+  the bootstrap data with it. The `vault-db-seed` compose service is removed: it
+  loaded SQL inserting `t_key.private_key`, a column dropped when key material
+  moved to HashiCorp, so every run failed and seeded nothing. Key material cannot
+  be seeded over SQL, because only the backend-aware vault knows where the secret
+  goes.
+
+- The operational controls listing reports `controlType` and `outcome`. Without
+  them an operator could see that a rotation completed but not which keyset
+  replaced which. The admin UI showed a permanently blank "Reason" column bound
+  to a field the API never sent; it now shows the type and the outcome.
+
+### Fixed
+
+- **Provisioning no longer gives a unit a second active keyset.** A mint whose
+  keyset was established by something other than the create-mint saga would get a
+  second one, leaving two keysets claiming to sign for the unit; the next
+  rotation then archived both and could not say which it replaced. An existing
+  active keyset now stands.
+
+- Key rotation no longer fails on every attempt. The vault permits a mint one
+  *active* keyset per unit, so provisioning the replacement before archiving the
+  keyset it replaces was rejected outright and every rotation ended
+  `KEY_ROTATION_FAILED`. A rotation now archives its predecessor first and
+  reinstates it if the replacement cannot be provisioned, so a failure part-way
+  never leaves the mint unable to sign. A mint holding no keysets is treated as
+  nothing to supersede rather than as a vault failure.
+
+- The dev stack no longer re-creates the constraint that makes rotation
+  impossible. A `vault-db-init` service applied `V1__init_schema.sql` with `psql`
+  on every `up`, restoring the `UNIQUE (unit, mint_id)` index that migration `V5`
+  drops precisely so a rotated-away keyset can coexist with its replacement. The
+  vault schema is owned by Flyway inside `cashu-vault-jpa`, so the service is
+  removed. An existing dev database needs
+  `DROP INDEX IF EXISTS idx_keyset_unit_mint_unq;` once.
+
+- A mint nobody has provisioned yet reports as empty rather than as the
+  Operator's own typo. The vault client signals "this mint holds no keysets" two
+  different ways — an `IllegalArgumentException` for an empty body on a `200`, and
+  a `404` from the running vault — and the service caught the first alongside a
+  malformed mint id, answering `400 invalid_mint_id`. Both signals now translate
+  to an empty list in the adapter, so the page's not-provisioned state is
+  reachable against a real vault.
+
+- Every Operator role can read the audit trail. The dashboard's recent-activity
+  panel is built from it, so `USER_ADMIN` and `OPS_ADMIN` — holding
+  `dashboard:read` without `audit:read` — landed on a first screen whose main
+  panel reported forbidden, and the audit page refused them outright. The trail is
+  read-only and is how an Operator checks what was done to the deployment they are
+  on call for.
+
+- The admin gates the mint and operations pages on the permission rather than the
+  role. The Super Administrator holds every permission and none of those pages'
+  roles, so the account that exists to recover a deployment saw a dashboard and
+  nothing else. A page can no longer be granted by the API and refused by the UI.
+
+- Signing out wipes the enrolled browser key. It cleared the session but left the
+  encrypted key in `localStorage`, so the login page still saw a stored key and
+  offered only a passphrase box — the next person could not sign in with their own
+  key at all. An idle lock still keeps the key on purpose, since the same Operator
+  is coming back; signing out is how someone hands the browser over.
+
+- The admin Docker image builds. The Dockerfile named a module path and a jar name
+  that do not exist, and `.dockerignore`'s `**/out` swallowed the hexagonal
+  `port/out` and `adapter/out` packages — 50 source files — out of every build
+  context.
+
 ### Documentation
 
 - **Audited `cashu-mint`, `cashu-lib` and `cashu-wallet` against the NUT

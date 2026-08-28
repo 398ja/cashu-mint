@@ -17,7 +17,7 @@ mkdir -p ~/cashu-mint-staging && cd ~/cashu-mint-staging
 2) Download the release archive for the version you want to run (provides the Compose file, Dockerfiles, and helper scripts required by the build contexts):
 
 ```bash
-COMPOSE_VERSION=0.31.0
+COMPOSE_VERSION=0.32.0
 curl -L "https://github.com/cashubtc/cashu-mint/archive/refs/tags/v${COMPOSE_VERSION}.tar.gz" -o cashu-mint.tar.gz
 tar -xzf cashu-mint.tar.gz --strip-components=1
 ```
@@ -32,12 +32,12 @@ Create `.env.staging` in the same directory with the versions and secrets you wa
 ```bash
 cat > .env.staging <<'EOF'
 # Versions (align with pom.xml)
-CASHU_MINT_VERSION=0.31.0
+CASHU_MINT_VERSION=0.32.0
 CASHU_GATEWAY_VERSION=0.13.0
 CASHU_GATEWAY_WEBHOOK_VERSION=0.13.0
 CASHU_VAULT_VERSION=0.10.1
-CASHU_MINT_ADMIN_VERSION=0.31.0
-COMPOSE_VERSION=0.31.0
+CASHU_MINT_ADMIN_VERSION=0.32.0
+COMPOSE_VERSION=0.32.0
 PHOENIXD_VERSION=0.1.4
 
 # Ports and bindings
