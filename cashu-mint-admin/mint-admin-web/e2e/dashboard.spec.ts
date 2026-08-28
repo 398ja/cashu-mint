@@ -6,7 +6,6 @@ test.describe("Dashboard", () => {
     await loginAsAdmin(page);
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: { ACTIVE: 3, SUSPENDED: 1, PROVISIONED: 2 },
-      alertsBySeverity: { CRITICAL: 1, WARNING: 5 },
       activeControls: 2,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
@@ -38,10 +37,13 @@ test.describe("Dashboard", () => {
   test("renders summary cards with correct counts", async ({ page }) => {
     await page.goto("/dashboard");
 
-    // Summary cards should show mint states and alert severities
+    // The two summary cards the mint can actually answer for. Alerting was
+    // deleted in #364 -- nothing produces a severity, so nothing shows one.
     await expect(page.getByText("Mints by State")).toBeVisible();
-    await expect(page.getByText("Alerts by Severity")).toBeVisible();
-    await expect(page.getByText("Active Controls")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Mints by State/ }))
+      .toContainText(/ACTIVE3/);
+    await expect(page.getByText("Active Controls").locator(".."))
+      .toContainText("2");
   });
 
   test("renders audit timeline entries", async ({ page }) => {

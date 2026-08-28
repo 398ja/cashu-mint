@@ -19,7 +19,6 @@ test.describe("Authentication", () => {
     await loginAsAdmin(page, ["MINT_ADMIN"]);
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: { ACTIVE: 2 },
-      alertsBySeverity: {},
       activeControls: 0,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
@@ -48,7 +47,6 @@ test.describe("Authentication", () => {
     await loginAsAdmin(page, ["MINT_ADMIN"], { resume: false });
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: { ACTIVE: 2 },
-      alertsBySeverity: {},
       activeControls: 0,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
@@ -108,7 +106,6 @@ test.describe("Authentication", () => {
     await loginAsAdmin(page, ["MINT_ADMIN"]);
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: {},
-      alertsBySeverity: {},
       activeControls: 0,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
@@ -143,7 +140,6 @@ test.describe("Authentication", () => {
     await mockAuthRoutes(page, ["MINT_ADMIN"], { resume: false });
     await mockApiResponse(page, "**/admin/dashboard/summary", {
       mintsByState: {},
-      alertsBySeverity: {},
       activeControls: 0,
     });
     await mockApiResponse(page, "**/admin/audit/events**", {
