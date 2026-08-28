@@ -18,7 +18,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -54,11 +54,20 @@ public class SwapTaskTest {
         return proof;
     }
 
+    // Distinct public keys, so a fixture pair is not itself a duplicate output.
+    private static final List<String> BLINDED_MESSAGES = List.of(
+            "02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2",
+            "03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7",
+            "025f9d298d8d9e774c81ee64927a27e6e6b6e18f65447eb6a16808f92b84e44112");
+
+    private int nextBlindedMessage;
+
     private BlindedMessage createBlindedMessage() {
         BlindedMessage bm = new BlindedMessage();
         bm.setAmount(1);
         bm.setKeySetId(KeysetId.fromString(VALID_KEYSET_ID));
-        bm.setBlindedMessage(PublicKey.fromString("02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"));
+        bm.setBlindedMessage(PublicKey.fromString(
+                BLINDED_MESSAGES.get(nextBlindedMessage++ % BLINDED_MESSAGES.size())));
         return bm;
     }
 

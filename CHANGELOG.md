@@ -4,7 +4,94 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **A proof spent before the `hash_to_curve` correction is still detected as
+  spent** (issues #395, #396). The mint keys its double-spend store on
+  `Y = hash_to_curve(secret)`. cashu-lib 0.22.0 corrected that encoding from
+  hex-decoding the secret to hashing its UTF-8 bytes (cashu-lib ADR 0001), so the
+  same legacy proof now computes a **different** `Y`. Taking the dependency
+  without addressing this would have turned a compatibility fix into a
+  double-spend hole: an already-spent legacy proof would find no row under the
+  new key and be reported unspent.
+
+  Lookup now checks both the `SPEC` and `LEGACY_HEX` values of `Y`, in
+  `SecretEncoding.verificationOrder()`, and a spend is recorded under the key an
+  existing record already uses so one logical proof never becomes two rows.
+  `SpentProofKey` is the single place both questions are answered.
+  `LegacyProofDoubleSpendTest` stores a spent proof under the legacy key only and
+  asserts it is still reported SPENT after the upgrade, so removing the dual
+  lookup fails the build rather than silently reopening the hole. Every
+  `C = k*Y` check already routes through `BDHKEUtils.verify(String secret, ...)`,
+  which walks the same encoding order. See
+  [spending a proof exactly once across the secret encoding change](docs/explanations/spent-proof-key-encoding.md).
+
+### Changed
+
+- Upgraded `cashu-lib` from 0.21.0 to 0.22.0.
+
 ### Fixed
+
+- **Multi-keyset input sets are priced correctly** (issue #396). `getFees` priced
+  **every** input from the **first** input's keyset and guarded the keyset id with
+  an `assert`, which is disabled at runtime by default. NUT-02 keeps inactive
+  keysets spendable, so a transaction mixing keysets is routine and was being
+  silently mispriced in either direction. Fees are now resolved per input through
+  a `KeySetResolver` backed by `MintLoadService` (`MintKeySetResolver`), and an
+  unresolvable keyset id raises `UnknownKeySetException`, which the REST layer
+  maps to NUT-02 `keyset_not_known` (12001) with its own HTTP status instead of a
+  generic internal error.
+
+- **The mint's `ErrorResponse` no longer collides with cashu-lib's** (issue #396).
+  Both declared a class at `xyz.tcheeric.cashu.entities.rest.ErrorResponse` with
+  incompatible shapes. The local source shadowed the library's, so the split
+  package was invisible to the compiler until anything disturbed it. The mint's
+  class moved to `xyz.tcheeric.cashu.mint.proto.error`. Its `toJson()` also now
+  serialises through Jackson: built with `String.format`, a message containing a
+  quote or backslash produced invalid JSON and turned a reportable error into an
+  unparseable body.
+
+- **The mint accepts a wallet's own output split** (audit finding M3, issue #394).
+  `MintTask` compared the requested outputs against the one canonical minimal
+  split of the quote amount and rejected everything else with
+  `invalid_denominations`. NUT-04 asks only that the outputs sum to the quote
+  amount using denominations an active keyset can sign; it does not prescribe how
+  the wallet splits that sum, and no external wallet computes the minimal split.
+  This blocked every external wallet from minting at all, and was the first stage
+  the Nutshell interoperability harness failed. Each output amount is now checked
+  against the keyset's own denominations, and the sum check that was always there
+  is unchanged.
+
+- **One balance equation, checked before signing** (audit finding M2, issue #384).
+  `VerifyProofsTask.validateAmounts` enforced `sum(inputs) == sum(outputs)` while
+  `VerifyFeesTask` enforced NUT-02's `sum(inputs) - fees == sum(outputs)`. The two
+  agree only when fees are zero, so the first keyset with a non-zero
+  `input_fee_ppk` would have made every swap fail whichever equation the wallet
+  satisfied. `validateAmounts` now validates only what its name says, positive
+  amounts, and the balance equation lives solely in `VerifyFeesTask`.
+
+### Security
+
+- **A rejected swap leaves no blind signature behind** (audit finding M2, issue
+  #384). `SwapTask` signed every blinded message before validating the balance,
+  so an unbalanced swap was signed first and rejected afterwards, and its
+  signatures stayed in the signature vault where NUT-09 restore would hand them
+  back. Validation now runs before the signing loop. `SwapTask` calls no
+  `@Transactional` method, so nothing rolled these back; the ordering was the
+  whole defence.
+
+### Added
+
+- **Shared protocol validation for swap, mint and melt** (audit finding M5, issue
+  #387). `ValidateTransactionTask` runs the input and output rules that
+  `error_codes.md` names and this mint did not enforce: duplicate inputs
+  (`11007`), duplicate outputs (`11008`), inputs or outputs of multiple units
+  (`11009`), inputs and outputs of different units (`11010`), outputs on an
+  inactive keyset (`12002`), and previously signed outputs (`11003`). Duplicate
+  inputs were the serious one: `ProofLockManager` deduplicates the secrets it
+  locks and the vault reported the same proof `UNSPENT` on both lookups, so a
+  doubled 1000-sat proof could buy 2000 sats of outputs. Every rule is decided
+  from the request, so the step runs before anything is signed.
 
 - **`GET /v1/info` advertises the mint that is actually running** (audit finding
   M8, issue #390). The response was served from a `mint.yaml` packaged inside the

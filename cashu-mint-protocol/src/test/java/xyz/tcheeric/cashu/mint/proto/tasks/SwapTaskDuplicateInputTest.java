@@ -13,7 +13,7 @@ import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.entities.rest.ErrorResponse;
+import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -126,7 +126,7 @@ public class SwapTaskDuplicateInputTest {
                     UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
 
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-            assertEquals("11007", errorCodeOf(exception));
+            assertEquals("duplicate_inputs", errorCodeOf(exception));
             assertTrue(signCons.constructed().isEmpty(),
                     "a duplicated input must be refused before anything is signed");
         }
