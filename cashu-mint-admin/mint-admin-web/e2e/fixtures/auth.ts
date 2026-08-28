@@ -62,7 +62,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "operators:manage",
     "operations:execute",
   ],
-  MINT_ADMIN: ["mint:lifecycle", "audit:read", "dashboard:read"],
+  MINT_ADMIN: ["mint:lifecycle", "operations:execute", "audit:read", "dashboard:read"],
   USER_ADMIN: ["users:manage", "audit:read", "dashboard:read"],
   OPS_ADMIN: ["operations:execute", "audit:read", "dashboard:read"],
 };

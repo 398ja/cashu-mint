@@ -25,8 +25,8 @@ public enum AdminRole {
      * dashboard's own recent-activity panel is built from it — withholding it
      * buys no confidentiality and breaks the first screen after sign-in.
      */
-    MINT_ADMIN("MINT_ADMIN", Set.of(AdminPermission.MINT_LIFECYCLE, AdminPermission.AUDIT_READ,
-        AdminPermission.DASHBOARD_READ)),
+    MINT_ADMIN("MINT_ADMIN", Set.of(AdminPermission.MINT_LIFECYCLE, AdminPermission.OPERATIONS_EXECUTE,
+        AdminPermission.AUDIT_READ, AdminPermission.DASHBOARD_READ)),
     USER_ADMIN("USER_ADMIN", Set.of(AdminPermission.USERS_MANAGE, AdminPermission.AUDIT_READ,
         AdminPermission.DASHBOARD_READ)),
     OPS_ADMIN("OPS_ADMIN", Set.of(AdminPermission.OPERATIONS_EXECUTE, AdminPermission.AUDIT_READ,

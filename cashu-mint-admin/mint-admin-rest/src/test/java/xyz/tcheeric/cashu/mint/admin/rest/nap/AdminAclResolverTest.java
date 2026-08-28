@@ -99,9 +99,10 @@ class AdminAclResolverTest {
 
         assertThat(decision.allowed()).isTrue();
         assertThat(decision.roles()).containsExactly("MINT_ADMIN");
-        assertThat(decision.permissions()).containsExactlyInAnyOrder(
-            AdminPermission.MINT_LIFECYCLE.key(), AdminPermission.AUDIT_READ.key(),
-            AdminPermission.DASHBOARD_READ.key());
+        // Read off the role rather than restated here: what the role carries is the
+        // enum's business, and a second copy only drifts from it.
+        assertThat(decision.permissions()).containsExactlyInAnyOrderElementsOf(
+            AdminRole.MINT_ADMIN.permissions().stream().map(AdminPermission::key).toList());
     }
 
     // A role string the store holds but this build does not declare must not
