@@ -33,7 +33,8 @@ import java.util.regex.Pattern;
  * have {@code cashu.mint.jpa.enabled=true} and a configured salt, both
  * fail-closed at boot (see {@link HmacSha256IdentityHasher}).
  *
- * <p>Contract: see {@code specs/004-voucher-data-minimisation/contracts/identity-hasher.md}.
+ * <p>Hashing is one-way and deterministic; see {@link IdentityHasher} for the
+ * full contract.
  */
 @Converter
 public class IdentityHashConverter implements AttributeConverter<String, String> {

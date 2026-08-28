@@ -4,6 +4,33 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- **Audited every document against the code and fixed or deleted what no longer
+  described it.** The admin API reference listed 13 endpoints that do not exist
+  (all of `/admin/alerts/*`, `/admin/configuration/*`, `/admin/health/*`) and
+  omitted two that do; it is now generated against the controllers and states the
+  real roles, permissions and pagination fields. `admin-rest-api.md` is deleted as
+  a strict duplicate. The E2E how-to prescribed a command that cannot work: the
+  suite starts its own Testcontainers stack and needs `-Pe2e-tests -am`. Docs
+  still described `vault-db-seed`, the SQL seeding path, and gateway classes and
+  artifacts under their pre-rename names.
+
+- **`audits/` removed, and the local-only `project/` and `specs/` directories
+  deleted from the working tree.** Both were already gitignored. The operator
+  procedure that lived in `specs/004/quickstart.md` — salt generation, backfill,
+  retention purge, forensic lookup, salt rotation — is absorbed into
+  `docs/runbooks/voucher-data-minimisation.md`, which was previously a pointer to
+  it. Ten Javadoc citations of `specs/` paths now state their rule inline, and two
+  runtime error messages point at the runbook instead of a file that no longer
+  exists.
+
+- The admin user guide drops the sections documenting removed features (alerts,
+  health monitoring, configuration governance) and the invocations of a CLI that
+  was deleted, losing a third of its length. `admin-triage.md` is re-verified:
+  rotation and RBAC now actuate, retirement stops signing, and mint-side
+  suspension exists but nothing in the admin writes it.
+
 ### Changed
 
 - **The dev and E2E stacks run a vault-backed mint, so the admin and the mint are

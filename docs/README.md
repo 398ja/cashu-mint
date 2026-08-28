@@ -24,6 +24,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Install a staging mint with Docker](how-to/install-staging-docker.md) - Deploy the dev stack on a staging host with published images.
 - [Enable observability](how-to/enable-observability.md) - Start Prometheus/Grafana/Jaeger and tune metrics/traces.
 - [Enable the trace producer](how-to/enable-trace-producer.md) - Emit signed kind-9079 trace events to the cashu-ledger forensic ledger (spec 036).
+- [Configure webhook integrity](how-to/configure-webhook-integrity.md) - The mandatory shared secret and the append-only webhook event row behind `PENDING → PAID`.
 - [Troubleshoot common issues](how-to/troubleshoot-common-issues.md) - Solutions for build, Docker, gateway, and test problems.
 
 ## Reference
@@ -49,11 +50,13 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
+- [Voucher data record](explanations/voucher-data-record.md) - What the mint stores about a customer, in customer-facing language. Kept in step with the schema by a CI check.
 - [Architecture decision records](adr/) - The decisions behind the current design, newest last.
 
 ## Runbooks
 
 - [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
+- [Voucher data minimisation](runbooks/voucher-data-minimisation.md) - Identity salt, backfill, retention purge, forensic lookup, and the salt-rotation procedure.
 
 ## Archive
 

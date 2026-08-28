@@ -12,9 +12,7 @@ import java.time.Instant;
  * FR-011. {@code fundingId} is null while the quote is awaiting funding;
  * once a {@code VoucherFunding} row attaches, the lifecycle CAS-transitions
  * {@code UNFUNDED → FUNDED}.
- *
- * <p>Spec: {@code specs/003-voucher-quote-durability/data-model.md} §
- * VoucherQuote.
+
  */
 public interface VoucherQuote {
 

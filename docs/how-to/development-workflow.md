@@ -16,7 +16,7 @@ This how-to guide walks through the daily development loop: preparing infrastruc
 1. Use the published vault image (default) or build it locally if you are changing vault code:
    ```bash
    # Default: pull the published image used by docker-compose.dev.yml
-   docker pull docker.398ja.xyz/cashu-vault-jpa:0.4.0
+   docker pull docker.398ja.xyz/cashu-vault-jpa:0.10.1
 
    # Or build from a sibling checkout
    cd ../cashu-vault
@@ -31,34 +31,28 @@ This how-to guide walks through the daily development loop: preparing infrastruc
    docker compose -f docker-compose.dev.yml up -d
    ```
    This starts:
-   - `cashu-vault-db` and `cashu-gateway-db`: PostgreSQL databases on ports 55433-55434
-   - `vault-db-init`: Runs the vault schema migration (V1__init_schema.sql)
-   - `vault-db-seed`: Seeds the vault with test data (preload-test-data.sql)
-   - `cashu-vault-jpa`: The vault service with the API consumed by the mint
-   - `cashu-gateway-rest`: Gateway service for BOLT11 handlers
+   - `cashu-vault-db` and `payment-adapter-db`: PostgreSQL databases on ports 55433-55434
+   - `cashu-vault-jpa`: The vault service with the API consumed by the mint; it migrates its own schema with Flyway at startup
+   - `hashicorp-vault`: Holds the private keys the vault rows point at
+   - `payment-adapter-rest`: Gateway service for BOLT11 handlers
    - Other supporting services (phoenixd-mock, admin-rest, etc.)
 
-## Run database migrations
+## Schema and seed data
 
-The `vault-db-init` and `vault-db-seed` services handle database schema and seeding automatically when using `docker-compose.dev.yml`:
+Both are automatic. The vault service migrates its own schema with Flyway at
+startup, and the mint's `VaultPreloadSeeder` seeds the keyset from
+`scripts/preload-test-data.json` on first boot — the keyset row into the vault
+database, the private keys into HashiCorp. Seeding is idempotent, so a restart
+leaves an already-seeded vault alone.
 
-1. `vault-db-init` runs the schema migration from `cashu-vault-jpa/src/main/resources/db/migration/V1__init_schema.sql`
-2. `vault-db-seed` loads test data from `scripts/preload-test-data.sql`
-
-These run automatically on startup. The seed script is idempotent - it only truncates and reloads data if the mint doesn't already exist.
-
-### Manual seeding (optional)
-
-If you need to regenerate or manually run the seed data:
+To regenerate the preload data:
 
 ```bash
-# Generate new seed data
-./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
-
-# Manually seed (if needed)
-docker compose -f docker-compose.dev.yml exec -T cashu-vault-db \
-  psql -U postgres -d cashu_vault -v ON_ERROR_STOP=1 < scripts/preload-test-data.sql
+./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
 ```
+
+Seeding cannot be done by loading SQL: only the backend-aware vault client knows
+where a private key goes. See [Tools reference](../reference/tools.md).
 
 ## Run tests
 
@@ -79,7 +73,7 @@ SPRING_PROFILES_ACTIVE=dev MINT_PRELOAD_JSON_INPUT=file:$(pwd)/scripts/preload-t
   ./mvnw -pl cashu-mint-rest spring-boot:run
 ```
 
-With the `dev` profile active, the REST app uses the preload-based `MintLoadService` that reads the JSON pointed to by `MINT_PRELOAD_JSON_INPUT` (default `scripts/preload-test-data.json`). In docker-compose, the `scripts` directory is mounted read-only into the container at `/app/scripts` and the env var is set accordingly, so `/v1/keysets` works out of the box. In production (no `dev`/`test` profile), it falls back to the default loader backed by the vault client. The REST module packages a standard Spring Boot entry point and Maven plugin configuration, so this command compiles the protocol module, starts `CashuMintRestApplication`, and wires the controllers discussed in the module reference (see [`cashu-mint-rest/pom.xml`](../../cashu-mint-rest/pom.xml) and [`CashuMintRestApplication.java`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/CashuMintRestApplication.java)).
+Which keysets the mint serves is decided by `MINT_PRELOAD_ENABLED`, not by the Spring profile. Left at its default (`true`), `PreloadMintLoadService` is `@Primary` and serves a fixed keyset straight from `MINT_PRELOAD_JSON_INPUT`. The dev stack sets it to `false` so the mint reads the shared vault instead, which is what makes a mint the admin provisions — and every rotation of its keyset — visible at `/v1/keysets`. The REST module packages a standard Spring Boot entry point and Maven plugin configuration, so this command compiles the protocol module, starts `CashuMintRestApplication`, and wires the controllers discussed in the module reference (see [`cashu-mint-rest/pom.xml`](../../cashu-mint-rest/pom.xml) and [`CashuMintRestApplication.java`](../../cashu-mint-rest/src/main/java/xyz/tcheeric/cashu/mint/rest/CashuMintRestApplication.java)).
 
 ## Iterate with clients or admin tools
 

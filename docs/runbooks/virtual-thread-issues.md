@@ -302,4 +302,3 @@ tomcat_connections_current_connections / tomcat_connections_config_max_connectio
 - [JEP 444: Virtual Threads](https://openjdk.org/jeps/444)
 - [Spring Boot Virtual Threads](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.spring-application.virtual-threads)
 - [Project Loom FAQ](https://wiki.openjdk.org/display/loom)
-- Internal: `project/loom-assessment.md`

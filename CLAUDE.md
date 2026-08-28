@@ -218,7 +218,7 @@ cashu.mint.voucher.identity-purge-cron=0 0 3 * * *
 cashu.mint.jpa.flyway.placeholders.grafana_ro_password=<env: CASHU_MINT_GRAFANA_RO_PASSWORD>
 ```
 
-Customer-facing disclosure document at `docs/explanations/voucher-data-record.md`; CI test `DisclosureDocSchemaContractTest` fails the build on schema-vs-doc drift. Operator runbook at `specs/004-voucher-data-minimisation/quickstart.md`. Minimisation candidates resolved per research R5: dropped `merchant_ledger_balance_after` + `voucher_issuance.issuance_id`; replaced `iou_terms` (TEXT) with `iou_terms_hash` (CHAR(64)).
+Customer-facing disclosure document at `docs/explanations/voucher-data-record.md`; CI test `DisclosureDocSchemaContractTest` fails the build on schema-vs-doc drift. Operator runbook at `docs/runbooks/voucher-data-minimisation.md`. Minimisation candidates resolved per research R5: dropped `merchant_ledger_balance_after` + `voucher_issuance.issuance_id`; replaced `iou_terms` (TEXT) with `iou_terms_hash` (CHAR(64)).
 
 ### Spec 036 — Traceability Producer (Mint Side)
 

@@ -63,7 +63,7 @@ public class VoucherBackfillHealthIndicator implements HealthIndicator {
                 .withDetail("backfill_outstanding_for", outstanding)
                 .withDetail("hint",
                         "voucher endpoints will start serving once the boot-time "
-                                + "identity backfill completes; see specs/004-voucher-data-minimisation/quickstart.md § 3")
+                                + "identity backfill completes; see docs/runbooks/voucher-data-minimisation.md § 3")
                 .build();
     }
 }

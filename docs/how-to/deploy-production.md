@@ -73,7 +73,7 @@ services:
       - "127.0.0.1:7777:7777"
     environment:
       - CASHU_VAULT_BASE_URL=http://cashu-vault:3333
-      - GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+      - GATEWAY_BOLT11_SAT=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
       - PHOENIXD_BASE_URL=${PHOENIXD_BASE_URL}
       - PHOENIXD_API_KEY=${PHOENIXD_API_KEY}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}

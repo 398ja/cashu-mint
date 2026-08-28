@@ -8,7 +8,7 @@ cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/c
 - `cashu-mint-rest` – Spring Boot REST API that wires controllers to the protocol services and exposes actuator health/metrics.
 - `cashu-mint-webhook` – webhook-based payment notifications for push-based payment status updates.
 - `cashu-mint-observability` – Micrometer- and Actuator-based metrics, health indicators, and tracing hooks for the mint and gateway.
-- `cashu-mint-tools` – deterministic preload generator and SQL renderer for seeding the vault with reproducible keysets.
+- `cashu-mint-tools` – deterministic preload generator for reproducible dev keysets.
 - `cashu-mint-rest-it` – integration test harness for the REST module (voucher profile, H2, and Spring context tests).
 
 ### Admin modules (`cashu-mint-admin/`)
@@ -37,7 +37,12 @@ curl http://localhost:9000/actuator/health/readiness
 curl http://localhost:7777/v1/keysets
 ```
 
-Use the preload JSON (`scripts/preload-test-data.json`) and SQL (`scripts/preload-test-data.sql`) when running locally—the dev profile seeds the vault and configures the REST service to read the same keyset from disk.
+The dev stack seeds itself: at startup `VaultPreloadSeeder` writes the keyset in
+`scripts/preload-test-data.json` into the shared vault, with the private keys going
+to HashiCorp. The mint then reads its keysets back from that vault rather than from
+the file, so a mint the admin provisions — and every rotation of its keyset — shows
+up at `/v1/keysets`. Set `MINT_PRELOAD_ENABLED=true` to serve the file directly
+instead, which decouples the mint from the admin and is rarely what you want.
 
 ## Observability
 
@@ -106,7 +111,7 @@ The mint implements security controls aligned with the [Oracle Java Secure Codin
 - **Defensive collections** — Internal maps and lists are wrapped as unmodifiable where exposed to prevent external mutation.
 - **Sanitized exceptions** — Error messages exclude sensitive internal details to avoid information leakage.
 
-See `audits/AUDIT_REPORT_java-secure-coding-guidelines.md` for the full compliance report.
+See [Security measures](docs/explanations/security-measures.md) for the controls in place.
 
 ## Documentation
 

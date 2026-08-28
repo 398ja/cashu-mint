@@ -20,16 +20,16 @@ This guide shows how to map payment methods and units to gateway implementations
    - Prefer unit-specific mapping and keep a method fallback.
    ```properties
    # Unit-specific mapping takes precedence
-   gateway.bolt11.sat=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+   gateway.bolt11.sat=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
    # Fallback if no unit-specific mapping is found
-   gateway.bolt11=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+   gateway.bolt11=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
    ```
    - Environment overrides (highest precedence) — useful to switch gateways without editing files:
    ```bash
    # Unit-specific override
-   export GATEWAY_BOLT11_SAT=xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+   export GATEWAY_BOLT11_SAT=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
    # Or generic per-method override (applies to any unit if unit-specific is absent)
-   export GATEWAY_BOLT11=xyz.tcheeric.gateway.dummy.DummyGateway
+   export GATEWAY_BOLT11=xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
    ```
 3. Restart the mint so changes take effect.
 
@@ -43,7 +43,7 @@ This guide shows how to map payment methods and units to gateway implementations
 
 - Keep `mint.yaml` and `proto.properties` aligned: only advertise methods/units for which you have a gateway mapping.
 - Use different gateways per unit if needed (e.g., `usd` via a card processor, `sat` via LN).
-- The Docker Compose `dev` profile sets both `GATEWAY_BOLT11_SAT` and `GATEWAY_BOLT11` to the Dummy gateway class. Ensure your Dummy gateway supports Bolt11; otherwise, update the `cashu-gateway` project accordingly.
+- The dev Docker Compose stack sets both `GATEWAY_BOLT11_SAT` and `GATEWAY_BOLT11` to `PhoenixdGateway`, pointed at the `phoenixd-mock` service rather than a real Lightning node.
 
 ## See also
 - [Configuration](../reference/configuration.md)

@@ -16,9 +16,7 @@ import java.time.Instant;
  * {@code merchantDebitId}, {@code iouId}) are exposed via the optional
  * accessors below; callers narrow on {@link #fundingSource()} before
  * reading them.
- *
- * <p>Spec: {@code specs/003-voucher-quote-durability/data-model.md} §
- * VoucherFunding.
+
  */
 public interface VoucherFunding {
 

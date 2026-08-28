@@ -3,7 +3,7 @@
 This guide describes the configuration required so that the mint accepts
 payment webhooks safely and binds the `PENDING → PAID` transition to a
 durable, append-only `webhook_event` row keyed by `(provider, provider_event_id)`.
-The behaviour is mandated by spec 001 (`specs/001-mint-quote-webhook-integrity`).
+
 
 ## Mandatory shared secret in non-local profiles
 

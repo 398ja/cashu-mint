@@ -46,15 +46,16 @@ This activates the `integration-tests` profile which runs the Failsafe plugin ag
 
 ## E2E tests
 
-End-to-end tests are in the `cashu-mint-admin` submodule under `mint-admin-tests/e2e-tests`. They require the full dev stack to be running.
+End-to-end tests are in `cashu-mint-admin/mint-admin-tests/e2e-tests`. The suite
+starts its own stack via Testcontainers, so stop the dev stack first — it binds the
+same host ports.
 
 ```bash
-# Start the dev stack first
-docker compose -f docker-compose.dev.yml up -d
-
-# Run E2E tests
-mvn clean verify -pl cashu-mint-admin/mint-admin-tests/e2e-tests
+./mvnw verify -Pe2e-tests -pl cashu-mint-admin/mint-admin-tests/e2e-tests -am
 ```
+
+`-Pe2e-tests` builds the images the stack runs; `-am` builds the modules the test
+module depends on. Omitting either fails the build before any test runs.
 
 See [Run E2E tests](run-e2e-tests.md) for a more detailed guide.
 
@@ -76,7 +77,7 @@ View the report at `target/site/jacoco/index.html` in each module. The project t
 | Integration tests timeout | Docker services not running | Run `docker compose -f docker-compose.dev.yml up -d` |
 | Port already in use | Another process on 7777/3333/8080 | Stop the conflicting process or change ports via env vars |
 | Mockito inline-mock-maker warning | Known Java 21 issue | Harmless — tests still pass |
-| Preload data missing | Test data not generated | Run `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate` |
+| Preload data missing | Test data not generated | Run `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java` |
 
 ## See also
 

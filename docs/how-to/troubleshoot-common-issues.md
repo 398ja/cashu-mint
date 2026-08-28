@@ -55,10 +55,9 @@ Stop the conflicting service or change ports in the compose file.
 **Solution:**
 1. Check logs: `docker compose logs <service-name>`
 2. Verify the vault database is reachable before starting the mint.
-3. Ensure preload data has been seeded:
-   ```bash
-   docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault < scripts/preload-test-data.sql
-   ```
+3. Check the mint seeded the vault at startup: its log should carry
+   `Seeded the vault with mint ... keyset ...`, or say the keyset was already
+   present.
 
 ### Container Cannot Reach Host Services
 
@@ -76,7 +75,7 @@ Stop the conflicting service or change ports in the compose file.
 ```bash
 echo $GATEWAY_BOLT11_SAT
 # Should be a fully qualified class name, e.g.:
-# xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+# xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway
 ```
 
 ### Lightning Invoice Not Paid
@@ -116,14 +115,15 @@ echo $CASHU_VAULT_BASE_URL
 
 **Symptom:** `GET /v1/keysets` returns 500.
 
-**Solution:** The vault must have preloaded keyset data:
-```bash
-docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault < scripts/preload-test-data.sql
-```
+**Solution:** The vault holds no keyset for the mint. The mint seeds one at startup
+from `scripts/preload-test-data.json`; check its log for
+`Seeded the vault with mint ...` or a `Failed to seed the vault` warning naming the
+cause. An empty `{"keysets":[]}` rather than a 500 usually means the mint is
+reaching a different vault than the one the admin provisioned into.
 
-If running locally, generate preload data first:
+To regenerate the preload data:
 ```bash
-./mvnw -q -pl cashu-mint-tools -Ppreload-all validate
+./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java
 ```
 
 ## Test Issues

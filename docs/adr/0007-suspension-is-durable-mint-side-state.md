@@ -17,7 +17,7 @@ construction, and the check sits next to the archived-keyset check
 mint may refuse to issue are enforced in one place.
 
 It also keeps the mint authoritative about its own behaviour
-([ADR-0006](./0006-the-mint-is-authoritative.md)): the admin's record of a
+([ADR-0006](./0006-suspend-drains-rather-than-stops.md)): the admin's record of a
 suspension is a belief, and the mint's row is the fact.
 
 ## Consequences

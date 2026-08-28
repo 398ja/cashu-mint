@@ -206,8 +206,8 @@ model for I/O-bound work in the mint:
 
 ### VII. Data Minimisation and Customer-Identity Custody
 
-> **STATUS**: Ratified in 1.2.0 (spec 004 T010). The reference
-> implementation is in `specs/004-voucher-data-minimisation/` —
+> **STATUS**: Ratified in 1.2.0. The reference implementation is the
+> voucher identity layer (see `docs/runbooks/voucher-data-minimisation.md`) —
 > any new spec that touches customer or merchant identity in
 > durable storage MUST follow the same pattern (hash at rest +
 > time-bound retention + operator-side salt-aware forensics).
