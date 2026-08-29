@@ -4,8 +4,11 @@ import lombok.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
+import xyz.tcheeric.cashu.mint.proto.nut.CachedEndpoint;
 import xyz.tcheeric.cashu.mint.proto.nut.NutSupport;
 import xyz.tcheeric.cashu.mint.proto.service.MintInfoService;
+import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
+import xyz.tcheeric.cashu.mint.proto.util.AmountLimitPolicy;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.MintCapabilityProperties;
 import xyz.tcheeric.cashu.mint.proto.util.MintIdentityProperties;
@@ -28,17 +31,19 @@ import java.util.Map;
  * code that implements it, which is what keeps {@code /v1/info} and the mint from
  * drifting apart.
  *
+ * <p>The advertised amount limits are taken from the very {@link AmountLimitPolicy}
+ * this service installs for the quote paths to enforce, so the number a wallet
+ * reads from {@code /v1/info} is the number the mint rejects against.
+ *
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/06.md">NUT-06</a>
  */
 @Service
 public class DefaultMintInfoService implements MintInfoService {
 
-    private static final String CACHED_ENDPOINT_METHOD = "POST";
-    private static final List<String> CACHED_ENDPOINT_PATHS =
-            List.of("/v1/mint/bolt11", "/v1/swap", "/v1/melt/bolt11");
     private static final long MILLIS_PER_SECOND = 1000L;
 
     private final MintIdentityProperties identity;
+    private final AmountLimitPolicy amountLimits;
     private final MintCapabilityProperties capabilities;
     private final Clock clock;
 
@@ -54,6 +59,8 @@ public class DefaultMintInfoService implements MintInfoService {
         this.identity = identity;
         this.capabilities = capabilities;
         this.clock = clock;
+        this.amountLimits = new AmountLimitPolicy(capabilities);
+        AmountLimitContext.install(amountLimits);
     }
 
     @Override
@@ -110,7 +117,7 @@ public class DefaultMintInfoService implements MintInfoService {
         boolean melt = nut == NutSupport.MELT;
         MintInfo.Nut entry = new MintInfo.Nut();
         entry.setMethods(toAdvertisedMethods(
-                melt ? capabilities.getMeltMethods() : capabilities.getMintMethods()));
+                melt ? amountLimits.meltMethods() : amountLimits.mintMethods()));
         entry.setDisabled(melt ? capabilities.isMeltDisabled() : capabilities.isMintDisabled());
         if (melt) {
             entry.setFeeReservePercent(FeeConfig.getFeeReservePercent());
@@ -146,9 +153,14 @@ public class DefaultMintInfoService implements MintInfoService {
         return entry;
     }
 
+    /**
+     * NUT-19 lists exactly the routes that have a response cache behind them,
+     * because each {@link CachedEndpoint} names the store it replays from.
+     */
     private MintInfo.Nut cachedResponseEntry() {
-        List<MintInfo.Nut.CachedEndpoint> endpoints = CACHED_ENDPOINT_PATHS.stream()
-                .map(path -> new MintInfo.Nut.CachedEndpoint(CACHED_ENDPOINT_METHOD, path))
+        List<MintInfo.Nut.CachedEndpoint> endpoints = Arrays.stream(CachedEndpoint.values())
+                .map(endpoint -> new MintInfo.Nut.CachedEndpoint(
+                        endpoint.getHttpMethod(), endpoint.getPath()))
                 .toList();
         MintInfo.Nut entry = new MintInfo.Nut();
         entry.setTtl(capabilities.cachedResponseTtlSeconds());

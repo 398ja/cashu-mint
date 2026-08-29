@@ -90,12 +90,69 @@ Correctness is what the per-NUT behavioural tests are for, and where a NUT is
 known to diverge (see the [compliance audit](nut-compliance-audit.md)) the fix
 belongs in that NUT's own issue, not in a weakened advertisement.
 
-**The operational numbers are still hand-set.** `min_amount`, `max_amount` and
-the melt fee reserve come from deployment properties, and nothing forces them to
-match the limits the mint actually enforces. They are genuinely
-deployment-specific, so configuration is the right home, but this is the seam
-where the next drift will appear. If those limits ever become enforced in code,
-they should be derived from the enforcing component the same way the NUT list is.
+**The melt fee reserve is still hand-set.** `fee_reserve_percent` comes from
+`proto.properties` via `FeeConfig`, and while the melt path does apply it, the
+advertised number and the applied number reach the response by different routes.
+That is the remaining seam of this kind.
+
+## The advertised limits are the enforced limits
+
+`min_amount` and `max_amount` were the second half of the same defect, one layer
+down. They moved out of the YAML into `mint.capabilities.*` properties, which
+looked like progress, but nothing read them except the info endpoint. The mint
+advertised `max_amount: 10000` and would happily issue a quote for a million.
+The properties file even carried a comment saying the values "MUST match the
+limits the deployment actually enforces" - a hand-maintained promise, which is
+precisely what this work set out to eliminate.
+
+The fix is not a second check that agrees with the first. Both the advertisement
+and the enforcement now go through one object,
+[`AmountLimitPolicy`](../../cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/util/AmountLimitPolicy.java):
+
+- `DefaultMintInfoService` builds the NUT-04 and NUT-05 `methods` entries from
+  `policy.mintMethods()` and `policy.meltMethods()`.
+- `MintQuoteTask` calls `policy.requireWithinMintLimits` before it asks the
+  gateway for an invoice; `MeltQuoteTask` calls `requireWithinMeltLimits` once
+  the gateway has decoded the invoice amount.
+
+They read the same `PaymentMethodLimits` instances, so the advertised number *is*
+the enforced number. Raising `MINT_MAX_AMOUNT` raises both at once; there is no
+second place to keep in step. An over-limit request is refused with
+`amount_outside_limit_range`, and a unit the mint advertises no limits for at all
+is refused with `unit_not_supported` rather than waved through.
+
+Limits are matched on the unit rather than the payment method, because that is
+what the amount is denominated in. A mint that will issue at most 10 000 sat
+means that whichever rail carries the payment.
+
+## What NUT-19 may claim
+
+NUT-19's contract is narrow: a replayed request on a listed path returns the
+*cached response*, not an error. The cached-endpoint list used to be a bare
+`List.of(...)` of path strings, outside the witness mechanism entirely, and it
+named `/v1/swap`. `SwapTask` has no response cache; a replayed swap is rejected
+by `ValidateTransactionTask.rejectAlreadySignedOutputs` with
+`outputs_already_signed`. A wallet that read `/v1/info`, saw `/v1/swap` listed as
+cached, and safely retried an interrupted swap would have got an error instead of
+its signatures.
+
+Each route is now a
+[`CachedEndpoint`](../../cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/CachedEndpoint.java)
+constant naming the store it replays from: `/v1/mint/bolt11` witnessed by
+`IssuanceRecord.signaturesJson`, `/v1/melt/bolt11` by
+`MeltSaga.meltResponseCache`. A path cannot be advertised without naming a cache
+that exists.
+
+`/v1/swap` was dropped rather than given a cache. Both were on the table, and
+narrowing the claim won on asymmetry of harm: under-advertising costs a wallet
+one retry it could have made safely, while over-advertising costs it the retry it
+did make. A swap cache is also not a small change - it needs a durable store
+keyed on the outputs fingerprint and a replay path through the validator that
+distinguishes "these outputs were signed for this same request" from "these
+outputs were signed for a different one", which is the double-spend check itself.
+Shipping the honest advertisement now and the cache when it can be done properly
+is the safer order. When `SwapTask` gains that store, adding the enum constant
+with it as the witness is all the advertisement needs.
 
 ## See also
 

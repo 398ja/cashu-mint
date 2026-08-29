@@ -42,6 +42,8 @@ import static org.assertj.core.api.Assertions.fail;
  */
 class NutWiringContractTest {
 
+    private static final String SWAP_PATH = "/v1/swap";
+
     private static final String NUT_PACKAGE_SCAN_PATTERN =
             "classpath*:xyz/tcheeric/cashu/mint/proto/**/*.class";
 
@@ -102,16 +104,72 @@ class NutWiringContractTest {
         }
     }
 
-    // NUT-19 specifically: the melt saga has cached responses since spec 002, so
-    // the map must carry a ttl and at least one cached endpoint.
+    // NUT-19 must carry a ttl and advertise exactly the routes the registry
+    // declares, so the served list cannot name a path the registry never claimed.
     @Test
-    void nut19IsAdvertisedWithTtlAndCachedEndpoints() {
+    void nut19IsAdvertisedWithTtlAndTheDeclaredCachedEndpoints() {
         MintInfo.Nut nut19 = mintInfoService.getMintInfo().getNuts()
                 .get(NutSupport.CACHED_RESPONSES.key());
 
         assertThat(nut19).as("NUT-19 must be advertised; the mint caches melt responses").isNotNull();
         assertThat(nut19.getTtl()).as("NUT-19 ttl in seconds").isNotNull().isPositive();
-        assertThat(nut19.getCachedEndpoints()).as("NUT-19 cached_endpoints").isNotEmpty();
+
+        Set<String> advertisedPaths = nut19.getCachedEndpoints().stream()
+                .map(MintInfo.Nut.CachedEndpoint::getPath)
+                .collect(Collectors.toCollection(TreeSet::new));
+        Set<String> declaredPaths = java.util.Arrays.stream(CachedEndpoint.values())
+                .map(CachedEndpoint::getPath)
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        assertThat(advertisedPaths)
+                .as("NUT-19 cached_endpoints is derived from the CachedEndpoint registry; "
+                        + "a mismatch means the assembler invented or dropped a route")
+                .isEqualTo(declaredPaths)
+                .isNotEmpty();
+    }
+
+    // Every route advertised as cached must name a store that exists: a path
+    // cannot be advertised as replayable without the cache behind it.
+    @Test
+    void everyCachedEndpointHasItsCacheOnTheClasspath() {
+        for (CachedEndpoint endpoint : CachedEndpoint.values()) {
+            Class<?> witness = resolveCacheWitnessClass(endpoint);
+            boolean memberPresent = java.util.Arrays.stream(witness.getDeclaredMethods())
+                    .anyMatch(method -> method.getName().equals(endpoint.getWitnessMemberName()));
+            assertThat(memberPresent)
+                    .as("%s is advertised as NUT-19 cached on the strength of %s#%s, but that "
+                                    + "member is gone; either restore the cache or stop advertising "
+                                    + "the route",
+                            endpoint.getPath(), witness.getName(), endpoint.getWitnessMemberName())
+                    .isTrue();
+        }
+    }
+
+    // /v1/swap has no response cache: SwapTask rejects a replay with
+    // outputs_already_signed, so advertising it under NUT-19 would tell a wallet
+    // a retry is safe when it destroys the wallet's signatures.
+    @Test
+    void swapIsNotAdvertisedAsCachedWhileItHasNoCache() {
+        Set<String> advertisedPaths = mintInfoService.getMintInfo().getNuts()
+                .get(NutSupport.CACHED_RESPONSES.key())
+                .getCachedEndpoints().stream()
+                .map(MintInfo.Nut.CachedEndpoint::getPath)
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        assertThat(advertisedPaths)
+                .as("/v1/swap must not claim NUT-19 until SwapTask caches its responses")
+                .doesNotContain(SWAP_PATH);
+    }
+
+    private Class<?> resolveCacheWitnessClass(CachedEndpoint endpoint) {
+        try {
+            return Class.forName(endpoint.getWitnessClassName());
+        } catch (ClassNotFoundException e) {
+            return fail("%s is advertised as NUT-19 cached on the strength of %s, but that class "
+                            + "is not on the classpath; either restore the cache or stop "
+                            + "advertising the route",
+                    endpoint.getPath(), endpoint.getWitnessClassName());
+        }
     }
 
     private Class<?> resolveWitnessClass(NutSupport nut) {

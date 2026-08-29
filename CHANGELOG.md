@@ -6,6 +6,40 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **The amount limits `/v1/info` advertises are now the limits the mint enforces**
+  (issue #390). `min_amount` and `max_amount` had moved out of the packaged YAML
+  into `mint.capabilities.*` properties, but nothing read them except the info
+  endpoint: the mint advertised `max_amount: 10000` and would issue a quote for
+  any amount. The properties file carried a comment saying the values "MUST match
+  the limits the deployment actually enforces", which is the hand-maintained
+  promise the issue set out to eliminate.
+
+  Both halves now go through one `AmountLimitPolicy`. `DefaultMintInfoService`
+  builds the NUT-04/NUT-05 `methods` entries from it, and `MintQuoteTask` and
+  `MeltQuoteTask` enforce against the same `PaymentMethodLimits` instances, so
+  the advertised number is the enforced number by construction. An over-limit
+  request is refused with `amount_outside_limit_range`, and a unit the mint
+  advertises no limits for is refused with `unit_not_supported`. Mint requests
+  are rejected before the gateway is asked for an invoice; melt requests are
+  checked once the gateway has decoded the invoice amount.
+
+- **NUT-19 no longer advertises `/v1/swap`, which has no response cache**
+  (issue #390). The cached-endpoint list was a hardcoded `List.of(...)` outside
+  the wiring-witness mechanism, and it named `/v1/swap`. NUT-19 promises that a
+  replayed request returns the cached response; a replayed swap instead hits
+  `ValidateTransactionTask.rejectAlreadySignedOutputs` and fails with
+  `outputs_already_signed`. A wallet that read `/v1/info` and safely retried an
+  interrupted swap got an error instead of its signatures.
+
+  Cached routes are now `CachedEndpoint` constants, each naming the store it
+  replays from (`IssuanceRecord.signaturesJson` for `/v1/mint/bolt11`,
+  `MeltSaga.meltResponseCache` for `/v1/melt/bolt11`), resolved by reflection in
+  `NutWiringContractTest`, so a path cannot be advertised as cached without the
+  cache existing. `/v1/swap` was dropped rather than given a cache: a swap cache
+  needs a durable store keyed on the outputs fingerprint and a replay path
+  through the double-spend check, and over-advertising costs a wallet the retry
+  it actually made while under-advertising costs it only one it could have made.
+
 - **`mvn clean verify` from the repository root reaches `mint-admin-core`'s tests
   again** (issue #399). `KeyVault` gained `retrieveByAmount(BigInteger, String)`
   and `archive(String)` upstream, and the `RecordingKeyVault` test double in

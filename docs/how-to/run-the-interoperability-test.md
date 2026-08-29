@@ -24,8 +24,12 @@ adapter and the melt leg is answered by a scripted payment port.
 ## Run it
 
 ```bash
-./mvnw -pl cashu-mint-rest-it -Pintegration-tests -Dtest=NutshellInteropIT test
+./mvnw -pl cashu-mint-rest-it -Pintegration-tests -Dtest=NutshellInteropIT \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 ```
+
+The `failIfNoSpecifiedTests` flag is needed only so the reactor's other modules,
+which contain no test of this name, do not fail the build before this one runs.
 
 The test is not part of `mvn verify`: integration tests are skipped unless the
 `integration-tests` profile is active, as with every other IT in this module.
@@ -61,16 +65,24 @@ filed M10 to end.
 
 ## Known failures
 
-The mint leg now passes with Nutshell's own output split: the denomination rule
-was relaxed to what NUT-04 actually requires (issue #394). The swap leg still
-fails, and that is the expected state until the audit's later milestones land.
-See the audit's
-[implementation plan](../explanations/nut-compliance-audit.md#implementation-plan)
-for the sequencing.
+None. Both cases complete the full mint → swap → melt sequence, so Nutshell can
+mint our ecash, swap it and spend it back. That is the whole claim this test
+exists to settle.
 
-| Stage | Mint error | Related finding |
-| --- | --- | --- |
-| `swap` | `verify_proof_failed_error` | Consistent with L1, the `hash_to_curve` secret encoding: Nutshell's proofs verify for Nutshell but not for us. |
+Getting here took three fixes in sequence: the NUT-04 denomination rule was
+relaxed to what the spec actually requires (#394), the `hash_to_curve` secret
+encoding was corrected so Nutshell's proofs verify for us (#395/#396), and the
+swap was made to invalidate its inputs through the injected vault services
+rather than a vault client the task built for itself (#397).
 
-The mint leg succeeding is itself a result: Nutshell accepted and unblinded our
-blind signatures, so the BDHKE signing path interoperates.
+## Build the test classes from a clean state
+
+Surefire runs whatever is in `target/test-classes`, and the incremental compiler
+will leave a stale class there when a shared fixture changes. That produced a
+`NoClassDefFoundError` for `MeltProofFixture` that looked like a missing test
+fixture rather than a stale build. If the test fails to find a class it plainly
+references, rebuild before believing the failure:
+
+```bash
+rm -rf cashu-mint-rest-it/target/test-classes
+```

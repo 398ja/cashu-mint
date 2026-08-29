@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
@@ -101,17 +102,20 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         // gateway with — or persist — an invalid unit string (the JPA column is
         // NOT NULL and v1 clients expect a real unit, never blank).
         String requestedUnit = (unit == null || unit.isBlank()) ? null : unit;
-        Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
-                : mintProtocolService.createGateway(method, requestedUnit);
         if (amount > Integer.MAX_VALUE || amount <= 0) {
             throw new CashuErrorException(CashuErrorCode.invalid_quote_amount);
         }
+        String resolvedUnit = requestedUnit != null ? requestedUnit : resolveDefaultUnit();
+        // Issue #390: reject before touching the gateway what /v1/info says this
+        // mint will not issue, so the advertised max_amount is the enforced one.
+        AmountLimitContext.policy().requireWithinMintLimits(amount, resolvedUnit);
+        Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
+                : mintProtocolService.createGateway(method, requestedUnit);
         // Boundary cast: payment-adapter Gateway#createMintQuote still takes Integer.
         // Tracked cross-repo per spec 001 research R6 (Gateway interface migration).
         String quoteId = gateway.createMintQuote((int) amount, null);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
-        String resolvedUnit = requestedUnit != null ? requestedUnit : resolveDefaultUnit();
 
         if (mintQuoteRepository != null) {
             String resolvedMintUrl = mintUrl != null ? mintUrl : "";

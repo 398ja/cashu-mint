@@ -26,7 +26,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.IssuanceRecordJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
@@ -95,13 +95,11 @@ class ArchivedKeysetSigningIT extends AbstractMintDurableIT {
     // archived keyset.
     Mockito.doThrow(
             new CashuErrorException(
-                new ErrorResponse(
-                        "keyset_inactive",
-                        "Keyset "
-                            + TEST_KEYSET_ID
-                            + " is archived and no longer signs. "
-                            + "Re-read /v1/keys and retry against an active keyset.")
-                    .toJson()))
+                CashuErrorCode.keyset_inactive,
+                "Keyset "
+                    + TEST_KEYSET_ID
+                    + " is archived and no longer signs. "
+                    + "Re-read /v1/keys and retry against an active keyset."))
         .when(stub)
         .getPrivateKeyForSigning(Mockito.anyString(), Mockito.anyInt(), Mockito.any(Mint.class));
     MintProtocolServiceFactory.setInstance(stub);
