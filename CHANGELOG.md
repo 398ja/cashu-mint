@@ -4,6 +4,18 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mvn clean verify` from the repository root reaches `mint-admin-core`'s tests
+  again** (issue #399). `KeyVault` gained `retrieveByAmount(BigInteger, String)`
+  and `archive(String)` upstream, and the `RecordingKeyVault` test double in
+  `VaultProvisioningAdapterRotationTest` was never updated, so test-compile
+  failed. Incremental builds hid this because stale test classes still satisfied
+  the old interface. The double now answers both from the keys the rotation
+  actually wrote, matching the real vault's behaviour of throwing
+  `CashuErrorException` when nothing matches rather than returning null, and two
+  tests assert the rotation's keys are reachable the way the mint signs with them.
+
 ### Security
 
 - **A proof spent before the `hash_to_curve` correction is still detected as

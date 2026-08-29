@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
 import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort.RotationResult;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.vault.api.KeyVault;
 import xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient;
 import xyz.tcheeric.cashu.vault.db.client.VaultClient;
@@ -80,6 +82,40 @@ class VaultProvisioningAdapterRotationTest {
         rotateWith(new RecordingKeySetVaultClient(activeKeySet()), keyVault);
 
         assertEquals(DENOMINATIONS.size(), keyVault.stored.size());
+    }
+
+    /**
+     * Writing a key per denomination is only worth anything if the mint can then find
+     * it the way it signs: by amount within the new keyset. A rotation that wrote keys
+     * against the wrong keyset would still satisfy a count, so the lookup is asserted.
+     */
+    @Test
+    @DisplayName("A rotation's keys are retrievable by amount under the new keyset")
+    void writesKeysRetrievableByAmountUnderNewKeySet() throws CashuErrorException {
+        final RecordingKeyVault keyVault = new RecordingKeyVault();
+
+        final RotationResult result = rotateWith(new RecordingKeySetVaultClient(activeKeySet()), keyVault);
+
+        for (final int denomination : DENOMINATIONS) {
+            final KeyEntity key = keyVault.retrieveByAmount(
+                BigInteger.valueOf(denomination), result.newKeySetId());
+            assertEquals(BigInteger.valueOf(denomination), key.getAmount());
+        }
+    }
+
+    /**
+     * The mint asks for amounts a keyset does not cover, and the vault says so by
+     * throwing rather than by handing back a null the caller would dereference.
+     */
+    @Test
+    @DisplayName("An amount the new keyset does not cover is reported as missing")
+    void reportsMissingKeyForUncoveredAmount() {
+        final RecordingKeyVault keyVault = new RecordingKeyVault();
+
+        final RotationResult result = rotateWith(new RecordingKeySetVaultClient(activeKeySet()), keyVault);
+
+        assertThrows(CashuErrorException.class,
+            () -> keyVault.retrieveByAmount(BigInteger.valueOf(8), result.newKeySetId()));
     }
 
     /**
@@ -229,8 +265,41 @@ class VaultProvisioningAdapterRotationTest {
         }
 
         @Override
-        public KeyEntity retrieve(final String id) {
-            return null;
+        public KeyEntity retrieve(final String id) throws CashuErrorException {
+            return stored.stream()
+                .filter(key -> String.valueOf(key.getId()).equals(id))
+                .findFirst()
+                .orElseThrow(() -> new CashuErrorException("Key not found"));
+        }
+
+        /**
+         * The lookup the mint signs with, answered from the keys the rotation wrote.
+         * The real vault matches on amount within one keyset and throws when nothing
+         * matches, so a fake that answered null would let a rotation that wrote no
+         * usable key still look like it had.
+         */
+        @Override
+        public KeyEntity retrieveByAmount(final BigInteger amount, final String keySetId)
+            throws CashuErrorException {
+            return stored.stream()
+                .filter(key -> amount.equals(key.getAmount()))
+                .filter(key -> key.getKeySet() != null
+                    && keySetId.equals(key.getKeySet().getKeySetId()))
+                .findFirst()
+                .orElseThrow(() -> new CashuErrorException(
+                    "Key not found for amount: " + amount + " and keySetId: " + keySetId));
+        }
+
+        /**
+         * A key is retired by marking the row, never by removing it. A rotation does
+         * not archive keys itself, but a fake that silently succeeded here would hide
+         * a rotation that started doing so.
+         */
+        @Override
+        public KeyEntity archive(final String id) throws CashuErrorException {
+            final KeyEntity key = retrieve(id);
+            key.setArchived(true);
+            return key;
         }
 
         @Override
