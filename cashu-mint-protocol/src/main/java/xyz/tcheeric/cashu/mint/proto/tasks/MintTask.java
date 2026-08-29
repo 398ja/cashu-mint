@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
@@ -171,9 +172,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
         if (suspensions.isIssuanceSuspended(mint.getId())) {
             log.warn("mint_task issuance_refused reason=mint_suspended mint_id={}", mint.getId());
-            throw new CashuErrorException(new ErrorResponse("mint_suspended",
+            throw new CashuErrorException(CashuErrorCode.mint_suspended,
                     "This mint is suspended and is not issuing new tokens. "
-                            + "Existing tokens can still be swapped and melted.").toJson());
+                            + "Existing tokens can still be swapped and melted.");
         }
     }
 
@@ -190,9 +191,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         if (blindedMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
             log.warn("mint_task too_many_outputs count={} max={}",
                     blindedMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
-            ErrorResponse error = new ErrorResponse("too_many_outputs",
+                    throw new CashuErrorException(CashuErrorCode.too_many_outputs,
                     "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
-            throw new CashuErrorException(error.toJson());
         }
 
         // Spec 007 — reject a null output up front, before any stream/amount
@@ -203,8 +203,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // immutable List.of(...) lists used by unit-test callers).
         for (BlindedMessage output : blindedMessages) {
             if (output == null) {
-                throw new CashuErrorException(
-                        new ErrorResponse("mint_request_contains_null_output").toJson());
+                throw new CashuErrorException(CashuErrorCode.mint_request_contains_null_output);
             }
         }
 
@@ -236,7 +235,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                             quoteId, createdAt, ttlSeconds, expiresAt);
                     MetricRecorders.issuance().quoteExpired();
-                    throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+                    throw new CashuErrorException(CashuErrorCode.quote_expired);
                 }
             }
         } catch (CashuErrorException ce) {
@@ -313,8 +312,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
 
                 if (!paid) {
-                    ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-                    throw new CashuErrorException(error.toJson());
+                    throw new CashuErrorException(CashuErrorCode.mint_invoice_not_paid_error);
                 }
             }
 
@@ -330,7 +328,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 durableQuote = mintQuoteRepository.findById(quoteId).orElse(null);
                 if (durableQuote == null) {
                     log.warn("mint_task missing_durable_quote quote_id={}", quoteId);
-                    throw new CashuErrorException(new ErrorResponse("quote_not_found").toJson());
+                    throw new CashuErrorException(CashuErrorCode.quote_not_found);
                 }
                 long requestedTotal = blindedMessages.stream()
                         .mapToLong(BlindedMessage::getAmount)
@@ -339,9 +337,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
                             quoteId, durableQuote.amount(), requestedTotal);
                     MetricRecorders.issuance().amountMismatch();
-                    throw new CashuErrorException(
-                            new ErrorResponse("amount_mismatch",
-                                    "Sum of blinded output amounts must equal the quote amount").toJson());
+                    throw new CashuErrorException(CashuErrorCode.amount_mismatch,
+                                    "Sum of blinded output amounts must equal the quote amount");
                 }
 
                 // FR-010: cross-check the durable quote against the gateway's
@@ -366,7 +363,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                                     quoteId, createdAt, ttlSeconds, expiresAt);
                             MetricRecorders.issuance().quoteExpired();
-                            throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+                            throw new CashuErrorException(CashuErrorCode.quote_expired);
                         }
                     }
                 } catch (CashuErrorException ce) {
@@ -389,15 +386,13 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 } catch (RuntimeException e) {
                     log.error("mint_task gateway_cross_check_failed quote_id={}", quoteId, e);
                     MetricRecorders.issuance().crossCheckFailure();
-                    throw new CashuErrorException(
-                            new ErrorResponse("quote_amount_cross_check_failed").toJson());
+                    throw new CashuErrorException(CashuErrorCode.quote_amount_cross_check_failed);
                 }
                 if (gatewayAmount == null || gatewayAmount.longValue() != durableQuote.amount()) {
                     log.error("mint_task gateway_cross_check_mismatch quote_id={} durable={} gateway={}",
                             quoteId, durableQuote.amount(), gatewayAmount);
                     MetricRecorders.issuance().crossCheckFailure();
-                    throw new CashuErrorException(
-                            new ErrorResponse("quote_amount_cross_check_failed").toJson());
+                    throw new CashuErrorException(CashuErrorCode.quote_amount_cross_check_failed);
                 }
 
                 // Spec 007 — deterministic output validation MUST run before
@@ -422,7 +417,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     if (replay != null) {
                         return replay;
                     }
-                    throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+                    throw new CashuErrorException(CashuErrorCode.issuance_in_progress);
                 }
             }
 
@@ -445,8 +440,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     log.error("Voucher mint amount mismatch: quoteId={} expected={} actual={}",
                             quoteId, voucherFaceValue, totalBlindedAmount);
                     VoucherQuoteRegistry.removeFaceValue(quoteId); // Clean up on error
-                    ErrorResponse error = new ErrorResponse("mint_amount_mismatch");
-                    throw new CashuErrorException(error.toJson());
+                    throw new CashuErrorException(CashuErrorCode.mint_amount_mismatch);
                 }
 
                 log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
@@ -588,7 +582,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             LifecycleState state = refreshed.lifecycleState();
             if (state == LifecycleState.ISSUED) {
                 if (issuanceRecordRepository == null) {
-                    throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                    throw new CashuErrorException(CashuErrorCode.quote_already_issued);
                 }
                 IssuanceRecord existing = issuanceRecordRepository.findById(quoteId).orElse(null);
                 if (existing != null && existing.outputsHash().equals(outputsHash)) {
@@ -597,7 +591,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     MetricRecorders.issuance().idempotentReplay();
                     return decodeSignatures(existing.signaturesJson());
                 }
-                throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                throw new CashuErrorException(CashuErrorCode.quote_already_issued);
             }
             if (state != LifecycleState.ISSUING) {
                 // Some unexpected lifecycle (e.g. FAILED). Bail out.
@@ -637,7 +631,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             return replay;
         } catch (JsonProcessingException e) {
             log.error("[mint][replay] failed_to_decode_signatures", e);
-            throw new CashuErrorException(new ErrorResponse("internal_error").toJson());
+            throw new CashuErrorException(CashuErrorCode.internal_error);
         }
     }
 
@@ -682,7 +676,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         VoucherQuote quote = voucherRepo.findById(quoteId).orElse(null);
         if (quote == null) {
             log.warn("mint_task voucher_quote_missing quote_id={}", quoteId);
-            throw new CashuErrorException(new ErrorResponse("voucher_quote_not_found").toJson());
+            throw new CashuErrorException(CashuErrorCode.voucher_quote_not_found);
         }
 
         // Spec 003 review fix — single-issuance invariant. A second mint
@@ -692,15 +686,15 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         VoucherLifecycleState state = quote.lifecycleState();
         if (state == VoucherLifecycleState.ISSUED) {
             log.info("mint_task voucher_quote_already_issued quote_id={}", quoteId);
-            throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+            throw new CashuErrorException(CashuErrorCode.quote_already_issued);
         }
         if (state == VoucherLifecycleState.ISSUING) {
             log.info("mint_task voucher_issuance_in_progress quote_id={}", quoteId);
-            throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+            throw new CashuErrorException(CashuErrorCode.issuance_in_progress);
         }
         if (state == VoucherLifecycleState.EXPIRED || state == VoucherLifecycleState.FAILED) {
             log.info("mint_task voucher_quote_unavailable quote_id={} state={}", quoteId, state);
-            throw new CashuErrorException(new ErrorResponse("quote_expired").toJson());
+            throw new CashuErrorException(CashuErrorCode.quote_expired);
         }
 
         VoucherFunding funding = null;
@@ -727,7 +721,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         if (funding == null) {
             log.warn("mint_task voucher_funding_required quote_id={}", quoteId);
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FUNDING_REQUIRED);
-            throw new CashuErrorException(new ErrorResponse("funding_required").toJson());
+            throw new CashuErrorException(CashuErrorCode.funding_required);
         }
 
         // Spec 006 — fail-closed value-backing invariant + FR-006 IOU policy.
@@ -770,9 +764,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
                     quoteId, newState);
             if (newState == VoucherLifecycleState.ISSUED) {
-                throw new CashuErrorException(new ErrorResponse("quote_already_issued").toJson());
+                throw new CashuErrorException(CashuErrorCode.quote_already_issued);
             }
-            throw new CashuErrorException(new ErrorResponse("issuance_in_progress").toJson());
+            throw new CashuErrorException(CashuErrorCode.issuance_in_progress);
         }
     }
 
@@ -807,7 +801,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             + "face_value={} funding_amount={}",
                     quoteId, quote.faceValue(), funding.amount());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
-            throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
+            throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
 
         if (source == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.MERCHANT_IOU) {
@@ -826,7 +820,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 log.error("[voucher][alert] iou_not_permitted quote_id={} funding_id={} policy={}",
                         quoteId, funding.fundingId(), iouPolicy);
                 MetricRecorders.voucher().rejected(VoucherRejectionReason.IOU_NOT_PERMITTED);
-                throw new CashuErrorException(new ErrorResponse("iou_not_permitted").toJson());
+                throw new CashuErrorException(CashuErrorCode.iou_not_permitted);
             }
         }
 
@@ -838,7 +832,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             + "face_value={} funding_amount={} quote_unit={} funding_unit={}",
                     quoteId, source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
-            throw new CashuErrorException(new ErrorResponse("face_value_not_backed").toJson());
+            throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
     }
 
@@ -861,17 +855,17 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // controller surfaces a clean 4xx with the code rather than mapping a
         // raw-string exception to a misleading internal_error/500.
         if (blindedMessages == null || blindedMessages.isEmpty()) {
-            throw new CashuErrorException(new ErrorResponse("mint_request_missing_outputs").toJson());
+            throw new CashuErrorException(CashuErrorCode.mint_request_missing_outputs);
         }
 
         // Most mint requests use 1-2 keysets; use small initial capacity
         Map<String, List<Integer>> outputsByKeyset = new HashMap<>(4);
         for (BlindedMessage message : blindedMessages) {
             if (message == null) {
-                throw new CashuErrorException(new ErrorResponse("mint_request_contains_null_output").toJson());
+                throw new CashuErrorException(CashuErrorCode.mint_request_contains_null_output);
             }
             if (message.getKeySetId() == null) {
-                throw new CashuErrorException(new ErrorResponse("missing_keyset_id").toJson());
+                throw new CashuErrorException(CashuErrorCode.missing_keyset_id);
             }
             int amount = message.getAmount();
             // Dalia Phase 9: the zero-value IOU keyset issues only amount==0 markers and is exempt
@@ -879,12 +873,12 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             KeySet messageKeySet = findKeySet(mint, message.getKeySetId().toString());
             if (IouKeysets.isIouKeyset(messageKeySet)) {
                 if (amount != 0) {
-                    throw new CashuErrorException(new ErrorResponse("invalid_iou_amount").toJson());
+                    throw new CashuErrorException(CashuErrorCode.invalid_iou_amount);
                 }
                 continue;
             }
             if (amount <= 0) {
-                throw new CashuErrorException(new ErrorResponse("invalid_output_amount").toJson());
+                throw new CashuErrorException(CashuErrorCode.invalid_output_amount);
             }
             outputsByKeyset
                     .computeIfAbsent(message.getKeySetId().toString(), ignored -> new ArrayList<>())
@@ -896,7 +890,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             Set<Integer> offeredDenominations = offeredDenominations(keySet);
             for (Integer amount : entry.getValue()) {
                 if (!offeredDenominations.contains(amount)) {
-                    throw new CashuErrorException(new ErrorResponse("invalid_denominations").toJson());
+                    throw new CashuErrorException(CashuErrorCode.invalid_denominations);
                 }
             }
         }
@@ -943,6 +937,6 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         return mint.getKeySets().stream()
                 .filter(keySet -> keysetId.equals(keySet.getId()))
                 .findFirst()
-                .orElseThrow(() -> new CashuErrorException("keyset_not_found"));
+                .orElseThrow(() -> new CashuErrorException(CashuErrorCode.keyset_not_found));
     }
 }

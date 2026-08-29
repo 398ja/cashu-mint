@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
@@ -88,10 +89,9 @@ public final class MintProtocolUtil {
         KeySetEntity keySet = requireKeySet(keySetId);
         if (keySet.isArchived()) {
             log.warn("Refusing to sign with archived keyset: keySetId={}", keySetId);
-            ErrorResponse error = new ErrorResponse("keyset_inactive",
+            throw new CashuErrorException(CashuErrorCode.keyset_inactive,
                     "Keyset " + keySetId + " is archived and no longer signs. "
                             + "Re-read /v1/keys and retry against an active keyset.");
-            throw new CashuErrorException(error.toJson());
         }
         return retrieveKey(keySet, amount);
     }
@@ -100,8 +100,8 @@ public final class MintProtocolUtil {
         KeySetVaultClient keySetClient = VaultClientFactory.keySetClient();
         KeySetEntity keySet = keySetClient.getByKeySetId(keySetId);
         if (keySet == null || keySet.getId() == null) {
-            throw new CashuErrorException(new ErrorResponse("keyset_not_found",
-                    "Keyset " + keySetId + " is not known to this mint.").toJson());
+            throw new CashuErrorException(CashuErrorCode.keyset_not_found,
+                    "Keyset " + keySetId + " is not known to this mint.");
         }
         return keySet;
     }
@@ -123,7 +123,7 @@ public final class MintProtocolUtil {
         xyz.tcheeric.cashu.vault.db.client.KeySetVaultClient ksc = xyz.tcheeric.cashu.vault.api.VaultClientFactory.keySetClient();
         xyz.tcheeric.cashu.vault.db.model.KeySetEntity kse = ksc.getByKeySetId(keySetId);
         if (kse == null || kse.getId() == null) {
-            throw new CashuErrorException("keyset_not_found");
+            throw new CashuErrorException(CashuErrorCode.keyset_not_found);
         }
         // Route through VaultClientFactory.keyVault() so the active backend
         // (HASHICORP on staging/prod, DB in tests) is honoured. Directly

@@ -214,11 +214,8 @@ public class ValidateTransactionTask<T extends Secret> extends InstrumentedTask<
         }
     }
 
-    /**
-     * Raises the error under the key that {@link CashuErrorCode} maps to the spec's numeric code,
-     * so the payload gains that number without further change when the wire format migrates.
-     */
+    /** Raises the failure under its {@link CashuErrorCode}, which carries the spec's numeric code. */
     private CashuErrorException error(CashuErrorCode code) {
-        return new CashuErrorException(new ErrorResponse(code.getKey(), code.getDefaultDetail()).toJson());
+        return new CashuErrorException(code);
     }
 }

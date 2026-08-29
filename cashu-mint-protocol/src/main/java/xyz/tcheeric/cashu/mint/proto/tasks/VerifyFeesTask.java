@@ -43,8 +43,7 @@ public class VerifyFeesTask<T extends Secret> extends InstrumentedTask<Void> {
         if (sum_inputs - fees != sum_outputs) {
             log.warn("verify_fees transaction_not_balanced inputs={} fees={} outputs={}",
                     sum_inputs, fees, sum_outputs);
-            throw new CashuErrorException(new ErrorResponse(CashuErrorCode.transaction_not_balanced.getKey(),
-                    CashuErrorCode.transaction_not_balanced.getDefaultDetail()).toJson());
+            throw new CashuErrorException(CashuErrorCode.transaction_not_balanced);
         }
     }
 }

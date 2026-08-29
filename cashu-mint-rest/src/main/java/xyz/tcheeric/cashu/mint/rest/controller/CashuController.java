@@ -60,7 +60,6 @@ import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
 
 import org.springframework.lang.Nullable;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.UUID;
 
@@ -181,7 +180,8 @@ public class CashuController<T extends Secret> implements org.springframework.co
         log.debug("swap_controller mint_resolved request_id={} mint_id={}", requestId, mintId);
 
         try {
-            PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService);
+            PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService,
+                    mintVaultService, proofVaultService);
             long duration = System.currentTimeMillis() - startTime;
 
             if (response == null) {
@@ -300,7 +300,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
             // Spec 036 — emit MINT_FAILED for the unpaid/invalid-invoice rejection,
             // then rethrow unchanged so the existing @ExceptionHandler produces the
             // same HTTP response (FR-014). Other reject codes are not traced here.
-            if (isInvoiceNotPaid(e.getMessage())) {
+            if (hasCode(e, CashuErrorCode.mint_invoice_not_paid_error)) {
                 publishTraceMintFailed(request, "mint_invoice_not_paid_error", e.getMessage());
             }
             throw e;
@@ -397,7 +397,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
             // NOT traced as released. Carries the released inputs the controller already
             // holds, then rethrows unchanged (FR-014). Validation rejects and the
             // parked-unknown path (payment_unknown) are not traced here either.
-            if (isMeltInvoiceNotPaid(e.getMessage())) {
+            if (hasCode(e, CashuErrorCode.melt_invoice_not_paid_error)) {
                 publishTraceMeltFailed(request, "melt_invoice_not_paid_error", e.getMessage());
             }
             throw e;
@@ -582,14 +582,14 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 java.time.Instant.now()));
     }
 
-    /** True when the error payload carries the NUT-04 unpaid-invoice code. Package-private for tests. */
-    static boolean isInvoiceNotPaid(String message) {
-        return message != null && message.contains("mint_invoice_not_paid_error");
-    }
-
-    /** True when the error payload carries the NUT-05 melt payment-failure code. Package-private for tests. */
-    static boolean isMeltInvoiceNotPaid(String message) {
-        return message != null && message.contains("melt_invoice_not_paid_error");
+    /**
+     * True when the failure carries the given code.
+     *
+     * <p>This used to search the message text for the code's name, which matched any error whose
+     * detail happened to mention it. The code is a field now, so the question is answered exactly.
+     */
+    static boolean hasCode(CashuErrorException ex, CashuErrorCode code) {
+        return ex != null && ex.getErrorCode() == code;
     }
 
     // ---- Helpers ----
@@ -681,106 +681,35 @@ public class CashuController<T extends Secret> implements org.springframework.co
     /**
      * NUT-02 {@code 12001 Keyset is not known}.
      *
-     * <p>Declared ahead of the generic {@link CashuErrorException} handler because the generic one
-     * recovers its code by parsing the exception message as JSON, and this exception carries a
-     * plain sentence. Spring picks the most specific handler, so the typed code is used directly
-     * rather than being lost to a failed parse and reported as an internal error.
+     * <p>A dedicated handler only because the exception type is its own; the status and numeric
+     * code come from {@link CashuErrorCode} exactly as they do for every other failure. The
+     * ordering hazard this handler used to carry — it had to precede the generic one, whose code
+     * came from parsing the message as JSON — is gone with the parsing.
      */
     @ExceptionHandler(UnknownKeySetException.class)
     public ResponseEntity<ErrorResponse> handleUnknownKeySet(UnknownKeySetException ex) {
         log.warn("keyset_not_known keyset_id={}", ex.getKeySetId());
-        return new ResponseEntity<>(
-                new ErrorResponse(CashuErrorCode.keyset_not_known.name(), ex.getMessage()),
-                HttpStatus.valueOf(CashuErrorCode.keyset_not_known.getHttpStatus()));
+        return respond(CashuErrorCode.keyset_not_known, ex.getMessage());
     }
 
+    /**
+     * Every Cashu protocol failure, reported as the NUT-00 error body.
+     *
+     * <p>NUT-00 &sect; 0.2 says a mint answers a protocol error with {@code 400}. The status is an
+     * attribute of {@link CashuErrorCode}, so the handler reads it off the code rather than
+     * remembering a mapping: the deliberate exceptions ({@code mint_suspended} to 503,
+     * {@code quote_not_found} to 404) live with the code that earns them. A failure carrying no
+     * code is a fault of ours, not a verdict on the request, and is reported as {@code 500}.
+     */
     @ExceptionHandler(CashuErrorException.class)
     public ResponseEntity<ErrorResponse> handleCashuError(CashuErrorException ex) {
-        ObjectMapper mapper = new ObjectMapper();
-
-        // Try to recover the original JSON from the exception's detailMessage
-        String rawMessage = ex.getMessage();
-        try {
-            Field detailMessageField = Throwable.class.getDeclaredField("detailMessage");
-            detailMessageField.setAccessible(true);
-            Object value = detailMessageField.get(ex);
-            if (value instanceof String s) {
-                rawMessage = s;
-            }
-        } catch (Exception ignore) {
-            // Fallbacks below will handle parsing if reflection is not allowed
+        CashuErrorCode code = ex.hasErrorCode() ? ex.getErrorCode() : CashuErrorCode.internal_error;
+        if (code.getHttpStatus() >= 500) {
+            log.error("cashu_error code={} detail={}", code.getCode(), ex.getMessage(), ex);
+        } else {
+            log.warn("cashu_error code={} detail={}", code.getCode(), ex.getMessage());
         }
-
-        ErrorResponse error;
-        try {
-            // Prefer parsing the recovered raw message
-            error = mapper.readValue(rawMessage, ErrorResponse.class);
-        } catch (Exception parsePrimary) {
-            try {
-                // If that failed, try parsing getMessage() directly in case it actually contains JSON
-                error = mapper.readValue(ex.getMessage(), ErrorResponse.class);
-            } catch (Exception parseFallback) {
-                // Last resort: generic internal error payload
-                error = new ErrorResponse("internal_error");
-            }
-        }
-
-        // Decide status from the parsed error code first (typed contract),
-        // then fall back to message hints, then a 500 default.
-        HttpStatus status;
-        String code = error.code() == null ? "" : error.code();
-        switch (code) {
-            case "insufficient_input":
-            case "amount_mismatch":
-            case "invalid_quote_amount":
-            case "quote_amount_cross_check_failed":
-            case "quote_already_issued":
-            case "issuance_in_progress":
-            // Spec 007 — deterministic output-shape validation failures
-            // (MintTask.validateDenominations) plus the voucher face-value
-            // output-sum mismatch are client errors, not server faults.
-            case "invalid_output_amount":
-            case "invalid_denominations":
-            case "missing_keyset_id":
-            case "mint_request_missing_outputs":
-            case "mint_request_contains_null_output":
-            case "mint_amount_mismatch":
-            // An archived keyset is a client error: the wallet asked to be signed
-            // against a retired keyset and should re-read /v1/keys and retry.
-            case "keyset_inactive":
-            // error_codes.md protocol validations shared by swap/mint/melt. Each is decidable
-            // from the request alone, so all are client errors.
-            case "outputs_already_signed":   // 11003
-            case "transaction_not_balanced": // 11005
-            case "duplicate_inputs":         // 11007
-            case "duplicate_outputs":        // 11008
-            case "multiple_units":           // 11009
-            case "inputs_outputs_unit_mismatch": // 11010
-                status = HttpStatus.BAD_REQUEST;
-                break;
-            // A suspended mint is temporarily not issuing; the wallet should retry
-            // later rather than treat this as a permanent client error.
-            case "mint_suspended":
-                status = HttpStatus.SERVICE_UNAVAILABLE;
-                break;
-            case "quote_not_found":
-            // An unknown keyset is a different recovery from an archived one: there is
-            // nothing to retry against, so it must not read as keyset_inactive.
-            case "keyset_not_found":
-                status = HttpStatus.NOT_FOUND;
-                break;
-            default:
-                String message = ex.getMessage();
-                String normalized = message == null ? "" : message.trim();
-                if (normalized.equalsIgnoreCase("not found") || normalized.toLowerCase().contains("not found")) {
-                    status = HttpStatus.NOT_FOUND;
-                } else {
-                    status = HttpStatus.INTERNAL_SERVER_ERROR;
-                }
-                break;
-        }
-
-        return new ResponseEntity<>(error, status);
+        return new ResponseEntity<>(ErrorResponse.from(ex), HttpStatus.valueOf(code.getHttpStatus()));
     }
 
     /**
@@ -794,13 +723,15 @@ public class CashuController<T extends Secret> implements org.springframework.co
     @ExceptionHandler(MalformedP2PKSecretException.class)
     public ResponseEntity<ErrorResponse> handleMalformedP2PKSecret(MalformedP2PKSecretException ex) {
         log.warn("verify_proof_failed_error malformed_p2pk_secret: {}", ex.getMessage());
-        return new ResponseEntity<>(new ErrorResponse("verify_proof_failed_error"), HttpStatus.BAD_REQUEST);
+        return respond(CashuErrorCode.verify_proof_failed_error, ex.getMessage());
     }
 
     /**
      * A malformed P2PK lock in the request body is rejected inside Jackson, so it reaches us wrapped
      * in {@link HttpMessageNotReadableException} rather than as itself. Unwrap it to the same
-     * unspendable-proof error; anything else stays an ordinary unreadable-body 400, as before.
+     * unspendable-proof error; anything else is a body the mint cannot parse. The NUT-00 registry
+     * has no code for an unparseable request, so the payload keeps {@code internal_error} as it
+     * always has, but the status stays 400: the mint is intact, the request was not.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
@@ -810,19 +741,29 @@ public class CashuController<T extends Secret> implements org.springframework.co
             }
         }
         log.warn("unreadable request body: {}", ex.getMessage());
-        return new ResponseEntity<>(new ErrorResponse("internal_error"), HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(
+                ErrorResponse.of(CashuErrorCode.internal_error, "Request body could not be parsed"),
+                HttpStatus.BAD_REQUEST);
     }
 
-    // Map gateway 404 on payment lookup to a structured "invoice not paid" error per NUT-04
+    /** A gateway 404 on payment lookup means the invoice is not paid, per NUT-04. */
     @ExceptionHandler(HttpClientErrorException.NotFound.class)
     public ResponseEntity<ErrorResponse> handleGatewayNotFound(HttpClientErrorException.NotFound ex) {
-        ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-        return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+        return respond(CashuErrorCode.mint_invoice_not_paid_error);
     }
 
     @ExceptionHandler(InvoiceNotPaidException.class)
     public ResponseEntity<ErrorResponse> handleInvoiceNotPaid(InvoiceNotPaidException ex) {
-        ErrorResponse error = new ErrorResponse("mint_invoice_not_paid_error");
-        return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+        return respond(CashuErrorCode.mint_invoice_not_paid_error);
+    }
+
+    private static ResponseEntity<ErrorResponse> respond(CashuErrorCode code) {
+        return new ResponseEntity<>(ErrorResponse.of(code), HttpStatus.valueOf(code.getHttpStatus()));
+    }
+
+    private static ResponseEntity<ErrorResponse> respond(CashuErrorCode code, String detail) {
+        return detail == null || detail.isBlank()
+                ? respond(code)
+                : new ResponseEntity<>(ErrorResponse.of(code, detail), HttpStatus.valueOf(code.getHttpStatus()));
     }
 }

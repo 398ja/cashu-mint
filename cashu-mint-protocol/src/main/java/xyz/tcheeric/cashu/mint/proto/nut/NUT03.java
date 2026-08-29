@@ -10,6 +10,8 @@ import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.SwapTask;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
 import java.util.UUID;
@@ -45,6 +47,23 @@ public final class NUT03 {
                                                            @NonNull MintLoadService mintLoadService,
                                                            @NonNull SignatureVaultService signatureVaultService) throws CashuErrorException {
         return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService).execute();
+    }
+
+    /**
+     * Swaps using caller-supplied vault services.
+     *
+     * <p>The swap invalidates its input proofs against the same vault the rest of the request
+     * used. Letting the task reach for its own vault client would bind the spend to a different
+     * vault than the one wired into the running mint.
+     */
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
+                                                           @NonNull PostSwapRequest<T> postSwapRequest,
+                                                           @NonNull MintLoadService mintLoadService,
+                                                           @NonNull SignatureVaultService signatureVaultService,
+                                                           @NonNull MintVaultService mintVaultService,
+                                                           @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
+        return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
+                mintVaultService, proofVaultService).execute();
     }
 
 }

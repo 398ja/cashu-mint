@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 
@@ -33,7 +34,7 @@ public class DefaultSignatureVaultService implements SignatureVaultService {
     @Override
     public void store(BlindedMessage message, BlindSignature signature) throws CashuErrorException {
         if (message == null || signature == null) {
-            throw new CashuErrorException("store_invalid_arguments");
+            throw new CashuErrorException(CashuErrorCode.internal_error, "Signature store called with invalid arguments");
         }
 
         String key = message.getBlindedMessage().toString();
@@ -71,7 +72,7 @@ public class DefaultSignatureVaultService implements SignatureVaultService {
     @Override
     public BlindSignature retrieve(BlindedMessage message) throws CashuErrorException {
         if (message == null) {
-            throw new CashuErrorException("retrieve_invalid_arguments");
+            throw new CashuErrorException(CashuErrorCode.internal_error, "Signature retrieval called with invalid arguments");
         }
 
         String key = message.getBlindedMessage().toString();

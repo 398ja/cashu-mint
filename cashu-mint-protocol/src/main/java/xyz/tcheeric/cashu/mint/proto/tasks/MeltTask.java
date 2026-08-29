@@ -7,6 +7,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -197,21 +198,17 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                 // Model B enforcement: Reject voucher secrets in melt operations
                 if (isVoucherSecret(proof.getSecret())) {
                     log.warn("Voucher secret rejected in melt operation (Model B enforcement)");
-                    ErrorResponse error = new ErrorResponse(
-                        "voucher_not_accepted",
+                    throw new CashuErrorException(CashuErrorCode.voucher_not_accepted,
                         "Vouchers cannot be melted at mint (Model B). " +
                         "Please redeem with issuing merchant."
                     );
-                    throw new CashuErrorException(error.toJson());
                 }
 
                 // Dalia Phase 9: zero-value IOU proofs cannot be melted (cashed out). Checked per
                 // proof, so a mixed IOU+value melt cannot slip an IOU proof past a first-proof check.
                 var proofKeySet = mintLoadService.keySet(proof.getKeySetId());
                 if (IouKeysets.isIouKeyset(proofKeySet)) {
-                    ErrorResponse error = new ErrorResponse(
-                        "iou_not_meltable", "Zero-value IOU tokens cannot be melted.");
-                    throw new CashuErrorException(error.toJson());
+                    throw new CashuErrorException(CashuErrorCode.iou_not_meltable, "Zero-value IOU tokens cannot be melted.");
                 }
 
                 // Dalia Phase 9: enforce NUT-11 P2PK spend conditions at redemption (melt), not just at
@@ -224,8 +221,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                 }
 
                 if (!verify(proof)) {
-                    ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
-                    throw new CashuErrorException(error.toJson());
+                    throw new CashuErrorException(CashuErrorCode.melt_proof_verification_error);
                 }
             }
 
@@ -288,7 +284,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         if (existing != null && !existing.currentState().isTerminal()) {
             log.warn("melt_in_progress quote_id={} saga_id={} state={}",
                     quoteId, existing.meltSagaId(), existing.currentState());
-            throw new CashuErrorException(new ErrorResponse("melt_in_progress").toJson());
+            throw new CashuErrorException(CashuErrorCode.melt_in_progress);
         }
 
         String sagaId = UUID.randomUUID().toString();
@@ -307,7 +303,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         } catch (org.springframework.dao.DataIntegrityViolationException race) {
             log.warn("melt_in_progress race_lost quote_id={} attempted_saga_id={} cause={}",
                     quoteId, sagaId, race.getMessage());
-            throw new CashuErrorException(new ErrorResponse("melt_in_progress").toJson());
+            throw new CashuErrorException(CashuErrorCode.melt_in_progress);
         }
         meltSagaRepository.recordTransition(sagaId, null, MeltSagaState.PROOFS_HELD,
                 "initial transition", "system");
@@ -329,7 +325,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // No vault write happened yet — nothing to release. Fail closed
             // with the spec-005 terminal error before any payment.
             releaseAndFailClosed(sagaId, quoteId);
-            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
+            throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
         int bound;
         try {
@@ -342,7 +338,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // the original cause is logged here.
             log.error("melt_saga proof_pending_failed quote_id={} saga_id={}", quoteId, sagaId, e);
             releaseAndFailClosed(sagaId, quoteId);
-            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
+            throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
         if (bound < proofsToMelt.size()) {
             // FR-006 fail-closed: insufficient durable hold (a proof was
@@ -351,7 +347,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             log.warn("[melt-saga] proofs_not_bound quote_id={} saga_id={} expected={} bound={}",
                     quoteId, sagaId, proofsToMelt.size(), bound);
             releaseAndFailClosed(sagaId, quoteId);
-            throw new CashuErrorException(new ErrorResponse("proofs_not_bound").toJson());
+            throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
 
         // FR-008: typed payment outcome.
@@ -413,11 +409,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     MeltSagaState.PAYMENT_SENT_BURN_FAILED);
             meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT,
                     MeltSagaState.PAYMENT_SENT_BURN_FAILED, invalidateError.getMessage(), "system");
-            ErrorResponse burnError = new ErrorResponse("melt_proof_pending_error",
+            ErrorResponse burnError = ErrorResponse.of(CashuErrorCode.melt_proof_pending_error,
                     "payment sent but burn failed: " + invalidateError.getMessage());
             cacheTerminalError(sagaId, burnError);
             throw invalidateError instanceof CashuErrorException ce ? ce
-                    : new CashuErrorException(burnError.toJson());
+                    : new CashuErrorException(CashuErrorCode.melt_proof_pending_error, burnError.detail());
         }
 
         meltSagaRepository.casState(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED);
@@ -595,10 +591,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         // PENDING, so downstream consumers (e.g. the spec 036 forensic trace)
         // MUST NOT record them as released/retryable — operator tooling reconciles
         // the terminal-FAILED saga. HTTP status is unchanged (both map to 5xx).
-        String code = refundConfirmed ? "melt_invoice_not_paid_error" : "melt_proof_refund_failed";
-        ErrorResponse error = new ErrorResponse(code, failure.reason());
-        cacheTerminalError(sagaId, error);
-        throw new CashuErrorException(error.toJson());
+        CashuErrorCode code = refundConfirmed
+                ? CashuErrorCode.melt_invoice_not_paid_error
+                : CashuErrorCode.melt_proof_refund_failed;
+        cacheTerminalError(sagaId, ErrorResponse.of(code, failure.reason()));
+        throw new CashuErrorException(code, failure.reason());
     }
 
     private PostMeltResponse parkInUnknown(String sagaId, String quoteId,
@@ -615,9 +612,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             log.warn("melt_saga_provider_metadata_write_failed saga_id={} cause={}",
                     sagaId, e.getMessage());
         }
-        throw new CashuErrorException(new ErrorResponse(
-                "payment_unknown",
-                "Payment provider response was ambiguous; saga parked for operator review").toJson());
+        throw new CashuErrorException(CashuErrorCode.payment_unknown,
+                "Payment provider response was ambiguous; saga parked for operator review");
     }
 
     /**
@@ -631,15 +627,13 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             throws CashuErrorException {
         gateway.pay(quoteId);
         if (!gateway.checkPaymentStatus(quoteId)) {
-            ErrorResponse error = new ErrorResponse("melt_invoice_not_paid_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.melt_invoice_not_paid_error);
         }
         try {
             persistPendingProofs(proofsToMelt);
         } catch (CashuErrorException | RuntimeException e) {
             log.error("Failed to mark proofs as pending for melt quote {}", quoteId, e);
-            ErrorResponse error = new ErrorResponse("melt_proof_pending_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error);
         }
         createInvalidateProofsTask(proofsToMelt).execute();
         return new PostMeltResponse(true, gateway.getPaymentPreimage(quoteId));
@@ -710,8 +704,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                         proof.getUnblindedSignature().getBytes());
             } catch (IllegalArgumentException | NullPointerException e) {
                 log.error("melt_verify_crypto_error", e);
-                ErrorResponse error = new ErrorResponse("melt_proof_verification_error");
-                throw new CashuErrorException(error.toJson());
+                throw new CashuErrorException(CashuErrorCode.melt_proof_verification_error);
             }
         }
         return false;
@@ -794,7 +787,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             log.warn("[melt-saga] proofs_not_bound transition_write_failed quote_id={} saga_id={} cause={}",
                     quoteId, sagaId, e.getMessage());
         }
-        cacheTerminalError(sagaId, new ErrorResponse("proofs_not_bound"));
+        cacheTerminalError(sagaId, ErrorResponse.of(CashuErrorCode.proofs_not_bound));
     }
 
     protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {

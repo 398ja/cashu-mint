@@ -4,6 +4,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
@@ -103,7 +104,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, requestedUnit);
         if (amount > Integer.MAX_VALUE || amount <= 0) {
-            throw new CashuErrorException("invalid_quote_amount");
+            throw new CashuErrorException(CashuErrorCode.invalid_quote_amount);
         }
         // Boundary cast: payment-adapter Gateway#createMintQuote still takes Integer.
         // Tracked cross-repo per spec 001 research R6 (Gateway interface migration).
@@ -128,7 +129,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
             } catch (RuntimeException e) {
                 log.error("mint_quote_persist_failed quote_id={} amount={} unit={}",
                         quoteId, amount, resolvedUnit, e);
-                throw new CashuErrorException("mint_quote_persist_failed");
+                throw new CashuErrorException(CashuErrorCode.internal_error, "Mint quote could not be persisted");
             }
         }
 

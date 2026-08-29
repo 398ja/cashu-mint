@@ -7,15 +7,20 @@ import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
@@ -34,6 +39,8 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final PostSwapRequest<T> request;
     private final MintLoadService mintLoadService;
     private final SignatureVaultService signatureVaultService;
+    private final MintVaultService mintVaultService;
+    private final ProofVaultService proofVaultService;
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -45,10 +52,22 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                     @NonNull PostSwapRequest<T> request,
                     @NonNull MintLoadService mintLoadService,
                     @NonNull SignatureVaultService signatureVaultService) {
+        this(mintId, request, mintLoadService, signatureVaultService,
+                new DefaultMintVaultService(), new DefaultProofVaultService());
+    }
+
+    public SwapTask(@NonNull UUID mintId,
+                    @NonNull PostSwapRequest<T> request,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService) {
         this.mintId = mintId;
         this.request = request;
         this.mintLoadService = mintLoadService;
         this.signatureVaultService = signatureVaultService;
+        this.mintVaultService = mintVaultService;
+        this.proofVaultService = proofVaultService;
     }
 
     @Override
@@ -62,24 +81,21 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (inputProofs != null && inputProofs.size() > SecurityLimits.MAX_PROOFS) {
             log.warn("swap_task too_many_inputs count={} max={}",
                     inputProofs.size(), SecurityLimits.MAX_PROOFS);
-            ErrorResponse error = new ErrorResponse("too_many_inputs",
+                    throw new CashuErrorException(CashuErrorCode.too_many_inputs,
                     "Maximum " + SecurityLimits.MAX_PROOFS + " inputs allowed");
-            throw new CashuErrorException(error.toJson());
         }
 
         if (outputMessages != null && outputMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
             log.warn("swap_task too_many_outputs count={} max={}",
                     outputMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
-            ErrorResponse error = new ErrorResponse("too_many_outputs",
+                    throw new CashuErrorException(CashuErrorCode.too_many_outputs,
                     "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
-            throw new CashuErrorException(error.toJson());
         }
 
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {
             log.error("Mint not found");
-            ErrorResponse error = new ErrorResponse("swap_mint_not_found");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.swap_mint_not_found);
         }
 
         // Dalia Phase 9: zero-value IOU proofs cannot be swapped (issuance + checkstate only), and
@@ -125,7 +141,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
             PostSwapResponse response = new PostSwapResponse(blindSignatures);
 
-            new InvalidateProofsTask<>(mint, proofsToSwap).execute();
+            new InvalidateProofsTask<>(mint, proofsToSwap, mintVaultService, proofVaultService).execute();
 
             return response;
         }
@@ -145,16 +161,14 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (inputs != null) {
             for (Proof<T> proof : inputs) {
                 if (isIouKeysetId(mint, String.valueOf(proof.getKeySetId()))) {
-                    throw new CashuErrorException(new ErrorResponse(
-                            "iou_not_swappable", "Zero-value IOU tokens cannot be swapped.").toJson());
+                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Zero-value IOU tokens cannot be swapped.");
                 }
             }
         }
         if (outputs != null) {
             for (BlindedMessage output : outputs) {
                 if (isIouKeysetId(mint, String.valueOf(output.getKeySetId()))) {
-                    throw new CashuErrorException(new ErrorResponse(
-                            "iou_not_swappable", "Cannot swap into the zero-value IOU keyset.").toJson());
+                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Cannot swap into the zero-value IOU keyset.");
                 }
             }
         }
@@ -184,9 +198,8 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (hasVoucherProofs && hasRegularProofs) {
             log.warn("swap_task mixed_proof_types_rejected voucher_count={} regular_count={}",
                     voucherCount, proofs.size() - voucherCount);
-            ErrorResponse error = new ErrorResponse("mixed_proof_types_error",
+                    throw new CashuErrorException(CashuErrorCode.mixed_proof_types_error,
                     "Cannot mix voucher and regular proofs in same operation");
-            throw new CashuErrorException(error.toJson());
         }
 
         if (hasVoucherProofs) {
@@ -210,17 +223,15 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
         if (totalOutput != totalInput) {
             log.warn("swap_task voucher_amount_mismatch input={} output={}", totalInput, totalOutput);
-            ErrorResponse error = new ErrorResponse("voucher_split_amount_mismatch",
+            throw new CashuErrorException(CashuErrorCode.voucher_split_amount_mismatch,
                     String.format("Voucher split amounts must match: input=%d output=%d", totalInput, totalOutput));
-            throw new CashuErrorException(error.toJson());
         }
 
         // Validate all outputs have positive amounts
         for (BlindedMessage output : outputs) {
             if (output.getAmount() <= 0) {
-                ErrorResponse error = new ErrorResponse("invalid_output_amount",
+                throw new CashuErrorException(CashuErrorCode.invalid_output_amount,
                         "Output amounts must be positive");
-                throw new CashuErrorException(error.toJson());
             }
         }
 

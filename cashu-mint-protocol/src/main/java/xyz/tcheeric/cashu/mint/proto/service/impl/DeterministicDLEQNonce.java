@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import lombok.NonNull;
 import org.bouncycastle.math.ec.ECPoint;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
@@ -58,9 +59,8 @@ final class DeterministicDLEQNonce {
                 return candidate;
             }
         }
-        throw new CashuErrorException(
-                new ErrorResponse("dleq_nonce_derivation_failed",
-                        "No deterministic DLEQ nonce found within the NUT-12 counter range").toJson());
+        throw new CashuErrorException(CashuErrorCode.internal_error,
+                        "No deterministic DLEQ nonce found within the NUT-12 counter range");
     }
 
     private static byte[] nonceMessage(ECPoint publicKey, ECPoint blindedMessage, ECPoint blindSignature) {
@@ -98,8 +98,7 @@ final class DeterministicDLEQNonce {
             mac.init(new SecretKeySpec(key, HMAC_ALGORITHM));
             return mac.doFinal(message);
         } catch (GeneralSecurityException e) {
-            throw new CashuErrorException(
-                    new ErrorResponse("dleq_nonce_derivation_failed", "HMAC-SHA256 unavailable").toJson());
+            throw new CashuErrorException(CashuErrorCode.internal_error, "HMAC-SHA256 unavailable");
         }
     }
 }

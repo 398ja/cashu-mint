@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
@@ -43,23 +44,20 @@ public final class BurnAmountValidator {
     public static void requireFunded(long proofSum, long invoiceAmount, long exactFeeReserve)
             throws CashuErrorException {
         if (invoiceAmount <= 0 || exactFeeReserve < 0 || proofSum < 0) {
-            throw new CashuErrorException(new ErrorResponse(
-                    "insufficient_input",
-                    "Amount fields must be non-negative; invoice must be positive").toJson());
+            throw new CashuErrorException(CashuErrorCode.insufficient_input,
+                    "Amount fields must be non-negative; invoice must be positive");
         }
         long required;
         try {
             required = Math.addExact(invoiceAmount, exactFeeReserve);
         } catch (ArithmeticException overflow) {
-            throw new CashuErrorException(new ErrorResponse(
-                    "insufficient_input",
-                    "Invoice + fee reserve overflows long").toJson());
+            throw new CashuErrorException(CashuErrorCode.insufficient_input,
+                    "Invoice + fee reserve overflows long");
         }
         if (proofSum < required) {
-            throw new CashuErrorException(new ErrorResponse(
-                    "insufficient_input",
+            throw new CashuErrorException(CashuErrorCode.insufficient_input,
                     String.format("sum(proofs)=%d < invoice=%d + feeReserve=%d (need %d)",
-                            proofSum, invoiceAmount, exactFeeReserve, required)).toJson());
+                            proofSum, invoiceAmount, exactFeeReserve, required));
         }
     }
 }

@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.common.nut12.DLEQProof;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Signature;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
@@ -98,9 +99,8 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
         if (voucherMode) {
             // Voucher mode: derive key dynamically for arbitrary amounts
             if (voucherMasterSecret == null || voucherMasterSecret.isEmpty()) {
-                ErrorResponse error = new ErrorResponse("voucher_master_secret_missing",
+                throw new CashuErrorException(CashuErrorCode.voucher_master_secret_missing,
                         "Voucher mode requires a master secret for key derivation");
-                throw new CashuErrorException(error.toJson());
             }
             privateKey = VoucherKeyDerivation.deriveKeyForAmount(voucherMasterSecret, blindedMessage.getAmount());
             if (log.isDebugEnabled()) {
@@ -115,10 +115,9 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
         }
 
         if (privateKey == null) {
-            ErrorResponse error = new ErrorResponse("sign_private_key_not_found");
-            log.warn("Private key not found for amount={} keySetId={}",
+                        log.warn("Private key not found for amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId());
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.sign_private_key_not_found);
         }
 
         // PrivateKey implements AutoCloseable, but keyset keys are shared/cached
@@ -170,11 +169,9 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                 hexPreview = hexPreview.substring(0, 24) + "...";
             }
             int len = (signature == null ? -1 : signature.length);
-            ErrorResponse error = new ErrorResponse(
-                    "invalid_blind_signature",
+            throw new CashuErrorException(CashuErrorCode.invalid_blind_signature,
                     String.format("invalid signature: len=%d hex=%s", len, hexPreview)
             );
-            throw new CashuErrorException(error.toJson());
         }
 
         if (log.isDebugEnabled()) {
@@ -228,8 +225,8 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
             MetricRecorders.dleq().generationFailed();
             log.error("DLEQ proof generation failed for amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId(), e);
-            throw new CashuErrorException(new ErrorResponse("dleq_generation_failed",
-                    "Unable to produce the NUT-12 DLEQ proof for this blind signature").toJson());
+            throw new CashuErrorException(CashuErrorCode.dleq_generation_failed,
+                    "Unable to produce the NUT-12 DLEQ proof for this blind signature");
         }
     }
 

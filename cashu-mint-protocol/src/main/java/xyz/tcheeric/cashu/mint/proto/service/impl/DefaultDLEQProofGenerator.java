@@ -5,6 +5,7 @@ import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.nut12.DLEQProof;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator;
@@ -52,9 +53,8 @@ public class DefaultDLEQProofGenerator implements DLEQProofGenerator {
     private static void requireScalarInRange(BigInteger privateKey, BigInteger curveOrder)
             throws CashuErrorException {
         if (privateKey.signum() <= 0 || privateKey.compareTo(curveOrder) >= 0) {
-            throw new CashuErrorException(
-                    new ErrorResponse("dleq_private_key_out_of_range",
-                            "DLEQ proof requires a private key in [1, n)").toJson());
+            throw new CashuErrorException(CashuErrorCode.internal_error,
+                            "DLEQ proof requires a private key in [1, n)");
         }
     }
 
@@ -70,8 +70,7 @@ public class DefaultDLEQProofGenerator implements DLEQProofGenerator {
             return MessageDigest.getInstance("SHA-256")
                     .digest(concatenated.toString().getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException e) {
-            throw new CashuErrorException(
-                    new ErrorResponse("dleq_generation_failed", "SHA-256 unavailable").toJson());
+            throw new CashuErrorException(CashuErrorCode.internal_error, "SHA-256 unavailable");
         }
     }
 
