@@ -154,7 +154,7 @@ public class AdminLifecycleService {
     private static KeySetResponse toKeySetResponse(final VaultKeySet keySet) {
         return new KeySetResponse(keySet.keySetId(), keySet.unit(),
                 keySet.archived() ? KeySetResponse.ARCHIVED : KeySetResponse.SIGNING,
-                keySet.createdAt());
+                keySet.createdAt(), keySet.inputFeePpk());
     }
 
     private MintDetailResponse toDetailResponse(final MintAggregate aggregate) {
@@ -284,6 +284,12 @@ public class AdminLifecycleService {
         configuration.forEach((key, value) -> {
             if (value instanceof String str && !str.isBlank()) {
                 params.put(key, str);
+            } else if (value instanceof Number number) {
+                // Configuration is stored as strings, but an operator writing a numeric
+                // setting such as "cashu.input_fee_ppk": 100 sends a JSON number. Keeping
+                // only strings dropped it silently, so the mint was provisioned without
+                // the setting and nothing said so.
+                params.put(key, number.toString());
             }
         });
         return java.util.Map.copyOf(params);

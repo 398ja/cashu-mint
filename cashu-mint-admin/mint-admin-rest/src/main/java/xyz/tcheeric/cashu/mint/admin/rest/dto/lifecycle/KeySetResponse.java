@@ -20,7 +20,13 @@ public record KeySetResponse(
     String state,
 
     @Schema(description = "When the vault first stored the keyset")
-    Instant createdAt
+    Instant createdAt,
+
+    @Schema(description = "NUT-02 fee charged per thousand inputs spent from this keyset, "
+        + "0 when it charges nothing. Fixed for the life of the keyset: changing a fee "
+        + "rotates the keyset rather than editing it (ADR-0009), so an archived keyset "
+        + "shows the fee its proofs are still redeemed at", example = "0")
+    int inputFeePpk
 ) {
     /**
      * SIGNING rather than ACTIVE: a mint is separately ACTIVE or SUSPENDED, and one word

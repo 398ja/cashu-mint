@@ -58,10 +58,12 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
     }
 
     @Override
-    public void provision(final UUID mintId, final String unit, final List<Integer> denominations) {
+    public void provision(final UUID mintId, final String unit, final List<Integer> denominations,
+                          final int inputFeePpk) {
         Objects.requireNonNull(mintId, "mint id must not be null");
         Objects.requireNonNull(unit, "unit must not be null");
         Objects.requireNonNull(denominations, "denominations must not be null");
+        requireValidFee(inputFeePpk);
 
         final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
         final KeySetVaultClient keySetClient = keySetClientSupplier.get();
@@ -85,19 +87,21 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
 
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
-        final KeySetEntity keySetEntity = storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
+        final KeySetEntity keySetEntity =
+            storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity, inputFeePpk);
         storeKeyEntities(mintId, unit, denominations, keySetEntity);
 
-        log.info("Vault provisioned for mint {} with keyset {}", mintId, keySetId);
+        log.info("Vault provisioned for mint {} with keyset {} at {} ppk", mintId, keySetId, inputFeePpk);
     }
 
     @Override
     public RotationResult rotate(final UUID mintId, final String unit, final List<Integer> denominations,
-                                 final String rotationId) {
+                                 final String rotationId, final int inputFeePpk) {
         Objects.requireNonNull(mintId, "mint id must not be null");
         Objects.requireNonNull(unit, "unit must not be null");
         Objects.requireNonNull(denominations, "denominations must not be null");
         Objects.requireNonNull(rotationId, "rotation id must not be null");
+        requireValidFee(inputFeePpk);
 
         final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
         final KeySetVaultClient keySetClient = keySetClientSupplier.get();
@@ -126,7 +130,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         final UUID keySetRowId = keyGenerator.deterministicId(mintId, unit, keySetId);
         try {
             final KeySetEntity keySetEntity =
-                storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity);
+                storeKeySetEntity(keySetClient, keySetRowId, keySetId, unit, mintEntity, inputFeePpk);
             storeKeyEntities(mintId, unit, denominations, keySetEntity, rotationId);
         } catch (final Exception e) {
             // The predecessors are already archived, so failing here would leave the
@@ -138,9 +142,23 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
 
         final List<String> supersededIds = superseded.stream().map(KeySetEntity::getKeySetId).toList();
-        log.info("Vault keyset rotated for mint {} unit {}: {} replaces {}",
-            mintId, unit, keySetId, supersededIds);
+        log.info("Vault keyset rotated for mint {} unit {}: {} at {} ppk replaces {}",
+            mintId, unit, keySetId, inputFeePpk, supersededIds);
         return new RotationResult(keySetId, supersededIds);
+    }
+
+    /**
+     * A fee must be a non-negative number of parts per thousand.
+     *
+     * <p>Rejected here rather than at the vault, because a negative fee would pay the
+     * spender to transact: the balance equation {@code sum(inputs) - fees == sum(outputs)}
+     * would let outputs exceed inputs, and the mint would issue value it never received.
+     */
+    private void requireValidFee(final int inputFeePpk) {
+        if (inputFeePpk < 0) {
+            throw new IllegalArgumentException(
+                "input fee ppk must not be negative. Got: " + inputFeePpk);
+        }
     }
 
     private void archiveAll(final KeySetVaultClient keySetClient, final List<KeySetEntity> keySets) {
@@ -236,11 +254,13 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                                             final UUID keySetRowId,
                                             final String keySetId,
                                             final String unit,
-                                            final MintEntity mintEntity) {
+                                            final MintEntity mintEntity,
+                                            final int inputFeePpk) {
         final KeySetEntity entity = new KeySetEntity();
         entity.setId(keySetRowId);
         entity.setKeySetId(keySetId);
         entity.setUnit(unit);
+        entity.setInputFeePpk(inputFeePpk);
         entity.setMint(mintEntity);
         try {
             return keySetClient.store(entity);

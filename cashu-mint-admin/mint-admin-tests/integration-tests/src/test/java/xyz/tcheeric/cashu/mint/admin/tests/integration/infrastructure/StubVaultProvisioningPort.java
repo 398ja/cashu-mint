@@ -21,7 +21,8 @@ public class StubVaultProvisioningPort implements VaultProvisioningPort {
     public record Invocation(String method, UUID mintId) {}
 
     @Override
-    public void provision(final UUID mintId, final String unit, final List<Integer> denominations) {
+    public void provision(final UUID mintId, final String unit, final List<Integer> denominations,
+                          final int inputFeePpk) {
         invocations.add(new Invocation("provision", mintId));
         if (shouldFail.get()) {
             throw new RuntimeException("Stub vault provisioning failure");
@@ -30,7 +31,8 @@ public class StubVaultProvisioningPort implements VaultProvisioningPort {
 
     @Override
     public RotationResult rotate(final UUID mintId, final String unit,
-                                 final List<Integer> denominations, final String rotationId) {
+                                 final List<Integer> denominations, final String rotationId,
+                                 final int inputFeePpk) {
         invocations.add(new Invocation("rotate", mintId));
         if (shouldFail.get()) {
             throw new RuntimeException("Stub vault rotation failure");

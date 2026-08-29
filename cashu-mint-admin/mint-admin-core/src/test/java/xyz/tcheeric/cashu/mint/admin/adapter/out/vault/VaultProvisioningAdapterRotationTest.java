@@ -40,6 +40,9 @@ class VaultProvisioningAdapterRotationTest {
     private static final String UNIT = "sat";
     private static final List<Integer> DENOMINATIONS = List.of(1, 2, 4);
 
+    /** These tests are about rotation ordering, not pricing, so the keysets are free. */
+    private static final int NO_FEE = 0;
+
     /**
      * The regression this test exists for. The vault allows a mint one *active* keyset
      * per unit, so storing the replacement while its predecessor is still active is
@@ -163,7 +166,7 @@ class VaultProvisioningAdapterRotationTest {
 
     new VaultProvisioningAdapter(
             new StubKeyGenerator(), () -> vault, RecordingKeyVault::new, StubMintVaultClient::new)
-        .provision(MINT_ID, UNIT, DENOMINATIONS);
+        .provision(MINT_ID, UNIT, DENOMINATIONS, NO_FEE);
 
     assertTrue(vault.calls.isEmpty());
   }
@@ -171,7 +174,7 @@ class VaultProvisioningAdapterRotationTest {
   private RotationResult rotateWith(final KeySetVaultClient keySetClient, final KeyVault keyVault) {
         final var adapter = new VaultProvisioningAdapter(
             new StubKeyGenerator(), () -> keySetClient, () -> keyVault, StubMintVaultClient::new);
-        return adapter.rotate(MINT_ID, UNIT, DENOMINATIONS, "rotation-1");
+        return adapter.rotate(MINT_ID, UNIT, DENOMINATIONS, "rotation-1", NO_FEE);
     }
 
     /** Answers for the mint row without reaching a vault over the network. */

@@ -39,8 +39,17 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
     private static final Logger log = LoggerFactory.getLogger(VaultProvisioningOutboxHandler.class);
     private static final String DEFAULT_UNIT = "sat";
     private static final List<Integer> DEFAULT_DENOMINATIONS = List.of(1, 2, 4, 8, 16, 32, 64, 128);
+
+    /**
+     * Fees are off unless an operator configures one, so a mint that says nothing about
+     * fees behaves exactly as it did before fees existed. Turning fees on by default
+     * would start charging every wallet that had not been told to expect it.
+     */
+    private static final int DEFAULT_INPUT_FEE_PPK = 0;
+
     private static final String CONFIG_UNIT = "cashu.unit";
     private static final String CONFIG_DENOMINATIONS = "cashu.denominations";
+    private static final String CONFIG_INPUT_FEE_PPK = "cashu.input_fee_ppk";
 
     private static final String KEYS_ROTATED_EVENT = ExecuteOperationalControlsInteractor.KEYS_ROTATED_EVENT;
     private static final String CONTROL_ID_ATTRIBUTE = ExecuteOperationalControlsInteractor.CONTROL_ID_ATTRIBUTE;
@@ -99,7 +108,7 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
         final List<Integer> denominations = resolveDenominations(mintId);
 
         try {
-            vaultPort.provision(mintUuid, unit, denominations);
+            vaultPort.provision(mintUuid, unit, denominations, resolveInputFeePpk(mintId));
             transitionToProvisioned(mintId, message);
         } catch (final Exception e) {
             final int attempts = message.deliveryAttempts() + 1;
@@ -127,16 +136,21 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
 
         final String unit = resolveUnit(mintId);
         final List<Integer> denominations = resolveDenominations(mintId);
+        // Read fresh, because a rotation is how a fee changes (ADR-0009): the operator
+        // updates the configured fee and rotates, and the replacement keyset carries the
+        // new one while the keyset it supersedes goes on redeeming at the old.
+        final int inputFeePpk = resolveInputFeePpk(mintId);
 
         try {
             // Keyed on the control id, so a redelivered message derives the same
             // keyset instead of minting a second one.
             final VaultProvisioningPort.RotationResult result =
-                vaultPort.rotate(mintUuid, unit, denominations, controlId);
+                vaultPort.rotate(mintUuid, unit, denominations, controlId, inputFeePpk);
             recordRotationOutcome(controlId, "KEY_ROTATION_COMPLETED",
-                "Keyset " + result.newKeySetId() + " replaces " + result.previousKeySetIds());
-            log.info("Key rotation completed for mint {}: {} replaces {}",
-                mintId.asString(), result.newKeySetId(), result.previousKeySetIds());
+                "Keyset " + result.newKeySetId() + " at " + inputFeePpk + " ppk replaces "
+                    + result.previousKeySetIds());
+            log.info("Key rotation completed for mint {}: {} at {} ppk replaces {}",
+                mintId.asString(), result.newKeySetId(), inputFeePpk, result.previousKeySetIds());
         } catch (final Exception e) {
             final int attempts = message.deliveryAttempts() + 1;
             if (attempts >= maxRetries) {
@@ -272,5 +286,37 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
             }
         }
         return DEFAULT_DENOMINATIONS;
+    }
+
+    /**
+     * The NUT-02 fee the mint's keyset charges, in parts per thousand inputs.
+     *
+     * <p>An unreadable or negative value falls back to charging nothing rather than
+     * failing provisioning: a mint that cannot be provisioned serves nobody, whereas one
+     * provisioned free of charge is exactly the mint an operator had before configuring a
+     * fee. The bad value is logged so the operator can see the fee did not take effect.
+     */
+    private int resolveInputFeePpk(final MintId mintId) {
+        final List<ConfigurationSet> configs = configurationSetRepository.findByMintId(mintId);
+        if (configs.isEmpty()) {
+            return DEFAULT_INPUT_FEE_PPK;
+        }
+        final String configured = configs.getLast().parameters().get(CONFIG_INPUT_FEE_PPK);
+        if (configured == null || configured.isBlank()) {
+            return DEFAULT_INPUT_FEE_PPK;
+        }
+        try {
+            final int fee = Integer.parseInt(configured.trim());
+            if (fee < 0) {
+                log.warn("Ignoring negative {} of {} for mint {}; provisioning free of charge",
+                    CONFIG_INPUT_FEE_PPK, fee, mintId.asString());
+                return DEFAULT_INPUT_FEE_PPK;
+            }
+            return fee;
+        } catch (final NumberFormatException e) {
+            log.warn("Ignoring unreadable {} of '{}' for mint {}; provisioning free of charge",
+                CONFIG_INPUT_FEE_PPK, configured, mintId.asString());
+            return DEFAULT_INPUT_FEE_PPK;
+        }
     }
 }

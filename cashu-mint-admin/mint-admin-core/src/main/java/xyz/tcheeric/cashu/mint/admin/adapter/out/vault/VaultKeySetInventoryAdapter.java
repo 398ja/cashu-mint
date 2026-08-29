@@ -94,6 +94,6 @@ public class VaultKeySetInventoryAdapter implements KeySetInventoryPort {
 
     private static VaultKeySet describe(final KeySetEntity keySet) {
         return new VaultKeySet(keySet.getKeySetId(), keySet.getUnit(),
-            keySet.getCreatedAt(), keySet.isArchived());
+            keySet.getCreatedAt(), keySet.isArchived(), keySet.getInputFeePpk());
     }
 }

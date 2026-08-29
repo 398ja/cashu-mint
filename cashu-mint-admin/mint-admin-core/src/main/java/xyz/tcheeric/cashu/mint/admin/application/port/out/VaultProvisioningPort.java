@@ -12,8 +12,13 @@ public interface VaultProvisioningPort {
      * Provisions a mint entity, keyset, and key entries in the vault.
      * Implementations must be idempotent: if a resource already exists
      * (409 Conflict), it is treated as success.
+     *
+     * @param inputFeePpk NUT-02 fee charged per thousand inputs spent from the keyset.
+     *                    Zero charges nothing, which is what a mint does unless an
+     *                    operator configures otherwise. The fee is fixed for the life
+     *                    of the keyset; changing it is a rotation (ADR-0009).
      */
-    void provision(UUID mintId, String unit, List<Integer> denominations);
+    void provision(UUID mintId, String unit, List<Integer> denominations, int inputFeePpk);
 
     /**
      * Checks whether the vault already contains provisioned material for the mint.
@@ -38,9 +43,14 @@ public interface VaultProvisioningPort {
      * @param unit unit the keyset serves
      * @param denominations denominations the new keyset must cover
      * @param rotationId operational control id driving this rotation
+     * @param inputFeePpk fee the new keyset charges. A rotation is how a fee changes
+     *                    (ADR-0009), so the replacement may be priced differently from
+     *                    the keyset it supersedes; proofs already issued keep the old
+     *                    fee, because the archived keyset goes on redeeming them.
      * @return the new and previous keyset ids
      */
-    RotationResult rotate(UUID mintId, String unit, List<Integer> denominations, String rotationId);
+    RotationResult rotate(UUID mintId, String unit, List<Integer> denominations, String rotationId,
+                          int inputFeePpk);
 
     /**
      * Outcome of a rotation, carried into the audit trail so an operator can

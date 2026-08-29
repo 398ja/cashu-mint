@@ -34,8 +34,14 @@ public interface KeySetInventoryPort {
      * @param createdAt when the vault first stored it
      * @param archived whether the mint has retired it from signing; an archived keyset
      *                 still verifies and redeems indefinitely (ADR-0004)
+     * @param inputFeePpk NUT-02 fee charged per thousand inputs spent from this keyset,
+     *                    zero when it charges nothing. Fixed for the life of the keyset:
+     *                    a fee change is a rotation (ADR-0009), so an operator comparing
+     *                    this against an archived keyset is reading the fee its proofs
+     *                    are still redeemed at
      */
-    record VaultKeySet(String keySetId, String unit, Instant createdAt, boolean archived) {
+    record VaultKeySet(String keySetId, String unit, Instant createdAt, boolean archived,
+                       int inputFeePpk) {
     }
 
     /**

@@ -102,9 +102,9 @@ class KeySetInventoryAdminControllerTest {
     void signingKeySetLeadsThenArchivedNewestFirst() throws Exception {
         final Instant now = Instant.parse("2026-08-28T10:00:00Z");
         given(keySetInventory.listByMint(UUID.fromString(MINT_ID))).willReturn(List.of(
-            new VaultKeySet("00oldest", "sat", now.minusSeconds(7200), true),
-            new VaultKeySet("00signing", "sat", now.minusSeconds(60), false),
-            new VaultKeySet("00middle", "sat", now.minusSeconds(3600), true)));
+            new VaultKeySet("00oldest", "sat", now.minusSeconds(7200), true, 0),
+            new VaultKeySet("00signing", "sat", now.minusSeconds(60), false, 0),
+            new VaultKeySet("00middle", "sat", now.minusSeconds(3600), true, 0)));
 
         mockMvc.perform(get(PATH).with(TestNapSessions.superAdmin()))
                 .andExpect(status().isOk())
@@ -117,16 +117,18 @@ class KeySetInventoryAdminControllerTest {
 
     // The vault stores private keys; nothing that leaves the adapter may be able to carry one.
     @Test
-    @DisplayName("A keyset row carries its id, unit and creation time, and nothing else")
+    @DisplayName("A keyset row carries its id, unit, creation time and fee, and nothing else")
     void rowCarriesNoKeyMaterial() throws Exception {
         given(keySetInventory.listByMint(any())).willReturn(List.of(
-            new VaultKeySet("00signing", "sat", Instant.parse("2026-08-28T10:00:00Z"), false)));
+            new VaultKeySet("00signing", "sat", Instant.parse("2026-08-28T10:00:00Z"), false, 100)));
 
         mockMvc.perform(get(PATH).with(TestNapSessions.superAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].unit").value("sat"))
                 .andExpect(jsonPath("$.items[0].createdAt").value("2026-08-28T10:00:00Z"))
-                .andExpect(jsonPath("$.items[0].length()").value(4));
+                // The fee an operator configured, so they can see what the mint charges.
+                .andExpect(jsonPath("$.items[0].inputFeePpk").value(100))
+                .andExpect(jsonPath("$.items[0].length()").value(5));
     }
 
     /**

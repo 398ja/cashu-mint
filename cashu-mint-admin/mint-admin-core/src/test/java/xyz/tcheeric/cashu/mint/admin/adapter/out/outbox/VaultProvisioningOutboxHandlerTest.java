@@ -264,23 +264,28 @@ class VaultProvisioningOutboxHandlerTest {
         List<Integer> lastDenominations;
 
         final List<String> rotations = new ArrayList<>();
+        int lastInputFeePpk;
 
         @Override
         public RotationResult rotate(final UUID mintId, final String unit,
-                                     final List<Integer> denominations, final String rotationId) {
+                                     final List<Integer> denominations, final String rotationId,
+                                     final int inputFeePpk) {
             if (shouldFail) throw new RuntimeException("vault unavailable");
             rotations.add(rotationId);
             lastUnit = unit;
             lastDenominations = denominations;
+            lastInputFeePpk = inputFeePpk;
             return new RotationResult("newkeyset-" + rotationId, List.of("oldkeyset"));
         }
 
         @Override
-        public void provision(final UUID mintId, final String unit, final List<Integer> denominations) {
+        public void provision(final UUID mintId, final String unit, final List<Integer> denominations,
+                              final int inputFeePpk) {
             if (shouldFail) throw new RuntimeException("vault unavailable");
             provisionedMints.add(mintId);
             lastUnit = unit;
             lastDenominations = denominations;
+            lastInputFeePpk = inputFeePpk;
         }
 
         @Override
