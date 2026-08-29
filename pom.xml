@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.33.0</version>
+    <version>0.34.0</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -44,7 +44,7 @@
 
         <!-- Cashu Ecosystem Versions -->
         <cashu-lib.version>0.27.0</cashu-lib.version>
-        <payment-adapter.version>0.13.0</payment-adapter.version>
+        <payment-adapter.version>0.14.0</payment-adapter.version>
         <cashu-vault.version>0.11.0</cashu-vault.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
         <cashu-mint.version>0.33.0</cashu-mint.version>
@@ -99,8 +99,8 @@
         <jqwik.version>1.8.0</jqwik.version>
 
         <!-- External tool versions -->
-        <phoenixd-java.version>0.1.4</phoenixd-java.version>
-        <phoenixd-mock.version>0.1.4</phoenixd-mock.version>
+        <phoenixd-java.version>0.3.0</phoenixd-java.version>
+        <phoenixd-mock.version>0.3.0</phoenixd-mock.version>
 
         <!-- Annotation Processors -->
         <lombok.version>1.18.40</lombok.version>
