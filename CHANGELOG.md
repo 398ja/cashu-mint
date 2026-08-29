@@ -4,6 +4,13 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **The proof vault binding is named `hold_id` rather than `melt_saga_id`** (#403). A melt saga and
+  a swap hold share it, which is what makes one block the other on the same proof, but the two
+  resolve in opposite directions and the name admitted only one of them. Requires cashu-vault with
+  migration V7.
+
 ### Added
 
 - **A NUT with published spec vectors now names them, and the advertisement is decided by whether

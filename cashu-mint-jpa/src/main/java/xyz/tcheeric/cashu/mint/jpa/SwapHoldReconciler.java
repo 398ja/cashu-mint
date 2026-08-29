@@ -102,7 +102,7 @@ public class SwapHoldReconciler {
    */
   private void commitPastThePointOfNoReturn(SwapHold hold) {
     try {
-      int spent = proofVaultService.commitSpentForSaga(hold.holdId());
+      int spent = proofVaultService.commitSpentForHold(hold.holdId());
       holds.advance(hold.holdId(), SwapHoldPhase.COMMITTED);
       log.warn(
           "swap_hold_reconcile committed hold_id={} inputs={} spent={} reason=stranded_after_signing",
@@ -120,7 +120,7 @@ public class SwapHoldReconciler {
   /** Returns the inputs of a hold that never reached signing, so the wallet can spend them again. */
   private void releaseNothingWasSigned(SwapHold hold) {
     try {
-      int refunded = proofVaultService.refundForSaga(hold.holdId());
+      int refunded = proofVaultService.refundForHold(hold.holdId());
       holds.advance(hold.holdId(), SwapHoldPhase.RELEASED);
       log.info(
           "swap_hold_reconcile released hold_id={} inputs={} refunded={} reason=stranded_before_signing",

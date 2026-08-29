@@ -143,7 +143,7 @@ class MeltNut08OverpayIT extends AbstractMintDurableIT {
         // Spec 005 — stub the atomic bind so every submitted proof is
         // reported "claimed"; without this the default 0 trips the
         // fail-closed proofs_not_bound path before NUT-08 change runs.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(inv -> {
                     java.util.List<?> rows = inv.getArgument(0);
                     return rows.size();

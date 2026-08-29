@@ -149,7 +149,7 @@ class NutshellInteropIT extends AbstractMintDurableIT {
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
         mintEntity.setId(UUID.fromString(mint.getId()));
         when(mintVaultService.retrieveMint(anyString())).thenReturn(mintEntity);
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(call -> call.getArgument(0, List.class).size());
     }
 

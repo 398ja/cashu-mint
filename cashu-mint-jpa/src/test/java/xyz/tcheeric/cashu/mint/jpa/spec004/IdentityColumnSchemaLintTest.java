@@ -51,7 +51,7 @@ class IdentityColumnSchemaLintTest {
             "webhook_event_quote_id", "idempotency_key", "request_hash",
             "iou_terms_hash", "last_hashed_pk", "table_name",
             // melt saga columns — outside spec 004 scope
-            "melt_saga_id", "payment_hash");
+            "hold_id", "payment_hash");
 
     /**
      * Explicit voucher-entity list. New voucher entities MUST be added

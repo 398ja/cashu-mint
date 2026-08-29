@@ -68,8 +68,8 @@ class SwapHoldReconcilerTest {
         sweepFinding(stranded);
 
         // Assert
-        verify(proofVault).commitSpentForSaga("swap-signed");
-        verify(proofVault, never()).refundForSaga(anyString());
+        verify(proofVault).commitSpentForHold("swap-signed");
+        verify(proofVault, never()).refundForHold(anyString());
         verify(holds).advance("swap-signed", SwapHoldPhase.COMMITTED);
     }
 
@@ -86,8 +86,8 @@ class SwapHoldReconcilerTest {
         sweepFinding(stranded);
 
         // Assert
-        verify(proofVault).refundForSaga("swap-unsigned");
-        verify(proofVault, never()).commitSpentForSaga(anyString());
+        verify(proofVault).refundForHold("swap-unsigned");
+        verify(proofVault, never()).commitSpentForHold(anyString());
         verify(holds).advance("swap-unsigned", SwapHoldPhase.RELEASED);
     }
 
@@ -104,8 +104,8 @@ class SwapHoldReconcilerTest {
         reconciler.reconcileTick();
 
         // Assert
-        verify(proofVault, never()).commitSpentForSaga(anyString());
-        verify(proofVault, never()).refundForSaga(anyString());
+        verify(proofVault, never()).commitSpentForHold(anyString());
+        verify(proofVault, never()).refundForHold(anyString());
     }
 
     /**
@@ -136,7 +136,7 @@ class SwapHoldReconcilerTest {
     void shouldLeaveTheInputsHeldWhenTheCommitFails() throws Exception {
         // Arrange
         SwapHold stranded = hold("swap-commit-fails", SwapHoldPhase.SIGNING);
-        when(proofVault.commitSpentForSaga("swap-commit-fails"))
+        when(proofVault.commitSpentForHold("swap-commit-fails"))
                 .thenThrow(new RuntimeException("vault unreachable"));
 
         // Act
@@ -144,7 +144,7 @@ class SwapHoldReconcilerTest {
 
         // Assert
         verify(holds, never()).advance(eq("swap-commit-fails"), any());
-        verify(proofVault, never()).refundForSaga(anyString());
+        verify(proofVault, never()).refundForHold(anyString());
     }
 
     /**
@@ -156,14 +156,14 @@ class SwapHoldReconcilerTest {
         // Arrange
         SwapHold failing = hold("swap-failing", SwapHoldPhase.SIGNING);
         SwapHold healthy = hold("swap-healthy", SwapHoldPhase.HELD);
-        when(proofVault.commitSpentForSaga("swap-failing"))
+        when(proofVault.commitSpentForHold("swap-failing"))
                 .thenThrow(new RuntimeException("vault unreachable"));
 
         // Act
         sweepFinding(failing, healthy);
 
         // Assert
-        verify(proofVault).refundForSaga("swap-healthy");
+        verify(proofVault).refundForHold("swap-healthy");
     }
 
     /**
@@ -179,6 +179,6 @@ class SwapHoldReconcilerTest {
         unwired.reconcileTick();
 
         // Assert
-        verify(proofVault, never()).commitSpentForSaga(anyString());
+        verify(proofVault, never()).commitSpentForHold(anyString());
     }
 }

@@ -62,7 +62,7 @@ import static org.mockito.Mockito.when;
  * hold, leaving the JVM-crash window between pay-and-burn uncovered.
  *
  * <p>The proof-vault is mocked so the test can deterministically force
- * {@code insertOrClaimForSaga} into a partial / zero / exception
+ * {@code insertOrClaimForHold} into a partial / zero / exception
  * outcome. The vault-side atomic primitive is covered separately in
  * {@code ProofVaultControllerIntegrationTest.InsertOrClaimTests}
  * (cashu-vault repo).
@@ -151,7 +151,7 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         // Two proofs submitted, only one durably bound — the other slipped
         // away (concurrent saga holds it / already spent / SPENT lookup
         // raced). The mint MUST NOT call lightningPaymentPort.pay.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenReturn(1);
 
         ResponseEntity<String> response = postMelt("quote-partial", overFundedProofs());
@@ -175,14 +175,14 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
                 .isZero();
 
         // Partial hold released for this saga.
-        verify(proofVaultService).refundForSaga(saga.getMeltSagaId());
+        verify(proofVaultService).refundForHold(saga.getMeltSagaId());
     }
 
     @Test
     void zero_bind_fails_closed_before_payment_T502() throws Exception {
         // Most common failure shape: every submitted proof is already
         // held by another saga / already spent. insert-or-claim returns 0.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenReturn(0);
 
         ResponseEntity<String> response = postMelt("quote-zero", overFundedProofs());
@@ -205,7 +205,7 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         // to external payment. The client sees the spec-005 terminal
         // error proofs_not_bound (NOT the underlying vault exception);
         // any partial hold is released.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenThrow(new RuntimeException("vault_unreachable_for_bind"));
 
         ResponseEntity<String> response = postMelt("quote-vault-down", overFundedProofs());
@@ -221,18 +221,18 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
                 .as("vault unreachable during bind must NOT trigger external payment")
                 .isZero();
         // Refund was attempted to clear any partial hold for this saga.
-        verify(proofVaultService).refundForSaga(saga.getMeltSagaId());
+        verify(proofVaultService).refundForHold(saga.getMeltSagaId());
     }
 
     @Test
     void happy_path_proves_bind_happens_before_pay_T504() throws Exception {
         // Spec 005 / SC-003 — explicit interaction-ordering proof: the
-        // saga's insertOrClaimForSaga call MUST run before
+        // saga's insertOrClaimForHold call MUST run before
         // lightningPaymentPort.pay. The cashu-vault IT
         // (ProofVaultControllerIntegrationTest.InsertOrClaimTests)
         // covers the durable side; this IT covers the call ordering
         // through the live REST + saga ledger.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(inv -> {
                     List<?> rows = inv.getArgument(0);
                     return rows.size();
@@ -250,12 +250,12 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.COMPLETED);
 
         // Bind ran exactly once.
-        verify(proofVaultService).insertOrClaimForSaga(any(), anyString(), any(UUID.class));
+        verify(proofVaultService).insertOrClaimForHold(any(), anyString(), any(UUID.class));
         // Pay ran exactly once.
         assertThat(((MockLightningPaymentPort) paymentPort).payCallsFor("quote-happy-005"))
                 .isEqualTo(1);
         // Refund was NOT called on the happy path.
-        verify(proofVaultService, never()).refundForSaga(anyString());
+        verify(proofVaultService, never()).refundForHold(anyString());
 
         // Bind-before-pay ordering is enforced by the saga ledger:
         // PROOFS_HELD (seq=1) precedes PAYMENT_SENT (seq=2). The vault

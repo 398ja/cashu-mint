@@ -232,7 +232,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public int insertOrClaimForSaga(List<ProofEntity> proofs, String holdId, UUID mintId) {
+        public int insertOrClaimForHold(List<ProofEntity> proofs, String holdId, UUID mintId) {
             claimCalls++;
             claimedBeforeAnySigning = !signingHasStarted;
             lastHoldId = holdId;
@@ -242,7 +242,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public int commitSpentForSaga(String holdId) throws CashuErrorException {
+        public int commitSpentForHold(String holdId) throws CashuErrorException {
             commitCalls++;
             if (commitFails) {
                 throw new CashuErrorException(CashuErrorCode.internal_error, "vault unreachable");
@@ -252,7 +252,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public int refundForSaga(String holdId) {
+        public int refundForHold(String holdId) {
             refundedHoldIds.add(holdId);
             return heldSecrets.size();
         }
@@ -264,7 +264,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
 
         @Override
         public void invalidate(ProofEntity proofEntity) {
-            // Superseded by commitSpentForSaga, which settles the whole hold at once.
+            // Superseded by commitSpentForHold, which settles the whole hold at once.
         }
 
         @Override
@@ -274,7 +274,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
 
         @Override
         public void storePending(ProofEntity proofEntity) {
-            // Superseded by insertOrClaimForSaga, which holds the whole input list at once.
+            // Superseded by insertOrClaimForHold, which holds the whole input list at once.
         }
 
         @Override

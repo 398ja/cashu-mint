@@ -74,10 +74,10 @@ class MeltSagaStateMachineTest {
         // the ordering of recordTransition calls above. The proof PENDING
         // commit must happen BEFORE gateway pay; we verify by interaction
         // ordering on the proof port + payment port. Spec 005 collapses
-        // the prior storePending+markPendingForSaga pair into a single
-        // insertOrClaimForSaga call.
+        // the prior storePending+markPendingForHold pair into a single
+        // insertOrClaimForHold call.
         org.mockito.InOrder order = Mockito.inOrder(f.proofVaultService, f.paymentPort);
-        order.verify(f.proofVaultService, times(1)).insertOrClaimForSaga(any(), anyString(), any(UUID.class));
+        order.verify(f.proofVaultService, times(1)).insertOrClaimForHold(any(), anyString(), any(UUID.class));
         order.verify(f.paymentPort).pay(anyString(), any(Duration.class));
     }
 
@@ -90,12 +90,12 @@ class MeltSagaStateMachineTest {
         // attempted. Verifies the lightningPaymentPort is never called,
         // the saga transitions PROOFS_HELD → FAILED, the cached terminal
         // error is proofs_not_bound, and the partial hold is released
-        // via refundForSaga.
+        // via refundForHold.
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         // Two proofs submitted, only one durably bound — the other slipped
         // away (concurrent saga holds it / already spent).
-        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(f.proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenReturn(1);
 
         MeltTask task = f.task(/*proofSum*/ 105L);
@@ -106,7 +106,7 @@ class MeltSagaStateMachineTest {
         // External payment was never attempted.
         verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
         // Partial hold released for this saga.
-        verify(f.proofVaultService, times(1)).refundForSaga(anyString());
+        verify(f.proofVaultService, times(1)).refundForHold(anyString());
         // Saga ended in FAILED.
         verify(f.sagaRepo).casState(anyString(),
                 eq(MeltSagaState.PROOFS_HELD), eq(MeltSagaState.FAILED));
@@ -125,7 +125,7 @@ class MeltSagaStateMachineTest {
         // Same fail-closed contract as partial bind.
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
-        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(f.proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenReturn(0);
 
         MeltTask task = f.task(/*proofSum*/ 105L);
@@ -142,10 +142,10 @@ class MeltSagaStateMachineTest {
         // Spec 005: vault unreachable during insert-or-claim (e.g. network
         // partition) must NOT proceed to external payment. The saga
         // surfaces proofs_not_bound, releases any partial hold for this
-        // saga via refundForSaga, and skips pay().
+        // saga via refundForHold, and skips pay().
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
-        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(f.proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenThrow(new RuntimeException("vault_unreachable"));
 
         MeltTask task = f.task(/*proofSum*/ 105L);
@@ -157,23 +157,23 @@ class MeltSagaStateMachineTest {
                 .matches(ex -> errorCode((CashuErrorException) ex).equals("proofs_not_bound"));
 
         verify(f.paymentPort, never()).pay(anyString(), any(Duration.class));
-        verify(f.proofVaultService, times(1)).refundForSaga(anyString());
+        verify(f.proofVaultService, times(1)).refundForHold(anyString());
     }
 
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void refund_failure_during_fail_closed_leaves_saga_in_PROOFS_HELD() throws CashuErrorException {
-        // Spec 005 (Codex P1): if refundForSaga ALSO throws while releasing a
+        // Spec 005 (Codex P1): if refundForHold ALSO throws while releasing a
         // partial hold, the saga must stay in PROOFS_HELD — not move to
         // FAILED — so MeltSagaReconciler.sweepStaleProofsHeld can retry the
         // refund. Forcing FAILED would strand the proofs in PENDING forever.
         Fixture f = new Fixture();
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         // Partial bind (1 of 2) triggers the fail-closed release...
-        when(f.proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(f.proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenReturn(1);
         // ...but the refund itself fails (transient vault outage).
-        when(f.proofVaultService.refundForSaga(anyString()))
+        when(f.proofVaultService.refundForHold(anyString()))
                 .thenThrow(new RuntimeException("vault_unreachable_for_refund"));
 
         MeltTask task = f.task(/*proofSum*/ 105L);
@@ -226,7 +226,7 @@ class MeltSagaStateMachineTest {
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.DefinitiveFailure("route_not_found", "1001"));
         f.bindAllSubmittedProofs();
-        when(f.proofVaultService.refundForSaga(anyString()))
+        when(f.proofVaultService.refundForHold(anyString()))
                 .thenThrow(new RuntimeException("vault_unreachable_for_refund"));
 
         MeltTask task = f.task(/*proofSum*/ 105L);
@@ -350,7 +350,7 @@ class MeltSagaStateMachineTest {
         }
 
         /**
-         * Spec 005 — stubs insertOrClaimForSaga to claim every submitted
+         * Spec 005 — stubs insertOrClaimForHold to claim every submitted
          * proof (return value = list size). Default Mockito returns 0,
          * which triggers the new fail-closed path; tests that exercise
          * the happy path must opt in to a successful bind.
@@ -358,7 +358,7 @@ class MeltSagaStateMachineTest {
         @SuppressWarnings("unchecked")
         void bindAllSubmittedProofs() {
             try {
-                when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+                when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                         .thenAnswer(inv -> {
                             java.util.List<?> rows = inv.getArgument(0);
                             return rows.size();

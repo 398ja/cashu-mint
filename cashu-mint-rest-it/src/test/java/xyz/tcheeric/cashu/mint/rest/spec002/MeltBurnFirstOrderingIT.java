@@ -137,7 +137,7 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
         // atomic bind so every submitted proof is reported "claimed";
         // without this stub the default 0 trips the fail-closed
         // proofs_not_bound path and the saga lifecycle stops.
-        when(proofVaultService.insertOrClaimForSaga(any(), anyString(), any(UUID.class)))
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(inv -> {
                     java.util.List<?> rows = inv.getArgument(0);
                     return rows.size();

@@ -82,7 +82,7 @@ import java.util.UUID;
  * ordering bug remains in that legacy path; it is closed only when the saga
  * machine is wired in.
  *
- * <p>The cashu-vault {@code proof_entity.melt_saga_id} FK column (data-model
+ * <p>The cashu-vault {@code proof_entity.hold_id} FK column (data-model
  * § cross-repo change) is <b>not</b> yet in place — it is a cross-repo
  * dependency tracked separately. Until it lands, the saga records the
  * exclusive intent but vault-side FK enforcement is missing. Documented as
@@ -278,7 +278,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
      * {@code PENDING} BEFORE the external payment call (FR-003).
      *
      * <p><b>Known gap (cross-repo):</b> the FR-006 exclusive proof hold
-     * relies on a {@code proof_entity.melt_saga_id} FK column in
+     * relies on a {@code proof_entity.hold_id} FK column in
      * cashu-vault that has not landed yet; this method records the saga's
      * intent but does not yet write the FK column. Tracked separately.
      */
@@ -320,7 +320,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         //
         // Single atomic insert-or-claim per proof: the vault either claims an
         // existing UNSPENT row or inserts a fresh row in PENDING bound to this
-        // saga. Replaces the prior storePending + markPendingForSaga pair,
+        // saga. Replaces the prior storePending + markPendingForHold pair,
         // which could never bind freshly-inserted rows (the row was already
         // PENDING when the UNSPENT→PENDING CAS ran, so the CAS matched zero
         // rows and the saga continued to lightningPaymentPort.pay with no
@@ -337,7 +337,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
         int bound;
         try {
-            bound = proofVaultService.insertOrClaimForSaga(
+            bound = proofVaultService.insertOrClaimForHold(
                     normalizedProofs, sagaId, java.util.UUID.fromString(mint.getId()));
         } catch (CashuErrorException | RuntimeException e) {
             // Vault unreachable / errored mid-claim. Some proofs may already
@@ -398,11 +398,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         try {
             createInvalidateProofsTask(proofsToMelt).execute();
             // Spec 002 T011 — commit the saga binding to SPENT atomically
-            // and clear melt_saga_id. The legacy invalidate already
+            // and clear hold_id. The legacy invalidate already
             // flipped state=SPENT; this call is a no-op on state but
             // clears the binding for SC-002 reconciliation
             // (COMPLETED saga must have 0 held proofs).
-            int spent = proofVaultService.commitSpentForSaga(sagaId);
+            int spent = proofVaultService.commitSpentForHold(sagaId);
             if (log.isDebugEnabled()) {
                 log.debug("[melt-saga] saga_binding_committed saga_id={} spent={}",
                         sagaId, spent);
@@ -575,11 +575,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
         // Spec 002 T011 / FR-006 — proof refund (PENDING → UNSPENT). Flips
         // every proof bound to this saga back to UNSPENT atomically and
-        // clears the melt_saga_id binding, so the wallet can retry the
+        // clears the hold_id binding, so the wallet can retry the
         // same proofs in a future melt.
         boolean refundConfirmed = false;
         try {
-            int refunded = proofVaultService.refundForSaga(sagaId);
+            int refunded = proofVaultService.refundForHold(sagaId);
             refundConfirmed = true;
             log.info("[melt-saga] proof_refund saga_id={} quote_id={} refunded={}",
                     sagaId, quoteId, refunded);
@@ -721,7 +721,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     /**
      * Spec 005 — legacy unit-test entry. The spec-002 saga path no longer
      * uses this; {@link #buildNormalizedProofEntities} feeds the atomic
-     * {@code insertOrClaimForSaga} call instead. Kept for the legacy
+     * {@code insertOrClaimForHold} call instead. Kept for the legacy
      * pay-before-burn path used when the saga repository is unwired
      * ({@link #executeLegacy}). The Y-coordinate normalization prevents
      * the raw-secret/Y duplicate-row regression even on the legacy path.
@@ -760,7 +760,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
      * Refunds any proofs already claimed by this saga, then drives the
      * terminal transition — but ONLY if the refund succeeded.
      *
-     * <p>If {@code refundForSaga} throws (transient vault outage), the saga
+     * <p>If {@code refundForHold} throws (transient vault outage), the saga
      * is deliberately left in {@code PROOFS_HELD}: {@code MeltSagaReconciler}'s
      * {@code sweepStaleProofsHeld} only retries refunds for {@code PROOFS_HELD}
      * sagas, so forcing {@code FAILED} here would strand any partially-claimed
@@ -773,7 +773,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         MetricRecorders.melt().proofsNotBound();
         boolean refunded;
         try {
-            proofVaultService.refundForSaga(sagaId);
+            proofVaultService.refundForHold(sagaId);
             refunded = true;
         } catch (CashuErrorException | RuntimeException refundError) {
             log.error("[melt-saga][alert] proofs_not_bound refund_failed quote_id={} saga_id={} cause={} "

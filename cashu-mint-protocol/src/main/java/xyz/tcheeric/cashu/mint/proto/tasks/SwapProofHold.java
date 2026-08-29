@@ -40,7 +40,7 @@ import java.util.UUID;
  * </ol>
  *
  * <p>The hold is what closes the hazard, not the proof state: the vault's claim is gated on
- * {@code state = 'UNSPENT' AND melt_saga_id IS NULL}, so proofs held by an unresolved swap
+ * {@code state = 'UNSPENT' AND hold_id IS NULL}, so proofs held by an unresolved swap
  * cannot be bound by any later swap or melt even though they are not yet {@code SPENT}.
  *
  * <p>Claiming and committing are each one call for the whole input list rather than a loop, so
@@ -54,7 +54,7 @@ class SwapProofHold {
     /**
      * Marks a hold as belonging to a swap rather than a melt saga.
      *
-     * <p>Both share the vault's {@code melt_saga_id} binding column, and an operator resolving a
+     * <p>Both share the vault's {@code hold_id} binding column, and an operator resolving a
      * stranded hold needs to know which flow produced it, because the two resolve differently.
      */
     private static final String SWAP_HOLD_PREFIX = "swap-";
@@ -106,7 +106,7 @@ class SwapProofHold {
 
     private <T extends Secret> int claimCount(List<Proof<T>> inputs) throws CashuErrorException {
         try {
-            return proofVaultService.insertOrClaimForSaga(vaultRowsFor(inputs), holdId, mintId);
+            return proofVaultService.insertOrClaimForHold(vaultRowsFor(inputs), holdId, mintId);
         } catch (CashuErrorException | RuntimeException claimError) {
             log.error("[swap-hold] claim_failed hold_id={}", holdId, claimError);
             release();
@@ -144,7 +144,7 @@ class SwapProofHold {
      * signed and whose inputs are still there, which is exactly the hazard being closed.
      */
     void commit() throws CashuErrorException {
-        int spent = proofVaultService.commitSpentForSaga(holdId);
+        int spent = proofVaultService.commitSpentForHold(holdId);
         if (spent < heldCount) {
             throw new CashuErrorException(CashuErrorCode.proofs_pending,
                     "swap held " + heldCount + " inputs but only " + spent + " were spent");
@@ -163,7 +163,7 @@ class SwapProofHold {
      */
     boolean release() {
         try {
-            int refunded = proofVaultService.refundForSaga(holdId);
+            int refunded = proofVaultService.refundForHold(holdId);
             holdRepository.advance(holdId, SwapHoldPhase.RELEASED);
             log.debug("[swap-hold] inputs_released hold_id={} count={}", holdId, refunded);
             return true;

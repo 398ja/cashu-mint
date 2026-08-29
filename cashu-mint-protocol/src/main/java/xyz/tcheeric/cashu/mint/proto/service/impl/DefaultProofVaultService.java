@@ -96,27 +96,27 @@ public class DefaultProofVaultService implements ProofVaultService {
     // ---------------------------------------------------------------
 
     @Override
-    public int insertOrClaimForSaga(java.util.List<ProofEntity> proofs,
-                                    String meltSagaId,
+    public int insertOrClaimForHold(java.util.List<ProofEntity> proofs,
+                                    String holdId,
                                     java.util.UUID mintId) {
-        return DBProofVault.insertOrClaimForSaga(mintId.toString(), meltSagaId, proofs);
+        return DBProofVault.insertOrClaimForHold(mintId.toString(), holdId, proofs);
     }
 
     @Override
-    public int markPendingForSaga(java.util.Collection<String> proofSecrets,
-                                  String meltSagaId,
+    public int markPendingForHold(java.util.Collection<String> proofSecrets,
+                                  String holdId,
                                   java.util.UUID mintId) {
-        return DBProofVault.markPendingForSaga(
-                mintId.toString(), meltSagaId, java.util.List.copyOf(proofSecrets));
+        return DBProofVault.markPendingForHold(
+                mintId.toString(), holdId, java.util.List.copyOf(proofSecrets));
     }
 
     @Override
-    public int commitSpentForSaga(String meltSagaId) {
-        return DBProofVault.commitSpentForSaga(meltSagaId);
+    public int commitSpentForHold(String holdId) {
+        return DBProofVault.commitSpentForHold(holdId);
     }
 
     @Override
-    public int refundForSaga(String meltSagaId) {
-        return DBProofVault.refundForSaga(meltSagaId);
+    public int refundForHold(String holdId) {
+        return DBProofVault.refundForHold(holdId);
     }
 }

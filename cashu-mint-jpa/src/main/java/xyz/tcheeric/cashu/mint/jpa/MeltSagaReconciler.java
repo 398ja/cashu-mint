@@ -145,8 +145,8 @@ public class MeltSagaReconciler {
      * would be out of sync with the proof state (PENDING rows stranded).
      *
      * @param meltSagaId  saga whose proofs to settle
-     * @param spent       true → {@code commitSpentForSaga} (Success branch);
-     *                    false → {@code refundForSaga} (DefinitiveFailure branch)
+     * @param spent       true → {@code commitSpentForHold} (Success branch);
+     *                    false → {@code refundForHold} (DefinitiveFailure branch)
      */
     private void settleProofs(String meltSagaId, boolean spent) {
         if (proofVaultService == null) {
@@ -156,8 +156,8 @@ public class MeltSagaReconciler {
         }
         try {
             int affected = spent
-                    ? proofVaultService.commitSpentForSaga(meltSagaId)
-                    : proofVaultService.refundForSaga(meltSagaId);
+                    ? proofVaultService.commitSpentForHold(meltSagaId)
+                    : proofVaultService.refundForHold(meltSagaId);
             log.info("[melt-saga] reconcile_proof_settle saga_id={} spent={} affected={}",
                     meltSagaId, spent, affected);
         } catch (Exception settleError) {
@@ -189,7 +189,7 @@ public class MeltSagaReconciler {
                 // spendable again after the TTL-triggered cleanup.
                 if (proofVaultService != null) {
                     try {
-                        int refunded = proofVaultService.refundForSaga(saga.meltSagaId());
+                        int refunded = proofVaultService.refundForHold(saga.meltSagaId());
                         log.info("[melt-saga] ttl_sweep_refund saga_id={} refunded={}",
                                 saga.meltSagaId(), refunded);
                     } catch (Exception refundError) {
