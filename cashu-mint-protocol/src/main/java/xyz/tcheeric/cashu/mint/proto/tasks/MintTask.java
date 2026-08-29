@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
+import xyz.tcheeric.cashu.common.nut20.MintQuoteSignature;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
@@ -329,6 +330,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     log.warn("mint_task missing_durable_quote quote_id={}", quoteId);
                     throw new CashuErrorException(CashuErrorCode.quote_not_found);
                 }
+                requireMintQuoteSignature(durableQuote, quoteId, blindedMessages);
                 long requestedTotal = blindedMessages.stream()
                         .mapToLong(BlindedMessage::getAmount)
                         .sum();
@@ -937,5 +939,34 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 .filter(keySet -> keysetId.equals(keySet.getId()))
                 .findFirst()
                 .orElseThrow(() -> new CashuErrorException(CashuErrorCode.keyset_not_found));
+    }
+
+    /**
+     * Refuses to issue against a locked quote without a signature from the key it is locked to
+     * (NUT-20).
+     *
+     * <p>An unlocked quote passes straight through, which is NUT-04's behaviour and the reason
+     * NUT-20 exists: a quote id alone is a bearer token, and it travels through logs, webhooks and
+     * traces, so anyone who reads one can take the ecash of a paid quote.
+     *
+     * <p>Checked before anything is signed, so a request that cannot mint leaves no trace of an
+     * issuance behind it.
+     */
+    private void requireMintQuoteSignature(MintQuote quote,
+                                           String quoteId,
+                                           List<BlindedMessage> outputs) throws CashuErrorException {
+        String pubkey = quote.pubkey();
+        if (pubkey == null || pubkey.isBlank()) {
+            return;
+        }
+        String signature = postMintRequest.getSignature();
+        if (signature == null || signature.isBlank()) {
+            log.warn("mint_task nut20_signature_missing quote_id={}", quoteId);
+            throw new CashuErrorException(CashuErrorCode.pubkey_required_for_mint_quote);
+        }
+        if (!MintQuoteSignature.isValid(quoteId, outputs, pubkey, signature)) {
+            log.warn("mint_task nut20_signature_invalid quote_id={}", quoteId);
+            throw new CashuErrorException(CashuErrorCode.mint_signature_invalid);
+        }
     }
 }

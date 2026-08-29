@@ -53,6 +53,9 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
     private final MintQuoteRepository mintQuoteRepository;
     private final String mintUrl;
 
+    /** NUT-20 — the key the quote is locked to, or null for an unlocked quote. */
+    private final String pubkey;
+
     public MintQuoteTask(long amount, @NonNull PaymentMethod method) {
         this(amount, method, null, MintProtocolServiceFactory.getInstance(), null, null);
     }
@@ -88,6 +91,21 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                          @NonNull MintProtocolService mintProtocolService,
                          MintQuoteRepository mintQuoteRepository,
                          String mintUrl) {
+        this(amount, method, unit, mintProtocolService, mintQuoteRepository, mintUrl, null);
+    }
+
+    /**
+     * NUT-20 constructor — locks the quote to {@code pubkey} when one is supplied, so only the
+     * holder of the matching private key can mint it.
+     */
+    public MintQuoteTask(long amount,
+                         @NonNull PaymentMethod method,
+                         String unit,
+                         @NonNull MintProtocolService mintProtocolService,
+                         MintQuoteRepository mintQuoteRepository,
+                         String mintUrl,
+                         String pubkey) {
+        this.pubkey = pubkey;
         this.amount = amount;
         this.method = method;
         this.unit = unit;
@@ -129,7 +147,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                         quoteId,
                         LifecycleState.UNPAID,
                         requestHash(amount, resolvedUnit, method),
-                        Instant.now()));
+                        Instant.now(),
+                        pubkey));
             } catch (RuntimeException e) {
                 log.error("mint_quote_persist_failed quote_id={} amount={} unit={}",
                         quoteId, amount, resolvedUnit, e);
@@ -139,6 +158,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
 
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
+                .pubkey(pubkey)
                 .request(request)
                 // NUT-04 v1 — modern wallets (cashu-ts >= 4.x) require amount/unit/state
                 // on every mint-quote response; a fresh quote is always UNPAID. The
@@ -203,7 +223,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
             String invoiceId,
             LifecycleState lifecycleState,
             String requestHash,
-            Instant createdAt) implements MintQuote {
+            Instant createdAt,
+            String pubkey) implements MintQuote {
 
         @Override
         public Instant updatedAt() {

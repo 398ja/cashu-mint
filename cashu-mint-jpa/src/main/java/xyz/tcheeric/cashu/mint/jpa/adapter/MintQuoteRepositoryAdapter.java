@@ -51,6 +51,7 @@ public class MintQuoteRepositoryAdapter implements MintQuoteRepository {
         e.setInvoiceId(q.invoiceId());
         e.setLifecycleState(q.lifecycleState());
         e.setRequestHash(q.requestHash());
+        e.setPubkey(q.pubkey());
         return e;
     }
 }

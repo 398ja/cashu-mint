@@ -50,10 +50,24 @@ public final class NUT04 {
     }
 
     public static PostMintQuoteResponse quote(int amount, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
+        return quote(amount, method, unit, null);
+    }
+
+    /**
+     * Creates a mint quote, locked to {@code pubkey} when one is supplied (NUT-20).
+     *
+     * <p>A locked quote can only be minted by whoever holds the matching private key. An unlocked
+     * one can be minted by anyone who learns its id, which is what NUT-04 warns about.
+     */
+    public static PostMintQuoteResponse quote(int amount,
+                                              @NonNull PaymentMethod method,
+                                              String unit,
+                                              String pubkey) throws CashuErrorException {
         return new MintQuoteTask(amount, method, unit,
                 MintProtocolServiceFactory.getInstance(),
                 MintIntegrityContext.quoteRepository(),
-                MintIntegrityContext.mintUrl()).execute();
+                MintIntegrityContext.mintUrl(),
+                pubkey).execute();
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {

@@ -47,6 +47,17 @@ public interface MintQuote {
 
     String requestHash();
 
+    /**
+     * NUT-20 — the key this quote is locked to, or null when it is unlocked.
+     *
+     * <p>An unlocked quote can be minted by anyone who learns its id, and a quote id travels
+     * through logs, webhooks and traces. A locked quote requires a signature from the matching
+     * private key before the mint will issue.
+     */
+    default String pubkey() {
+        return null;
+    }
+
     Instant createdAt();
 
     Instant updatedAt();

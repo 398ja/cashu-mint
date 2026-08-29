@@ -77,7 +77,7 @@ class CashuControllerTraceTest {
                         .unit("sat").state("UNPAID").expiry(1700000000).build();
 
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
-            nut04.when(() -> NUT04.quote(anyInt(), any())).thenReturn(resp);
+            nut04.when(() -> NUT04.quote(anyInt(), any(), any(), any())).thenReturn(resp);
             controller(publisher).quoteMint(new PostMintQuoteRequest(100, "sat"), "bolt11");
         }
 
@@ -125,7 +125,7 @@ class CashuControllerTraceTest {
                 PostMintQuoteResponse.builder().quoteId("q").request("lnbc").amount(1)
                         .unit("sat").state("UNPAID").expiry(0).build();
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
-            nut04.when(() -> NUT04.quote(anyInt(), any())).thenReturn(resp);
+            nut04.when(() -> NUT04.quote(anyInt(), any(), any(), any())).thenReturn(resp);
             assertThatCode(() -> controller(null).quoteMint(new PostMintQuoteRequest(1, "sat"), "bolt11"))
                     .doesNotThrowAnyException();
         }

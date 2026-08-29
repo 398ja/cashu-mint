@@ -13,6 +13,13 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Added
 
+- **NUT-20 signed mint quotes** (#391). A wallet can lock a mint quote to a public key, and the
+  mint then refuses to issue without a BIP-340 signature from the matching private key: a missing
+  signature is `20009`, an invalid one `20008`. Without this a quote id is a bearer token, and
+  quote ids travel through logs, webhooks and trace events, so anyone who reads one can take the
+  ecash of a paid quote. The check runs before anything is signed, so a request that cannot mint
+  leaves no issuance behind it. Locking is optional, so an existing wallet keeps working unchanged.
+
 - **A NUT with published spec vectors now names them, and the advertisement is decided by whether
   they pass** (#402). A wiring witness that only resolves a class proves a class exists, which is
   what let NUT-11 be advertised `supported: true` while every published vector failed against it.

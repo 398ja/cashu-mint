@@ -209,7 +209,8 @@ public class CashuController<T extends Secret> implements org.springframework.co
     @PostMapping("/mint/quote/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteMint(@RequestBody PostMintQuoteRequest request,
                                                            @PathVariable("method") String method) throws CashuErrorException {
-        var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
+        var response = NUT04.quote(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()),
+                request.getUnit(), request.getPubkey());
         publishTraceMintQuoteRequested(response);
         return ResponseEntity.ok(response);
     }

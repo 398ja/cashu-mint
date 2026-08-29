@@ -55,6 +55,15 @@ public class MintQuoteEntity implements MintQuote {
     @Column(name = "lifecycle_state", length = 16, nullable = false)
     private LifecycleState lifecycleState;
 
+    /**
+     * NUT-20 — the key this quote is locked to, or null when it is unlocked.
+     *
+     * <p>Immutable once written: re-locking a paid quote to a different key would hand its ecash
+     * to whoever made the change.
+     */
+    @Column(name = "pubkey", length = 66, updatable = false)
+    private String pubkey;
+
     @Column(name = "request_hash", length = 64, nullable = false, updatable = false)
     private String requestHash;
 
@@ -90,6 +99,11 @@ public class MintQuoteEntity implements MintQuote {
     @Override
     public String quoteId() {
         return quoteId;
+    }
+
+    @Override
+    public String pubkey() {
+        return pubkey;
     }
 
     @Override

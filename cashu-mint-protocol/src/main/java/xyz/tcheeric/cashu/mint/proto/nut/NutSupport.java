@@ -92,6 +92,13 @@ public enum NutSupport {
             "xyz.tcheeric.cashu.mint.proto.spending.Nut11TestVectorsTest"),
     DLEQ_PROOFS(12, Visibility.SIMPLE,
             "xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator", "generateProof"),
+    /**
+     * NUT-20 signed mint quotes. The witness is the verifier rather than the
+     * request field, because a {@code pubkey} the mint accepts and never checks
+     * is exactly the false claim this enum exists to prevent.
+     */
+    MINT_QUOTE_SIGNATURE(20, Visibility.SIMPLE,
+            "xyz.tcheeric.cashu.common.nut20.MintQuoteSignature", "isValid"),
     WEBSOCKET_SUBSCRIPTIONS(17, Visibility.WEBSOCKET,
             "xyz.tcheeric.cashu.mint.proto.nut.NUT17", null),
     CACHED_RESPONSES(19, Visibility.CACHED_RESPONSES,
