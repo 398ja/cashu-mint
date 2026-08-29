@@ -6,6 +6,43 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **A SIG_ALL melt witness is now bound to the quote it pays** (issue #383).
+  `MeltTask` still built its P2PK spending condition from the change outputs
+  alone, so the `SigAllMessage.forMelt` aggregation that landed in `0563fb12`
+  was never actually reached on the melt path and the quote id never entered the
+  signed message. A `SIG_ALL` witness captured from one melt could therefore be
+  replayed against a different quote. The melt path now constructs a
+  `P2PKTransaction.forMelt` carrying the quote id, closing the replay gap the
+  change was made to close.
+
+  Evidence for the whole of #383 is in `SigAllTransactionBindingTest`: reordering,
+  substituting, inflating, appending and dropping an output each invalidate the
+  signature; a witness from one melt quote fails against another and vice versa;
+  a melt witness does not verify as a swap; the uniformity precondition rejects
+  inputs differing in data, tags or flag; and only the first input's witness is
+  consulted. Each of those was confirmed load-bearing by mutating the
+  implementation and observing the matching test fail.
+
+- **Documented the SIG_ALL compatibility check** (issue #383). Fixing `SIG_ALL`
+  correctly invalidates any deployed proof relying on the previous behaviour, so
+  `docs/explanations/sig-all-compatibility-check.md` records what was actually
+  inspected: Dalia's only `setSigFlag` call sets `SIG_INPUTS`, no live consumer
+  constructs a `SIG_ALL` proof, and the one construction site is an archived
+  voucher adapter whose proofs the mint rejects under Model B regardless.
+
+### Known issues
+
+- **The published NUT-11 vectors do not yet verify** (cashu-lib#254).
+  `Nut11TestVectorsTest` drives every vector from `tests/11-test.md` and is
+  `@Disabled` pending a cashu-lib fix. `WellKnownSecret` re-serializes secrets to
+  a 4-element array instead of NUT-10's `[kind, {object}]`, so no conformant
+  proof can verify here. The cryptography is correct: the same vectors verify
+  against the raw wire secret, reproducing the spec's published SIG_ALL digest
+  `de7f9e3c...`. This also means our `Y = hash_to_curve(secret)` diverges from a
+  conformant wallet's, so the fix needs the dual-lookup migration described in
+  `docs/explanations/spent-proof-key-encoding.md`. Un-disable the suite when
+  cashu-lib#254 lands; it is the interoperability gate.
+
 - **The Format check runs again, and now shares the build's JDK** (issue #360).
   The `Format` workflow had failed on every release PR since May. The failure was
   in `axel-op/googlejavaformat-action@v4`'s own `--version` preflight, so no

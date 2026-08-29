@@ -19,6 +19,7 @@ import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
@@ -194,6 +195,12 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             new ValidateTransactionTask<>(proofsToMelt, postMeltRequest.getOutputs(),
                     KeySetDirectory.of(mintLoadService), signatureVaultService).execute();
 
+            // NUT-11 SIG_ALL signs one message over the whole melt, and that message ends with the
+            // quote id. Binding the signature to the quote it pays is what stops a witness
+            // captured from one melt being replayed against a different quote.
+            P2PKTransaction meltTransaction = P2PKTransaction.forMelt(proofsToMelt,
+                    postMeltRequest.getQuoteId(), postMeltRequest.getOutputs());
+
             for (Proof<T> proof : proofsToMelt) {
                 // Model B enforcement: Reject voucher secrets in melt operations
                 if (isVoucherSecret(proof.getSecret())) {
@@ -213,10 +220,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
 
                 // Dalia Phase 9: enforce NUT-11 P2PK spend conditions at redemption (melt), not just at
                 // swap — otherwise an escrow proof could be cashed out with no witness check. Escrow
-                // secrets use SIG_INPUTS, so the melt change outputs are only consulted under SIG_ALL.
+                // secrets use SIG_INPUTS, so the quote id and change outputs are only consulted
+                // under SIG_ALL.
                 if (proof.getSecret() instanceof P2PKSecret) {
                     @SuppressWarnings({"unchecked", "rawtypes"})
-                    SpendingCondition condition = new P2PKSpendingCondition(postMeltRequest.getOutputs());
+                    SpendingCondition condition = new P2PKSpendingCondition(meltTransaction);
                     condition.verify(proof);
                 }
 
