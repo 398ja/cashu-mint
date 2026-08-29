@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -73,10 +74,10 @@ public class PreloadMintLoadService implements MintLoadService {
             }
             return mint;
         } catch (IOException e) {
-            throw new CashuErrorException("preload_json_read_error");
+            throw new CashuErrorException(CashuErrorCode.internal_error, "Preload configuration could not be read");
         } catch (RuntimeException e) {
             log.warn("Failed to load preload JSON", e);
-            throw new CashuErrorException("preload_json_parse_error");
+            throw new CashuErrorException(CashuErrorCode.internal_error, "Preload configuration could not be parsed");
         }
     }
 
