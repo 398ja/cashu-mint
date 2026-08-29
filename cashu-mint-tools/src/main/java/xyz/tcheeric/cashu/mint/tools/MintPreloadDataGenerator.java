@@ -7,7 +7,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.PrivateKey;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetIdV2Derivation;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -124,7 +124,7 @@ public final class MintPreloadDataGenerator {
             keyMaterials.add(new MintPreloadData.DenominationKey(keyId, amount, privateKeyHex));
         }
 
-        String keySetId = KeySetDerivation.getId(keys.values());
+        String keySetId = KeySetIdV2Derivation.getId(keys.values(), unit, 0, null);
         UUID keySetRowId = deterministicId(mintId, unit, keySetId);
         return new MintPreloadData(mintId, keySetId, keySetRowId, unit, List.copyOf(keyMaterials));
     }

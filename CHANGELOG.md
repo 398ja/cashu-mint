@@ -11,6 +11,13 @@ All notable changes to the Cashu Mint will be documented in this file.
   resolve in opposite directions and the name admitted only one of them. Requires cashu-vault with
   migration V7.
 
+### Changed
+
+- **The mint issues NUT-02 version 2 keyset ids** (cashu-lib#247). A v2 id commits to the keyset's
+  unit and `input_fee_ppk` as well as its keys, so provisioning at a different fee produces a
+  different keyset rather than silently repricing an existing one. Safe to switch outright because
+  no v1 keysets are deployed; a mint that had issued them would need a migration instead.
+
 ### Added
 
 - **NUT-20 signed mint quotes** (#391). A wallet can lock a mint quote to a public key, and the

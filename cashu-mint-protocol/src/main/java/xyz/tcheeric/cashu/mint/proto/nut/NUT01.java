@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetIdV2Derivation;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.mint.proto.tasks.KeysetGeneratorTask;
 
@@ -38,7 +38,8 @@ public final class NUT01 {
 
     public static KeySet generateKeySet(@NonNull String unit, @NonNull Keys keys) {
         KeySet keySet = KeySet.builder().unit(unit).keys(keys).build();
-        keySet.setId(KeySetDerivation.getId(keys.values()));
+        keySet.setId(KeySetIdV2Derivation.getId(
+                keys.values(), unit, keySet.getPartPerThousand(), null));
         return keySet;
     }
 

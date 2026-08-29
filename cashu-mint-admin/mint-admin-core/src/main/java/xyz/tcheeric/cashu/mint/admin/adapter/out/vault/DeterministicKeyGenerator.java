@@ -9,7 +9,7 @@ import java.util.UUID;
 
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.PrivateKey;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetIdV2Derivation;
 
 /**
  * Derives cryptographic key material deterministically from a mint identity,
@@ -63,13 +63,25 @@ public class DeterministicKeyGenerator {
      */
     public String deriveKeySetId(final UUID mintId, final String unit, final List<Integer> denominations,
                                  final String rotationId) {
+        return deriveKeySetId(mintId, unit, denominations, rotationId, 0);
+    }
+
+    /**
+     * Derives the NUT-02 v2 id of a keyset, which commits to its fee as well as its keys.
+     *
+     * <p>The fee is part of the id rather than a mutable attribute beside it, so provisioning a
+     * keyset at a different fee yields a different keyset instead of silently repricing an
+     * existing one.
+     */
+    public String deriveKeySetId(final UUID mintId, final String unit, final List<Integer> denominations,
+                                 final String rotationId, final int inputFeePpk) {
         final Keys keys = new Keys();
         for (final int amount : denominations) {
             final String hex = derivePrivateKeyHex(mintId, unit, amount, rotationId);
             final PrivateKey pk = PrivateKey.fromString(hex);
             keys.put(BigInteger.valueOf(amount), PrivateKey.derivePublicKey(pk));
         }
-        return KeySetDerivation.getId(keys.values());
+        return KeySetIdV2Derivation.getId(keys.values(), unit, inputFeePpk, null);
     }
 
     /**

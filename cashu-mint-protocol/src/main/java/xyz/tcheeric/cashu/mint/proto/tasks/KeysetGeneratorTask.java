@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetIdV2Derivation;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBKeySetVault;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBKeyVault;
 import xyz.tcheeric.cashu.vault.db.model.KeySetEntity;
@@ -26,7 +26,10 @@ public class KeysetGeneratorTask extends InstrumentedTask<KeySet> {
         log.info("Keys: {}", keys);
 
         KeySet keySet = KeySet.builder().unit(unit).keys(keys).build();
-        keySet.setId(KeySetDerivation.getId(keys.values()));
+        // NUT-02 v2: the id commits to the unit and fee as well as the keys, so a fee change is a
+        // new keyset rather than the same id quietly charging something different.
+        keySet.setId(KeySetIdV2Derivation.getId(
+                keys.values(), unit, keySet.getPartPerThousand(), null));
         return keySet;
     }
 

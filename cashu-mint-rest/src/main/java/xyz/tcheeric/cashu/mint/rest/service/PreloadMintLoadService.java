@@ -15,7 +15,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.util.KeySetDerivation;
+import xyz.tcheeric.cashu.crypto.util.KeySetIdV2Derivation;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class PreloadMintLoadService implements MintLoadService {
             // Prefer explicit keySetId from JSON to keep alignment with seeded DB; fallback to derivation
             String keySetId = (externalKeySetId != null && !externalKeySetId.isBlank())
                     ? externalKeySetId
-                    : KeySetDerivation.getId(keys.values());
+                    : KeySetIdV2Derivation.getId(keys.values(), unit, 0, null);
             KeySet keySet = KeySet.builder()
                     .id(keySetId)
                     .unit(unit)
