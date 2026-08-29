@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.proto.spending;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.bouncycastle.util.encoders.Hex;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.Proof;
@@ -34,10 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/tests/11-test.md">NUT-11 test vectors</a>
  */
-@Disabled("Blocked on cashu-lib#254: WellKnownSecret re-serializes to a 4-element array "
-        + "instead of NUT-10's [kind, {object}], so no published vector can verify. The "
-        + "cryptography is correct - the same vectors verify against the raw wire secret string. "
-        + "Un-disable when #254 lands; these vectors are the interoperability gate.")
 class Nut11TestVectorsTest {
 
     // ----- vector fixtures, verbatim from tests/11-test.md -----

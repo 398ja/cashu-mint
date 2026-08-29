@@ -104,6 +104,9 @@ public class DefaultMintInfoService implements MintInfoService {
             case CACHED_RESPONSES -> cachedResponseEntry();
             case MANDATORY -> throw new IllegalStateException(
                     "Mandatory NUT " + nut.key() + " is not advertised in the nuts map");
+            case WITHHELD -> throw new IllegalStateException(
+                    "Withheld NUT " + nut.key() + " reached the nuts map; NUT-06 must read its"
+                            + " absence as unsupported, which is the truth while its vectors fail");
         };
     }
 

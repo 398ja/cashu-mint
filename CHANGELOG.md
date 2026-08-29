@@ -6,6 +6,12 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Added
 
+- **A NUT with published spec vectors now names them, and the advertisement is decided by whether
+  they pass** (#402). A wiring witness that only resolves a class proves a class exists, which is
+  what let NUT-11 be advertised `supported: true` while every published vector failed against it.
+  The contract test now runs the named suite and requires the outcome to match the visibility, so
+  vectors green with the NUT withheld fails the build, and so does the reverse.
+
 - **Swap holds are now reconciled automatically** (#400). A swap that dies holding its inputs is
   resolved by `SwapHoldReconciler` rather than waiting for an operator. The hold records which
   side of the signing step it reached, because a stranded hold resolves in opposite directions
