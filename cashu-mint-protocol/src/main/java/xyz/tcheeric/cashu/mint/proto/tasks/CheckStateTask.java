@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.Mint;
-import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;

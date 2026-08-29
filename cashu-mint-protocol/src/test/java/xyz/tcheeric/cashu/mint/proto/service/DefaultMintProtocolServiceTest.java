@@ -78,4 +78,3 @@ public class DefaultMintProtocolServiceTest {
         assertEquals("xyz.tcheeric.payment.adapter.ln.phoenixd.PhoenixdGateway", gateway.getClass().getName());
     }
 }
-

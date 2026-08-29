@@ -13,14 +13,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminLifecycleServiceConfiguration;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminOperationsService;
 import xyz.tcheeric.cashu.mint.admin.rest.service.AdminUserService;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;

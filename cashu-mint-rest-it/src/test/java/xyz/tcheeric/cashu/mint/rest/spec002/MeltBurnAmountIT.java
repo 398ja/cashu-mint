@@ -19,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
-import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;

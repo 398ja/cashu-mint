@@ -5,12 +5,10 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 /**
  * Spec 002 T002 / T003 — programmable test double for

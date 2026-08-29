@@ -1,9 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Keys;
@@ -16,7 +14,6 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
@@ -27,7 +24,6 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
@@ -39,7 +35,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 public class MintTest {
 

@@ -61,7 +61,7 @@ jobs:
       - name: Build and deploy
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -q -P release deploy -Dgpg.passphrase="$GPG_PASSPHRASE" -Dgpg.keyname="3ECE69D323685884" --settings $HOME/.m2/settings.xml
+        run: mvn -q -B -P release clean deploy -Dgpg.passphrase="$GPG_PASSPHRASE" -Dgpg.keyname="3ECE69D323685884" --settings $HOME/.m2/settings.xml
 
       - name: Collect JAR artifacts
         run: |

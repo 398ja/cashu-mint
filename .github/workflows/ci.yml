@@ -16,8 +16,11 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+      # `clean` is deliberate: without it, stale classes left in target/ can
+      # satisfy references that no longer exist in the source tree, so an
+      # incremental build passes while a fresh checkout would not (issue #399).
       - name: Build with Maven
-        run: ./mvnw -q verify
+        run: ./mvnw -q -B clean verify
       - name: Run tests with VT pinning detection
         run: |
           ./mvnw -q test -pl cashu-mint-protocol \

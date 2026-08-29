@@ -3,7 +3,6 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,6 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
@@ -51,7 +49,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 @Slf4j
 public class MeltTest {

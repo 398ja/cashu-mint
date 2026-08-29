@@ -11,7 +11,6 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
@@ -38,7 +37,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 002 T206 — saga state-machine driver in {@link MeltTask}. Covers

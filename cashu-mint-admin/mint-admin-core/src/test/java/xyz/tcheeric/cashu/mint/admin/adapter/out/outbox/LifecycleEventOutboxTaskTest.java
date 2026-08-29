@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -14,7 +13,6 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OutboxRepository;
-import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
 
 class LifecycleEventOutboxTaskTest {

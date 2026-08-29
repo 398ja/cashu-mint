@@ -16,7 +16,6 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.util.Utils;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
@@ -47,7 +46,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 006 — fail-closed value-backing invariant for voucher issuance.

@@ -7,7 +7,6 @@ import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.nut12.DLEQProof;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator;
 
 import java.math.BigInteger;

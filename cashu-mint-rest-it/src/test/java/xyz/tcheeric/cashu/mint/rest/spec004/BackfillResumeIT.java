@@ -3,18 +3,13 @@ package xyz.tcheeric.cashu.mint.rest.spec004;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
-import xyz.tcheeric.cashu.mint.jpa.entity.VoucherIdentityBackfillLogEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherIdentityBackfillLogJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.service.VoucherIdentityBackfillService;
 import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 import xyz.tcheeric.cashu.mint.rest.spec003.support.AbstractVoucherDurableIT;
 
 import javax.sql.DataSource;
-import java.time.Instant;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 

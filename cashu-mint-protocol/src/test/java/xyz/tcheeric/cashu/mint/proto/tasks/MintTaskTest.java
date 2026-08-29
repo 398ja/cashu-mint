@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
@@ -14,10 +13,8 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.PublicKey;
-import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -41,7 +38,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Unit tests for MintTask voucher mock payment behavior.

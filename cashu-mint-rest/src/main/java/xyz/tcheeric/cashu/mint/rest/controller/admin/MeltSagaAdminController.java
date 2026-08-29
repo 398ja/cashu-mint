@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaTransition;

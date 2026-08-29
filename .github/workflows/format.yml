@@ -1,0 +1,29 @@
+name: Format
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+      # Spotless runs on the same JDK as the rest of the build, so the format
+      # toolchain cannot drift away from the compiler toolchain the way a
+      # separate google-java-format action did (issue #360).
+      - name: Check formatting
+        run: ./mvnw -q -B spotless:check
+      - name: Explain how to fix
+        if: failure()
+        run: echo "::error::Formatting violations. Run './mvnw spotless:apply' and commit the result."

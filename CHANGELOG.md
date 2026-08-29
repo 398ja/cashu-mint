@@ -6,6 +6,30 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **The Format check runs again, and now shares the build's JDK** (issue #360).
+  The `Format` workflow had failed on every release PR since May. The failure was
+  in `axel-op/googlejavaformat-action@v4`'s own `--version` preflight, so no
+  repository source was ever examined: a second, independently-versioned Java
+  toolchain had drifted away from the runner JDK. A permanently red check is
+  worse than no check, because it teaches reviewers to merge past a red tick.
+
+  The separate action is replaced by `spotless-maven-plugin`, bound to `validate`
+  in the root POM. Formatting is now checked by the same Maven build, on the same
+  JDK, as compilation, so the two toolchains cannot drift apart again. Run
+  `./mvnw spotless:apply` to fix violations locally.
+
+  The enforced rules are deliberately narrow - unused-import removal, trailing
+  whitespace, final newline, and space indentation - which brought the tree into
+  compliance in 56 files of import and whitespace deletions. Full Google Java
+  Format would rewrite 611 of 615 files; that is tracked separately rather than
+  landed here.
+
+- **CI builds from clean, so stale classes cannot mask a broken tree** (issue
+  #399). `ci.yml` ran `./mvnw verify` and `release.yml` ran `mvn deploy`, both
+  without `clean`. Classes left in `target/` from an earlier build can satisfy
+  references that no longer exist in the source, letting an incremental build
+  pass where a fresh checkout would fail. Both workflows now run `clean`.
+
 - **The amount limits `/v1/info` advertises are now the limits the mint enforces**
   (issue #390). `min_amount` and `max_amount` had moved out of the packaged YAML
   into `mint.capabilities.*` properties, but nothing read them except the info

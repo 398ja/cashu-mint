@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,6 @@ import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
@@ -48,7 +46,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 001 T301 — drives the {@link MintTask} replay loop when a concurrent

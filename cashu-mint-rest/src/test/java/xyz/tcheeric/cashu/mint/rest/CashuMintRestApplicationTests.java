@@ -19,9 +19,9 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {"voucher.enabled=false"})
 class CashuMintRestApplicationTests {
 
-	@Test
-	void contextLoads() {
-		// Test passes if Spring context loads successfully
-	}
+    @Test
+    void contextLoads() {
+        // Test passes if Spring context loads successfully
+    }
 
 }

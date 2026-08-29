@@ -9,7 +9,6 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.Witness;
 import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

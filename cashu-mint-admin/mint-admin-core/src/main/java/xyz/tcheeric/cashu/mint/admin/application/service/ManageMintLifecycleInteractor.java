@@ -19,7 +19,6 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.TransactionManager;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationRevisionId;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
-import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.NotificationPolicy;

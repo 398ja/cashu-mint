@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.admin.rest.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.jupiter.api.DisplayName;
@@ -21,7 +20,6 @@ import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminApiConfiguration;
-import xyz.tcheeric.cashu.mint.admin.domain.AdminRole;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.NapSessionCleanup;
 import xyz.tcheeric.cashu.mint.admin.rest.nap.TestNapSessions;
 import xyz.tcheeric.cashu.mint.admin.rest.config.AdminCorrelationIdFilter;

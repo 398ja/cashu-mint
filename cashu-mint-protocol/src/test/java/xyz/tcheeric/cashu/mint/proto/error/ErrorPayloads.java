@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.error;
 
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Reads a NUT-00 error body the way a test wants to talk about it.

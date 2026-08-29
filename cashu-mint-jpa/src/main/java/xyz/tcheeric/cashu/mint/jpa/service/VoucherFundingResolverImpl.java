@@ -6,7 +6,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.entity.CustomerPaymentFundingEntity;
-import xyz.tcheeric.cashu.mint.jpa.entity.VoucherFundingEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherFundingJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.jpa.repository.WebhookEventJpaRepository;

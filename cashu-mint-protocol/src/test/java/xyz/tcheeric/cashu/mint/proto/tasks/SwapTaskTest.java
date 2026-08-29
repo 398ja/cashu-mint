@@ -1,6 +1,5 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigInteger;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
@@ -18,7 +17,6 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -41,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 public class SwapTaskTest {
 
