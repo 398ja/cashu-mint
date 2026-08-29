@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintSuspensionRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingRepository;
@@ -46,6 +47,7 @@ public class MintIntegrityContextInstaller {
     private final VoucherFundingResolver voucherFundingResolver;
     private final IdentityHasher identityHasher;
     private final MintSuspensionRepository mintSuspensionRepository;
+    private final SwapHoldRepository swapHoldRepository;
     private final Environment environment;
 
     @Autowired(required = false)
@@ -71,6 +73,7 @@ public class MintIntegrityContextInstaller {
                 voucherIssuanceRepository, voucherFundingResolver, voucherIouPolicy, activeProfile);
         MintIntegrityContext.installIdentityHasher(identityHasher);
         MintIntegrityContext.installMintSuspension(mintSuspensionRepository);
+        MintIntegrityContext.installSwapHolds(swapHoldRepository);
         log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={}, mintSuspensionRepo={})",
                 quoteRepository != null, issuanceRecordRepository != null,
                 meltSagaRepository != null, lightningPaymentPort != null,

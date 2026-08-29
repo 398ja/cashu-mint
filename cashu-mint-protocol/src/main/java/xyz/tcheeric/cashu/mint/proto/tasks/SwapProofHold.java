@@ -6,6 +6,8 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
@@ -60,13 +62,16 @@ class SwapProofHold {
     private final UUID mintId;
     private final MintVaultService mintVaultService;
     private final ProofVaultService proofVaultService;
+    private final SwapHoldRepository holdRepository;
     private final String holdId;
     private int heldCount;
 
     SwapProofHold(@NonNull UUID mintId,
                   @NonNull MintVaultService mintVaultService,
-                  @NonNull ProofVaultService proofVaultService) {
+                  @NonNull ProofVaultService proofVaultService,
+                  @NonNull SwapHoldRepository holdRepository) {
         this.mintId = mintId;
+        this.holdRepository = holdRepository;
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
         this.holdId = SWAP_HOLD_PREFIX + UUID.randomUUID();
@@ -95,6 +100,7 @@ class SwapProofHold {
             throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
         heldCount = bound;
+        holdRepository.open(holdId, bound);
         log.debug("[swap-hold] inputs_held hold_id={} count={}", holdId, bound);
     }
 
@@ -106,6 +112,23 @@ class SwapProofHold {
             release();
             throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
+    }
+
+    /**
+     * Records that signing is about to begin, fixing how a stranded hold must be resolved.
+     *
+     * <p>Written <em>before</em> the first signature rather than after, because a crash either
+     * side of this write must be read the same way: signing may have begun, so the hold can only
+     * be committed. Recording it afterwards would leave the dangerous case indistinguishable from
+     * an untouched hold, and releasing that hold is the double-spend this class prevents.
+     *
+     * <p>The cost of the conservative reading is a hold that is committed although nothing was
+     * signed, which spends inputs and returns no outputs. That is a loss for one wallet rather
+     * than inflation of the mint's supply, and it is recoverable by an operator from the hold
+     * record; the opposite mistake is neither.
+     */
+    void markSigning() {
+        holdRepository.advance(holdId, SwapHoldPhase.SIGNING);
     }
 
     /**
@@ -126,6 +149,7 @@ class SwapProofHold {
             throw new CashuErrorException(CashuErrorCode.proofs_pending,
                     "swap held " + heldCount + " inputs but only " + spent + " were spent");
         }
+        holdRepository.advance(holdId, SwapHoldPhase.COMMITTED);
         log.debug("[swap-hold] inputs_spent hold_id={} count={}", holdId, spent);
     }
 
@@ -140,6 +164,7 @@ class SwapProofHold {
     boolean release() {
         try {
             int refunded = proofVaultService.refundForSaga(holdId);
+            holdRepository.advance(holdId, SwapHoldPhase.RELEASED);
             log.debug("[swap-hold] inputs_released hold_id={} count={}", holdId, refunded);
             return true;
         } catch (CashuErrorException | RuntimeException releaseError) {

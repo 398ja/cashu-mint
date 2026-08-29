@@ -101,6 +101,37 @@ The outputs are already in the wild. Committing the hold completes a swap the
 wallet has, in effect, already received. Releasing it hands the wallet its
 inputs back on top of outputs it can still redeem.
 
+## How a stranded hold is resolved
+
+`SwapHoldReconciler` applies that rule on a schedule, so a stranded hold no
+longer waits for someone to read the alert log.
+
+It can only apply it because the hold records which side of the signing step it
+reached. A held proof looks identical either way, so without that record the
+sweep would be guessing, and the wrong guess is the double-spend the hold
+exists to prevent. The phase is written *before* the first signature rather
+than after: a crash on either side of that write must read as "signing may have
+begun".
+
+| Phase | Meaning | Resolution |
+| --- | --- | --- |
+| `HELD` | claimed, nothing signed | release: the wallet keeps its money |
+| `SIGNING` | an output may exist | commit: never release |
+
+Committing a `SIGNING` hold is right even when no signature was actually
+produced. That reading costs one wallet its inputs, which an operator can make
+good from the hold record; the opposite mistake inflates the mint's supply and
+cannot be undone.
+
+Note this is the **opposite direction** to `MeltSagaReconciler`, which releases
+the proofs of a stale melt. The asymmetry follows from which side of its
+irreversible step each flow is stranded on: a melt holds proofs *before* paying
+and can still decide not to pay, while a swap in `SIGNING` is already past the
+point where it could take its outputs back.
+
+Holds younger than `cashu.mint.swap.hold-ttl` are left alone, so a slow but
+healthy swap is never interrupted.
+
 ## Related
 
 - [Why validation runs before signing](validation-before-signing.md) — the

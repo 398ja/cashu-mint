@@ -50,6 +50,27 @@ public final class MintIntegrityContext {
     private static volatile MintSuspensionRepository mintSuspensionRepository;
     private static volatile String voucherIouPolicy;
     private static volatile String activeProfile;
+    private static volatile SwapHoldRepository swapHoldRepository;
+
+    /**
+     * Installs durable storage for swap holds (issue #400). Idempotent.
+     *
+     * <p>Absent it, a swap still cannot double-spend — the hold on the inputs is what prevents
+     * that — but a stranded hold has to be resolved by an operator instead of by the reconciler.
+     */
+    public static void installSwapHolds(SwapHoldRepository swapHoldRepository) {
+        MintIntegrityContext.swapHoldRepository = swapHoldRepository;
+    }
+
+    /**
+     * The swap hold store, or a no-op when none is wired, so callers need no null check for a
+     * dependency whose absence only costs automatic reconciliation.
+     */
+    public static SwapHoldRepository swapHoldRepository() {
+        SwapHoldRepository installed = swapHoldRepository;
+        return installed != null ? installed : new SwapHoldRepository() {
+        };
+    }
 
     /** Installs the spec-001 portion of the context. Idempotent. */
     public static void install(MintQuoteRepository quoteRepository,

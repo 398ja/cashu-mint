@@ -13,6 +13,8 @@ import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -45,6 +47,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final SignatureVaultService signatureVaultService;
     private final MintVaultService mintVaultService;
     private final ProofVaultService proofVaultService;
+    private final SwapHoldRepository swapHoldRepository;
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -66,12 +69,24 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                     @NonNull SignatureVaultService signatureVaultService,
                     @NonNull MintVaultService mintVaultService,
                     @NonNull ProofVaultService proofVaultService) {
+        this(mintId, request, mintLoadService, signatureVaultService, mintVaultService,
+                proofVaultService, MintIntegrityContext.swapHoldRepository());
+    }
+
+    public SwapTask(@NonNull UUID mintId,
+                    @NonNull PostSwapRequest<T> request,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService,
+                    @NonNull SwapHoldRepository swapHoldRepository) {
         this.mintId = mintId;
         this.request = request;
         this.mintLoadService = mintLoadService;
         this.signatureVaultService = signatureVaultService;
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
+        this.swapHoldRepository = swapHoldRepository;
     }
 
     @Override
@@ -150,11 +165,13 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                                                    List<Proof<T>> proofsToSwap,
                                                    MintProtocolService service)
             throws CashuErrorException {
-        SwapProofHold hold = new SwapProofHold(mintId, mintVaultService, proofVaultService);
+        SwapProofHold hold =
+                new SwapProofHold(mintId, mintVaultService, proofVaultService, swapHoldRepository);
         hold.claim(proofsToSwap);
 
         List<BlindSignature> blindSignatures;
         try {
+            hold.markSigning();
             blindSignatures = signOutputs(mint, service);
         } catch (CashuErrorException | RuntimeException signingFailure) {
             // Nothing durable was published for this swap yet, so returning the inputs is the

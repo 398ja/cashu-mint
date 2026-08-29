@@ -4,6 +4,16 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Swap holds are now reconciled automatically** (#400). A swap that dies holding its inputs is
+  resolved by `SwapHoldReconciler` rather than waiting for an operator. The hold records which
+  side of the signing step it reached, because a stranded hold resolves in opposite directions
+  depending on the answer and a held proof looks identical either way: one that never signed is
+  released, one that may have signed is committed, never released. That direction is the opposite
+  of the melt sweep, which releases a stale hold, because a melt is stranded before its
+  irreversible step and a signing swap is stranded after it.
+
 ### Fixed
 
 - **A swap can no longer leave signed outputs beside unspent inputs** (issue
