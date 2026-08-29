@@ -30,6 +30,11 @@ import java.util.UUID;
 
 /**
  * Task executing a swap of proofs for new blinded signatures.
+ *
+ * <p>The swap takes an exclusive {@link SwapProofHold} on its inputs before it signs anything,
+ * commits that hold once the outputs are signed, and releases it if the swap fails before
+ * signing. Signing first and spending afterwards would let a failure in between leave outputs
+ * recoverable through NUT-09 restore while the inputs were still spendable (issue #400).
  */
 @Slf4j
 public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapResponse> {
@@ -129,20 +134,75 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                 new VerifyFeesTask<>(request, mintLoadService).execute();
             }
 
-            // Voucher swaps use standard keyset keys (power-of-2 amounts)
-            // The voucher metadata is stored in the secret's NUT-10 tags, not affecting the keys
-            List<BlindSignature> blindSignatures = new ArrayList<>(request.getBlindedMessages().size());
-            for (BlindedMessage bm : request.getBlindedMessages()) {
-                SignBlindedMessageTask signTask = new SignBlindedMessageTask(mint, bm, service, signatureVaultService);
-                BlindSignature sig = signTask.execute();
-                blindSignatures.add(sig);
-            }
+            return signAgainstHeldInputs(mint, proofsToSwap, service);
+        }
+    }
 
-            PostSwapResponse response = new PostSwapResponse(blindSignatures);
+    /**
+     * Signs the outputs between taking and committing an exclusive hold on the inputs.
+     *
+     * <p>This ordering is what makes the swap safe to fail. Before signing, the inputs are held
+     * and any failure releases them, so the wallet keeps its money and no signature exists.
+     * After signing, the inputs are already unspendable by anyone else, so a failure can never
+     * leave redeemable outputs alongside spendable inputs.
+     */
+    private PostSwapResponse signAgainstHeldInputs(Mint mint,
+                                                   List<Proof<T>> proofsToSwap,
+                                                   MintProtocolService service)
+            throws CashuErrorException {
+        SwapProofHold hold = new SwapProofHold(mintId, mintVaultService, proofVaultService);
+        hold.claim(proofsToSwap);
 
-            new InvalidateProofsTask<>(mint, proofsToSwap, mintVaultService, proofVaultService).execute();
+        List<BlindSignature> blindSignatures;
+        try {
+            blindSignatures = signOutputs(mint, service);
+        } catch (CashuErrorException | RuntimeException signingFailure) {
+            // Nothing durable was published for this swap yet, so returning the inputs is the
+            // kind failure: the wallet keeps its money and can retry.
+            hold.release();
+            throw signingFailure;
+        }
 
-            return response;
+        commitOrStrandTheHold(hold);
+        return new PostSwapResponse(blindSignatures);
+    }
+
+    /**
+     * Voucher swaps use standard keyset keys; the voucher metadata lives in the secret's NUT-10
+     * tags and does not affect which key signs.
+     */
+    private List<BlindSignature> signOutputs(Mint mint, MintProtocolService service)
+            throws CashuErrorException {
+        List<BlindedMessage> outputs = request.getBlindedMessages();
+        List<BlindSignature> blindSignatures = new ArrayList<>(outputs.size());
+        for (BlindedMessage output : outputs) {
+            blindSignatures.add(
+                    new SignBlindedMessageTask(mint, output, service, signatureVaultService).execute());
+        }
+        return blindSignatures;
+    }
+
+    /**
+     * Spends the held inputs, or leaves the hold standing for an operator to resolve.
+     *
+     * <p>The outputs are signed and durable by now, so the hold must never be released here.
+     * Leaving the inputs {@code PENDING} and bound keeps them unspendable, which is what stops
+     * the value being redeemed twice, and keeps the swap resolvable rather than lost.
+     *
+     * <p>Whatever the vault reported, the client is told {@code proofs_pending}: that is the
+     * state their inputs are actually in, and it tells a wallet to wait for the swap to be
+     * resolved rather than to treat the inputs as spendable and try to spend them elsewhere.
+     */
+    private void commitOrStrandTheHold(SwapProofHold hold) throws CashuErrorException {
+        try {
+            hold.commit();
+        } catch (CashuErrorException | RuntimeException commitFailure) {
+            log.error("[swap-hold][alert] SWAP_SIGNED_COMMIT_FAILED mint_id={} {}",
+                    mintId, hold.describeStrandedHold(), commitFailure);
+            CashuErrorException stranded = new CashuErrorException(CashuErrorCode.proofs_pending,
+                    hold.describeStrandedHold());
+            stranded.initCause(commitFailure);
+            throw stranded;
         }
     }
 

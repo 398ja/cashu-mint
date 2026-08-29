@@ -56,6 +56,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Why `/v1/info` is derived from the wiring](explanations/mint-info-advertisement.md) - Why the advertised NUT-06 capabilities are generated from the code rather than written down, and what that costs.
 - [Why the mint fails closed on DLEQ](explanations/dleq-fail-closed.md) - Why a NUT-12 proof failure fails the request, and why the nonce is deterministic.
 - [Why validation runs before signing](explanations/validation-before-signing.md) - Why a rejected transaction must leave no blind signature in the vault, and how the checks are ordered to guarantee it.
+- [Why a swap holds its inputs before it signs](explanations/swap-holds-inputs-before-signing.md) - Why a swap claims its inputs before signing, so a failure after signing can never leave redeemable outputs beside spendable inputs.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
 - [Voucher data record](explanations/voucher-data-record.md) - What the mint stores about a customer, in customer-facing language. Kept in step with the schema by a CI check.
 - [Architecture decision records](adr/) - The decisions behind the current design, newest last.

@@ -114,9 +114,8 @@ public class SwapTaskDuplicateInputTest {
                              null)).when(mock).execute());
              MockedConstruction<VerifyFeesTask> feesCons = Mockito.mockConstruction(
                      VerifyFeesTask.class, (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(
-                     InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(proof)))) {
+             MockedConstruction<SwapProofHold> holdCons =
+                     Mockito.mockConstruction(SwapProofHold.class)) {
 
             factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
 

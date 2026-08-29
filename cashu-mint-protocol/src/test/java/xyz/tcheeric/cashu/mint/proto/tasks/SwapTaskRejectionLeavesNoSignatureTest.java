@@ -92,8 +92,8 @@ public class SwapTaskRejectionLeavesNoSignatureTest {
                      VerifyProofsTask.class, (mock, ctx) -> Mockito.doNothing().when(mock).execute());
              MockedConstruction<SignBlindedMessageTask> signCons =
                      Mockito.mockConstruction(SignBlindedMessageTask.class);
-             MockedConstruction<InvalidateProofsTask> invalidateCons =
-                     Mockito.mockConstruction(InvalidateProofsTask.class)) {
+             MockedConstruction<SwapProofHold> holdCons =
+                     Mockito.mockConstruction(SwapProofHold.class)) {
 
             factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
 
@@ -108,8 +108,8 @@ public class SwapTaskRejectionLeavesNoSignatureTest {
                     "validation must run before the signing loop");
             assertNull(signatureVault.retrieve(output),
                     "a rejected swap must leave no signature retrievable through NUT-09 restore");
-            assertTrue(invalidateCons.constructed().isEmpty(),
-                    "a rejected swap must not spend its inputs");
+            assertTrue(holdCons.constructed().isEmpty(),
+                    "a rejected swap must not even hold its inputs, let alone spend them");
         }
     }
 

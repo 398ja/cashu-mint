@@ -92,8 +92,7 @@ public class SwapTaskTest {
         try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
              MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(proof)));
+             MockedConstruction<SwapProofHold> holdCons = Mockito.mockConstruction(SwapProofHold.class);
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
                      (mock, ctx) -> Mockito.doReturn(new BlindSignature(
                              1,
@@ -111,7 +110,8 @@ public class SwapTaskTest {
 
             assertEquals(1, response.getBlindSignatures().size());
             Mockito.verify(verifyCons.constructed().get(0)).execute();
-            Mockito.verify(invalidateCons.constructed().get(0)).execute();
+            Mockito.verify(holdCons.constructed().get(0)).claim(request.getInputs());
+            Mockito.verify(holdCons.constructed().get(0)).commit();
             Mockito.verify(signCons.constructed().get(0)).execute();
             Mockito.verify(feesCons.constructed().get(0)).execute();
         }
@@ -233,8 +233,7 @@ public class SwapTaskTest {
         try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
              MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of()));
+             MockedConstruction<SwapProofHold> holdCons = Mockito.mockConstruction(SwapProofHold.class);
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
                      (mock, ctx) -> Mockito.doReturn(new BlindSignature(
                              150,
@@ -281,8 +280,7 @@ public class SwapTaskTest {
         try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
              MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of(regularProof1, regularProof2)));
+             MockedConstruction<SwapProofHold> holdCons = Mockito.mockConstruction(SwapProofHold.class);
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
                      (mock, ctx) -> Mockito.doReturn(new BlindSignature(
                              1,
@@ -333,8 +331,7 @@ public class SwapTaskTest {
         try (MockedStatic<MintProtocolServiceFactory> factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
              MockedConstruction<VerifyProofsTask> verifyCons = Mockito.mockConstruction(VerifyProofsTask.class,
                      (mock, ctx) -> Mockito.doNothing().when(mock).execute());
-             MockedConstruction<InvalidateProofsTask> invalidateCons = Mockito.mockConstruction(InvalidateProofsTask.class,
-                     (mock, ctx) -> Mockito.when(mock.execute()).thenReturn(List.of()));
+             MockedConstruction<SwapProofHold> holdCons = Mockito.mockConstruction(SwapProofHold.class);
              MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(SignBlindedMessageTask.class,
                      (mock, ctx) -> {
                          BlindedMessage bm = (BlindedMessage) ctx.arguments().get(1);

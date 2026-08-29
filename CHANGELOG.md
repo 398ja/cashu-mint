@@ -6,6 +6,26 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **A swap can no longer leave signed outputs beside unspent inputs** (issue
+  #400). `SwapTask` signed and stored every output in the signature vault before
+  `InvalidateProofsTask` ran, with no transaction, compensation or rollback. If
+  invalidation threw for any reason, the swap ended with the outputs retrievable
+  through NUT-09 restore while the inputs were still `UNSPENT`, so the same value
+  could be redeemed twice; and because invalidation looped proof by proof, a
+  mid-list failure left the inputs partially spent.
+
+  The swap now takes an exclusive `SwapProofHold` on its inputs *before* it
+  signs, mirroring the melt saga and using the same vault primitives. A failure
+  before signing releases the hold, so the wallet keeps its money and no
+  signature exists. A failure after signing leaves the inputs `PENDING` and still
+  bound, which no other swap or melt can claim, so the value cannot be doubled;
+  the client is told `proofs_pending` and the hold is left for a reconciler or
+  operator to commit. Claiming and committing are each one call for the whole
+  input list, so the mid-list partial failure cannot arise at all.
+
+  This does not weaken the #384 guarantee that validation precedes signing;
+  `SwapTaskRejectionLeavesNoSignatureTest` still passes unchanged.
+
 - **A SIG_ALL melt witness is now bound to the quote it pays** (issue #383).
   `MeltTask` still built its P2PK spending condition from the change outputs
   alone, so the `SigAllMessage.forMelt` aggregation that landed in `0563fb12`
