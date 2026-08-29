@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
@@ -52,8 +53,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         log.debug("Proof entity {}...", proofEntity);
         if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
             log.error("verify_proof_already_used_error state={}", proofEntity.getState());
-            ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_already_used_error);
         }
 
         if (proofEntity != null) {
@@ -65,8 +65,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");
-            ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_id_error);
         }
 
         log.debug("The proof key set id is valid...");
@@ -75,15 +74,13 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         PrivateKey privateKey = getPrivateKey(proof, mint);
         if (privateKey == null) {
             log.error("verify_proof_key_set_not_found");
-            ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_not_found);
         }
 
         byte[] C = proof.getUnblindedSignature().getBytes();
         if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
             log.error("verify_proof_failed_error");
-            ErrorResponse error = new ErrorResponse("verify_proof_failed_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_failed_error);
         }
     }
 

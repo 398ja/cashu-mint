@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
@@ -74,9 +75,8 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         if (voucherSecret != null && voucherSecret.isExpired()) {
             log.error("voucher_expired voucherId={} expiresAt={}",
                     voucherSecret.getVoucherId(), voucherSecret.getExpiresAt());
-            ErrorResponse error = new ErrorResponse("voucher_expired",
+                    throw new CashuErrorException(CashuErrorCode.voucher_expired,
                     "Voucher has expired and cannot be redeemed");
-            throw new CashuErrorException(error.toJson());
         }
 
         // 2. Validate issuer signature
@@ -84,9 +84,8 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             if (!VoucherSignatureService.verify(voucherSecret)) {
                 log.error("voucher_signature_invalid voucherId={} issuerPubkey={}",
                         voucherSecret.getVoucherId(), voucherSecret.getIssuerPublicKey());
-                ErrorResponse error = new ErrorResponse("voucher_signature_invalid",
+                        throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
                         "Voucher issuer signature verification failed");
-                throw new CashuErrorException(error.toJson());
             }
             log.debug("Voucher issuer signature verified: voucherId={}", voucherSecret.getVoucherId());
         }
@@ -109,8 +108,7 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
             log.error("verify_proof_already_used_error voucher_proof amount={} state={}",
                     proof.getAmount(), proofEntity.getState());
-            ErrorResponse error = new ErrorResponse("verify_proof_already_used_error");
-            throw new CashuErrorException(error.toJson());
+                    throw new CashuErrorException(CashuErrorCode.verify_proof_already_used_error);
         }
 
         if (proofEntity != null) {
@@ -123,8 +121,7 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         // 4. Validate keyset ID
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");
-            ErrorResponse error = new ErrorResponse("verify_proof_key_set_id_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_id_error);
         }
 
         log.debug("Voucher proof keyset id is valid...");
@@ -133,16 +130,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         PrivateKey privateKey = getPrivateKey(proof, mint);
         if (privateKey == null) {
             log.error("verify_proof_key_set_not_found amount={}", proof.getAmount());
-            ErrorResponse error = new ErrorResponse("verify_proof_key_set_not_found");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_not_found);
         }
 
         // 6. Verify BDHKE signature (same as RSSSpendingCondition)
         byte[] C = proof.getUnblindedSignature().getBytes();
         if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
             log.error("verify_proof_failed_error voucher_proof amount={}", proof.getAmount());
-            ErrorResponse error = new ErrorResponse("verify_proof_failed_error");
-            throw new CashuErrorException(error.toJson());
+            throw new CashuErrorException(CashuErrorCode.verify_proof_failed_error);
         }
 
         log.info("voucher_proof_verified amount={} voucherId={}",

@@ -11,10 +11,12 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
@@ -109,7 +111,7 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     private void requirePositiveAmount(int amount) throws CashuErrorException {
         if (amount <= 0) {
             log.error("validate_amounts_error amount={}", amount);
-            throw new CashuErrorException(new ErrorResponse("validate_amounts_error").toJson());
+            throw new CashuErrorException(CashuErrorCode.validate_amounts_error);
         }
     }
 
@@ -118,16 +120,19 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         List<Proof<T>> proofs = request.getInputs();
         List<BlindedMessage> blindedMessages = request.getBlindedMessages();
 
+        // NUT-11 SIG_ALL signs one message over the whole swap, so the condition needs the
+        // transaction, not just this proof's outputs.
+        P2PKTransaction transaction = P2PKTransaction.forSwap(proofs, blindedMessages);
         for (Proof<T> proof : proofs) {
             Secret secret = proof.getSecret();
-            SpendingCondition<T> spendingCondition = getSpendingCondition(secret, blindedMessages);
+            SpendingCondition<T> spendingCondition = getSpendingCondition(secret, transaction);
             spendingCondition.verify(proof);
         }
 
         log.info("Verify proofs ok");
     }
 
-    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, List<BlindedMessage> blindedMessages)
+    private SpendingCondition<T> getSpendingCondition(@NonNull Secret secret, @NonNull P2PKTransaction transaction)
             throws CashuErrorException {
         // Voucher proofs use standard keyset keys (same as RSS) plus voucher-specific validations
         // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
@@ -137,16 +142,14 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
             return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService);
         }
         if (secret instanceof P2PKSecret) {
-            return (SpendingCondition<T>) new P2PKSpendingCondition(blindedMessages);
+            return (SpendingCondition<T>) new P2PKSpendingCondition(transaction);
         }
         if (secret instanceof RandomStringSecret) {
             return (SpendingCondition<T>) new RSSSpendingCondition(mint, mintProtocolService);
         }
         log.error("Unsupported proof type in swap request: {}", secret.getClass().getName());
-        ErrorResponse error = new ErrorResponse(
-                "unsupported_proof_type",
+        throw new CashuErrorException(CashuErrorCode.unsupported_proof_type,
                 "Unsupported proof type for swap: " + secret.getClass().getSimpleName()
         );
-        throw new CashuErrorException(error.toJson());
     }
 }
