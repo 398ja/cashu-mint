@@ -777,9 +777,12 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
      * <p>Before a voucher is signed, the funding row attached to its quote
      * must durably back the <b>face value</b> in the quote's unit:
      * <ul>
-     *   <li>{@code CUSTOMER_PAYMENT} — a customer fee-payment
-     *       ({@code amount == charged_amount = fee}) can never back the face
-     *       value. Rejected with {@code face_value_not_backed}.</li>
+     *   <li>{@code CUSTOMER_PAYMENT} — for a {@code customer_paid} voucher this
+     *       IS the backing: the customer's payment locks the exchange rate the
+     *       face value is derived from, and the mint holds no collateral behind
+     *       it. Accepted. For any other voucher type a customer fee-payment
+     *       ({@code amount == charged_amount = fee}) still cannot back the face
+     *       value and is rejected with {@code face_value_not_backed}.</li>
      *   <li>{@code MERCHANT_IOU} — permitted only when
      *       {@code cashu.mint.voucher.iou-policy} is {@code ALLOW}; otherwise
      *       rejected with {@code iou_not_permitted} (the policy was installed
@@ -797,10 +800,23 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource source = funding.fundingSource();
 
         if (source == xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.CUSTOMER_PAYMENT) {
-            // A customer fee-payment funds only the fee, never the face value.
+            // A customer_paid voucher is not collateralised, and is not meant to be. The
+            // customer's payment locks an exchange rate; the face value is derived from that
+            // rate rather than held in reserve behind it. Demanding amount >= faceValue here
+            // compares a charged fee against a face value and can never pass, which is what
+            // stranded every issuance on staging with face_value_not_backed.
+            //
+            // The amount is still checked below against charged_amount, so a customer who
+            // underpays their own quote is still refused.
+            if (VOUCHER_TYPE_CUSTOMER_PAID.equalsIgnoreCase(quote.voucherType())) {
+                enforceChargedAmountPaid(quoteId, quote, funding);
+                return;
+            }
+
+            // Any other voucher type does expect collateral, and a fee-payment is not it.
             log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
-                            + "face_value={} funding_amount={}",
-                    quoteId, quote.faceValue(), funding.amount());
+                            + "voucher_type={} face_value={} funding_amount={}",
+                    quoteId, quote.voucherType(), quote.faceValue(), funding.amount());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
@@ -993,6 +1009,35 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             log.warn("mint_task expiry_paid_check_failed quote_id={} reason={}", quoteId, e.getMessage());
             return false;
         }
+    }
+
+
+    /**
+     * The voucher type whose face value is derived from a locked rate rather than collateral.
+     * Matches what {@code VoucherMintQuoteTask} records when it persists the quote.
+     */
+    private static final String VOUCHER_TYPE_CUSTOMER_PAID = "customer_paid";
+
+    /**
+     * Checks that the customer paid what their own quote charged.
+     *
+     * <p>This is the invariant that actually applies to a rate-locked voucher. The face value is
+     * a fiat figure derived from the locked rate; the sum the customer owes is
+     * {@code charged_amount}, which for this variant is the fee. Comparing funding against the
+     * face value instead compares two different quantities in two different scales.
+     */
+    private void enforceChargedAmountPaid(String quoteId, VoucherQuote quote, VoucherFunding funding)
+            throws CashuErrorException {
+        long owed = quote.chargedAmount();
+        if (funding.amount() < owed || !java.util.Objects.equals(funding.unit(), quote.unit())) {
+            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
+                            + "reason=underpaid charged_amount={} funding_amount={} quote_unit={} funding_unit={}",
+                    quoteId, owed, funding.amount(), quote.unit(), funding.unit());
+            MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
+            throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
+        }
+        log.info("voucher_backing customer_paid_accepted quote_id={} charged_amount={} funding_amount={} unit={}",
+                quoteId, owed, funding.amount(), quote.unit());
     }
 
 }

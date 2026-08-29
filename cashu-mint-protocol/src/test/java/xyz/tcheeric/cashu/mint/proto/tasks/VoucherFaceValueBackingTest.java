@@ -80,17 +80,55 @@ class VoucherFaceValueBackingTest {
     // Reject cases — issuance MUST fail before signing
     // ---------------------------------------------------------------
 
+    /**
+     * A customer_paid voucher is not collateralised. The customer's payment locks the exchange
+     * rate the face value is derived from; the mint holds no reserve behind it, and sats are its
+     * base currency. Requiring amount >= faceValue here compared a charged fee against a face
+     * value, which can never pass — every staging issuance died on face_value_not_backed
+     * (2026-08-29: 30 sat paid against a 300 face value).
+     */
     @Test
-    void customer_payment_fee_only_is_not_backing_face_value() throws Exception {
+    void customer_payment_backs_a_customer_paid_voucher() throws Exception {
         installVoucher("DENY");
         stubFundedQuote();
+        stubFunding(VoucherFundingSource.CUSTOMER_PAYMENT, FEE, "sat");
+        stubIssuanceAdvance();
+
+        var response = task().execute();
+
+        assertThat(response.getBlindSignatures()).hasSize(3);
+        verify(voucherQuoteRepo).casLifecycle(QUOTE_ID,
+                VoucherLifecycleState.FUNDED, VoucherLifecycleState.ISSUING);
+    }
+
+    /** Paying less than the quote charged is still refused — the check moved, it did not vanish. */
+    @Test
+    void customer_payment_below_the_charged_amount_is_rejected() throws Exception {
+        installVoucher("DENY");
+        stubFundedQuote();
+        stubFunding(VoucherFundingSource.CUSTOMER_PAYMENT, FEE - 1, "sat");
+
+        assertThatThrownBy(() -> task().execute())
+                .isInstanceOf(CashuErrorException.class)
+                .matches(ex -> code((CashuErrorException) ex).equals("face_value_not_backed"));
+
+        verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
+                eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
+    }
+
+    /** A customer fee-payment against a voucher type that DOES expect collateral is still refused. */
+    @Test
+    void customer_payment_does_not_back_a_collateralised_voucher() throws Exception {
+        installVoucher("DENY");
+        when(voucherQuoteRepo.findById(QUOTE_ID))
+                .thenReturn(Optional.of(new MerchantFundedQuoteStub(QUOTE_ID, FACE_VALUE, FEE, "sat",
+                        FUNDING_ID, VoucherLifecycleState.FUNDED)));
         stubFunding(VoucherFundingSource.CUSTOMER_PAYMENT, FEE, "sat");
 
         assertThatThrownBy(() -> task().execute())
                 .isInstanceOf(CashuErrorException.class)
                 .matches(ex -> code((CashuErrorException) ex).equals("face_value_not_backed"));
 
-        // Bailed BEFORE the FUNDED → ISSUING CAS — no consumption, no signing.
         verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
                 eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
     }
@@ -270,6 +308,20 @@ class VoucherFaceValueBackingTest {
 
     private static String code(CashuErrorException ex) {
         return ex.getErrorCode().name();
+    }
+
+    /** A voucher type that is expected to be collateralised, unlike customer_paid. */
+    private record MerchantFundedQuoteStub(String quoteId, long faceValue, long chargedAmount, String unit,
+                                           String fundingId, VoucherLifecycleState lifecycleState)
+            implements VoucherQuote {
+        @Override public String voucherType() { return "merchant_funded"; }
+        @Override public long fee() { return chargedAmount; }
+        @Override public String merchantId() { return null; }
+        @Override public String customerId() { return null; }
+        @Override public String idempotencyKey() { return null; }
+        @Override public String requestHash() { return "0".repeat(64); }
+        @Override public Instant createdAt() { return Instant.now(); }
+        @Override public Instant updatedAt() { return Instant.now(); }
     }
 
     private record VoucherQuoteStub(String quoteId, long faceValue, long chargedAmount, String unit,
