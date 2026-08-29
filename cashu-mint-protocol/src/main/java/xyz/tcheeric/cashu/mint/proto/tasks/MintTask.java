@@ -231,7 +231,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             Instant createdAt = expiryGateway.getCreatedAt(quoteId);
             if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
                 Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
-                if (Instant.now().isAfter(expiresAt)) {
+                if (Instant.now().isAfter(expiresAt) && !alreadyPaid(expiryGateway, quoteId)) {
                     log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                             quoteId, createdAt, ttlSeconds, expiresAt);
                     MetricRecorders.issuance().quoteExpired();
@@ -360,7 +360,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     Instant createdAt = durableQuote.createdAt();
                     if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
                         Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
-                        if (Instant.now().isAfter(expiresAt)) {
+                        if (Instant.now().isAfter(expiresAt) && !alreadyPaid(crossCheckGateway, quoteId)) {
                             log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
                                     quoteId, createdAt, ttlSeconds, expiresAt);
                             MetricRecorders.issuance().quoteExpired();
@@ -969,4 +969,30 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throw new CashuErrorException(CashuErrorCode.mint_signature_invalid);
         }
     }
+
+    /**
+     * Whether the payer has already paid for this quote.
+     *
+     * <p>An expiry bounds how long the payer has to pay an invoice, not how long the mint will
+     * honour a payment it has already taken. NUT-04 makes the mintable amount
+     * {@code amount_paid - amount_issued}; it does not make a paid quote unmintable once its
+     * expiry passes. Rejecting one takes the customer's money and issues nothing, which is why
+     * this is checked before {@code quote_expired} is raised rather than after.
+     *
+     * <p>Answers false when payment cannot be determined. That is the safe direction here: the
+     * caller only consults this to suppress an expiry rejection, so an unknown state leaves the
+     * existing behaviour untouched, and the real payment check further down still gates issuance.
+     */
+    private boolean alreadyPaid(Gateway gateway, String quoteId) {
+        try {
+            if (paymentStatusChecker != null && paymentStatusChecker.isPaid(quoteId)) {
+                return true;
+            }
+            return gateway.checkPaymentStatus(quoteId);
+        } catch (RuntimeException e) {
+            log.warn("mint_task expiry_paid_check_failed quote_id={} reason={}", quoteId, e.getMessage());
+            return false;
+        }
+    }
+
 }

@@ -25,6 +25,7 @@ import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
@@ -437,4 +438,86 @@ public class MintTaskTest {
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * A quote whose expiry has passed but which the payer has already paid must still mint.
+     *
+     * <p>Staging 2026-08-29, quote eaf66a17: the gateway recorded it PAID, the mint answered
+     * /v1/mint/bolt11 with "Quote is expired" (20007) anyway, and the wallet sat on
+     * "Waiting for the voucher to be backed" until it gave up. The customer's money was taken
+     * and no ecash was issued. An expiry bounds how long the payer has to pay, not how long the
+     * mint will honour a payment it already holds.
+     */
+    @Test
+    void paidQuotePastItsExpiryStillMints() throws Exception {
+        String quoteId = java.util.UUID.randomUUID().toString();
+        long faceValue = 100L;
+        VoucherQuoteRegistry.storeFaceValue(quoteId, faceValue);
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(createBlindedMessage(64), createBlindedMessage(32),
+                createBlindedMessage(4)));
+
+        // Created two minutes ago with a 60s TTL, so it is comfortably expired — and paid.
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.getPaymentExpiry(quoteId)).thenReturn(60);
+        when(mockGateway.getCreatedAt(quoteId)).thenReturn(Instant.now().minusSeconds(120));
+        when(mockGateway.checkPaymentStatus(quoteId)).thenReturn(true);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+        when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
+        Mint mint = createMintWithKeys();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+
+        try (MockedConstruction<SignBlindedMessageTask> signCons = Mockito.mockConstruction(
+                SignBlindedMessageTask.class,
+                (mock, ctx) -> when(mock.execute()).thenReturn(new BlindSignature(
+                        ((BlindedMessage) ctx.arguments().get(1)).getAmount(),
+                        KeysetId.fromString(VALID_KEYSET_ID),
+                        SignatureTestData.sampleSignature(),
+                        null)))) {
+
+            MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service,
+                    signatureVaultService);
+            PostMintResponse response = task.execute();
+
+            assertNotNull(response);
+            assertEquals(3, response.getBlindSignatures().size());
+        }
+    }
+
+    /**
+     * An expired quote nobody paid is still refused, so the fix above does not simply
+     * disable the expiry check.
+     */
+    @Test
+    void unpaidQuotePastItsExpiryIsStillRejected() {
+        String quoteId = java.util.UUID.randomUUID().toString();
+
+        PostMintRequest<Secret> request = new PostMintRequest<>();
+        request.setQuoteId(quoteId);
+        request.setBlindedMessages(List.of(createBlindedMessage(64)));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.getPaymentExpiry(quoteId)).thenReturn(60);
+        when(mockGateway.getCreatedAt(quoteId)).thenReturn(Instant.now().minusSeconds(120));
+        when(mockGateway.checkPaymentStatus(quoteId)).thenReturn(false);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.BOLT11)).thenReturn(mockGateway);
+
+        Mint mint = createMintWithKeys();
+        SignatureVaultService signatureVaultService = new DefaultSignatureVaultService();
+
+        MintTask<Secret> task = new MintTask<>(request, PaymentMethod.BOLT11, mint, service,
+                signatureVaultService);
+
+        CashuErrorException error = assertThrows(CashuErrorException.class, task::execute);
+        assertEquals(CashuErrorCode.quote_expired, error.getErrorCode());
+    }
+
 }
