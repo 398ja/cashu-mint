@@ -4,6 +4,14 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **The admin's fee handling is covered end to end** (#385). The provisioning path already carried
+  `cashu.input_fee_ppk` through to the vault, but nothing asserted it, so an operator's configured
+  fee reaching the keyset was untested. Also pinned: an unconfigured mint charges nothing, a
+  negative or malformed fee is ignored rather than charged, a rotation reads the fee afresh so a
+  fee change reaches wallets (ADR-0009), and the applied fee is recorded in the audit trail.
+
 ### Changed
 
 - **The proof vault binding is named `hold_id` rather than `melt_saga_id`** (#403). A melt saga and

@@ -146,6 +146,93 @@ class VaultProvisioningOutboxHandlerTest {
     }
 
     @Test
+    // Ensures a fee an operator configures is the fee the provisioned keyset carries.
+    void shouldProvisionWithTheConfiguredInputFee() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.input_fee_ppk", "100"));
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.lastInputFeePpk).isEqualTo(100);
+    }
+
+    @Test
+    // Ensures a mint with no configured fee charges nothing, which is what an unconfigured mint
+    // did before fees existed and must keep doing.
+    void shouldProvisionFreeOfChargeWhenNoFeeIsConfigured() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.unit", "sat"));
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.lastInputFeePpk).isZero();
+    }
+
+    @Test
+    // Ensures a negative fee is refused rather than charged. A negative fee would pay the wallet
+    // to spend, so it is treated as a misconfiguration and the mint provisions free of charge.
+    void shouldIgnoreANegativeConfiguredFee() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.input_fee_ppk", "-1"));
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.lastInputFeePpk).isZero();
+    }
+
+    @Test
+    // Ensures a fee that is not a number does not stop the mint being provisioned. An operator
+    // typo should cost the fee, not the mint.
+    void shouldIgnoreAMalformedConfiguredFee() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.input_fee_ppk", "free"));
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.lastInputFeePpk).isZero();
+    }
+
+    @Test
+    // Ensures a rotation reads the fee afresh, which is how a fee change reaches wallets: ADR-0009
+    // makes a fee change a rotation, so the replacement keyset must carry the new fee rather than
+    // the one captured when the mint was first provisioned.
+    void shouldRotateOntoTheNewlyConfiguredFee() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.input_fee_ppk", "100"));
+        handler.handle(createdMessage(0));
+        storeConfiguration(Map.of("version.tag", "v2", "cashu.input_fee_ppk", "250"));
+        final String controlId = UUID.randomUUID().toString();
+        controlRepository.create(new OperationalControlRecord(controlId, MINT_ID, UUID.randomUUID(),
+            xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlType.KEY_ROTATION,
+            "KEY_ROTATION_INITIATED", CLOCK.instant(), "fee change", null));
+
+        handler.handle(keysRotatedMessage(controlId, 0));
+
+        assertThat(vaultPort.lastInputFeePpk).isEqualTo(250);
+    }
+
+    @Test
+    // Ensures the fee a rotation applied is recorded in the audit trail, so an operator can tell
+    // from the history what a keyset was charging without reading the vault.
+    void shouldRecordTheFeeInTheRotationOutcome() {
+        storeProvisioningMint();
+        storeConfiguration(Map.of("version.tag", "v1", "cashu.input_fee_ppk", "250"));
+        final String controlId = UUID.randomUUID().toString();
+        controlRepository.create(new OperationalControlRecord(controlId, MINT_ID, UUID.randomUUID(),
+            xyz.tcheeric.cashu.mint.admin.application.port.out.OperationalControlRepository.OperationalControlType.KEY_ROTATION,
+            "KEY_ROTATION_INITIATED", CLOCK.instant(), "fee change", null));
+
+        handler.handle(keysRotatedMessage(controlId, 0));
+
+        assertThat(controlRepository.records.get(controlId).outcome()).contains("250");
+    }
+
+    private void storeConfiguration(final Map<String, String> parameters) {
+        configSetRepository.save(MINT_ID, new ConfigurationSet(ConfigurationRevisionId.of(1),
+            parameters, new AuditMetadata("op", "config", CLOCK.instant())));
+    }
+
+    @Test
     // Ensures KEYS_ROTATED events actually rotate the vault keyset and record the outcome.
     void shouldRotateVaultKeysetOnKeysRotated() {
         storeProvisioningMint();
