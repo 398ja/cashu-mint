@@ -25,6 +25,7 @@ import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 /**
  * The signing task must consult the keyset's active status before it signs.
@@ -49,7 +50,7 @@ class SignBlindedMessageTaskArchivedKeysetTest {
   void refusesToSignWithArchivedKeyset() throws Exception {
     final Mint mint = new Mint(UUID.randomUUID().toString());
     when(mintProtocolService.getPrivateKeyForSigning(eq(KEYSET_ID), eq(1), any()))
-        .thenThrow(new CashuErrorException("{\"code\":\"keyset_inactive\"}"));
+        .thenThrow(new CashuErrorException(CashuErrorCode.keyset_inactive));
 
     final SignBlindedMessageTask task =
         new SignBlindedMessageTask(
@@ -57,7 +58,7 @@ class SignBlindedMessageTaskArchivedKeysetTest {
 
     assertThatThrownBy(task::execute)
         .isInstanceOf(CashuErrorException.class)
-        .hasMessageContaining("keyset_inactive");
+        .extracting(t -> ((CashuErrorException) t).getErrorCode().name()).isEqualTo("keyset_inactive");
 
     // Nothing is stored when the keyset is refused.
     verify(signatureVaultService, never()).store(any(), any());

@@ -46,6 +46,7 @@ import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 /**
  * Spec 036 — verifies the controller publishes the quote trace events on the
@@ -136,13 +137,23 @@ class CashuControllerTraceTest {
     // validation rejects and the parked-unknown path are not traced.
     @Test
     void failurePredicates_matchOnlyIntendedCodes() {
-        assertThat(CashuController.isInvoiceNotPaid("{\"code\":\"mint_invoice_not_paid_error\"}")).isTrue();
-        assertThat(CashuController.isInvoiceNotPaid("{\"code\":\"invalid_output_amount\"}")).isFalse();
-        assertThat(CashuController.isInvoiceNotPaid(null)).isFalse();
+        assertThat(CashuController.hasCode(
+                new CashuErrorException(CashuErrorCode.mint_invoice_not_paid_error),
+                CashuErrorCode.mint_invoice_not_paid_error)).isTrue();
+        assertThat(CashuController.hasCode(
+                new CashuErrorException(CashuErrorCode.invalid_output_amount),
+                CashuErrorCode.mint_invoice_not_paid_error)).isFalse();
+        assertThat(CashuController.hasCode(null, CashuErrorCode.mint_invoice_not_paid_error)).isFalse();
 
-        assertThat(CashuController.isMeltInvoiceNotPaid("{\"code\":\"melt_invoice_not_paid_error\"}")).isTrue();
-        assertThat(CashuController.isMeltInvoiceNotPaid("{\"code\":\"payment_unknown\"}")).isFalse();
-        assertThat(CashuController.isMeltInvoiceNotPaid("{\"code\":\"insufficient_input\"}")).isFalse();
+        assertThat(CashuController.hasCode(
+                new CashuErrorException(CashuErrorCode.melt_invoice_not_paid_error),
+                CashuErrorCode.melt_invoice_not_paid_error)).isTrue();
+        assertThat(CashuController.hasCode(
+                new CashuErrorException(CashuErrorCode.payment_unknown),
+                CashuErrorCode.melt_invoice_not_paid_error)).isFalse();
+        assertThat(CashuController.hasCode(
+                new CashuErrorException(CashuErrorCode.insufficient_input),
+                CashuErrorCode.melt_invoice_not_paid_error)).isFalse();
     }
 
     // ---- live mint()/melt() failure-catch wiring ----
@@ -168,8 +179,8 @@ class CashuControllerTraceTest {
         return loader;
     }
 
-    private static CashuErrorException error(String code) {
-        return new CashuErrorException(new ErrorResponse(code).toJson());
+    private static CashuErrorException error(CashuErrorCode code) {
+        return new CashuErrorException(code);
     }
 
     @SuppressWarnings("unchecked")
@@ -201,7 +212,7 @@ class CashuControllerTraceTest {
     void mint_invoiceNotPaid_emitsMintFailedAndRethrows() throws Exception {
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
         CashuController<Secret> c = controllerWith(publisher, loaderWithKeyset());
-        CashuErrorException ex = error("mint_invoice_not_paid_error");
+        CashuErrorException ex = error(CashuErrorCode.mint_invoice_not_paid_error);
 
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
             nut04.when(() -> NUT04.mint(any(), any(), any(), any(), any(), any(), any())).thenThrow(ex);
@@ -222,7 +233,7 @@ class CashuControllerTraceTest {
     void mint_otherError_rethrowsWithoutEmitting() throws Exception {
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
         CashuController<Secret> c = controllerWith(publisher, loaderWithKeyset());
-        CashuErrorException ex = error("invalid_output_amount");
+        CashuErrorException ex = error(CashuErrorCode.invalid_output_amount);
 
         try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
             nut04.when(() -> NUT04.mint(any(), any(), any(), any(), any(), any(), any())).thenThrow(ex);
@@ -238,7 +249,7 @@ class CashuControllerTraceTest {
     void melt_paymentFailure_emitsMeltFailedAndRethrows() throws Exception {
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
         CashuController<Secret> c = controllerWith(publisher, loaderWithKeyset());
-        CashuErrorException ex = error("melt_invoice_not_paid_error");
+        CashuErrorException ex = error(CashuErrorCode.melt_invoice_not_paid_error);
 
         try (MockedStatic<NUT05> nut05 = mockStatic(NUT05.class);
              MockedStatic<SecretUtil> su = mockStatic(SecretUtil.class)) {
@@ -263,7 +274,7 @@ class CashuControllerTraceTest {
     void melt_validationError_rethrowsWithoutEmitting() throws Exception {
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
         CashuController<Secret> c = controllerWith(publisher, loaderWithKeyset());
-        CashuErrorException ex = error("insufficient_input");
+        CashuErrorException ex = error(CashuErrorCode.insufficient_input);
 
         try (MockedStatic<NUT05> nut05 = mockStatic(NUT05.class)) {
             nut05.when(() -> NUT05.melt(any(), any(), any(), any(), any(), any(), any(), any(), any()))

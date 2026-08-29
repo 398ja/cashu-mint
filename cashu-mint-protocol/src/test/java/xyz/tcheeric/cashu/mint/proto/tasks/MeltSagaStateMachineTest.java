@@ -38,6 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 002 T206 — saga state-machine driver in {@link MeltTask}. Covers
@@ -292,11 +293,7 @@ class MeltSagaStateMachineTest {
     }
 
     private static String errorCode(CashuErrorException ex) {
-        try {
-            return MAPPER.readValue(ex.getMessage(), ErrorResponse.class).code();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return ex.getErrorCode().name();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

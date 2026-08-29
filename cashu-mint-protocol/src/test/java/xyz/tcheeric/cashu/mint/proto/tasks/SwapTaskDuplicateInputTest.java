@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * NUT-03 duplicate-input rejection (error code {@code 11007}), audit finding M5.
@@ -133,10 +134,6 @@ public class SwapTaskDuplicateInputTest {
     }
 
     private static String errorCodeOf(CashuErrorException exception) {
-        try {
-            return new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class).code();
-        } catch (Exception e) {
-            throw new IllegalStateException("error payload was not the expected JSON", e);
-        }
+        return exception.getErrorCode().name();
     }
 }

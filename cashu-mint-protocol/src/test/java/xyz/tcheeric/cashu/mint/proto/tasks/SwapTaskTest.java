@@ -32,6 +32,7 @@ import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 public class SwapTaskTest {
 
@@ -132,9 +134,9 @@ public class SwapTaskTest {
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         try {
-            ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-            assertEquals("swap_mint_not_found", error.code());
-            assertEquals("Mint not found", error.message());
+            CashuErrorCode errorCode = exception.getErrorCode();
+            assertEquals("swap_mint_not_found", errorCode.name());
+            assertEquals("Mint not found", errorCode.getDefaultDetail());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -197,9 +199,9 @@ public class SwapTaskTest {
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
 
             try {
-                ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-                assertEquals("mixed_proof_types_error", error.code());
-                assertTrue(error.message().contains("Cannot mix voucher and regular proofs"));
+                CashuErrorCode errorCode = exception.getErrorCode();
+                assertEquals("mixed_proof_types_error", errorCode.name());
+                assertTrue(errorCode.getDefaultDetail().contains("Cannot mix voucher and regular proofs"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -395,8 +397,8 @@ public class SwapTaskTest {
             CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
 
             try {
-                ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-                assertEquals("voucher_split_amount_mismatch", error.code());
+                CashuErrorCode errorCode = exception.getErrorCode();
+                assertEquals("voucher_split_amount_mismatch", errorCode.name());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -435,8 +437,8 @@ public class SwapTaskTest {
                     UUID.randomUUID(), request, mintLoadService, new DefaultSignatureVaultService());
             CashuErrorException ex = assertThrows(CashuErrorException.class, task::execute);
             try {
-                ErrorResponse error = new ObjectMapper().readValue(ex.getMessage(), ErrorResponse.class);
-                assertEquals("iou_not_swappable", error.code());
+                CashuErrorCode errorCode = ex.getErrorCode();
+                assertEquals("iou_not_swappable", errorCode.name());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

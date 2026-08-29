@@ -30,6 +30,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Unit tests for MintTask voucher mock payment behavior.
@@ -181,8 +183,8 @@ public class MintTaskTest {
 
         // Verify correct error
         try {
-            ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-            assertEquals("mint_invoice_not_paid_error", error.code());
+            CashuErrorCode errorCode = exception.getErrorCode();
+            assertEquals("mint_invoice_not_paid_error", errorCode.name());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -270,8 +272,8 @@ public class MintTaskTest {
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
 
         try {
-            ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-            assertEquals("mint_amount_mismatch", error.code());
+            CashuErrorCode errorCode = exception.getErrorCode();
+            assertEquals("mint_amount_mismatch", errorCode.name());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -433,8 +435,8 @@ public class MintTaskTest {
 
         CashuErrorException ex = assertThrows(CashuErrorException.class, task::execute);
         try {
-            ErrorResponse error = new ObjectMapper().readValue(ex.getMessage(), ErrorResponse.class);
-            assertEquals("invalid_output_amount", error.code());
+            CashuErrorCode errorCode = ex.getErrorCode();
+            assertEquals("invalid_output_amount", errorCode.name());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

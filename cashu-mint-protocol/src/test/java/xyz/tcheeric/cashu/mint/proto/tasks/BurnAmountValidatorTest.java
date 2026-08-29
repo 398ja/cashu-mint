@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 002 T101 — pure-logic boundary tests for {@link BurnAmountValidator}.
@@ -76,10 +77,6 @@ class BurnAmountValidatorTest {
     }
 
     private static String errorCode(CashuErrorException ex) {
-        try {
-            return MAPPER.readValue(ex.getMessage(), ErrorResponse.class).code();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return ex.getErrorCode().name();
     }
 }

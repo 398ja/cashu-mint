@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.util;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
@@ -46,8 +47,8 @@ class MintProtocolUtilArchivedKeysetTest {
               CashuErrorException.class,
               () -> MintProtocolUtil.getPrivateKeyForSigning(KEYSET_ID, 1, new Mint()));
 
-      assertTrue(
-          thrown.getMessage().contains("keyset_inactive"),
+      assertEquals(
+          "keyset_inactive", thrown.getErrorCode().name(),
           "expected a keyset_inactive error but was: " + thrown.getMessage());
     }
   }
@@ -131,10 +132,9 @@ class MintProtocolUtilArchivedKeysetTest {
 
       // Typed like keyset_inactive, so a wallet can tell "refresh and retry"
       // from "this mint has never had that keyset".
-      assertTrue(
-          thrown.getMessage().contains("keyset_not_found"),
+      assertEquals(
+          "keyset_not_found", thrown.getErrorCode().name(),
           "expected a keyset_not_found error but was: " + thrown.getMessage());
-      assertFalse(thrown.getMessage().contains("keyset_inactive"));
     }
   }
 

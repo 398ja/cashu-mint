@@ -29,6 +29,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 public class MintTest {
 
@@ -155,15 +157,8 @@ public class MintTest {
         MintTokensTask<Secret> task = new MintTokensTask<>(UUID.randomUUID(), postMintRequest, PaymentMethod.MOCK, mintLoadService2, service, new DefaultSignatureVaultService());
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        ErrorResponse error;
-        try {
-            error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-        } catch (Exception e) {
-            // Fail the test with a clear message if JSON parsing fails
-            org.junit.jupiter.api.Assertions.fail("Failed to parse exception message as JSON: " + exception.getMessage(), e);
-            return; // Unreachable, but required for compilation
-        }
-        assertEquals("mint_invoice_not_paid_error", error.code());
-        assertEquals("Invoice not paid", error.message());
+        CashuErrorCode errorCode = exception.getErrorCode();
+        assertEquals("mint_invoice_not_paid_error", errorCode.name());
+        assertEquals("Invoice not paid", errorCode.getDefaultDetail());
     }
 }

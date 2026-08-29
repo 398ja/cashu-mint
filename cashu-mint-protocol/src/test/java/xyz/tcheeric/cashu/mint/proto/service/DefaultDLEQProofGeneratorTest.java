@@ -82,7 +82,7 @@ class DefaultDLEQProofGeneratorTest {
 
         assertThatThrownBy(() -> generator.generateProof(CURVE.getN(), point, point))
                 .isInstanceOf(CashuErrorException.class)
-                .hasMessageContaining("dleq_private_key_out_of_range");
+                .extracting(t -> ((CashuErrorException) t).getErrorCode().name()).isEqualTo("internal_error");
     }
 
     private static ECPoint decode(String compressedHex) {

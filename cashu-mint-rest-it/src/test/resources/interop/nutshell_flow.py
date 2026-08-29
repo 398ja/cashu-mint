@@ -16,22 +16,42 @@ reports the protocol outcome rather than a process failure.
 
 import asyncio
 import json
+import secrets
 import sys
+import time
 import traceback
 
+from bolt11 import Bolt11, MilliSatoshi, Tag, TagChar, Tags, encode
 from cashu.core.base import Method, Unit  # noqa: F401  (imported for side effects)
 from cashu.wallet.wallet import Wallet
 
 CANONICAL_SPLIT = "canonical"
-MINT_AMOUNT = 32
+MINT_AMOUNT = 64
 SWAP_AMOUNT = 8
-# BOLT11 invoice from the NUT-05 examples. The dummy Lightning adapter never
-# routes it, it only needs a well-formed request string to quote against.
-MELT_INVOICE = (
-    "lnbc100n1p3kdrv5sp5lpdxzghe5j67q9x8jxq5j2gjq8j5ej8j9dz7z0hcq2f3ppsvfxcqpp"
-    "5n7kv5c5qjy4dqmvdmqfhcvcaqxfyu2c3wu3rj3xr0dg2u6t6dwlsdq8w3jhxaqxqyjw5qcqp"
-    "jrzjqf9pzsdhr0dz2cjrjkl0nfrgnzhq2n2zrsfmqk8ejz6zqjq2c6cqqqqqqqqqqqqqqqqqq"
-)
+MELT_AMOUNT_MSAT = SWAP_AMOUNT * 1000
+
+
+def build_melt_invoice() -> str:
+    """Builds a genuinely valid BOLT11 request for the melt leg.
+
+    A hand-copied invoice literal decays: the wallet rejects a malformed one in
+    its own bech32 decoder, before any request reaches the mint, so a fixture
+    typo masquerades as a melt failure. Encoding one here makes the string valid
+    by construction. The dummy Lightning adapter never routes it; only its form
+    has to be right.
+    """
+    tags = Tags(
+        [
+            Tag(TagChar.payment_hash, secrets.token_hex(32)),
+            Tag(TagChar.payment_secret, secrets.token_hex(32)),
+            Tag(TagChar.description, "cashu-mint interoperability melt"),
+        ]
+    )
+    invoice = Bolt11("bc", int(time.time()), tags, MilliSatoshi(MELT_AMOUNT_MSAT))
+    return encode(invoice, secrets.token_hex(32))
+
+
+MELT_INVOICE = build_melt_invoice()
 
 
 async def run(mint_url: str, split_mode: str, report: dict) -> None:
@@ -60,8 +80,14 @@ async def run(mint_url: str, split_mode: str, report: dict) -> None:
     report["melt_fee_reserve"] = melt_quote.fee_reserve
 
     report["stage"] = "melt"
+    # A wallet funds a melt for what the quote asks: the invoice amount plus the
+    # reserve the mint quoted. Sending a fixed amount instead would report the
+    # mint's correct insufficient_input rejection as an interoperability defect.
+    melt_amount = melt_quote.amount + melt_quote.fee_reserve
+    report["melt_amount"] = melt_amount
+    _, to_melt = await wallet.split(keep + send, melt_amount)
     melted = await wallet.melt(
-        send, MELT_INVOICE, melt_quote.fee_reserve, melt_quote.quote
+        to_melt, MELT_INVOICE, melt_quote.fee_reserve, melt_quote.quote
     )
     report["melt_state"] = str(melted.state)
 

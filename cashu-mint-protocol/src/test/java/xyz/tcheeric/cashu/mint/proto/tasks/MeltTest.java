@@ -41,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,6 +51,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 @Slf4j
 public class MeltTest {
@@ -193,11 +195,11 @@ public class MeltTest {
 
         // Assert that a CashuErrorException is thrown
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
+        CashuErrorCode errorCode = exception.getErrorCode();
         // Spec 002 FR-001: under-funded melt now rejects with the typed
         // `insufficient_input` code carried by BurnAmountValidator; the
         // legacy `melt_proof_amount_error` code is retired.
-        assertEquals("insufficient_input", error.code());
+        assertEquals("insufficient_input", errorCode.name());
         Mockito.verify(proofVaultService, Mockito.never()).storePending(Mockito.any());
         Mockito.verify(mockGateway, Mockito.never()).pay(anyString());
     }
@@ -243,9 +245,9 @@ public class MeltTest {
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-        assertEquals("melt_invoice_not_paid_error", error.code());
-        assertEquals("Invoice not paid", error.message());
+        CashuErrorCode errorCode = exception.getErrorCode();
+        assertEquals("melt_invoice_not_paid_error", errorCode.name());
+        assertEquals("Invoice not paid", errorCode.getDefaultDetail());
     }
 
     /**
@@ -289,8 +291,8 @@ public class MeltTest {
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
-        ErrorResponse error = new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class);
-        assertEquals("melt_proof_pending_error", error.code());
+        CashuErrorCode errorCode = exception.getErrorCode();
+        assertEquals("melt_proof_pending_error", errorCode.name());
         Mockito.verify(proofVaultService).storePending(Mockito.any());
         Mockito.verify(mockGateway).pay(postMeltRequest.getQuoteId());
         Mockito.verify(mockGateway).checkPaymentStatus(postMeltRequest.getQuoteId());

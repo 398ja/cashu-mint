@@ -39,6 +39,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 001 T103 — drives {@link MintTask} with a mocked
@@ -314,8 +316,8 @@ class MintTaskAmountValidationTest {
 
     private static String errorCode(CashuErrorException ex) {
         try {
-            ErrorResponse error = new ObjectMapper().readValue(ex.getMessage(), ErrorResponse.class);
-            return error.code();
+            CashuErrorCode errorCode = ex.getErrorCode();
+            return errorCode.name();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

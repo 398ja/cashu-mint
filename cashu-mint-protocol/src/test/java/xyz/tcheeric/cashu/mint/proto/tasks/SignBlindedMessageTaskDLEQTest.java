@@ -88,7 +88,7 @@ class SignBlindedMessageTaskDLEQTest {
 
         assertThatThrownBy(task::execute)
                 .isInstanceOf(CashuErrorException.class)
-                .hasMessageContaining("dleq_generation_failed");
+                .extracting(t -> ((CashuErrorException) t).getErrorCode().name()).isEqualTo("dleq_generation_failed");
         verifyNoInteractions(signatureVaultService);
     }
 

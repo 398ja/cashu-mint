@@ -21,6 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * The protocol validations shared by swap, mint and melt, and the error_codes.md codes they raise.
@@ -182,10 +183,6 @@ public class ValidateTransactionTaskTest {
     }
 
     private static String errorCodeOf(CashuErrorException exception) {
-        try {
-            return new ObjectMapper().readValue(exception.getMessage(), ErrorResponse.class).code();
-        } catch (Exception e) {
-            throw new IllegalStateException("error payload was not the expected JSON", e);
-        }
+        return exception.getErrorCode().name();
     }
 }

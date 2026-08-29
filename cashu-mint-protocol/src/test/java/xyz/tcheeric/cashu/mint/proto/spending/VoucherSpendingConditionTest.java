@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -131,7 +132,7 @@ class VoucherSpendingConditionTest {
 
         // Act & Assert: Should throw due to expiry
         CashuErrorException exception = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
-        assertTrue(exception.getMessage().contains("voucher_expired"),
+        assertEquals("voucher_expired", exception.getErrorCode().name(),
                 "Exception should indicate voucher_expired");
     }
 
@@ -153,7 +154,7 @@ class VoucherSpendingConditionTest {
 
         // Act & Assert
         CashuErrorException ex = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
-        assertTrue(ex.getMessage().contains("verify_proof_already_used_error"),
+        assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
                 "Exception should indicate verify_proof_already_used_error");
     }
 

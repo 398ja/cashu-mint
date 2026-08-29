@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -184,9 +185,21 @@ class NutshellInteropIT extends AbstractMintDurableIT {
                         report.path("mint_response").asText("nothing"),
                         report)
                 .isTrue();
-        assertThat(report.path("melt_state").asText())
+        assertThat(settledState(report))
                 .as("the melt must settle, not linger unpaid — report: %s", report)
-                .contains("paid");
+                .isEqualTo("PAID");
+    }
+
+    /**
+     * The wallet's melt state, reduced to the bare state name.
+     *
+     * <p>Nutshell renders the state as an enum, so the text can arrive either bare ({@code PAID})
+     * or qualified ({@code MeltQuoteState.paid}). Comparing the bare name in upper case accepts
+     * both without the substring match that would also accept {@code UNPAID}.
+     */
+    private static String settledState(JsonNode report) {
+        String state = report.path("melt_state").asText("");
+        return state.substring(state.lastIndexOf('.') + 1).toUpperCase(Locale.ROOT);
     }
 
     /**

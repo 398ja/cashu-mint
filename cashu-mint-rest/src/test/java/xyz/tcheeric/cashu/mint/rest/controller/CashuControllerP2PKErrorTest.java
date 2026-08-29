@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -38,7 +39,7 @@ class CashuControllerP2PKErrorTest {
                 .handleMalformedP2PKSecret(new MalformedP2PKSecretException("pubkeys[1]: bad key"));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("verify_proof_failed_error", response.getBody().code());
+        assertEquals(CashuErrorCode.verify_proof_failed_error.getCode(), response.getBody().code());
     }
 
     /** Jackson rejects the lock during body binding, so it arrives wrapped — possibly several deep. */
@@ -50,7 +51,7 @@ class CashuControllerP2PKErrorTest {
                 .handleUnreadableBody(new HttpMessageNotReadableException("unreadable", nested, null));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("verify_proof_failed_error", response.getBody().code());
+        assertEquals(CashuErrorCode.verify_proof_failed_error.getCode(), response.getBody().code());
     }
 
     /** An ordinary unreadable body stays an ordinary 400 — it is not a proof rejection. */
@@ -60,6 +61,6 @@ class CashuControllerP2PKErrorTest {
                 new HttpMessageNotReadableException("truncated json", new RuntimeException("eof"), null));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("internal_error", response.getBody().code());
+        assertEquals(CashuErrorCode.internal_error.getCode(), response.getBody().code());
     }
 }

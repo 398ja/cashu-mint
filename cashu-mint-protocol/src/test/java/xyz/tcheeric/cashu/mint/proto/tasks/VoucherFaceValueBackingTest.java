@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static xyz.tcheeric.cashu.mint.proto.error.ErrorPayloads.keyOf;
 
 /**
  * Spec 006 — fail-closed value-backing invariant for voucher issuance.
@@ -270,11 +271,7 @@ class VoucherFaceValueBackingTest {
     }
 
     private static String code(CashuErrorException ex) {
-        try {
-            return MAPPER.readValue(ex.getMessage(), ErrorResponse.class).code();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return ex.getErrorCode().name();
     }
 
     private record VoucherQuoteStub(String quoteId, long faceValue, long chargedAmount, String unit,
