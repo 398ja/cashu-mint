@@ -69,7 +69,11 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         final KeySetVaultClient keySetClient = keySetClientSupplier.get();
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
-        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations);
+        // The fee is part of what the NUT-02 v2 id commits to. Deriving without it produced
+        // an id that did not describe the keyset it named: two mints charging 0 and 100 ppk
+        // over the same keys got the SAME id, and a fee change was invisible to wallets that
+        // key off the id. That is exactly the property v2 exists to provide.
+        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, null, inputFeePpk);
 
         // A mint may already hold an active keyset for this unit, provisioned by
         // something other than this saga. Adding a second one would leave the unit
@@ -108,7 +112,7 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
 
         final MintEntity mintEntity = storeMintEntity(mintClient, mintId);
 
-        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId);
+        final String keySetId = keyGenerator.deriveKeySetId(mintId, unit, denominations, rotationId, inputFeePpk);
 
         // Which keysets this rotation replaces. The new keyset is excluded by id
         // rather than by ordering: on a redelivery it already exists and is still

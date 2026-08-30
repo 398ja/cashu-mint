@@ -62,4 +62,37 @@ class DeterministicKeyGeneratorTest {
 
         assertThat(id1).isNotEqualTo(id2);
     }
+
+    /**
+     * The fee is part of the NUT-02 v2 identity, so two otherwise identical keysets that charge
+     * differently must not share an id.
+     *
+     * <p>VaultProvisioningAdapter derived the id without passing the fee, so it always used 0 and
+     * then stored the real fee alongside. A mint charging 100 ppk therefore advertised the same id
+     * as one charging nothing, and a wallet keying off the id could not see the change. That is
+     * precisely the guarantee v2 exists to give.
+     */
+    @Test
+    void keySetIdCommitsToTheInputFee() {
+        final String free = generator.deriveKeySetId(MINT_ID, UNIT, DENOMINATIONS, null, 0);
+        final String charged = generator.deriveKeySetId(MINT_ID, UNIT, DENOMINATIONS, null, 100);
+
+        assertThat(free).isNotEqualTo(charged);
+    }
+
+    /** And the same fee must still derive the same id, or provisioning would not be idempotent. */
+    @Test
+    void sameFeeDerivesTheSameId() {
+        assertThat(generator.deriveKeySetId(MINT_ID, UNIT, DENOMINATIONS, null, 100))
+                .isEqualTo(generator.deriveKeySetId(MINT_ID, UNIT, DENOMINATIONS, null, 100));
+    }
+
+    /** A provisioned id must be NUT-02 v2: 66 hex chars beginning with the 01 version byte. */
+    @Test
+    void derivesAVersion2KeysetId() {
+        final String id = generator.deriveKeySetId(MINT_ID, UNIT, DENOMINATIONS, null, 100);
+
+        assertThat(id).hasSize(66).startsWith("01");
+    }
+
 }
