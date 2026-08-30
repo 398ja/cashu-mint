@@ -2,6 +2,14 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.34.2] - 2026-08-30
+
+### Fixed
+
+- Picks up cashu-vault 0.11.1, which widens `t_keyset.key_set_id` so a NUT-02 v2 keyset id fits.
+  Provisioning a new mint derived a 66-character v2 id and the vault rejected the insert, so the
+  provisioning outbox retried until it gave up and the mint was left with no keyset.
+
 ## [0.33.0] - 2026-08-29
 
 ### Added
