@@ -66,6 +66,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 
 - [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
 - [Voucher data minimisation](runbooks/voucher-data-minimisation.md) - Identity salt, backfill, retention purge, forensic lookup, and the salt-rotation procedure.
+- [Melt saga states](runbooks/melt-saga-states.md) - The melt state machine, the reconciler, and the two states (PAYMENT_SENT_BURN_FAILED, PAYMENT_UNKNOWN) that require operator action.
 
 ## Archive
 
