@@ -47,12 +47,12 @@
         <payment-adapter.version>0.14.0</payment-adapter.version>
         <cashu-vault.version>0.11.1</cashu-vault.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.33.0</cashu-mint.version>
+        <cashu-mint.version>0.34.2</cashu-mint.version>
         <cashu-wallet.version>0.7.0</cashu-wallet.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Admin builds in this reactor at the version above; kept in step so the
              published admin image tag and this property cannot disagree. -->
-        <cashu-mint-admin.version>0.33.0</cashu-mint-admin.version>
+        <cashu-mint-admin.version>0.34.2</cashu-mint-admin.version>
         <cashu-voucher.version>0.10.0</cashu-voucher.version>
         <!-- cashu-ledger trace producer SDK (spec 036) -->
         <cashu-ledger.version>0.3.0</cashu-ledger.version>

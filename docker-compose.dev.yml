@@ -124,6 +124,10 @@ services:
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_ENABLED: true
+      # V999 (the NUT-13 metadata migration) sorts after every real migration, so
+      # a volume that applied it earlier makes each new migration "out of order"
+      # and Flyway refuses to start. Staging sets this for the same reason.
+      SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-true}
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_PORT: ${CASHU_VAULT_PORT:-3333}
