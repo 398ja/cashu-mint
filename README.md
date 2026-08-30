@@ -4,12 +4,48 @@ cashu-mint is a Java implementation of the [Cashu protocol](https://github.com/c
 
 ## Modules
 
-- `cashu-mint-protocol` – core Cashu protocol workflows (NUT-01/02/03/04/05/06/07/09/12/17), tasks, and vault/gateway integrations.
+- `cashu-mint-protocol` – core Cashu protocol workflows, tasks, and vault/gateway integrations. See [Supported NUTs](#supported-nuts).
+- `cashu-mint-jpa` – JPA persistence: quote, issuance, melt saga, voucher, swap hold, and webhook repositories, plus 20 Flyway migrations and the reconciliation and purge services.
 - `cashu-mint-rest` – Spring Boot REST API that wires controllers to the protocol services and exposes actuator health/metrics.
 - `cashu-mint-webhook` – webhook-based payment notifications for push-based payment status updates.
 - `cashu-mint-observability` – Micrometer- and Actuator-based metrics, health indicators, and tracing hooks for the mint and gateway.
 - `cashu-mint-tools` – deterministic preload generator for reproducible dev keysets.
 - `cashu-mint-rest-it` – integration test harness for the REST module (voucher profile, H2, and Spring context tests).
+
+## Supported NUTs
+
+The authoritative list is the `NutSupport` enum in `cashu-mint-protocol`. It binds
+each NUT to the class that implements it, and a contract test fails if the declared
+visibility and the actual test-vector results ever disagree. **Update the enum, not
+this table, when support changes**; the table below follows it.
+
+| NUT | Name | Advertised in NUT-06 | Implementation |
+|-----|------|----------------------|----------------|
+| NUT-01 | Mint public keys | mandatory | `NUT01` |
+| NUT-02 | Keysets | mandatory | `NUT02` |
+| NUT-03 | Swap | payment methods | `NUT03` |
+| NUT-04 | Mint tokens | payment methods | `NUT04` |
+| NUT-05 | Melt tokens | payment methods | `NUT05` |
+| NUT-06 | Mint info | mandatory | `NUT06` |
+| NUT-07 | Token state check | simple | `NUT07` |
+| NUT-08 | Overpaid melt fees | simple | `MeltTask` |
+| NUT-09 | Restore signatures | simple | `NUT09` |
+| NUT-10 | Well-known secrets | simple | `SpendingCondition` |
+| NUT-11 | P2PK spending conditions | simple | `P2PKSpendingCondition` |
+| NUT-12 | DLEQ proofs | simple | `DLEQProofGenerator` |
+| NUT-17 | WebSocket subscriptions | websocket | `NUT17` |
+| NUT-19 | Cached responses | cached responses | `MeltSaga` |
+| NUT-20 | Signature on mint quote | simple | `MintQuoteSignature` (cashu-lib) |
+
+Two entries carry history worth knowing:
+
+- **NUT-11** was withheld until cashu-lib 0.24.0. The spending-condition logic was
+  correct, but the NUT-10 secret it verified against was re-serialized into a
+  non-spec shape, so no third-party wallet's proof could verify here and none of
+  ours could verify elsewhere (cashu-lib#254).
+- **NUT-20** is bound to its *verifier* rather than the request field, because a
+  `pubkey` the mint accepts and never checks is exactly the false claim the enum
+  exists to prevent.
 
 ### Admin modules (`cashu-mint-admin/`)
 
@@ -56,11 +92,11 @@ Browse metrics at `http://localhost:9000/actuator/prometheus` and Grafana at `ht
 
 ## Payment notifications
 
-Version 0.8.0 introduces webhook-based payment notifications. Payment gateways push events to `/webhook/payment` instead of the mint polling for status. This reduces latency on mint requests and lowers gateway load. The mint falls back to polling when webhooks are unavailable. See [Payment webhook architecture](docs/explanations/payment-webhook-architecture.md) for details.
+Payment gateways push events to `/webhook/payment` instead of the mint polling for status. This reduces latency on mint requests and lowers gateway load. The mint falls back to polling when webhooks are unavailable. Added in 0.8.0. See [Payment webhook architecture](docs/explanations/payment-webhook-architecture.md) for details, and [Configure webhook integrity](docs/how-to/configure-webhook-integrity.md) for the mandatory shared secret behind the `PENDING → PAID` transition.
 
 ## WebSocket subscriptions (NUT-17)
 
-Version 0.11.0 adds real-time WebSocket subscriptions per [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md). Clients can subscribe to proof and quote state changes and receive push notifications instead of polling.
+Real-time WebSocket subscriptions per [NUT-17](https://github.com/cashubtc/nuts/blob/main/17.md). Clients can subscribe to proof and quote state changes and receive push notifications instead of polling. Added in 0.11.0.
 
 **Endpoint:** `ws://localhost:7777/v1/ws`
 

@@ -127,7 +127,7 @@ public void validate(Proof<T> proof, PrivateKey privateKey) throws CashuErrorExc
 
 ### DLEQ Proofs (NUT-12)
 
-**File:** `cashu-mint-protocol/.../service/impl/DefaultDLEQProofGenerator.java`
+**File:** `cashu-mint-protocol/.../proto/service/DLEQProofGenerator.java`
 
 DLEQ (Discrete Logarithm Equality) proofs demonstrate that the same private key was used for both the mint's public key and the blind signature—without revealing the private key.
 

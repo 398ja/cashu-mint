@@ -41,7 +41,7 @@ A random nonce satisfies the spec's **MUST** (a CSPRNG), but reusing one across 
 leaks the private key outright: `a = (s₁ - s₂) · (e₁ - e₂)⁻¹ mod n`. Deriving `r` from the key and
 the message removes that failure mode entirely, since two different challenges cannot produce the
 same `r`, and an RNG fault cannot produce one either. `DeterministicDLEQNonce` implements the
-derivation with the rejection-sampling loop; `DefaultDLEQProofGenerator` computes `e` and `s` from
+derivation with the rejection-sampling loop; `DLEQProofGenerator` computes `e` and `s` from
 it and is checked against the published NUT-12 vector.
 
 ## Related
