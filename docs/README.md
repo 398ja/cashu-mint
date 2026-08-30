@@ -26,6 +26,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Enable observability](how-to/enable-observability.md) - Start Prometheus/Grafana/Jaeger and tune metrics/traces.
 - [Enable the trace producer](how-to/enable-trace-producer.md) - Emit signed kind-9079 trace events to the cashu-ledger forensic ledger (spec 036).
 - [Configure webhook integrity](how-to/configure-webhook-integrity.md) - The mandatory shared secret and the append-only webhook event row behind `PENDING → PAID`.
+- [Verify a new mint gets a NUT-02 v2 keyset](how-to/verify-v2-keyset-on-provisioning.md) - Provision a mint and confirm it derives a v2 keyset id bound to its input fee.
 - [Troubleshoot common issues](how-to/troubleshoot-common-issues.md) - Solutions for build, Docker, gateway, and test problems.
 
 ## Reference
