@@ -1,0 +1,21 @@
+# Names in docs that are not Java types. Checked by `doccheck`.
+
+# Prometheus alert rule names
+CashuMintDown
+InvariantGaugePollerStale
+VirtualThreadPinned
+
+# Placeholder in the NUT reference ("a NUTxx class")
+NUTxx
+
+# Proposed types in ADR 0001 (typed metric recorders); the ADR describes a
+# design, and these names are its proposal rather than shipped classes.
+MintMetrics
+GatewayMetrics
+QuoteMetrics
+VoucherMetrics
+
+# Test-only guard classes resolved by reflection, named in CLAUDE.md
+TraceNutAdvertisementGuardTest
+VoucherNutAdvertisementGuardTest
+CustomerPaymentFunding
