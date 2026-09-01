@@ -316,7 +316,12 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     }
 
     /**
-     * Checks if a proof contains a voucher secret.
+     * Checks if a proof contains a voucher secret, under either voucher kind.
+     *
+     * <p>Includes P2PK-locked vouchers. This feeds the mixed-proof-types rule, which is about
+     * what a proof <em>is</em> rather than how it is locked — a locked voucher mixed with
+     * regular proofs is the same modelling error as an unlocked one, and answering false here
+     * would let the mix through.
      *
      * @param proof the proof to check
      * @return true if the proof has a voucher secret, false otherwise
@@ -325,6 +330,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (proof == null || proof.getSecret() == null) {
             return false;
         }
-        return VoucherSecretDetector.isVoucherSecret(proof.getSecret());
+        return VoucherSecretDetector.isVoucherSecret(proof.getSecret())
+                || VoucherSecretDetector.isP2PKVoucherSecret(proof.getSecret());
     }
 }

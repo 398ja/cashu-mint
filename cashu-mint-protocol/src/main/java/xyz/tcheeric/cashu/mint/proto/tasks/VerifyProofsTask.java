@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
@@ -66,6 +67,22 @@ final class VoucherSecretDetector {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Checks if a secret is a P2PK-locked voucher.
+     *
+     * <p>Deliberately <em>not</em> folded into {@link #isVoucherSecret(Secret)}. That method
+     * selects the voucher-only spending condition, which never checks a witness; answering
+     * true there would send a locked voucher down a path that ignores its lock — the failure
+     * the {@code P2PK_VOUCHER} kind exists to prevent.
+     *
+     * @param secret the secret to check
+     * @return true if the secret is a P2PK-locked voucher, false otherwise
+     */
+    static boolean isP2PKVoucherSecret(Secret secret) {
+        return secret instanceof WellKnownSecret wks
+                && wks.getKind() == WellKnownSecret.Kind.P2PK_VOUCHER;
     }
 }
 
@@ -136,6 +153,15 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         // Voucher proofs use standard keyset keys (same as RSS) plus voucher-specific validations
         // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
         // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
+        // MUST come before both branches below. P2PKVoucherSecret extends P2PKSecret, and a
+        // P2PK_VOUCHER is a voucher, so either of the following branches would match it and
+        // run only half its conditions: the voucher branch never checks the witness, and the
+        // P2PK branch never checks the issuer signature or expiry. Both failures are silent.
+        if (VoucherSecretDetector.isP2PKVoucherSecret(secret)) {
+            log.debug("P2PK-locked voucher detected in swap - verifying voucher conditions and the lock");
+            return (SpendingCondition<T>) new P2PKVoucherSpendingCondition<>(
+                    mint, mintProtocolService, transaction);
+        }
         if (VoucherSecretDetector.isVoucherSecret(secret)) {
             log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with standard keyset keys");
             return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService);

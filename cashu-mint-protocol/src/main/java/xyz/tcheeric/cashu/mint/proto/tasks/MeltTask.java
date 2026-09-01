@@ -202,7 +202,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     postMeltRequest.getQuoteId(), postMeltRequest.getOutputs());
 
             for (Proof<T> proof : proofsToMelt) {
-                // Model B enforcement: Reject voucher secrets in melt operations
+                // Model B enforcement: Reject voucher secrets in melt operations.
+                // Covers P2PK-locked vouchers too: Model B is about where a voucher may be
+                // redeemed, not about how it is locked, so a lock does not make one meltable.
+                // Checked before the P2PK branch below, which would otherwise verify the
+                // witness and let the melt proceed.
                 if (isVoucherSecret(proof.getSecret())) {
                     log.warn("Voucher secret rejected in melt operation (Model B enforcement)");
                     throw new CashuErrorException(CashuErrorCode.voucher_not_accepted,
@@ -803,9 +807,16 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     }
 
     /**
-     * Checks if a secret is a VoucherSecret (Model B enforcement).
+     * Checks if a secret carries voucher metadata, under either voucher kind (Model B).
+     *
+     * <p>Broader than the swap-side {@code isVoucherSecret}, and deliberately so: there the
+     * predicate selects <em>which</em> spending condition applies and a locked voucher needs a
+     * different one, whereas here the answer is the same for both — refuse. A P2PK-locked
+     * voucher that fell through this check would be melted after a witness check alone, which
+     * is precisely the merchant-only redemption rule Model B exists to enforce.
      */
     private boolean isVoucherSecret(Secret secret) {
-        return VoucherSecretDetector.isVoucherSecret(secret);
+        return VoucherSecretDetector.isVoucherSecret(secret)
+                || VoucherSecretDetector.isP2PKVoucherSecret(secret);
     }
 }
