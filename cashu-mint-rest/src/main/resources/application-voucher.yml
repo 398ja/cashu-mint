@@ -18,13 +18,18 @@ voucher:
   # Mint issuer configuration
   # SECURITY: These keys must be kept secure and never committed to version control
   mint:
-    # Private key for signing vouchers (ED25519, 64-character hex string)
+    # Private key for signing vouchers: secp256k1, 64-character hex (32 bytes).
     # Generate with: openssl rand -hex 32
     # REQUIRED: Must be set via environment variable
     issuerPrivateKey: ${MINT_VOUCHER_ISSUER_PRIVKEY:}
 
-    # Public key corresponding to the private key (ED25519, 64-character hex string)
-    # This key is published and used by merchants to verify vouchers
+    # Public key corresponding to the private key: BIP-340 x-only, 64-character hex.
+    #
+    # NOT the 33-byte compressed form and NOT its raw hex: derive it with a BIP-340
+    # helper, not by prefixing 02/03. Voucher signatures are Schnorr over secp256k1,
+    # the same scheme Nostr uses, so a key that works as a Nostr pubkey works here.
+    #
+    # This key is published and used by merchants to verify vouchers.
     # REQUIRED: Must be set via environment variable
     issuerPublicKey: ${MINT_VOUCHER_ISSUER_PUBKEY:}
 

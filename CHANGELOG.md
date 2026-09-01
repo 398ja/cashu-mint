@@ -22,6 +22,15 @@ All notable changes to the Cashu Mint will be documented in this file.
   not have and would pin a version for a library it never calls. Verified against the packaged
   jar — absent with the test scope, present without it.
 
+### Documentation
+
+- **The voucher issuer keys are secp256k1/BIP-340, not ED25519.** Four places said ED25519 —
+  `application-voucher.yml`, `docs/reference/configuration.md`, `VoucherProperties`, and the
+  runtime error message in `VoucherConfiguration`, which is the one an operator actually hits.
+  Voucher signatures are BIP-340 Schnorr over secp256k1, the same scheme Nostr uses, and the
+  public key is the 32-byte x-only form rather than the 33-byte compressed one. Following the
+  old comment sends someone to an ED25519 generator and produces a key the mint rejects.
+
 ### Added
 
 - **`P2PK_VOUCHER` proofs are enforced with both spending conditions.** The kind (cashu-lib) is
