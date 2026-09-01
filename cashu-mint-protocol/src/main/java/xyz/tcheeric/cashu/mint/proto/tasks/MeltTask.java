@@ -809,14 +809,13 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     /**
      * Checks if a secret carries voucher metadata, under either voucher kind (Model B).
      *
-     * <p>Broader than the swap-side {@code isVoucherSecret}, and deliberately so: there the
-     * predicate selects <em>which</em> spending condition applies and a locked voucher needs a
-     * different one, whereas here the answer is the same for both — refuse. A P2PK-locked
-     * voucher that fell through this check would be melted after a witness check alone, which
-     * is precisely the merchant-only redemption rule Model B exists to enforce.
+     * <p>Broader than the dispatch-side {@code isUnlockedVoucherSecret}, and deliberately so:
+     * there the predicate selects <em>which</em> spending condition applies and a locked
+     * voucher needs a different one, whereas here the answer is the same for both — refuse. A
+     * P2PK-locked voucher that fell through this check would be melted after a witness check
+     * alone, which is precisely the merchant-only redemption rule Model B exists to enforce.
      */
     private boolean isVoucherSecret(Secret secret) {
-        return VoucherSecretDetector.isVoucherSecret(secret)
-                || VoucherSecretDetector.isP2PKVoucherSecret(secret);
+        return VoucherSecretDetector.carriesVoucherMetadata(secret);
     }
 }

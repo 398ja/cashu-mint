@@ -330,7 +330,6 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         if (proof == null || proof.getSecret() == null) {
             return false;
         }
-        return VoucherSecretDetector.isVoucherSecret(proof.getSecret())
-                || VoucherSecretDetector.isP2PKVoucherSecret(proof.getSecret());
+        return VoucherSecretDetector.carriesVoucherMetadata(proof.getSecret());
     }
 }

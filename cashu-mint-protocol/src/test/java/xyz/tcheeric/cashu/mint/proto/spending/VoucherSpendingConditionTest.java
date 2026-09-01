@@ -8,6 +8,8 @@ import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
+import org.bouncycastle.util.encoders.Hex;
+import xyz.tcheeric.cashu.common.nut11.P2PKVoucherSecret;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
@@ -132,6 +134,54 @@ class VoucherSpendingConditionTest {
         CashuErrorException exception = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
         assertEquals("voucher_expired", exception.getErrorCode().name(),
                 "Exception should indicate voucher_expired");
+    }
+
+    /**
+     * Creates an <em>expired P2PK-locked</em> voucher proof.
+     *
+     * <p>The regression this guards: {@code P2PKVoucherSecret} is not a {@code VoucherSecret},
+     * so the condition used to cast, get null, and skip every voucher check. An expired
+     * P2PK_VOUCHER verified.
+     */
+    private Proof<P2PKVoucherSecret> createExpiredLockedVoucherProof(int amount, String keysetId) {
+        Proof<P2PKVoucherSecret> proof = new Proof<>();
+        proof.setAmount(amount);
+        proof.setKeySetId(keysetId);
+
+        P2PKVoucherSecret secret = new P2PKVoucherSecret(Hex.decode(
+                "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"));
+        secret.setVoucherId(UUID.randomUUID().toString());
+        secret.setIssuerId("test-merchant");
+        secret.setUnit("sat");
+        secret.setFaceValue(1000L);
+        secret.setExpiresAt(1L); // 1970
+
+        proof.setSecret(secret);
+        proof.setUnblindedSignature(sampleSignature());
+        return proof;
+    }
+
+    /**
+     * An expired P2PK-locked voucher must be rejected for the same reason an expired ordinary
+     * one is.
+     *
+     * <p>Regression test. The voucher checks were guarded on a cast to {@code VoucherSecret}
+     * succeeding; for this kind it never does, so expiry and the issuer signature were
+     * silently skipped and only the lock was enforced. Half of a two-part condition passing
+     * looks exactly like the whole thing passing.
+     */
+    @Test
+    void verify_ExpiredP2PKVoucher_ThrowsException() {
+        int amount = 8;
+        String keysetId = "00abc123def45678";
+        VoucherSpendingCondition<P2PKVoucherSecret> lockedCondition =
+                new VoucherSpendingCondition<>(mockMint, mockMintProtocolService, mockProofVaultService);
+        Proof<P2PKVoucherSecret> proof = createExpiredLockedVoucherProof(amount, keysetId);
+
+        CashuErrorException exception =
+                assertThrows(CashuErrorException.class, () -> lockedCondition.verify(proof));
+        assertEquals("voucher_expired", exception.getErrorCode().name(),
+                "An expired P2PK-locked voucher must be rejected, not silently skipped");
     }
 
     /**

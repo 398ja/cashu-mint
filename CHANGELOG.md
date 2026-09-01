@@ -2,6 +2,45 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **`P2PK_VOUCHER` proofs are enforced with both spending conditions.** The kind (cashu-lib) is
+  a voucher that is also P2PK-locked, so the mint must check the voucher conditions - expiry,
+  issuer signature, double-spend, BDHKE - **and** require a witness signature from the key in
+  `data`. `P2PKVoucherSpendingCondition` delegates to both existing conditions rather than
+  reimplementing either.
+
+  Running only one looks like success, which is the whole reason the kind exists. Voucher
+  checks alone leave the lock advisory, so a thief holding the proof can spend it. P2PK checks
+  alone honour a forged or expired voucher locked to the attacker's own key.
+
+  Dispatch order is load-bearing: `P2PKVoucherSecret` extends `P2PKSecret` and a `P2PK_VOUCHER`
+  is a voucher, so both prior branches in `VerifyProofsTask` would have matched it and run half
+  the checks. It is now matched first.
+
+### Fixed
+
+- **`VoucherSpendingCondition` no longer skips its checks for a `P2PK_VOUCHER`.** It cast to
+  `VoucherSecret` and guarded each voucher check on the cast succeeding. A `P2PKVoucherSecret`
+  is not a `VoucherSecret`, so the cast yielded null and **expiry and issuer-signature
+  verification were silently skipped** - an expired voucher of that kind verified. It now reads
+  through `VoucherMetadata`, which handles both kinds, so the opportunity for that class of bug
+  is gone rather than patched. Regression test:
+  `VoucherSpendingConditionTest#verify_ExpiredP2PKVoucher_ThrowsException`.
+
+### Changed
+
+- **`VoucherSecretDetector.isVoucherSecret` is renamed `isUnlockedVoucherSecret`**, and
+  `carriesVoucherMetadata` is added. The old name answered `false` for something that *is* a
+  voucher, which reads as disinformation; the new one says what it selects. Rules about which
+  spending condition applies use `isUnlockedVoucherSecret`, while rules about what a proof *is*
+  - Model B melt rejection and the mixed-proof-types check - use `carriesVoucherMetadata`.
+
+---
+
+
 ## [0.34.2] - 2026-08-30
 
 ### Fixed

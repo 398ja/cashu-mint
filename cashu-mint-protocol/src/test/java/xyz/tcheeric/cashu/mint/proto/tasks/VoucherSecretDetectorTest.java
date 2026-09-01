@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * are a security boundary rather than a classification convenience.
  *
  * <p>The distinction these tests pin: a {@code P2PK_VOUCHER} is a voucher, but it must
- * <em>not</em> be reported by {@link VoucherSecretDetector#isVoucherSecret(Secret)}. That
+ * <em>not</em> be reported by {@link VoucherSecretDetector#isUnlockedVoucherSecret(Secret)}. That
  * predicate selects the voucher-only condition, which never checks a witness — so answering
  * true there would enforce the issuer signature and expiry while silently ignoring the lock,
  * which is exactly the failure the separate kind was introduced to prevent.
@@ -57,11 +57,20 @@ class VoucherSecretDetectorTest {
         }
 
         @Test
-        @DisplayName("is NOT reported by isVoucherSecret, which selects the witness-free path")
+        @DisplayName("is NOT reported by isUnlockedVoucherSecret, which selects the witness-free path")
         void notReportedAsPlainVoucher() {
             // The load-bearing assertion. If this ever returns true, the swap dispatcher's
             // voucher branch will claim the proof and its lock will never be checked.
-            assertThat(VoucherSecretDetector.isVoucherSecret(lockedVoucher())).isFalse();
+            assertThat(VoucherSecretDetector.isUnlockedVoucherSecret(lockedVoucher())).isFalse();
+        }
+
+        @Test
+        @DisplayName("IS reported by carriesVoucherMetadata, the honest voucher question")
+        void reportedAsCarryingVoucherMetadata() {
+            // The counterpart to the assertion above. isUnlockedVoucherSecret answers a
+            // dispatch question and says no; this answers "is it a voucher" and says yes.
+            // Model B and the mixed-proof rule use this one.
+            assertThat(VoucherSecretDetector.carriesVoucherMetadata(lockedVoucher())).isTrue();
         }
 
         @Test
@@ -78,15 +87,21 @@ class VoucherSecretDetectorTest {
     class PlainVoucher {
 
         @Test
-        @DisplayName("is reported by isVoucherSecret")
+        @DisplayName("is reported by isUnlockedVoucherSecret")
         void detected() {
-            assertThat(VoucherSecretDetector.isVoucherSecret(plainVoucher())).isTrue();
+            assertThat(VoucherSecretDetector.isUnlockedVoucherSecret(plainVoucher())).isTrue();
         }
 
         @Test
         @DisplayName("is not reported as P2PK-locked")
         void notReportedAsLocked() {
             assertThat(VoucherSecretDetector.isP2PKVoucherSecret(plainVoucher())).isFalse();
+        }
+
+        @Test
+        @DisplayName("is reported by carriesVoucherMetadata too")
+        void reportedAsCarryingVoucherMetadata() {
+            assertThat(VoucherSecretDetector.carriesVoucherMetadata(plainVoucher())).isTrue();
         }
     }
 
@@ -99,8 +114,9 @@ class VoucherSecretDetectorTest {
         void plainP2PK() {
             P2PKSecret secret = new P2PKSecret(Hex.decode(SPENDING_KEY));
 
-            assertThat(VoucherSecretDetector.isVoucherSecret(secret)).isFalse();
+            assertThat(VoucherSecretDetector.isUnlockedVoucherSecret(secret)).isFalse();
             assertThat(VoucherSecretDetector.isP2PKVoucherSecret(secret)).isFalse();
+            assertThat(VoucherSecretDetector.carriesVoucherMetadata(secret)).isFalse();
         }
 
         @Test
@@ -108,14 +124,14 @@ class VoucherSecretDetectorTest {
         void randomString() {
             Secret secret = RandomStringSecret.create();
 
-            assertThat(VoucherSecretDetector.isVoucherSecret(secret)).isFalse();
+            assertThat(VoucherSecretDetector.isUnlockedVoucherSecret(secret)).isFalse();
             assertThat(VoucherSecretDetector.isP2PKVoucherSecret(secret)).isFalse();
         }
 
         @Test
         @DisplayName("null is neither, rather than throwing")
         void nullSecret() {
-            assertThat(VoucherSecretDetector.isVoucherSecret(null)).isFalse();
+            assertThat(VoucherSecretDetector.isUnlockedVoucherSecret(null)).isFalse();
             assertThat(VoucherSecretDetector.isP2PKVoucherSecret(null)).isFalse();
         }
     }
