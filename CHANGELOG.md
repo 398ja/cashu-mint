@@ -4,6 +4,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The voucher profile could not start: `commons-lang3` was missing at runtime** (#405).
+
+  `cashu-mint-rest` declared it `<scope>test</scope>`. A direct declaration overrides a
+  transitive one, so the jar was stripped from the runtime image even though
+  `nostr-java-core` declares it at compile scope and needs it — `HexStringValidator` calls
+  `StringUtils`, and the voucher ledger path reaches that validator when it publishes.
+
+  The result was `NoClassDefFoundError: org/apache/commons/lang3/StringUtils` while building
+  `voucherLedgerPort`, which takes the whole application context down, so `VoucherController`
+  never registered and `POST /v1/vouchers` 404'd.
+
+  Fixed by **removing** the declaration rather than widening its scope: no source in this
+  repository imports `commons-lang3`, so declaring it would claim a dependency this module does
+  not have and would pin a version for a library it never calls. Verified against the packaged
+  jar — absent with the test scope, present without it.
+
 ### Added
 
 - **`P2PK_VOUCHER` proofs are enforced with both spending conditions.** The kind (cashu-lib) is
