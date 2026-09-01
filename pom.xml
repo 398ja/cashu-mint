@@ -40,11 +40,11 @@
         <!-- 2.x consolidated the 1.x module set (base/crypto/id/util/api/encryption)
              into core/event/client/identity. Bumped for the cashu-ledger trace
              publisher (spec 036) which signs/publishes over nostr-java-core 2.x. -->
-        <nostr-java.version>2.0.7</nostr-java.version>
+        <nostr-java.version>2.3.1</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions -->
-        <cashu-lib.version>0.27.0</cashu-lib.version>
-        <payment-adapter.version>0.14.0</payment-adapter.version>
+        <cashu-lib.version>0.28.0</cashu-lib.version>
+        <payment-adapter.version>0.14.2</payment-adapter.version>
         <cashu-vault.version>0.11.1</cashu-vault.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
         <cashu-mint.version>0.34.2</cashu-mint.version>
@@ -53,9 +53,9 @@
         <!-- Admin builds in this reactor at the version above; kept in step so the
              published admin image tag and this property cannot disagree. -->
         <cashu-mint-admin.version>0.34.2</cashu-mint-admin.version>
-        <cashu-voucher.version>0.10.0</cashu-voucher.version>
+        <cashu-voucher.version>0.12.1</cashu-voucher.version>
         <!-- cashu-ledger trace producer SDK (spec 036) -->
-        <cashu-ledger.version>0.3.0</cashu-ledger.version>
+        <cashu-ledger.version>0.5.0</cashu-ledger.version>
         <!-- NAP: Nostr authentication for the admin API (issue #372) -->
         <nap-java.version>0.6.1</nap-java.version>
 
