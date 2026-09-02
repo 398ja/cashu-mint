@@ -2,7 +2,7 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
-## [Unreleased]
+## [0.35.0] - 2026-09-02
 
 ### Fixed
 
