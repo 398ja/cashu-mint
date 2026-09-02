@@ -30,7 +30,7 @@ public class VoucherNostrITConfig {
 
     @Bean
     public VoucherService voucherService(VoucherLedgerPort ledgerPort, VoucherBackupPort backupPort) {
-        // Use test keys for voucher signing (ED25519 format)
+        // Use test keys for voucher signing (secp256k1; the public key is BIP-340 x-only)
         String issuerPrivateKey = "0000000000000000000000000000000000000000000000000000000000000001";
         // Matching BIP-340 x-only public key for the above private key (G * 1)
         String issuerPublicKey = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";

@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
@@ -43,16 +44,21 @@ final class VoucherSecretDetector {
     /**
      * Checks if a secret is a VoucherSecret instance.
      *
-     * <p>This method detects voucher secrets in multiple forms:
+     * <p>Named for what it selects rather than for what it is. It answers <em>false</em> for a
+     * {@code P2PK_VOUCHER}, which is a voucher — but one whose spending condition also requires
+     * a witness. Callers choosing a spending condition want that distinction; callers asking
+     * "is this a voucher at all" want {@link #carriesVoucherMetadata(Secret)}.
+     *
+     * <p>Detects:
      * <ul>
      *   <li>VoucherSecret from cashu-lib-common (NUT-10 tag-based format)</li>
      *   <li>Any WellKnownSecret with VOUCHER kind</li>
      * </ul>
      *
      * @param secret the secret to check
-     * @return true if the secret is a VoucherSecret, false otherwise
+     * @return true if the secret is an unlocked voucher, false otherwise
      */
-    static boolean isVoucherSecret(Secret secret) {
+    static boolean isUnlockedVoucherSecret(Secret secret) {
         if (secret == null) {
             return false;
         }
@@ -66,6 +72,36 @@ final class VoucherSecretDetector {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Checks if a secret is a P2PK-locked voucher.
+     *
+     * <p>Deliberately <em>not</em> folded into {@link #isUnlockedVoucherSecret(Secret)}. That
+     * method selects the voucher-only spending condition, which never checks a witness;
+     * answering true there would send a locked voucher down a path that ignores its lock — the
+     * failure the {@code P2PK_VOUCHER} kind exists to prevent.
+     *
+     * @param secret the secret to check
+     * @return true if the secret is a P2PK-locked voucher, false otherwise
+     */
+    static boolean isP2PKVoucherSecret(Secret secret) {
+        return secret instanceof WellKnownSecret wks
+                && wks.getKind() == WellKnownSecret.Kind.P2PK_VOUCHER;
+    }
+
+    /**
+     * Checks if a secret carries voucher metadata, under either voucher kind.
+     *
+     * <p>The honest "is this a voucher" question, for rules that are about what a proof
+     * <em>is</em> rather than which spending condition it needs — Model B redemption and the
+     * mixed-proof-types rule both want this one.
+     *
+     * @param secret the secret to check
+     * @return true if the secret is a voucher of either kind, false otherwise
+     */
+    static boolean carriesVoucherMetadata(Secret secret) {
+        return isUnlockedVoucherSecret(secret) || isP2PKVoucherSecret(secret);
     }
 }
 
@@ -136,7 +172,16 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         // Voucher proofs use standard keyset keys (same as RSS) plus voucher-specific validations
         // Model B enforcement (merchant-only redemption) belongs at the application layer, not here
         // Swapping is NOT redemption - it's essential for double-spend prevention and P2P transfers
-        if (VoucherSecretDetector.isVoucherSecret(secret)) {
+        // MUST come before both branches below. P2PKVoucherSecret extends P2PKSecret, and a
+        // P2PK_VOUCHER is a voucher, so either of the following branches would match it and
+        // run only half its conditions: the voucher branch never checks the witness, and the
+        // P2PK branch never checks the issuer signature or expiry. Both failures are silent.
+        if (VoucherSecretDetector.isP2PKVoucherSecret(secret)) {
+            log.debug("P2PK-locked voucher detected in swap - verifying voucher conditions and the lock");
+            return (SpendingCondition<T>) new P2PKVoucherSpendingCondition<>(
+                    mint, mintProtocolService, transaction);
+        }
+        if (VoucherSecretDetector.isUnlockedVoucherSecret(secret)) {
             log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with standard keyset keys");
             return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService);
         }

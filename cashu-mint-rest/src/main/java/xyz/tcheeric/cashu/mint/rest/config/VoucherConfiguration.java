@@ -149,7 +149,8 @@ public class VoucherConfiguration {
             issuerPublicKey = new PublicKey(issuerPublicKeyHex);
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Invalid voucher.mint.issuerPublicKey format (must be hex-encoded ED25519 public key): "
+                    "Invalid voucher.mint.issuerPublicKey format (must be a hex-encoded BIP-340 x-only "
+                            + "secp256k1 public key, 64 hex characters): "
                             + issuerPublicKeyHex, e);
         }
 

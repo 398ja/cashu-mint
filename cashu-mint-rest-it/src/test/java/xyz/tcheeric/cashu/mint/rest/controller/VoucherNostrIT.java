@@ -241,7 +241,7 @@ class VoucherNostrIT {
 
         // ========== STEP 3: Verify Signature ==========
         assertNotNull(issuedVoucher.getIssuerSignature(), "Signature should be present");
-        assertEquals(64, issuedVoucher.getIssuerSignature().length, "ED25519 signature should be 64 bytes");
+        assertEquals(64, issuedVoucher.getIssuerSignature().length, "BIP-340 Schnorr signature should be 64 bytes");
         assertNotNull(issuedVoucher.getIssuerPublicKey(), "Public key should be present");
         assertTrue(issuedVoucher.verify(), "Signature should be valid");
 

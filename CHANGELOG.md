@@ -2,6 +2,72 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.35.0] - 2026-09-02
+
+### Fixed
+
+- **The voucher profile could not start: `commons-lang3` was missing at runtime** (#405).
+
+  `cashu-mint-rest` declared it `<scope>test</scope>`. A direct declaration overrides a
+  transitive one, so the jar was stripped from the runtime image even though
+  `nostr-java-core` declares it at compile scope and needs it — `HexStringValidator` calls
+  `StringUtils`, and the voucher ledger path reaches that validator when it publishes.
+
+  The result was `NoClassDefFoundError: org/apache/commons/lang3/StringUtils` while building
+  `voucherLedgerPort`, which takes the whole application context down, so `VoucherController`
+  never registered and `POST /v1/vouchers` 404'd.
+
+  Fixed by **removing** the declaration rather than widening its scope: no source in this
+  repository imports `commons-lang3`, so declaring it would claim a dependency this module does
+  not have and would pin a version for a library it never calls. Verified against the packaged
+  jar — absent with the test scope, present without it.
+
+### Documentation
+
+- **The voucher issuer keys are secp256k1/BIP-340, not ED25519.** Four places said ED25519 —
+  `application-voucher.yml`, `docs/reference/configuration.md`, `VoucherProperties`, and the
+  runtime error message in `VoucherConfiguration`, which is the one an operator actually hits.
+  Voucher signatures are BIP-340 Schnorr over secp256k1, the same scheme Nostr uses, and the
+  public key is the 32-byte x-only form rather than the 33-byte compressed one. Following the
+  old comment sends someone to an ED25519 generator and produces a key the mint rejects.
+
+### Added
+
+- **`P2PK_VOUCHER` proofs are enforced with both spending conditions.** The kind (cashu-lib) is
+  a voucher that is also P2PK-locked, so the mint must check the voucher conditions - expiry,
+  issuer signature, double-spend, BDHKE - **and** require a witness signature from the key in
+  `data`. `P2PKVoucherSpendingCondition` delegates to both existing conditions rather than
+  reimplementing either.
+
+  Running only one looks like success, which is the whole reason the kind exists. Voucher
+  checks alone leave the lock advisory, so a thief holding the proof can spend it. P2PK checks
+  alone honour a forged or expired voucher locked to the attacker's own key.
+
+  Dispatch order is load-bearing: `P2PKVoucherSecret` extends `P2PKSecret` and a `P2PK_VOUCHER`
+  is a voucher, so both prior branches in `VerifyProofsTask` would have matched it and run half
+  the checks. It is now matched first.
+
+### Fixed
+
+- **`VoucherSpendingCondition` no longer skips its checks for a `P2PK_VOUCHER`.** It cast to
+  `VoucherSecret` and guarded each voucher check on the cast succeeding. A `P2PKVoucherSecret`
+  is not a `VoucherSecret`, so the cast yielded null and **expiry and issuer-signature
+  verification were silently skipped** - an expired voucher of that kind verified. It now reads
+  through `VoucherMetadata`, which handles both kinds, so the opportunity for that class of bug
+  is gone rather than patched. Regression test:
+  `VoucherSpendingConditionTest#verify_ExpiredP2PKVoucher_ThrowsException`.
+
+### Changed
+
+- **`VoucherSecretDetector.isVoucherSecret` is renamed `isUnlockedVoucherSecret`**, and
+  `carriesVoucherMetadata` is added. The old name answered `false` for something that *is* a
+  voucher, which reads as disinformation; the new one says what it selects. Rules about which
+  spending condition applies use `isUnlockedVoucherSecret`, while rules about what a proof *is*
+  - Model B melt rejection and the mixed-proof-types check - use `carriesVoucherMetadata`.
+
+---
+
+
 ## [0.34.2] - 2026-08-30
 
 ### Fixed

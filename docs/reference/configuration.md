@@ -99,8 +99,8 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | Property | Default | Description |
 | --- | --- | --- |
 | `voucher.enabled` | `true` (when profile active) | Enable voucher endpoints. |
-| `voucher.mint.issuerPrivateKey` | _(unset)_ | Hex-encoded ED25519 private key for signing vouchers. |
-| `voucher.mint.issuerPublicKey` | _(unset)_ | Hex-encoded ED25519 public key paired with the issuer private key. |
+| `voucher.mint.issuerPrivateKey` | _(unset)_ | Hex-encoded secp256k1 private key (32 bytes) for signing vouchers. |
+| `voucher.mint.issuerPublicKey` | _(unset)_ | Hex-encoded BIP-340 x-only public key (32 bytes) paired with the issuer private key. Not the 33-byte compressed form. |
 | `voucher.nostr.relays` | `wss://relay.damus.io`, `wss://relay.cashu.xyz` | Default relay list for voucher ledger operations. |
 | `voucher.quote.fee-percent` | `10` | Percentage fee charged when creating voucher mint quotes. Override with `VOUCHER_QUOTE_FEE_PERCENT`. |
 | `voucher.quote.fee-percent.max` | `100` | Maximum allowed fee percentage. |

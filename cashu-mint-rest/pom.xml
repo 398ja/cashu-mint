@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.34.2</version>
+        <version>0.35.0</version>
     </parent>
     <artifactId>cashu-mint-rest</artifactId>
-    <version>0.34.2</version>
+    <version>0.35.0</version>
     <name>cashu-mint-rest</name>
     <description>Demo project for Spring Boot</description>
     <properties>
@@ -33,12 +33,24 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Phoenixd gateway is used unconditionally via protocol module -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <scope>test</scope>
-        </dependency>
+        <!--
+            commons-lang3 is deliberately NOT declared here.
+
+            No source in this repository imports it. It arrives transitively from
+            nostr-java-core, which declares it at compile scope and needs it at runtime:
+            HexStringValidator calls StringUtils, and the voucher ledger path reaches that
+            validator when it publishes to the Nostr ledger.
+
+            A direct declaration overrides a transitive one, so declaring it test-scoped here
+            stripped it from the runtime image. The failure was NoClassDefFoundError on
+            StringUtils while building voucherLedgerPort, which takes the whole application
+            context down with it, so the voucher profile could not start at all and
+            POST /v1/vouchers 404'd. See issue #405.
+
+            Omitting it is the fix rather than widening the scope. A direct declaration would
+            claim this module depends on something it never imports, and would silently pin a
+            version for a library it does not use.
+        -->
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>

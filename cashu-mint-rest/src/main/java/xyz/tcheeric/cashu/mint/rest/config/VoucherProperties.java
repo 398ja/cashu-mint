@@ -59,13 +59,13 @@ public class VoucherProperties {
     @Data
     public static class Mint {
         /**
-         * Private key used by the mint to sign vouchers (ED25519, hex-encoded).
+         * Private key used by the mint to sign vouchers (secp256k1, hex-encoded, 32 bytes).
          * This should be kept secure and never committed to version control.
          */
         private String issuerPrivateKey;
 
         /**
-         * Public key corresponding to the issuer private key (ED25519, hex-encoded).
+         * Public key corresponding to the issuer private key (BIP-340 x-only, hex-encoded).
          * This is published and used by merchants/wallets to verify voucher signatures.
          */
         private String issuerPublicKey;

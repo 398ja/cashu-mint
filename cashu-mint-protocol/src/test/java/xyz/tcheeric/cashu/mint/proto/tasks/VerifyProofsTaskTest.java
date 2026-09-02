@@ -163,7 +163,7 @@ public class VerifyProofsTaskTest {
      */
     @Test
     public void voucherSecretDetector_NullSecret() {
-        boolean result = VoucherSecretDetector.isVoucherSecret(null);
+        boolean result = VoucherSecretDetector.isUnlockedVoucherSecret(null);
         org.junit.jupiter.api.Assertions.assertFalse(result,
                 "VoucherSecretDetector should return false for null secret");
     }
@@ -174,7 +174,7 @@ public class VerifyProofsTaskTest {
     @Test
     public void voucherSecretDetector_NonVoucherSecret() {
         RandomStringSecret secret = RandomStringSecret.create();
-        boolean result = VoucherSecretDetector.isVoucherSecret(secret);
+        boolean result = VoucherSecretDetector.isUnlockedVoucherSecret(secret);
         org.junit.jupiter.api.Assertions.assertFalse(result,
                 "VoucherSecretDetector should return false for RandomStringSecret");
     }
@@ -185,7 +185,7 @@ public class VerifyProofsTaskTest {
     @Test
     public void voucherSecretDetector_P2PKSecret() {
         P2PKSecret secret = new P2PKSecret(PublicKey.fromString(VALID_P2PK_PUBKEY).getBytes());
-        boolean result = VoucherSecretDetector.isVoucherSecret(secret);
+        boolean result = VoucherSecretDetector.isUnlockedVoucherSecret(secret);
         org.junit.jupiter.api.Assertions.assertFalse(result,
                 "VoucherSecretDetector should return false for P2PKSecret");
     }
@@ -206,7 +206,7 @@ public class VerifyProofsTaskTest {
                 .faceDecimals(0)
                 .build();
 
-        boolean result = VoucherSecretDetector.isVoucherSecret(voucherSecret);
+        boolean result = VoucherSecretDetector.isUnlockedVoucherSecret(voucherSecret);
         assertTrue(result,
                 "VoucherSecretDetector should return true for actual VoucherSecret");
     }
@@ -386,13 +386,13 @@ public class VerifyProofsTaskTest {
                 "VoucherSecret should have expected fully qualified class name");
 
         // Verify detector identifies it
-        assertTrue(VoucherSecretDetector.isVoucherSecret(voucherSecret),
+        assertTrue(VoucherSecretDetector.isUnlockedVoucherSecret(voucherSecret),
                 "Detector should identify VoucherSecret by class name");
 
         // Verify regular secrets are not detected as vouchers
         RandomStringSecret regularSecret = RandomStringSecret.create();
         org.junit.jupiter.api.Assertions.assertFalse(
-                VoucherSecretDetector.isVoucherSecret(regularSecret),
+                VoucherSecretDetector.isUnlockedVoucherSecret(regularSecret),
                 "Detector should not identify RandomStringSecret as voucher"
         );
     }

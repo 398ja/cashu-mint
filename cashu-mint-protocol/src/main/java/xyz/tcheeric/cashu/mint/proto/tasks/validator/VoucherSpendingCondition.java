@@ -9,7 +9,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
-import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
+import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
 /**
@@ -67,26 +68,35 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
 
         Secret secret = proof.getSecret();
 
-        // Extract VoucherSecret for voucher-specific validations
-        VoucherSecret voucherSecret = extractVoucherSecret(secret);
+        // Read through VoucherMetadata rather than casting to VoucherSecret. Both voucher
+        // kinds reach this condition -- VOUCHER directly, P2PK_VOUCHER via
+        // P2PKVoucherSpendingCondition -- and a P2PKVoucherSecret is not a VoucherSecret, so a
+        // cast yields null and every check below it degrades to a no-op. Guarding each check
+        // on "did the cast work" is what made that silent: an expired P2PK_VOUCHER verified.
+        boolean carriesVoucherMetadata =
+                secret instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
+        WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) secret : null;
 
         // 1. Validate voucher expiry
-        if (voucherSecret != null && voucherSecret.isExpired()) {
+        if (voucherSecret != null && VoucherMetadata.isExpired(voucherSecret)) {
             log.error("voucher_expired voucherId={} expiresAt={}",
-                    voucherSecret.getVoucherId(), voucherSecret.getExpiresAt());
+                    VoucherMetadata.voucherId(voucherSecret),
+                    VoucherMetadata.expiresAt(voucherSecret));
                     throw new CashuErrorException(CashuErrorCode.voucher_expired,
                     "Voucher has expired and cannot be redeemed");
         }
 
         // 2. Validate issuer signature
-        if (voucherSecret != null && voucherSecret.isSigned()) {
+        if (voucherSecret != null && VoucherMetadata.isSigned(voucherSecret)) {
             if (!VoucherSignatureService.verify(voucherSecret)) {
                 log.error("voucher_signature_invalid voucherId={} issuerPubkey={}",
-                        voucherSecret.getVoucherId(), voucherSecret.getIssuerPublicKey());
+                        VoucherMetadata.voucherId(voucherSecret),
+                        VoucherMetadata.issuerPublicKey(voucherSecret));
                         throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
                         "Voucher issuer signature verification failed");
             }
-            log.debug("Voucher issuer signature verified: voucherId={}", voucherSecret.getVoucherId());
+            log.debug("Voucher issuer signature verified: voucherId={}",
+                    VoucherMetadata.voucherId(voucherSecret));
         }
 
         // 3. Check if proof has been used already (double-spend prevention).
@@ -141,22 +151,7 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
 
         log.info("voucher_proof_verified amount={} voucherId={}",
                 proof.getAmount(),
-                voucherSecret != null ? voucherSecret.getVoucherId() : "unknown");
-    }
-
-    /**
-     * Extracts VoucherSecret from a generic Secret.
-     *
-     * @param secret the secret to extract from
-     * @return the VoucherSecret if it's a voucher, null otherwise
-     */
-    private VoucherSecret extractVoucherSecret(Secret secret) {
-        if (secret instanceof VoucherSecret) {
-            return (VoucherSecret) secret;
-        }
-        // Try to detect voucher from string representation if needed
-        // This handles cases where the secret was deserialized as a generic type
-        return null;
+                voucherSecret != null ? VoucherMetadata.voucherId(voucherSecret) : "unknown");
     }
 
     /**
