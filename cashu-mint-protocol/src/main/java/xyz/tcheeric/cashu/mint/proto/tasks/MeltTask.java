@@ -382,8 +382,25 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             throws CashuErrorException {
         int updated = meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.PAYMENT_SENT);
         if (updated == 0) {
-            log.warn("[melt-saga] cas_failed quote_id={} saga_id={} expected=PROOFS_HELD",
-                    quoteId, sagaId);
+            // The saga was not in PROOFS_HELD, so this thread is not the one that owns the
+            // transition: another actor has already moved it, or it was reset underneath us.
+            // Carrying on regardless would invalidate the inputs and record COMPLETED against a
+            // saga whose state machine says something else happened (audit M-4). The payment has
+            // already left at this point, so this is exactly the situation an operator must see,
+            // and the sibling paths (SwapTask's stranded hold, PAYMENT_SENT_BURN_FAILED below)
+            // both abort loudly rather than continue.
+            log.error("[melt-saga][alert] CAS_FAILED_AFTER_PAYMENT quote_id={} saga_id={} "
+                            + "expected=PROOFS_HELD preimage={} - payment has been sent but the "
+                            + "saga could not be advanced; operator intervention required",
+                    quoteId, sagaId, success.paymentHash());
+            meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
+                    MeltSagaState.PAYMENT_SENT,
+                    "cas_failed_after_payment preimage=" + success.paymentHash(), "system");
+            ErrorResponse casError = ErrorResponse.of(CashuErrorCode.melt_proof_pending_error,
+                    "payment sent but the melt saga could not be advanced; contact the operator");
+            cacheTerminalError(sagaId, casError);
+            throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error,
+                    casError.detail());
         }
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
                 MeltSagaState.PAYMENT_SENT, success.providerEventId(), "system");

@@ -82,16 +82,55 @@ public final class VoucherMasterSecretConfig {
             return validateAndNormalize(envVar);
         }
 
-        // 3. Check property file
+        // 3. Check property file.
+        //
+        // Kept for local development only. A key that lives in a file on the classpath is a key
+        // that gets committed: proto.properties is packaged into the jar, so a value set here
+        // ships to every deployment built from that source (audit M-3). Warned about loudly
+        // rather than removed, because removing it would break existing local setups silently.
         String propFile = properties.getProperty(PROPERTY_KEY);
         if (propFile != null && !propFile.isBlank()) {
-            log.info("Voucher master secret loaded from proto.properties");
+            log.warn("Voucher master secret loaded from proto.properties. This file is packaged "
+                    + "into the jar, so the key ships with every build made from this source. "
+                    + "Use {} or the {} system property instead.", ENV_KEY, SYSTEM_PROP_KEY);
             return validateAndNormalize(propFile);
         }
 
-        // 4. Auto-generate
-        log.warn("No voucher master secret configured - generating random secret (will be lost on restart)");
-        return generateRandomSecret();
+        // 4. No secret configured.
+        //
+        // Generating one per boot was worse than failing. Voucher identity is derived from this
+        // key, so a restart silently invalidated every voucher already issued: the mint kept
+        // serving, and the failure showed up later as vouchers that no longer verified, with
+        // nothing at the point of restart to connect the two. A missing key for a subsystem that
+        // is switched on is a configuration error, and configuration errors belong at startup.
+        if (!isVoucherSubsystemEnabled()) {
+            log.debug("No voucher master secret configured; the voucher subsystem is disabled.");
+            return null;
+        }
+        throw new IllegalStateException(
+                "The voucher subsystem is enabled but no master secret is configured. Voucher "
+                        + "identity is derived from this key, so generating one per boot would "
+                        + "invalidate every voucher already issued on the next restart. Set "
+                        + ENV_KEY + " (or -D" + SYSTEM_PROP_KEY + ") to a 64-character hex "
+                        + "string; generate one with: openssl rand -hex 32");
+    }
+
+    /**
+     * Whether vouchers are switched on for this process.
+     *
+     * <p>A mint that does not issue vouchers has no reason to require the key, and most
+     * deployments and every unit test are in that position.
+     */
+    private static boolean isVoucherSubsystemEnabled() {
+        String property = System.getProperty("voucher.enabled");
+        if (property != null && !property.isBlank()) {
+            return Boolean.parseBoolean(property);
+        }
+        String env = System.getenv("VOUCHER_ENABLED");
+        if (env != null && !env.isBlank()) {
+            return Boolean.parseBoolean(env);
+        }
+        return false;
     }
 
     private static String validateAndNormalize(String secret) {

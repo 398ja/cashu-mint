@@ -40,6 +40,26 @@ public class WebhookProperties {
      */
     private String provider = "phoenixd";
 
+    /**
+     * How far a webhook's {@code X-Webhook-Timestamp} may be from the receiver's clock, in
+     * seconds.
+     *
+     * <p>An HMAC over the body alone is valid forever, so anyone who observes one delivery can
+     * replay the identical bytes indefinitely (audit M-5). Binding the timestamp into the signed
+     * material and refusing stale ones bounds that to this window. Five minutes is the usual
+     * choice: wide enough for ordinary clock drift and retry delay, narrow enough that a captured
+     * delivery is not a lasting capability.
+     */
+    private long timestampToleranceSeconds = 300;
+
+    /**
+     * Whether a webhook without a timestamp is refused.
+     *
+     * <p>Defaults false so that a sender not yet emitting the header keeps working; the signature
+     * is still checked, it simply has no replay bound. Set true once every sender emits one.
+     */
+    private boolean requireTimestamp = false;
+
     public boolean hasSharedSecret() {
         return sharedSecret != null && !sharedSecret.isBlank();
     }

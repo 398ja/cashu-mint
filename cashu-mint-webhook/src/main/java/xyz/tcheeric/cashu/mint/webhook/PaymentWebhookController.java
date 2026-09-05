@@ -68,6 +68,7 @@ public final class PaymentWebhookController {
     @PostMapping("/payment")
     public ResponseEntity<WebhookResponse> handlePaymentWebhook(
             @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
+            @RequestHeader(value = "X-Webhook-Timestamp", required = false) String timestamp,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody(required = false) byte[] rawBody) {
 
@@ -80,7 +81,7 @@ public final class PaymentWebhookController {
         }
 
         // Authenticate over the exact bytes the sender signed, before parsing.
-        if (!signatureValidator.validate(rawBody, signature)) {
+        if (!signatureValidator.validate(rawBody, signature, timestamp)) {
             log.warn("Invalid webhook signature");
             return ResponseEntity.status(401)
                     .body(WebhookResponse.error("Invalid signature"));
@@ -145,10 +146,14 @@ public final class PaymentWebhookController {
                         .body(WebhookResponse.error("Signature rejected"));
             };
         } catch (Exception e) {
+            // The exception message goes to the log, not to the caller (audit M-2). An exception
+            // from this depth names internal classes, SQL, and sometimes the values that caused
+            // it; the sender can do nothing with any of that, and a caller who is probing rather
+            // than integrating learns about the internals for free.
             log.error("Failed to process payment webhook: quoteId={}",
                     notification.getQuoteId(), e);
             return ResponseEntity.internalServerError()
-                    .body(WebhookResponse.error("Processing failed: " + e.getMessage()));
+                    .body(WebhookResponse.error("Processing failed"));
         }
     }
 

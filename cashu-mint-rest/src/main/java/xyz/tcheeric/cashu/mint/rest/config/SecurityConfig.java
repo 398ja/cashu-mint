@@ -112,6 +112,15 @@ public class SecurityConfig {
         // value is plain text — otherwise the {bcrypt}/{argon2}/etc.
         // hash would be compared literally and admin auth would silently
         // never accept the correct password.
+        // {noop} means the configured value is compared as plain text. That is a real weakness
+        // if the property leaks (audit M-1), so operators are pointed at the alternative rather
+        // than left to discover it: DelegatingPasswordEncoder honours an explicit {bcrypt}
+        // prefix, and the branch below preserves it.
+        if (!password.startsWith("{")) {
+            log.warn("Admin password is stored in plain text. Prefer a hashed value: generate one "
+                    + "with `spring encodepassword <password>` and set it including the {bcrypt} "
+                    + "prefix.");
+        }
         String stored = password.startsWith("{") ? password : "{noop}" + password;
         UserDetails admin = User.withUsername(username)
                 .password(stored)
@@ -164,6 +173,14 @@ public class SecurityConfig {
             // Allow any origin. Browsers reject `*` on requests with
             // credentials; cashu NUT endpoints don't carry credentials,
             // so this is safe for the public protocol surface.
+            //
+            // Warned about because it is a default rather than a decision (audit M-1). The NUT
+            // surface is genuinely public, so `*` is defensible; what is not defensible is a
+            // deployment reaching production without anyone having considered whether it wanted
+            // that. Set cashu.mint.cors.allowed-origins to the wallet origins you serve.
+            log.warn("CORS is allowing ANY origin because cashu.mint.cors.allowed-origins is "
+                    + "unset. Acceptable for the public NUT surface; set it explicitly to the "
+                    + "wallet origin(s) you serve if that is not what you want.");
             config.addAllowedOriginPattern("*");
         } else {
             config.setAllowedOrigins(origins);

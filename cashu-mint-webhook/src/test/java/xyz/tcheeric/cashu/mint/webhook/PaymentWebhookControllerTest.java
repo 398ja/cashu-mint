@@ -46,7 +46,7 @@ class PaymentWebhookControllerTest {
     @Test
     void handlePaymentWebhook_shouldReturn200OnSuccess() throws Exception {
         // Given
-        when(signatureValidator.validate(any(), any())).thenReturn(true);
+        when(signatureValidator.validate(any(), any(), any())).thenReturn(true);
         when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.accepted());
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
@@ -66,7 +66,7 @@ class PaymentWebhookControllerTest {
     @Test
     void handlePaymentWebhook_shouldReturn200OnDuplicate() throws Exception {
         // Given
-        when(signatureValidator.validate(any(), any())).thenReturn(true);
+        when(signatureValidator.validate(any(), any(), any())).thenReturn(true);
         when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.of(Outcome.duplicate));
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
@@ -84,7 +84,7 @@ class PaymentWebhookControllerTest {
     @Test
     void handlePaymentWebhook_shouldReturn401OnInvalidSignature() throws Exception {
         // Given
-        when(signatureValidator.validate(any(), any())).thenReturn(false);
+        when(signatureValidator.validate(any(), any(), any())).thenReturn(false);
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
         String json = objectMapper.writeValueAsString(notification);
@@ -104,7 +104,7 @@ class PaymentWebhookControllerTest {
     @Test
     void handlePaymentWebhook_shouldReturn500OnError() throws Exception {
         // Given
-        when(signatureValidator.validate(any(), any())).thenReturn(true);
+        when(signatureValidator.validate(any(), any(), any())).thenReturn(true);
         when(quoteStatusUpdater.record(any())).thenThrow(new RuntimeException("DB error"));
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
@@ -152,7 +152,7 @@ class PaymentWebhookControllerTest {
     @Test
     void handlePaymentWebhook_shouldAcceptIdempotencyKeyHeader() throws Exception {
         // Given
-        when(signatureValidator.validate(any(), any())).thenReturn(true);
+        when(signatureValidator.validate(any(), any(), any())).thenReturn(true);
         when(quoteStatusUpdater.record(any())).thenReturn(WebhookOutcome.accepted());
 
         PaymentNotification notification = createNotification("quote123", 1000, "preimage456");
