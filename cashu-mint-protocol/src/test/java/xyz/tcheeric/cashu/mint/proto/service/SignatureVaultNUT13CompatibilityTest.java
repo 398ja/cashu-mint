@@ -132,7 +132,7 @@ class SignatureVaultNUT13CompatibilityTest {
                 "03b5c9d2e3f4a7b8c9d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4",
                 keysetId, 16);
         BlindSignature sig1 = createSignature(
-                "02d8e3f5a9b2c4d6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4",
+                "02d8e3f5a9b2c4d6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e9",
                 keysetId, 16);
 
         // Counter 2 - different blinded message
@@ -204,7 +204,7 @@ class SignatureVaultNUT13CompatibilityTest {
         // In reality, different keysets produce different blinded messages for same counter
         // because the blinding is performed against different public keys
         String blindedMessageHex1 = "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2";
-        String blindedMessageHex2 = "03b8d9e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0";
+        String blindedMessageHex2 = "03b8d9e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d1";
 
         KeysetId keyset1 = KeysetId.fromString("009a1f293253e41e");
         KeysetId keyset2 = KeysetId.fromString("00ad268c4d1f5826");
@@ -216,7 +216,7 @@ class SignatureVaultNUT13CompatibilityTest {
                 "03c724d7e195ba762e2e3a9d294e5fd3f0f4b1f7e2c5d8a9b3c6e1f4a7d2e5c8b4",
                 keyset1, 8);
         BlindSignature sig2 = createSignature(
-                "02d8e3f5a9b2c4d6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4",
+                "02d8e3f5a9b2c4d6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e9",
                 keyset2, 8);
 
         // Store both
