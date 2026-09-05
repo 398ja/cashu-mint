@@ -45,6 +45,11 @@ docker compose -f docker-compose.prod.yml exec cashu-mint-rest \
   curl -s localhost:9000/actuator/prometheus | head -50
 ```
 
+Run this from the directory holding your `.env`. Every credential in
+`docker-compose.prod.yml` is a required variable with no default, so compose interpolates the
+whole file even for `exec`, and without `.env` it stops at the first missing password rather than
+running the command. See `.env.example`.
+
 
 Check that metrics are being collected:
 
