@@ -1,17 +1,40 @@
 #version: "3.8"
+#
+# Production topology for the mint and its dependencies.
+#
+# SECURITY NOTES (2026-09-05 audit, findings H-1 and H-9):
+#
+#  * Database and Vault ports are NOT published to the host. They are reachable only on the
+#    internal `cashu` network. Publishing 5432 or 8200 puts the store holding every mint
+#    signing key on the host's network interface. Use `docker compose exec` for admin access,
+#    or a bastion, rather than re-adding a `ports:` mapping here.
+#
+#  * Every credential is an environment variable with NO default. The stack will refuse to
+#    start rather than come up with a known password. Provide them via a `.env` file that is
+#    never committed, or your orchestrator's secret store. See `.env.example`.
+#
+#  * HashiCorp Vault runs in SERVER mode against a config file, not `-dev` mode. Dev mode is
+#    unsealed, in-memory and HTTP-only, and its root token is whatever the env var says. A
+#    production stack needs a sealed, persistent, TLS-terminated Vault, and the application
+#    authenticates with AppRole rather than the root token.
+#
+#  * The mint runs with durable persistence enabled. With it off, melt pays the Lightning
+#    invoice before recording its inputs as spent (see DurablePersistenceStartupValidator).
 services:
   cashu-vault-db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      # No default: the stack refuses to start rather than come up with a known password.
+      POSTGRES_PASSWORD: ${VAULT_DB_PASSWORD:?set VAULT_DB_PASSWORD}
       POSTGRES_DB: cashu_vault
     volumes:
       - vault-db-data:/var/lib/postgresql/data
-    ports:
-      - "55433:5432"
+    # Not published: reachable on the `cashu` network only.
+    expose:
+      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_vault"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d cashu_vault"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,15 +45,17 @@ services:
   payment-adapter-db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      # No default: the stack refuses to start rather than come up with a known password.
+      POSTGRES_PASSWORD: ${GATEWAY_DB_PASSWORD:?set GATEWAY_DB_PASSWORD}
       POSTGRES_DB: cashu_gateway
     volumes:
       - gateway-db-data:/var/lib/postgresql/data
-    ports:
-      - "55434:5432"
+    # Not published: reachable on the `cashu` network only.
+    expose:
+      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d cashu_gateway"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -41,15 +66,40 @@ services:
   admin-db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      # No default: the stack refuses to start rather than come up with a known password.
+      POSTGRES_PASSWORD: ${ADMIN_DB_PASSWORD:?set ADMIN_DB_PASSWORD}
       POSTGRES_DB: cashu_admin
     volumes:
       - admin-db-data:/var/lib/postgresql/data
-    ports:
-      - "55435:5432"
+    # Not published: reachable on the `cashu` network only.
+    expose:
+      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_admin"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d cashu_admin"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - cashu
+  mint-db:
+    # The mint's own durable store: mint quotes, issuance records, webhook events, the melt saga
+    # and swap holds. Without it cashu.mint.jpa.enabled cannot be true, and with that false the
+    # melt path pays the Lightning invoice before recording its inputs as spent.
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${MINT_DB_PASSWORD:?set MINT_DB_PASSWORD}
+      POSTGRES_DB: cashu_mint
+    volumes:
+      - mint-db-data:/var/lib/postgresql/data
+    # Not published: reachable on the `cashu` network only.
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d cashu_mint"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -61,14 +111,20 @@ services:
     image: hashicorp/vault:1.18
     cap_add:
       - IPC_LOCK
+    # Server mode against a real config file. `-dev` mode is unsealed, in-memory and HTTP-only,
+    # and it accepts a root token supplied by an environment variable, so a dev-mode Vault is
+    # equivalent to no Vault at all: anyone reaching the port owns every mint signing key.
+    # This expects ./vault/config/vault.hcl, and an operator to unseal (or configure auto-unseal)
+    # on first boot. See docs/how-to/provision-vault.md.
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-      VAULT_ADDR: http://127.0.0.1:8200
-    ports:
-      - "8200:8200"
+      VAULT_ADDR: ${VAULT_ADDR:-https://127.0.0.1:8200}
+    # Not published: the mint and the vault service reach it on the `cashu` network.
+    expose:
+      - "8200"
     volumes:
       - vault-data:/vault/file
+      - ./vault/config:/vault/config:ro
     healthcheck:
       test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
       interval: 10s
@@ -83,9 +139,12 @@ services:
     depends_on:
       hashicorp-vault:
         condition: service_healthy
+    # This job provisions the mount, policy and AppRole. It needs a privileged token, which the
+    # operator supplies for the duration of the run and revokes afterwards; it is deliberately
+    # NOT the same token the application uses.
     environment:
-      VAULT_ADDR: http://hashicorp-vault:8200
-      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_ADDR: ${VAULT_ADDR:-https://hashicorp-vault:8200}
+      VAULT_TOKEN: ${VAULT_INIT_TOKEN:?set VAULT_INIT_TOKEN to a short-lived provisioning token}
       VAULT_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
     entrypoint: /bin/sh
     command:
@@ -119,23 +178,31 @@ services:
 
         vault auth enable approle || true
 
+        # secret_id_num_uses=1 and a short TTL: the secret-id is consumed by the first login
+        # and is worthless afterwards. The previous settings (num_uses=0, ttl=720h) made it an
+        # unlimited-use credential valid for a month.
         vault write auth/approle/role/cashu-vault \
           token_policies="cashu-vault" \
           token_ttl=1h \
           token_max_ttl=4h \
-          secret_id_ttl=720h \
-          secret_id_num_uses=0
+          secret_id_ttl=10m \
+          secret_id_num_uses=1
 
         ROLE_ID=$$(vault read -field=role_id auth/approle/role/cashu-vault/role-id)
-        SECRET_ID=$$(vault write -f -field=secret_id auth/approle/role/cashu-vault/secret-id)
 
-        echo "VAULT_ROLE_ID=$$ROLE_ID"
-        echo "VAULT_SECRET_ID=$$SECRET_ID"
+        # The role-id is an identifier, not a secret, so it may be written out. The secret-id is
+        # the credential: it is response-wrapped, so what lands on disk is a single-use wrapping
+        # token that the application unwraps at startup. Neither the secret-id itself nor the
+        # wrapping token is echoed, because container logs are routinely shipped elsewhere.
+        WRAPPED=$$(vault write -f -wrap-ttl=10m -field=wrapping_token \
+          auth/approle/role/cashu-vault/secret-id)
 
         echo "$$ROLE_ID" > /vault/file/role-id
-        echo "$$SECRET_ID" > /vault/file/secret-id
+        echo "$$WRAPPED" > /vault/file/secret-id-wrapped
+        chmod 600 /vault/file/role-id /vault/file/secret-id-wrapped
 
         echo "Vault initialized with $${VAULT_MOUNT} KV v2 engine and AppRole auth"
+        echo "The AppRole secret-id was response-wrapped; it was not written to this log."
     volumes:
       - vault-data:/vault/file
     restart: "no"
@@ -145,19 +212,21 @@ services:
     image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION:-latest}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
-      DATASOURCE_USERNAME: postgres
-      DATASOURCE_PASSWORD: postgres
+      DATASOURCE_USERNAME: ${POSTGRES_USER:?set POSTGRES_USER}
+      DATASOURCE_PASSWORD: ${VAULT_DB_PASSWORD:?set VAULT_DB_PASSWORD}
       SPRING_DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?set POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${VAULT_DB_PASSWORD:?set VAULT_DB_PASSWORD}
       CASHU_VAULT_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_PORT: ${CASHU_VAULT_PORT:-3333}
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       # HashiCorp Vault configuration (uses AppRole credentials from vault-init)
       VAULT_BACKEND: HASHICORP
-      VAULT_HASHI_URI: http://hashicorp-vault:8200
-      VAULT_HASHI_AUTH_METHOD: ${VAULT_HASHI_AUTH_METHOD:-APPROLE}
+      VAULT_HASHI_URI: ${VAULT_HASHI_URI:-https://hashicorp-vault:8200}
+      # AppRole only. Authenticating the application with the root token makes every
+      # least-privilege policy on the mount decorative.
+      VAULT_HASHI_AUTH_METHOD: APPROLE
       VAULT_HASHI_ROLE_ID: ${VAULT_HASHI_ROLE_ID}
       VAULT_HASHI_SECRET_ID: ${VAULT_HASHI_SECRET_ID}
       VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
@@ -168,8 +237,10 @@ services:
         condition: service_healthy
       vault-init:
         condition: service_completed_successfully
-    ports:
-      - "${CASHU_VAULT_PORT:-3333}:${CASHU_VAULT_PORT:-3333}"
+    # Not published. The vault API serves and accepts spendable proof secrets and is reachable
+    # by the mint on the internal network only.
+    expose:
+      - "${CASHU_VAULT_PORT:-3333}"
     volumes:
       - vault-logs:/app/logs
     restart: unless-stopped
@@ -277,12 +348,23 @@ services:
       CASHU_MINT_MANAGEMENT_PORT: ${CASHU_MINT_MANAGEMENT_PORT:-9000}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Durable persistence (audit H-1). With this off, MeltTask takes the legacy path, which
+      # pays the invoice before checking spent state and serialises concurrent melts only
+      # within a single JVM. DurablePersistenceStartupValidator refuses to boot without it.
+      CASHU_MINT_JPA_ENABLED: "true"
+      MINT_DB_URL: jdbc:postgresql://mint-db:5432/cashu_mint
+      MINT_DB_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      MINT_DB_PASSWORD: ${MINT_DB_PASSWORD:?set MINT_DB_PASSWORD}
       # Webhook configuration
-      MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET}
+      MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET:?set MINT_WEBHOOK_SECRET}
+      # Operator credential for /admin/** and the authenticated actuator endpoints.
+      MINT_ADMIN_PASSWORD: ${MINT_ADMIN_PASSWORD:?set MINT_ADMIN_PASSWORD}
       # Gateway client timeouts (optimized for virtual threads)
       GATEWAY_CLIENT_CONNECT_TIMEOUT: ${GATEWAY_CLIENT_CONNECT_TIMEOUT:-5s}
       GATEWAY_CLIENT_READ_TIMEOUT: ${GATEWAY_CLIENT_READ_TIMEOUT:-30s}
     depends_on:
+      mint-db:
+        condition: service_healthy
       cashu-vault-jpa:
         condition: service_started
       payment-adapter-rest:
@@ -330,6 +412,7 @@ services:
       retries: 6
       start_period: 20s
 volumes:
+  mint-db-data:
   vault-db-data:
   gateway-db-data:
   admin-db-data:

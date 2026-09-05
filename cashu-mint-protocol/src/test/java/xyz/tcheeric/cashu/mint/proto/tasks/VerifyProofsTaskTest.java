@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.ProofAuthenticity;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
@@ -86,11 +87,17 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
 
-        try (MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
+        // Authenticity is stubbed for the same reason the spending condition is: this test is
+        // about which condition the task dispatches to, not about the BDHKE arithmetic. The
+        // forgery gate itself is covered by SwapRejectsForgedP2PKProofTest against real crypto.
+        try (MockedConstruction<ProofAuthenticity> auth = Mockito.mockConstruction(ProofAuthenticity.class,
+                (mock, ctx) -> Mockito.doNothing().when(mock).require(any()));
+             MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
                 (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
             VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
             assertDoesNotThrow(task::execute);
             Mockito.verify(cons.constructed().get(0)).verify(proof);
+            Mockito.verify(auth.constructed().get(0)).require(proof);
         }
     }
 
@@ -150,11 +157,16 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
 
-        try (MockedConstruction<P2PKSpendingCondition> cons = Mockito.mockConstruction(P2PKSpendingCondition.class,
+        try (MockedConstruction<ProofAuthenticity> auth = Mockito.mockConstruction(ProofAuthenticity.class,
+                (mock, ctx) -> Mockito.doNothing().when(mock).require(any()));
+             MockedConstruction<P2PKSpendingCondition> cons = Mockito.mockConstruction(P2PKSpendingCondition.class,
                 (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
             VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(mint, request, service);
             assertDoesNotThrow(task::execute);
             Mockito.verify(cons.constructed().get(0)).verify(proof);
+            // A P2PK input must be checked for authenticity too; it used to be the one kind that
+            // was not.
+            Mockito.verify(auth.constructed().get(0)).require(proof);
         }
     }
 

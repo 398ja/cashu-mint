@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,9 +27,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * NUT endpoints ({@code /v1/**}), webhook delivery, WebSocket upgrade and
  * static error pages stay open.
  *
- * <p>This chain guards the public API port only. Since issue #346 actuator is
- * served from a separate management port and is not mapped here at all, so no
- * rule in this class can expose it.
+ * <p>This chain guards the public API port only. Actuator is served from a separate
+ * management port (issue #346) and is claimed by {@link ManagementSecurityConfig}'s
+ * higher-precedence chain, so no rule in this class can expose it.
  *
  * <p>The admin password comes from {@code cashu.mint.admin.password}. When
  * unset/blank, NO admin user is registered: every {@code /admin/**}
@@ -54,6 +55,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(Customizer.withDefaults())
@@ -81,7 +83,8 @@ public class SecurityConfig {
                         // All other paths (NUT endpoints, /webhook/**, WebSocket
                         // upgrades, static) stay open — the mint's public contract is
                         // unchanged. Actuator is NOT in this list: it moved to its own
-                        // management port (issue #346) and never reaches this chain.
+                        // management port (issue #346) and is matched by
+                        // ManagementSecurityConfig's @Order(1) chain before this one runs.
                         .anyRequest().permitAll())
                 .httpBasic(httpBasic -> {});
         return http.build();
