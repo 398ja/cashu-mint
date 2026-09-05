@@ -247,9 +247,17 @@ services:
       VAULT_HASHI_URI: ${VAULT_HASHI_URI:-http://hashicorp-vault:8200}
       # AppRole only. Authenticating the application with the root token makes every
       # least-privilege policy on the mount decorative.
-      VAULT_HASHI_AUTH_METHOD: APPROLE
-      VAULT_HASHI_ROLE_ID: ${VAULT_HASHI_ROLE_ID}
-      VAULT_HASHI_SECRET_ID: ${VAULT_HASHI_SECRET_ID}
+      #
+      # Lowercase, and the variable names are the relaxed-binding form of the actual property
+      # paths. Both were wrong before: HashiVaultConfig switched on the literal "approle", so
+      # "APPROLE" fell through its default branch to token authentication with a null token,
+      # meaning the deployment asked for AppRole and silently got something else. And
+      # VAULT_HASHI_ROLE_ID binds to vault.hashi.role-id, which does not exist; the property is
+      # vault.hashi.auth.approle.role-id, so the credentials were never read at all. Both
+      # failures surfaced only as a failed Vault call at first use.
+      VAULT_HASHI_AUTH_METHOD: approle
+      VAULT_HASHI_AUTH_APPROLE_ROLE_ID: ${VAULT_HASHI_AUTH_APPROLE_ROLE_ID:-${VAULT_HASHI_ROLE_ID:-}}
+      VAULT_HASHI_AUTH_APPROLE_SECRET_ID: ${VAULT_HASHI_AUTH_APPROLE_SECRET_ID:-${VAULT_HASHI_SECRET_ID:-}}
       VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
       # Bearer token required on /vault/** (audit C-2). The vault refuses to start without it.
       VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
