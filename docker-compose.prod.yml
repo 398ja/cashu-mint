@@ -211,14 +211,20 @@ services:
         WRAPPED=$$(vault write -f -wrap-ttl=10m -field=wrapping_token \
           auth/approle/role/cashu-vault/secret-id)
 
-        echo "$$ROLE_ID" > /vault/file/role-id
-        echo "$$WRAPPED" > /vault/file/secret-id-wrapped
-        chmod 600 /vault/file/role-id /vault/file/secret-id-wrapped
+        # Written to a dedicated volume, not into /vault/file. That directory is Vault's own
+        # file storage backend, and putting AppRole material beside Vault's data means anything
+        # with access to the storage volume also gets the credential.
+        echo "$$ROLE_ID" > /vault/approle/role-id
+        echo "$$WRAPPED" > /vault/approle/secret-id-wrapped
+        chmod 600 /vault/approle/role-id /vault/approle/secret-id-wrapped
 
         echo "Vault initialized with $${VAULT_MOUNT} KV v2 engine and AppRole auth"
         echo "The AppRole secret-id was response-wrapped; it was not written to this log."
+        echo "Read /vault/approle/role-id and /vault/approle/secret-id-wrapped and set"
+        echo "VAULT_HASHI_AUTH_APPROLE_ROLE_ID and VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID."
+        echo "The wrapping token is single-use and expires in 10 minutes."
     volumes:
-      - vault-data:/vault/file
+      - vault-approle:/vault/approle
     restart: "no"
     networks:
       - cashu
@@ -257,7 +263,11 @@ services:
       # failures surfaced only as a failed Vault call at first use.
       VAULT_HASHI_AUTH_METHOD: approle
       VAULT_HASHI_AUTH_APPROLE_ROLE_ID: ${VAULT_HASHI_AUTH_APPROLE_ROLE_ID:-${VAULT_HASHI_ROLE_ID:-}}
+      # Set exactly one of these. The init job response-wraps the secret-id so the credential
+      # itself never lands on disk, and the wrapped form is what it writes out; the application
+      # unwraps it once at startup. Setting both is refused rather than resolved silently.
       VAULT_HASHI_AUTH_APPROLE_SECRET_ID: ${VAULT_HASHI_AUTH_APPROLE_SECRET_ID:-${VAULT_HASHI_SECRET_ID:-}}
+      VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID: ${VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID:-}
       VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
       # Bearer token required on /vault/** (audit C-2). The vault refuses to start without it.
       VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
@@ -451,6 +461,8 @@ services:
       retries: 6
       start_period: 20s
 volumes:
+  # AppRole material from vault-init, kept out of Vault's own file storage volume.
+  vault-approle:
   mint-db-data:
   vault-db-data:
   gateway-db-data:
