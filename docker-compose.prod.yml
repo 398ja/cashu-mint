@@ -230,6 +230,8 @@ services:
       VAULT_HASHI_ROLE_ID: ${VAULT_HASHI_ROLE_ID}
       VAULT_HASHI_SECRET_ID: ${VAULT_HASHI_SECRET_ID}
       VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
+      # Bearer token required on /vault/** (audit C-2). The vault refuses to start without it.
+      VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
     depends_on:
       cashu-vault-db:
         condition: service_healthy
@@ -340,6 +342,8 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
       VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      # Presented by VaultClient on every vault call (audit C-2).
+      VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       GATEWAY_API_BASE_URL: http://payment-adapter-rest:${PAYMENT_ADAPTER_PORT:-8080}
       # Issue #346 — actuator lives on its own port and is deliberately NOT published
