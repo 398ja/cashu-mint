@@ -118,7 +118,10 @@ services:
     # on first boot. See docs/how-to/provision-vault.md.
     command: ["vault", "server", "-config=/vault/config/vault.hcl"]
     environment:
-      VAULT_ADDR: ${VAULT_ADDR:-https://127.0.0.1:8200}
+      # http because vault.hcl sets tls_disable = 1 and the port is not published. Switch both
+      # this and the healthcheck to https when moving to vault-tls.hcl; they must agree, or the
+      # healthcheck never passes and every dependent service waits for ever.
+      VAULT_ADDR: ${VAULT_ADDR:-http://127.0.0.1:8200}
     # Not published: the mint and the vault service reach it on the `cashu` network.
     expose:
       - "8200"
@@ -126,7 +129,16 @@ services:
       - vault-data:/vault/file
       - ./vault/config:/vault/config:ro
     healthcheck:
-      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status"]
+      # `vault status` exits 2 when Vault is sealed, and a freshly provisioned Vault is ALWAYS
+      # sealed until an operator unseals it, so using it here meant the container never became
+      # healthy, vault-init never ran, and the mint never started. Health here means "serving
+      # and reachable", which is what the sealed-but-up state is; readiness to serve secrets is
+      # what vault-init and the application then discover.
+      #
+      # /v1/sys/health returns 501 uninitialised and 503 sealed, both of which are answers from
+      # a working server, so accept any HTTP response at all and let the dependent services
+      # report the sealed state themselves.
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200 >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -143,7 +155,9 @@ services:
     # operator supplies for the duration of the run and revokes afterwards; it is deliberately
     # NOT the same token the application uses.
     environment:
-      VAULT_ADDR: ${VAULT_ADDR:-https://hashicorp-vault:8200}
+      # Matches the listener in vault/config/vault.hcl (tls_disable = 1, private network).
+      # Switch to https together with vault-tls.hcl, VAULT_HASHI_URI and the healthcheck.
+      VAULT_ADDR: ${VAULT_ADDR:-http://hashicorp-vault:8200}
       VAULT_TOKEN: ${VAULT_INIT_TOKEN:?set VAULT_INIT_TOKEN to a short-lived provisioning token}
       VAULT_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
     entrypoint: /bin/sh
@@ -229,7 +243,8 @@ services:
       # start on that combination rather than doing it quietly.
       VAULT_BACKEND: HASHICORP
       VAULT_HASHI_ENABLED: "true"
-      VAULT_HASHI_URI: ${VAULT_HASHI_URI:-https://hashicorp-vault:8200}
+      # Must match the Vault listener scheme; see vault/config/vault.hcl.
+      VAULT_HASHI_URI: ${VAULT_HASHI_URI:-http://hashicorp-vault:8200}
       # AppRole only. Authenticating the application with the root token makes every
       # least-privilege policy on the mount decorative.
       VAULT_HASHI_AUTH_METHOD: APPROLE
@@ -290,8 +305,12 @@ services:
       PHOENIXD_BASE_URL: http://${PHOENIXD_SERVICE:-phoenixd}:${PHOENIXD_PORT:-9740}
       PHOENIXD_API_KEY: ${PHOENIXD_API_KEY:-}
       SPRING_DATASOURCE_URL: jdbc:postgresql://payment-adapter-db:5432/cashu_gateway
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      # These were literal postgres/postgres while payment-adapter-db is created with
+      # POSTGRES_USER and GATEWAY_DB_PASSWORD, so besides publishing a credential in the same
+      # file that claims none are defaulted, the client could not have authenticated at all
+      # unless the operator happened to set POSTGRES_USER=postgres and the matching password.
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?set POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${GATEWAY_DB_PASSWORD:?set GATEWAY_DB_PASSWORD}
       SERVER_PORT: ${PAYMENT_ADAPTER_PORT:-8080}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-update}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
@@ -400,8 +419,10 @@ services:
       SERVER_PORT: ${CASHU_MINT_ADMIN_PORT:-7778}
       SERVER_ADDRESS: 0.0.0.0
       DATASOURCE_URL: jdbc:postgresql://admin-db:5432/cashu_admin
-      DATASOURCE_USERNAME: postgres
-      DATASOURCE_PASSWORD: postgres
+      # Same defect as the gateway above: literal credentials that also did not match the
+      # env-var-created admin-db.
+      DATASOURCE_USERNAME: ${POSTGRES_USER:?set POSTGRES_USER}
+      DATASOURCE_PASSWORD: ${ADMIN_DB_PASSWORD:?set ADMIN_DB_PASSWORD}
       DATASOURCE_DRIVER: org.postgresql.Driver
       # Operators sign in with a NAP handshake; this npub is the Super Administrator.
       ADMIN_SUPER_ADMIN_NPUB: ${CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB:-}

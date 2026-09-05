@@ -25,14 +25,26 @@ storage "file" {
 listener "tcp" {
   address = "0.0.0.0:8200"
 
-  # TLS is expected. Mount certificates into /vault/config and point these at them. Only set
-  # tls_disable = 1 when Vault sits behind a mesh or proxy that terminates TLS and the container
-  # network is genuinely private; the mint's signing keys travel over this connection.
-  tls_cert_file = "/vault/config/tls/vault.crt"
-  tls_key_file  = "/vault/config/tls/vault.key"
+  # TLS terminates at the container boundary, and this listener is not published: the port is
+  # only reachable from the private `cashu` network by the mint and the vault service.
+  #
+  # This previously pointed at /vault/config/tls/vault.crt and vault.key, which do not exist in
+  # this repository, have no generation step, and could not be created at runtime because
+  # ./vault/config is mounted read-only. Vault exits immediately on a missing cert, and with
+  # restart: unless-stopped that is a crash-loop; vault-init waits on service_healthy, the vault
+  # service waits on vault-init, and the mint waits on that, so the entire production stack
+  # failed to start. A security hardening that stops the system booting is not hardening.
+  #
+  # To enable TLS: generate a cert and key, mount them at /vault/tls (a SEPARATE mount, so it can
+  # be writable or come from a secret store while this config stays read-only), and use
+  # vault-tls.hcl instead of this file. See docs/how-to/provision-vault.md.
+  tls_disable = 1
 }
 
 # Disable mlock only if the platform forbids it; it stops secrets reaching swap.
 disable_mlock = false
 
-api_addr = "https://hashicorp-vault:8200"
+api_addr = "http://hashicorp-vault:8200"
+# Deliberately not set. Vault's cluster port always speaks TLS using its own internally generated
+# certificates, independently of the API listener, so it reports as https even here; setting it to
+# http would be ignored rather than honoured. Unused anyway with single-node file storage.
