@@ -222,7 +222,13 @@ services:
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       # HashiCorp Vault configuration (uses AppRole credentials from vault-init)
+      # Both are required. VAULT_BACKEND states the intent; VAULT_HASHI_ENABLED is what actually
+      # activates the cashu-vault-hashi beans, which are all @ConditionalOnProperty on it. This
+      # file previously set only the first, so the stack declared the HashiCorp backend and
+      # stored keyset private keys in Postgres instead (audit M-16). The vault now refuses to
+      # start on that combination rather than doing it quietly.
       VAULT_BACKEND: HASHICORP
+      VAULT_HASHI_ENABLED: "true"
       VAULT_HASHI_URI: ${VAULT_HASHI_URI:-https://hashicorp-vault:8200}
       # AppRole only. Authenticating the application with the root token makes every
       # least-privilege policy on the mount decorative.
