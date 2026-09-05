@@ -8,11 +8,16 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import xyz.tcheeric.cashu.voucher.app.MerchantVerificationService;
 import xyz.tcheeric.cashu.voucher.app.VoucherBackupService;
 import xyz.tcheeric.cashu.voucher.app.VoucherIssuanceService;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherBackupPort;
+import xyz.tcheeric.cashu.voucher.app.ports.IssuerKeyRegistry;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherLedgerPort;
 import xyz.tcheeric.cashu.voucher.nostr.NostrClientAdapter;
 import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherBackupRepository;
@@ -248,16 +253,64 @@ public class VoucherConfiguration {
     }
 
     /**
+     * Issuer id to public key, the trust anchor merchant verification checks a voucher's
+     * signature against.
+     *
+     * <p>Configured as {@code cashu.mint.voucher.issuer-keys.<issuerId>=<hex pubkey>}. Empty
+     * means no issuer is trusted, so every voucher verifies as untrusted: the honest answer with
+     * nothing to check against, but only a safe default because it can be changed.
+     */
+    @Bean
+    @ConfigurationProperties(prefix = "cashu.mint.voucher")
+    public VoucherIssuerKeys voucherIssuerKeys() {
+        return new VoucherIssuerKeys();
+    }
+
+    /** Holder for the bound {@code issuer-keys} map. */
+    public static class VoucherIssuerKeys {
+        private Map<String, String> issuerKeys = new LinkedHashMap<>();
+
+        public Map<String, String> getIssuerKeys() {
+            return issuerKeys;
+        }
+
+        public void setIssuerKeys(Map<String, String> issuerKeys) {
+            this.issuerKeys = issuerKeys == null ? new LinkedHashMap<>() : issuerKeys;
+        }
+    }
+
+    /**
      * Creates the merchant verification service.
      *
+     * <p>The registry argument is required: verifying that a voucher carries a valid signature
+     * says nothing unless the key is tied to the issuer the voucher claims, which is what let a
+     * voucher be signed under any key with any issuer id and still pass (audit H-12).
+     *
      * @param ledgerPort Voucher ledger port
+     * @param issuerKeys trusted issuer keys; empty means nothing is trusted
      * @return MerchantVerificationService instance
      */
     @Bean
-    public MerchantVerificationService merchantVerificationService(VoucherLedgerPort ledgerPort) {
-        MerchantVerificationService service = new MerchantVerificationService(ledgerPort);
+    public MerchantVerificationService merchantVerificationService(VoucherLedgerPort ledgerPort,
+                                                                   VoucherIssuerKeys issuerKeys) {
+        Map<String, String> keys = issuerKeys.getIssuerKeys().entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        e -> e.getKey().toLowerCase(java.util.Locale.ROOT),
+                        e -> e.getValue().toLowerCase(java.util.Locale.ROOT)));
+        if (keys.isEmpty()) {
+            log.warn("No cashu.mint.voucher.issuer-keys configured: merchant verification will "
+                    + "report every voucher's signature as untrusted, because no issuer key is "
+                    + "trusted. Configure cashu.mint.voucher.issuer-keys.<issuerId>=<hex pubkey>.");
+        }
+        IssuerKeyRegistry registry =
+                issuerId -> issuerId == null
+                        ? Optional.empty()
+                        : Optional.ofNullable(keys.get(issuerId.toLowerCase(java.util.Locale.ROOT)));
 
-        log.info("MerchantVerificationService initialized");
+        MerchantVerificationService service = new MerchantVerificationService(ledgerPort, registry);
+
+        log.info("MerchantVerificationService initialized with {} trusted issuer key(s)",
+                keys.size());
 
         return service;
     }
