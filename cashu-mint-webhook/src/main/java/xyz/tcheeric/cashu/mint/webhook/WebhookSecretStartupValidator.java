@@ -35,6 +35,24 @@ public class WebhookSecretStartupValidator {
                             + "(spec 001 FR-007 / SC-005). Set MINT_WEBHOOK_SECRET or "
                             + "cashu.mint.webhook.shared-secret in the application properties.");
         }
-        log.info("Webhook signature validation enabled (shared secret configured)");
+        if (!properties.isRequireTimestamp()) {
+            // A signature with no replay bound is not much of a defence. With requireTimestamp
+            // false an attacker who captured any historical delivery simply OMITS the
+            // X-Webhook-Timestamp header: timestampWithinWindow(null) passes, signedPayload falls
+            // back to the bare body, and the old body-only MAC verifies. The replay window is
+            // infinite, so the spec-001 replay fix shipped switched off.
+            //
+            // The false default exists so a sender not yet emitting the header keeps working,
+            // which is a migration concern and belongs to local development, not production.
+            throw new IllegalStateException(
+                    "cashu.mint.webhook.require-timestamp must be true in non-local profiles. "
+                            + "With it false a caller can replay any captured delivery for ever "
+                            + "by omitting the X-Webhook-Timestamp header, which makes the "
+                            + "signature check no bar to replay at all. Set "
+                            + "MINT_WEBHOOK_REQUIRE_TIMESTAMP=true once every sender emits the "
+                            + "header, or run the local profile while migrating.");
+        }
+        log.info("Webhook signature validation enabled (shared secret configured, "
+                + "timestamp required)");
     }
 }
