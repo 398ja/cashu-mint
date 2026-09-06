@@ -2,6 +2,65 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.36.0] - 2026-09-06
+
+Security remediation from the 2026-09-05 audit, plus the defects an adversarial review of that
+remediation found. **Contains the audit Critical.** Minor rather than patch: the webhook timestamp
+is mandatory outside local profiles and the production compose stack changed shape.
+
+### Security
+
+- **Every swap input is verified to have come from this mint** (audit C-1). P2PK proofs were never
+  BDHKE-verified on `/v1/swap`: the check lived in the spending-conditions path and was never
+  reached for them, so a forged proof passed with nothing thrown. Now a `ProofAuthenticity` check
+  runs over every input before dispatch. The regression test uses real crypto and fails against
+  the old code.
+
+- **Webhook signatures are bound to a timestamp** (audit M-5), and the timestamp is now
+  **required** outside the local profile. It defaulted false and appeared in no properties file,
+  so an attacker replayed any captured delivery for ever by simply omitting the header: the window
+  check passes on null and the signature falls back to covering the bare body, which is what the
+  old replayable MAC covered. Every replay test supplied a timestamp, so they proved the mechanism
+  and said nothing about the default posture.
+
+- **Melt saga aborts on a CAS failure** rather than proceeding.
+
+### Fixed
+
+- **The production stack starts again.** The Vault hardening pointed the listener at TLS
+  certificates that do not exist in the repository, with no generation step and a read-only mount,
+  so Vault exited immediately and, with `restart: unless-stopped`, crash-looped; `vault-init` gates
+  on it, the vault service on that, and the mint on that, so `docker compose up` produced a stack
+  that hung. Two further blockers sat behind it: the healthcheck spoke HTTP to an HTTPS listener,
+  and used `vault status`, which exits 2 on a sealed Vault, so it could never have passed even
+  with certificates present. Verified by running the container.
+
+- **Database credentials are no longer hardcoded.** The same file that says "every credential is an
+  environment variable with NO default" set `postgres`/`postgres` for the payment adapter and the
+  admin service, which could not have authenticated anyway since both databases are created with
+  `POSTGRES_USER` and their own password variable.
+
+- **AppRole credentials use the variable names Spring actually binds.**
+  `VAULT_HASHI_ROLE_ID` relax-binds to `vault.hashi.role-id`, a property that does not exist, so
+  the credentials were read as absent. `VAULT_HASHI_AUTH_METHOD` was `APPROLE` in capitals, which
+  the switch did not match, sending it to token authentication with a null token.
+
+- **`locktime` widened to `long`**, and two off-curve test keys corrected (found by the new
+  `cashu-lib` on-curve check).
+
+- **`MerchantVerificationService` receives an issuer key registry**, configurable as
+  `cashu.mint.voucher.issuer-keys.<issuerId>`.
+
+### Added
+
+- **`docs/how-to/provision-vault.md`**, the first-boot runbook that `vault.hcl` and the compose
+  file both referenced and which did not exist.
+
+### Changed
+
+- **`cashu-lib` 0.30.0, `cashu-vault` 0.12.0, `cashu-wallet` 0.8.0, `cashu-voucher` 0.14.0,
+  `cashu-ledger` 0.6.0, `nap-java` 0.6.1 -> 0.8.0.**
+
 ## [0.35.0] - 2026-09-02
 
 ### Fixed

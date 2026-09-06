@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.35.0</version>
+    <version>0.36.0</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -43,21 +43,21 @@
         <nostr-java.version>2.3.1</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions -->
-        <cashu-lib.version>0.29.0</cashu-lib.version>
+        <cashu-lib.version>0.30.0</cashu-lib.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
-        <cashu-vault.version>0.11.1</cashu-vault.version>
+        <cashu-vault.version>0.12.0</cashu-vault.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.35.0</cashu-mint.version>
-        <cashu-wallet.version>0.7.0</cashu-wallet.version>
+        <cashu-mint.version>0.36.0</cashu-mint.version>
+        <cashu-wallet.version>0.8.0</cashu-wallet.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Admin builds in this reactor at the version above; kept in step so the
              published admin image tag and this property cannot disagree. -->
-        <cashu-mint-admin.version>0.35.0</cashu-mint-admin.version>
-        <cashu-voucher.version>0.13.0</cashu-voucher.version>
+        <cashu-mint-admin.version>0.36.0</cashu-mint-admin.version>
+        <cashu-voucher.version>0.14.0</cashu-voucher.version>
         <!-- cashu-ledger trace producer SDK (spec 036) -->
-        <cashu-ledger.version>0.5.0</cashu-ledger.version>
+        <cashu-ledger.version>0.6.0</cashu-ledger.version>
         <!-- NAP: Nostr authentication for the admin API (issue #372) -->
-        <nap-java.version>0.6.1</nap-java.version>
+        <nap-java.version>0.8.0</nap-java.version>
 
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.10</spring-boot.version>
