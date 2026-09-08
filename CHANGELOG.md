@@ -2,6 +2,32 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.36.1] - 2026-09-07
+
+### Fixed
+- The voucher ledger is now built with an identity it can **sign** with.
+  `VoucherConfiguration` passed the public key alone, which leaves
+  `issuerIdentity` null, and `NostrVoucherLedgerRepository` then refuses to
+  publish — correctly, since an unsigned ledger event is not evidence of
+  anything and relays reject it.
+
+  It is worse than a plain bug because of *when* it fails: the repository throws
+  on the publish path, not at construction, so the mint boots clean and only
+  fails once a voucher exists, on a background thread, while the caller sees
+  success. The same defect was live in the customer gateway, where one boot lost
+  12 publishes. Here it was masked entirely because `voucher.enabled` is off in
+  the test stack — the kind of latent fault that surfaces on the day the feature
+  is switched on.
+
+  The private key was already required a few lines below for `VoucherService`,
+  so nothing new needs configuring.
+
+### Changed
+- A private key that does not derive the configured `voucher.mint.issuerPublicKey`
+  is now refused at startup, as is a missing one. Publishing ledger events
+  authored by a key nobody verifies against is worse than not publishing,
+  because it looks like it worked.
+
 ## [0.36.0] - 2026-09-06
 
 Security remediation from the 2026-09-05 audit, plus the defects an adversarial review of that
