@@ -42,23 +42,24 @@
              publisher (spec 036) which signs/publishes over nostr-java-core 2.x. -->
         <nostr-java.version>2.3.1</nostr-java.version>
 
-        <!-- Cashu Ecosystem Versions -->
-        <cashu-lib.version>0.30.0</cashu-lib.version>
-        <payment-adapter.version>0.14.2</payment-adapter.version>
+        <!-- Cashu Ecosystem Versions.
+
+             These come from imani-bom, imported first in dependencyManagement.
+             Only versions the BOM does NOT manage are pinned here. -->
+        <imani-bom.version>0.1.65</imani-bom.version>
+        <!-- Not a dependency pin: the mint-admin E2E suite passes this to
+             testcontainers to choose the cashu-vault IMAGE, so the service it
+             starts matches the client library the BOM resolves. Kept in step
+             with imani-bom's cashu-vault.version by hand, because an image tag
+             is not something a BOM can manage. -->
         <cashu-vault.version>0.12.0</cashu-vault.version>
+        <payment-adapter.version>0.14.2</payment-adapter.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
         <cashu-mint.version>0.36.0</cashu-mint.version>
-        <cashu-wallet.version>0.8.0</cashu-wallet.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Admin builds in this reactor at the version above; kept in step so the
              published admin image tag and this property cannot disagree. -->
         <cashu-mint-admin.version>0.36.0</cashu-mint-admin.version>
-        <cashu-voucher.version>0.14.0</cashu-voucher.version>
-        <!-- cashu-ledger trace producer SDK (spec 036) -->
-        <cashu-ledger.version>0.6.0</cashu-ledger.version>
-        <!-- NAP: Nostr authentication for the admin API (issue #372) -->
-        <nap-java.version>0.8.0</nap-java.version>
-
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.10</spring-boot.version>
 
@@ -126,6 +127,30 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Import the Imani BOM.
+
+                 FIRST, because Maven resolves imported BOMs in declaration
+                 order and the first to manage an artifact wins. This is the
+                 one place the cashu ecosystem versions are decided, so it has
+                 to be ahead of anything that might also name them.
+
+                 It is imported rather than restated because a local pin on a
+                 BOM-managed artifact never fails the build, it just silently
+                 wins — which is exactly how the mint came to run cashu-lib
+                 0.30.0 while the rest of the stack was on 0.30.1.
+
+                 Spring Boot stays pinned locally below: this reactor is on
+                 3.5.10 and the BOM carries 3.5.5, so the local import must
+                 keep that. Declared after this one, it still wins for its own
+                 artifacts because the Imani BOM does not manage them. -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>imani-bom</artifactId>
+                <version>${imani-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- Import Spring Boot BOM -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -145,33 +170,8 @@
             </dependency>
 
             <!-- NAP Java (issue #372) -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>nap-spring</artifactId>
-                <version>${nap-java.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>nap-jdbc</artifactId>
-                <version>${nap-java.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>nap-client</artifactId>
-                <version>${nap-java.version}</version>
-            </dependency>
 
             <!-- cashu-ledger trace producer SDK (spec 036) -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-ledger-trace-publisher</artifactId>
-                <version>${cashu-ledger.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-ledger-trace-core</artifactId>
-                <version>${cashu-ledger.version}</version>
-            </dependency>
 
             <!-- Nostr Java Modules (2.x set: core/event/client/identity) -->
             <dependency>
@@ -352,38 +352,8 @@
             </dependency>
 
             <!-- Cashu Library Modules -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-lib-entities</artifactId>
-                <version>${cashu-lib.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-lib-crypto</artifactId>
-                <version>${cashu-lib.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-lib-common</artifactId>
-                <version>${cashu-lib.version}</version>
-            </dependency>
 
             <!-- Cashu Voucher Modules -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-voucher-domain</artifactId>
-                <version>${cashu-voucher.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-voucher-app</artifactId>
-                <version>${cashu-voucher.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-voucher-nostr</artifactId>
-                <version>${cashu-voucher.version}</version>
-            </dependency>
 
             <!-- Payment Adapter Modules -->
             <dependency>
@@ -423,21 +393,6 @@
             </dependency>
 
             <!-- Cashu Vault Modules -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-vault-jpa</artifactId>
-                <version>${cashu-vault.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-vault-api</artifactId>
-                <version>${cashu-vault.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-vault-hashi</artifactId>
-                <version>${cashu-vault.version}</version>
-            </dependency>
 
             <!-- Cashu Mint Modules -->
             <dependency>
@@ -467,16 +422,6 @@
             </dependency>
 
             <!-- Cashu Wallet Modules -->
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-wallet-protocol</artifactId>
-                <version>${cashu-wallet.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>xyz.tcheeric</groupId>
-                <artifactId>cashu-wallet-client</artifactId>
-                <version>${cashu-wallet.version}</version>
-            </dependency>
 
             <!-- Cashu Client Modules -->
             <dependency>
