@@ -22,7 +22,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-common</artifactId>
-            <version>${cashu-lib.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -33,12 +32,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-entities</artifactId>
-            <version>${cashu-lib.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>cashu-lib-crypto</artifactId>
-            <version>${cashu-lib.version}</version>
         </dependency>
         <!-- Voucher domain for Model B rejection -->
         <dependency>
