@@ -123,7 +123,10 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         }
 
         boolean locktimeHasPassed() {
-            int locktime = secret.getLockTime();
+            // long, not int: a locktime is a Unix timestamp, and narrowing one past 2038 wrapped
+            // it negative, which this comparison then read as "long expired" and unlocked the
+            // proof (cashu-lib audit H-5).
+            long locktime = secret.getLockTime();
             return locktime > 0 && locktime < System.currentTimeMillis() / 1000;
         }
 

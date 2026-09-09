@@ -3,16 +3,22 @@ package xyz.tcheeric.cashu.mint.rest.config;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nostr.base.PublicKey;
+import nostr.id.Identity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import xyz.tcheeric.cashu.voucher.app.MerchantVerificationService;
 import xyz.tcheeric.cashu.voucher.app.VoucherBackupService;
 import xyz.tcheeric.cashu.voucher.app.VoucherIssuanceService;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherBackupPort;
+import xyz.tcheeric.cashu.voucher.app.ports.IssuerKeyRegistry;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherLedgerPort;
 import xyz.tcheeric.cashu.voucher.nostr.NostrClientAdapter;
 import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherBackupRepository;
@@ -137,10 +143,31 @@ public class VoucherConfiguration {
     @Bean
     public VoucherLedgerPort voucherLedgerPort(NostrClientAdapter nostrClient) {
         String issuerPublicKeyHex = voucherProperties.getMint().getIssuerPublicKey();
+        String issuerPrivateKeyHex = voucherProperties.getMint().getIssuerPrivateKey();
 
         if (issuerPublicKeyHex == null || issuerPublicKeyHex.isBlank()) {
             throw new IllegalStateException(
                     "voucher.mint.issuerPublicKey must be configured when voucher.enabled=true");
+        }
+
+        // The ledger has to SIGN, not merely name who signed.
+        //
+        // NostrVoucherLedgerRepository refuses to publish without an identity —
+        // correctly, since an unsigned ledger event is not evidence of anything
+        // and relays reject it. Built with the public key alone it threw
+        // "This repository has no signing identity" on every publish, and
+        // because that happens on the publish path rather than at startup, the
+        // mint booted clean and only failed once a voucher existed. The same
+        // defect was live in the customer gateway, where it cost 12 publishes
+        // in a single boot; here it is currently masked because voucher.enabled
+        // is off in the test stack.
+        //
+        // The private key is already required below for VoucherService, so
+        // nothing new needs configuring.
+        if (issuerPrivateKeyHex == null || issuerPrivateKeyHex.isBlank()) {
+            throw new IllegalStateException(
+                    "voucher.mint.issuerPrivateKey must be configured when voucher.enabled=true: "
+                            + "the voucher ledger cannot publish without an identity to sign with");
         }
 
         // Convert hex string to PublicKey
@@ -154,9 +181,29 @@ public class VoucherConfiguration {
                             + issuerPublicKeyHex, e);
         }
 
+        Identity issuerIdentity;
+        try {
+            issuerIdentity = Identity.create(new nostr.base.PrivateKey(issuerPrivateKeyHex));
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Invalid voucher.mint.issuerPrivateKey format (must be a hex-encoded "
+                            + "secp256k1 private key, 64 hex characters)", e);
+        }
+
+        // Guard the pair rather than trusting it: a private key that does not
+        // derive the configured public key would publish ledger events signed by
+        // a author nobody is checking against, which is worse than not
+        // publishing because it looks like it worked.
+        if (!issuerIdentity.getPublicKey().toString().equalsIgnoreCase(issuerPublicKey.toString())) {
+            throw new IllegalStateException(
+                    "voucher.mint.issuerPrivateKey does not derive voucher.mint.issuerPublicKey. "
+                            + "The ledger would publish as a different author than the one vouchers "
+                            + "name as issuer.");
+        }
+
         NostrVoucherLedgerRepository repository = new NostrVoucherLedgerRepository(
                 nostrClient,
-                issuerPublicKey
+                issuerIdentity
         );
 
         log.info("VoucherLedgerPort (Nostr) initialized with issuer public key: {}...",
@@ -248,16 +295,64 @@ public class VoucherConfiguration {
     }
 
     /**
+     * Issuer id to public key, the trust anchor merchant verification checks a voucher's
+     * signature against.
+     *
+     * <p>Configured as {@code cashu.mint.voucher.issuer-keys.<issuerId>=<hex pubkey>}. Empty
+     * means no issuer is trusted, so every voucher verifies as untrusted: the honest answer with
+     * nothing to check against, but only a safe default because it can be changed.
+     */
+    @Bean
+    @ConfigurationProperties(prefix = "cashu.mint.voucher")
+    public VoucherIssuerKeys voucherIssuerKeys() {
+        return new VoucherIssuerKeys();
+    }
+
+    /** Holder for the bound {@code issuer-keys} map. */
+    public static class VoucherIssuerKeys {
+        private Map<String, String> issuerKeys = new LinkedHashMap<>();
+
+        public Map<String, String> getIssuerKeys() {
+            return issuerKeys;
+        }
+
+        public void setIssuerKeys(Map<String, String> issuerKeys) {
+            this.issuerKeys = issuerKeys == null ? new LinkedHashMap<>() : issuerKeys;
+        }
+    }
+
+    /**
      * Creates the merchant verification service.
      *
+     * <p>The registry argument is required: verifying that a voucher carries a valid signature
+     * says nothing unless the key is tied to the issuer the voucher claims, which is what let a
+     * voucher be signed under any key with any issuer id and still pass (audit H-12).
+     *
      * @param ledgerPort Voucher ledger port
+     * @param issuerKeys trusted issuer keys; empty means nothing is trusted
      * @return MerchantVerificationService instance
      */
     @Bean
-    public MerchantVerificationService merchantVerificationService(VoucherLedgerPort ledgerPort) {
-        MerchantVerificationService service = new MerchantVerificationService(ledgerPort);
+    public MerchantVerificationService merchantVerificationService(VoucherLedgerPort ledgerPort,
+                                                                   VoucherIssuerKeys issuerKeys) {
+        Map<String, String> keys = issuerKeys.getIssuerKeys().entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        e -> e.getKey().toLowerCase(java.util.Locale.ROOT),
+                        e -> e.getValue().toLowerCase(java.util.Locale.ROOT)));
+        if (keys.isEmpty()) {
+            log.warn("No cashu.mint.voucher.issuer-keys configured: merchant verification will "
+                    + "report every voucher's signature as untrusted, because no issuer key is "
+                    + "trusted. Configure cashu.mint.voucher.issuer-keys.<issuerId>=<hex pubkey>.");
+        }
+        IssuerKeyRegistry registry =
+                issuerId -> issuerId == null
+                        ? Optional.empty()
+                        : Optional.ofNullable(keys.get(issuerId.toLowerCase(java.util.Locale.ROOT)));
 
-        log.info("MerchantVerificationService initialized");
+        MerchantVerificationService service = new MerchantVerificationService(ledgerPort, registry);
+
+        log.info("MerchantVerificationService initialized with {} trusted issuer key(s)",
+                keys.size());
 
         return service;
     }

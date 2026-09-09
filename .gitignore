@@ -70,3 +70,6 @@ cashu-mint-admin/mint-admin-web/.vite/
 
 # downloaded node binary tree (vite-plugin or similar)
 cashu-mint-admin/mint-admin-web/node/
+
+# Local production secrets (see .env.example)
+.env

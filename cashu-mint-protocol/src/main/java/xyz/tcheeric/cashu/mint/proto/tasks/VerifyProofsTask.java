@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
+import xyz.tcheeric.cashu.mint.proto.tasks.validator.ProofAuthenticity;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
@@ -154,6 +155,21 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         log.debug("Verify proofs: {}", request.getInputs());
         List<Proof<T>> proofs = request.getInputs();
         List<BlindedMessage> blindedMessages = request.getBlindedMessages();
+
+        // Did this mint issue these proofs at all? Asked here, unconditionally, for every input,
+        // before any spending condition is chosen.
+        //
+        // This used to be the spending conditions' job, and P2PKSpendingCondition did not do it:
+        // a P2PK condition checks the witness, and nothing in that responsibility suggests it
+        // should also be checking the mint's own signature. The result was that a plain P2PK
+        // input was never verified against a keyset key at all, so a secret locked to an
+        // attacker's own key with arbitrary bytes in C bought real signed outputs. Making it the
+        // task's job rather than each condition's means a future condition can add requirements
+        // but cannot drop this one.
+        ProofAuthenticity authenticity = new ProofAuthenticity(mint, mintProtocolService);
+        for (Proof<T> proof : proofs) {
+            authenticity.require(proof);
+        }
 
         // NUT-11 SIG_ALL signs one message over the whole swap, so the condition needs the
         // transaction, not just this proof's outputs.
