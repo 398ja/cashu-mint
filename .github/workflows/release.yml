@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Version to verify and release, e.g. 0.36.2. Required on a manual run,
+          because github.ref_name is the BRANCH here, not a tag, and verifying
+          "master" against the registry would fail for the wrong reason.
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -77,10 +85,15 @@ jobs:
       # replaced and why each failed against the real repository.
       - name: Verify the artifacts are resolvable
         env:
-          VERSION: ${{ github.ref_name }}
+          # On a tag push this is v0.36.2 and the script strips the "v".
+          # On a manual run github.ref_name is the branch, so the input wins.
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: python3 .github/scripts/verify-published.py
 
+      # Only on a tag: action-gh-release needs one, and a manual run is for
+      # re-verifying or re-publishing an existing version.
       - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
