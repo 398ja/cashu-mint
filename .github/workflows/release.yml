@@ -4,10 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   release:
@@ -22,68 +22,98 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
           cache: 'maven'
-          server-id: github-vault-releases
-          server-username: ${{ github.actor }}
-          server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure Maven settings.xml for GitHub Packages
+      # Reposilite (maven.398ja.xyz) is the Maven repository for this estate.
+      # GitHub Packages is not used anywhere and must not be reintroduced: this
+      # workflow previously declared github-vault-* server ids while the poms
+      # deploy to Reposilite via <distributionManagement>, so the credentials
+      # never matched the target. MVN_USER/MVN_PASSWORD already exist here.
+      - name: Configure Maven settings for Reposilite
         run: |
-          mkdir -p $HOME/.m2
-          cat > $HOME/.m2/settings.xml <<EOL
-          <settings>
+          mkdir -p "${HOME}/.m2"
+          cat <<'EOF' > "${HOME}/.m2/settings.xml"
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
-                <id>github-vault-releases</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
+                <id>reposilite-releases</id>
+                <username>${env.MVN_USER}</username>
+                <password>${env.MVN_PASSWORD}</password>
               </server>
               <server>
-                <id>github-vault-snapshots</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
+                <id>reposilite-snapshots</id>
+                <username>${env.MVN_USER}</username>
+                <password>${env.MVN_PASSWORD}</password>
               </server>
-              <server>
-                <id>github-lib-releases</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.GITHUB_TOKEN }}</password>
-              </server>          
             </servers>
           </settings>
-          EOL
+          EOF
 
-      - name: Import GPG key
+      # Fail loudly and immediately rather than 20 minutes later at the deploy,
+      # which is the failure mode that made #409 hard to spot.
+      - name: Verify publish credentials are present
         env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MVN_USER: ${{ secrets.MVN_USER }}
+          MVN_PASSWORD: ${{ secrets.MVN_PASSWORD }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          gpg --list-secret-keys --keyid-format LONG
-
-      - name: Build and deploy
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -q -B -P release clean deploy -Dgpg.passphrase="$GPG_PASSPHRASE" -Dgpg.keyname="3ECE69D323685884" --settings $HOME/.m2/settings.xml
-
-      - name: Collect JAR artifacts
-        run: |
-          mkdir -p release-jars
-          find . -name "*.jar" -path "*/target/*.jar" -not -name "*sources*" -not -name "*javadoc*" -exec cp {} release-jars/ \;
-          if ! ls release-jars/*.jar 1> /dev/null 2>&1; then
-            echo "Error: No JAR files found to upload."
+          if [ -z "${MVN_USER}" ] || [ -z "${MVN_PASSWORD}" ]; then
+            echo "::error::MVN_USER/MVN_PASSWORD are not set; the deploy would publish nothing."
             exit 1
           fi
 
+      # No -P release: that profile does not exist, so it silently did nothing.
+      # No GPG: the key was never configured here, Reposilite does not require
+      # signatures, and -Dgpg.skip=true matches how releases were done by hand.
+      - name: Build and deploy to Reposilite
+        env:
+          MVN_USER: ${{ secrets.MVN_USER }}
+          MVN_PASSWORD: ${{ secrets.MVN_PASSWORD }}
+        run: |
+          set -o pipefail
+          # NOT -ntp here: that flag suppresses the "Uploading to" lines the
+          # verification step reads back. Confirmed by running both ways.
+          ./mvnw -B clean deploy -Dgpg.skip=true | tee /tmp/deploy.log
+
+      # A green tag push must imply the artifacts are actually resolvable.
+      # #409 and 398ja/cashu-lib#258 were both "workflow passed, nothing shipped".
+      #
+      # The module list is read back from what the deploy step UPLOADED, not
+      # re-derived from the reactor. That checks the action rather than the
+      # intention, and needs no extra plugin: an earlier draft called
+      # exec:exec, which is unpinned here and would have resolved whatever
+      # version of exec-maven-plugin happened to be newest.
+      - name: Verify the artifacts are resolvable
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -oE 'Uploading to reposilite-releases: \S+\.pom' /tmp/deploy.log \
+            | awk '{print $NF}' | sort -u > /tmp/uploaded.txt
+          if [ ! -s /tmp/uploaded.txt ]; then
+            echo "::error::the deploy step uploaded no .pom files; refusing to report success"
+            exit 1
+          fi
+          echo "deploy uploaded $(wc -l < /tmp/uploaded.txt) pom(s)"
+          fail=0
+          while read -r url; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+            if [ "$code" = "200" ]; then
+              echo "ok    ${url##*/}"
+            else
+              echo "::error::${url##*/} not resolvable (HTTP ${code}) ${url}"
+              fail=1
+            fi
+          done < /tmp/uploaded.txt
+          # The tag must also match what was published, or a mistagged release
+          # would verify happily against the previous version's artifacts.
+          if ! grep -q "/${VERSION}/" /tmp/uploaded.txt; then
+            echo "::error::no artifact was uploaded under version ${VERSION} (tag ${GITHUB_REF_NAME})"
+            fail=1
+          fi
+          exit $fail
+
       - name: Create GitHub release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          files: target/*.jar
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload JAR artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          for file in release-jars/*.jar; do
-            gh release upload "${{ github.ref_name }}" "$file" --clobber
-          done
