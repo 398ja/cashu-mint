@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.36.1</version>
+    <version>0.36.2</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -55,11 +55,8 @@
         <cashu-vault.version>0.12.0</cashu-vault.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.36.0</cashu-mint.version>
+        <cashu-mint.version>0.36.2</cashu-mint.version>
         <cashu-client.version>1.2.8</cashu-client.version>
-        <!-- Admin builds in this reactor at the version above; kept in step so the
-             published admin image tag and this property cannot disagree. -->
-        <cashu-mint-admin.version>0.36.0</cashu-mint-admin.version>
         <!-- Spring Boot (imported as BOM) -->
         <spring-boot.version>3.5.10</spring-boot.version>
 
