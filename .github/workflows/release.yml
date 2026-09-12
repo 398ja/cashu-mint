@@ -23,10 +23,11 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      # The poms deploy to Reposilite (see <distributionManagement>), so the
-      # server ids here must match those, not the GitHub Packages ids this
-      # workflow used to declare. MVN_USER/MVN_PASSWORD already exist as
-      # repository secrets.
+      # Reposilite (maven.398ja.xyz) is the Maven repository for this estate.
+      # GitHub Packages is not used anywhere and must not be reintroduced: this
+      # workflow previously declared github-vault-* server ids while the poms
+      # deploy to Reposilite via <distributionManagement>, so the credentials
+      # never matched the target. MVN_USER/MVN_PASSWORD already exist here.
       - name: Configure Maven settings for Reposilite
         run: |
           mkdir -p "${HOME}/.m2"
