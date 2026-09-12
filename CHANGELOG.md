@@ -2,6 +2,29 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.36.2] - 2026-09-12
+
+### Changed
+- Dependencies now resolve through `imani-bom`, advanced to `0.1.71`. That BOM
+  carries `imani-wallet-lib 0.1.40`, whose headline change is that the wallet's
+  proof encryption is actually switched on: `persistProofsInternal` wrote the
+  proof secret in plaintext while encrypting its three neighbours, and nothing
+  ever enabled encryption in the first place.
+
+### Fixed
+- `cashu-mint.version` and `cashu-mint-admin.version` were pinned at `0.36.0`
+  while the reactor built `0.36.1`. The first is real dependency management for
+  this project's own modules, so it claimed the release shipped against
+  last-version siblings; the reactor overrides it for modules it builds, which
+  is why nothing broke, but the two disagreeing is how a stale pin escapes
+  notice. The second was referenced by nothing at all. Both now track the
+  project version.
+
+### Release note
+- `0.36.0` and `0.36.1` were published to Reposilite but **never tagged**, so
+  the git history does not record them. This release is tagged. The workflow
+  that should have done it could never publish at all — see #409 and #415.
+
 ## [0.36.1] - 2026-09-07
 
 ### Fixed
