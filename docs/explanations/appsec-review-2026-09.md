@@ -19,6 +19,21 @@ be re-run and its conclusions re-checked rather than taken on trust.
 | `cashu-voucher` | 66 | Issuer signature canonicalisation and verification |
 | `cashu-wallet` | 80 | DLEQ verification policy, recovery services |
 
+**A scope correction.** Those six are the repositories that were checked out locally. Auditing
+the scope afterwards against `gh repo list 398ja` found three more: `cashu-papers` and
+`cashu-projects` (documentation only, no dependencies, 0 alerts once enabled), and
+`cashu-platform-bom` — a real Maven BOM managing dependency versions for the ecosystem, with no
+CI scanning, Dependabot disabled, and `postgresql` pinned at the same vulnerable 42.7.7. A Bill
+of Materials is the last repository a dependency review should skip, since its entire job is
+deciding which versions everything else gets. Filed as
+[cashu-platform-bom#2](https://github.com/398ja/cashu-platform-bom/issues/2); rated Medium
+rather than High because nothing currently imports it (`cashu-wallet` copied its plugin
+versions by hand rather than importing the artifact).
+
+`cashu-client` and `cashu-gateway` exist as local directories but contain no code and no git
+repository; `cashu-voucher.hide` is a superseded scaffold of `cashu-voucher`. `cashu-mint-admin`
+is archived, and its code lives inside `cashu-mint` where it was reviewed.
+
 Method: manual review of security-critical paths (value creation, value
 destruction, authentication, authorization, cryptographic operations, request
 parsing), cross-referenced against the NUT specifications and the OWASP Top 10 /
@@ -509,10 +524,14 @@ resolved dependency tree, not just the poms" — describes an intent the configu
 achieve.
 
 This matters for the remedy: no flag or alternate file path helps, because no file in the tree
-contains the joined fact. The scan must consume something post-resolution. It is also a property
-of *ordinary multi-module Maven projects using `dependencyManagement`*, which is why the same
-gap should be expected across the ecosystem — consistent with `cashu-lib` being green while
-carrying four open alerts.
+contains the joined fact. The scan must consume something post-resolution.
+
+The mechanism was then checked against a second repository rather than generalised from one.
+`cashu-lib` has the identical split: `assertj.version` (3.27.4, against an open high advisory
+fixed in 3.27.7) sits in the parent's `<dependencyManagement>`, while `cashu-lib-crypto` and
+`cashu-lib-common` declare `assertj-core` with no version. Same shape, same blind spot, same
+green scan over four open alerts. This is the ordinary multi-module Maven layout, so the gap
+should be assumed everywhere in the ecosystem that uses it rather than re-derived each time.
 
 Advisory staleness was ruled out: the five Maven HIGHs were published between 2026-05-05 and
 2026-07-21, alerts were raised 2026-07-26, and the scan ran 2026-09-13.
@@ -527,6 +546,7 @@ Advisory staleness was ruled out: the five Maven HIGHs were published between 20
 | `cashu-voucher` | green | 0 |
 | `cashu-wallet` | green | 0 |
 | `cashu-vault` | green | 0 — *after enabling alerts* |
+| `cashu-platform-bom` | **no scan at all** | **2** (both high, `postgresql`) — *after enabling alerts* |
 
 `cashu-vault` and `cashu-ledger` had Dependabot alerts **disabled**, so they had no independent
 signal at all and would have looked identical whether clean or not. Enabling alerts is
@@ -673,6 +693,7 @@ Items outside the findings table, surfaced while verifying other claims or promi
 | ArchUnit rule requiring `@Valid` on constrained `@RequestBody` parameters | [cashu-mint#435](https://github.com/398ja/cashu-mint/issues/435) |
 | Bump `jackson` 2.18.1 → 2.18.8 and `postgresql` 42.7.7 → 42.7.12 (5 runtime HIGHs) | [cashu-mint#436](https://github.com/398ja/cashu-mint/issues/436) |
 | Audit load-bearing invariants for test coverage, not just correctness | [cashu-mint#437](https://github.com/398ja/cashu-mint/issues/437) |
+| `cashu-platform-bom` was outside the reviewed scope: no scanning, alerts off, vulnerable pins | [cashu-platform-bom#2](https://github.com/398ja/cashu-platform-bom/issues/2) |
 
 ---
 
