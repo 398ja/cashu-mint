@@ -548,6 +548,34 @@ These are load-bearing and should be protected by tests before any refactor:
   stay available, so holders can always redeem. That is the correct direction for a
   custodial kill switch.
 
+## Tracking
+
+Every finding is filed as a GitHub issue labelled `app-sec-report`, in the repository that owns
+the code. Severity labels (`sev:high` … `sev:info`) match the table above.
+
+| Finding | Issue |
+|---|---|
+| H-1 | [cashu-mint#424](https://github.com/398ja/cashu-mint/issues/424) — fixed in [#433](https://github.com/398ja/cashu-mint/pull/433) |
+| M-1 | [cashu-ledger#8](https://github.com/398ja/cashu-ledger/issues/8) |
+| M-2 | [cashu-mint#425](https://github.com/398ja/cashu-mint/issues/425) |
+| M-3 | [cashu-mint#426](https://github.com/398ja/cashu-mint/issues/426) |
+| M-4 | [cashu-mint#427](https://github.com/398ja/cashu-mint/issues/427) |
+| L-1 | [cashu-mint#428](https://github.com/398ja/cashu-mint/issues/428) |
+| L-2 | [cashu-mint#429](https://github.com/398ja/cashu-mint/issues/429) |
+| L-3 | [cashu-lib#264](https://github.com/398ja/cashu-lib/issues/264) |
+| L-4 | [cashu-mint#432](https://github.com/398ja/cashu-mint/issues/432), [cashu-lib#266](https://github.com/398ja/cashu-lib/issues/266), [cashu-vault#140](https://github.com/398ja/cashu-vault/issues/140), [cashu-voucher#36](https://github.com/398ja/cashu-voucher/issues/36), [cashu-wallet#48](https://github.com/398ja/cashu-wallet/issues/48), [cashu-ledger#9](https://github.com/398ja/cashu-ledger/issues/9) |
+| I-1 | [cashu-mint#430](https://github.com/398ja/cashu-mint/issues/430) |
+
+Two items outside the findings table, both surfaced while verifying other claims:
+
+| Item | Issue |
+|---|---|
+| NUT-11 distinct-key counting had no test coverage | [cashu-lib#265](https://github.com/398ja/cashu-lib/issues/265) |
+| The locktime narrowing rationale is inverted in the code comment | [cashu-mint#431](https://github.com/398ja/cashu-mint/issues/431) |
+| `CONTRIBUTING.md` targets a `develop` branch 143 commits stale | [cashu-mint#434](https://github.com/398ja/cashu-mint/issues/434) |
+
+---
+
 ## Recommended remediation order
 
 | Priority | Action | SLA |
