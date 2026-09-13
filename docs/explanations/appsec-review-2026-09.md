@@ -73,11 +73,23 @@ control that is configured, reports success, and is not connected to anything. A
 declared but never applied; a test suite that is present but never run; a scanner that runs but
 detects nothing. Each looked healthy from the outside.
 
-Two findings in this report were **downgraded after re-measurement**, and both corrections are
-recorded in place rather than quietly edited out. H-1 was reported as having two independent
-causes; it had one. M-1 was reported as Medium with 19 unguarded endpoints; re-counting showed
-the measurement was wrong and the trace surface fail-closes, so it is now Low. The method that
-caught both was the same: run the mutation, do not reason about it.
+**Five claims in this report were wrong and are corrected in place** rather than quietly edited
+out, because a review that never revises itself is reporting its own confidence rather than the
+codebase:
+
+| Original claim | What checking it showed |
+|---|---|
+| H-1 had two independent causes | One. A validator already arrived transitively; the missing `@Valid` was sufficient alone |
+| M-1: Medium, 19 unguarded endpoints | A `grep -c` artefact counting lines and matching a type name. The trace surface fail-closes — downgraded to Low |
+| The locktime narrowing "unlocked the proof" | The guard was always `> 0 &&`, so a wrapped value reads as *not* expired. The bug was funds **stuck**, not stealable |
+| `cashu-voucher` has no dependency scan | It has one. Only `cashu-ledger` lacks one |
+| The scan misses CVEs because Trivy cannot resolve property-managed versions | It resolves them fine. The coordinate and version live in *different files* — which rules out the cheap fixes |
+
+L-4 moved in the other direction, Low → **High**, once measured against Dependabot.
+
+Every one of these came from running something rather than reading it. The lesson is
+uncomfortable but worth stating plainly: **grep output and code comments are claims, not
+evidence.** Three of the five errors above came from trusting one or the other.
 
 | Sev | ID | Finding | Location |
 |---|---|---|---|
