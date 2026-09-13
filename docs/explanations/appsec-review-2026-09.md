@@ -681,6 +681,9 @@ These are load-bearing and should be protected by tests before any refactor:
 Every finding is filed as a GitHub issue labelled `app-sec-report`, in the repository that owns
 the code. Severity labels (`sev:high` … `sev:info`) match the table above.
 
+**Start here:** [cashu-mint#438](https://github.com/398ja/cashu-mint/issues/438) is the pinned
+umbrella issue — all 22 findings in one place, ordered by what to fix first.
+
 | Finding | Issue |
 |---|---|
 | H-1 | [cashu-mint#424](https://github.com/398ja/cashu-mint/issues/424) — fixed in [#433](https://github.com/398ja/cashu-mint/pull/433) |
