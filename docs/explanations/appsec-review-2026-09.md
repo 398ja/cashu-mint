@@ -48,8 +48,15 @@ token comparisons are constant-time. Several classes carry comments naming the e
 exploit their structure prevents, which is the strongest sign that prior findings
 were fixed by design change rather than by patching a symptom.
 
-One genuine exploitable gap was found, and it is fixed: a pair of size limits declared in one
-layer and never applied in the layer that receives the request. The rest are hardening items.
+Two findings matter. **H-1** (fixed here) is a pair of size limits declared in one layer and
+never applied in the layer that receives the request. **L-4**, upgraded to High after
+measurement, is that the dependency scan reports zero findings on every Maven module while
+Dependabot reports 45 alerts on the same tree. The rest are hardening items.
+
+Those two and **M-4** share one shape, which is the most useful thing this review produced: a
+control that is configured, reports success, and is not connected to anything. A limit that is
+declared but never applied; a test suite that is present but never run; a scanner that runs but
+detects nothing. Each looked healthy from the outside.
 
 Two findings in this report were **downgraded after re-measurement**, and both corrections are
 recorded in place rather than quietly edited out. H-1 was reported as having two independent
@@ -66,7 +73,7 @@ caught both was the same: run the mutation, do not reason about it.
 | Low | L-1 | Jackson has no `StreamReadConstraints`; deep/long JSON is bounded only by the 2 MiB body cap | mint REST |
 | Low | L-2 | Identity backfill interpolates table and column names into SQL | `VoucherIdentityBackfillBatch` |
 | Low | L-3 | Legacy secret encoding is enabled by default, widening the set of secrets that verify | `SecretEncoding` |
-| Low | L-4 | `CRITICAL`-only CI gate; HIGH findings never block a merge | `dependency-scan.yml` |
+| High | L-4 | The dependency scan reports zero findings on every Maven module while Dependabot reports 45 alerts (1 critical, 20 high) on the same tree — a control that is configured but not connected | `dependency-scan.yml` |
 | Info | I-1 | CORS defaults to any origin with a startup warning | mint REST |
 | Medium | M-4 | Integration tests are skipped by default and not run by CI; 5 are currently failing on `master` unnoticed | `pom.xml`, `.github/workflows/ci.yml` |
 
@@ -450,29 +457,69 @@ widen the accepted set. Recommendation: track outstanding pre-migration proofs a
 metric, publish a sunset date, and flip the default to false at the next major
 version so the compatibility path is opt-in.
 
-**L-4: CI gate blocks only on CRITICAL.** The reasoning in `dependency-scan.yml` for
-not blocking on HIGH is sound (alert fatigue trains everyone to ignore the check).
-For a mint that custodies value, split the difference: keep HIGH non-blocking for
-transitive dependencies, but block on HIGH in the cryptographic and web-facing direct
-dependency set (BouncyCastle, Jackson, Spring Security, Tomcat, Netty). Also add
-secret scanning (gitleaks or `trufflehog`) — no repository currently has it, and the
-dependency scan does not cover credentials.
+**L-4 (upgraded to High after measurement): the dependency scan detects nothing on the Java side.**
 
-Measured across the six repositories (`ls .github/workflows` plus a grep for the scanner
-and the threshold):
+This finding originally argued about blocking thresholds. That framing was wrong, and the
+correction came from an accident: pushing a branch printed GitHub's warning that the default
+branch carries **45 Dependabot alerts (1 critical, 20 high, 20 moderate, 4 low)** — on a
+repository whose Trivy `scan` job is green.
 
-| Repository | Dependency scan | Blocking threshold | Secret scanning |
-|---|---|---|---|
-| `cashu-lib` | yes | `CRITICAL` (HIGH reports only) | no |
-| `cashu-mint` | yes | `CRITICAL` (HIGH reports only) | no |
-| `cashu-vault` | yes | `CRITICAL` (HIGH reports only) | no |
-| `cashu-voucher` | yes | `CRITICAL` (HIGH reports only) | no |
-| `cashu-wallet` | yes | `CRITICAL` (HIGH reports only) | no |
-| `cashu-ledger` | **none** | n/a | no |
+Checking the CI log for run 34768961641, the per-file table sums to **zero vulnerabilities
+across every `pom.xml`**, and zero on `package-lock.json`. Dependabot, on the same tree:
 
-(An earlier draft said `cashu-voucher` was also missing a scan. It is not — it has
-`dependency-scan.yml` with the same thresholds as the rest. `cashu-ledger` is the only gap,
-and it is the repository holding the forensic trace ledger.)
+| Severity | Package | Pinned | Vulnerable range | Fixed in |
+|---|---|---|---|---|
+| high | `jackson-databind` | 2.18.1 | `>= 2.10.0, < 2.18.8` | 2.18.8 |
+| high | `postgresql` | 42.7.7 | `>= 42.2.0, < 42.7.11` | 42.7.11 |
+| high | `postgresql` | 42.7.7 | `>= 42.7.4, < 42.7.12` | 42.7.12 |
+| critical | `vitest` (npm, dev scope) | — | `< 3.2.6` | 3.2.6 |
+
+`jackson.version` and `postgresql.version` are set in the parent `pom.xml` at lines 75 and 90 —
+direct, deliberate pins, not obscure transitives.
+
+**Why it misses them.** `trivy scan-type: fs` parses `pom.xml`, which expresses *declared*
+dependencies; the versions come from properties and the imported `imani-bom`, so the file-based
+scanner never resolves them to coordinates it can match against advisories. The
+`dependency:resolve` step before it populates the local repository but emits nothing Trivy
+reads. The workflow comment — "Trivy reads the resolved dependency tree, not just the poms" —
+describes an intent the configuration does not achieve.
+
+**Ecosystem-wide, measured:**
+
+| Repository | Trivy scan | Open Dependabot alerts |
+|---|---|---|
+| `cashu-mint` | green | **45** (1 critical, 20 high) |
+| `cashu-lib` | green | **4** (`assertj-core` high, `jackson-databind` medium) |
+| `cashu-voucher` | green | 0 |
+| `cashu-wallet` | green | 0 |
+| `cashu-vault` | green | **alerts disabled** |
+| `cashu-ledger` | **no scan at all** | **alerts disabled** |
+
+The two repositories with Dependabot disabled have no independent signal whatsoever; they would
+look identical whether clean or not.
+
+**This is the review's third instance of one pattern.** H-1 was a limit declared and never
+applied. M-4 is a test suite configured and never run. L-4 is a scanner wired up and detecting
+nothing. In all three the control exists, reports success, and is load-bearing in someone's
+mental model. That pattern — not any individual finding — is the most useful output of this
+review.
+
+**Recommendations:**
+
+1. Scan resolved coordinates rather than poms: generate a CycloneDX SBOM
+   (`cyclonedx-maven-plugin`) and point `scan-type: sbom` at it, or run `trivy rootfs` over the
+   resolved `~/.m2` artifacts.
+2. Add a CI assertion that the scan detects a known-vulnerable fixture, so a
+   silently-detecting-nothing scanner fails loudly. A check that can only pass is not a check.
+3. Enable Dependabot alerts on `cashu-vault` and `cashu-ledger`; add a scan to `cashu-ledger`.
+4. Add secret scanning (`gitleaks` or `trufflehog`) — no repository has it. An entropy-based
+   sweep during this review found only a deliberate Playwright fixture key whose private key is
+   literally `1`, so there is nothing to clean up today; that is luck holding, not a control.
+5. Bump `jackson-databind` to 2.18.8 and `postgresql` to 42.7.12 — both patch bumps within the
+   pinned minor — independently of how the tooling question is settled.
+6. Revisit the CRITICAL-vs-HIGH threshold *after* detection works. The original reasoning
+   against blocking on HIGH (alert fatigue) is sound, and remains a reasonable debate to have
+   once there is something to be fatigued by.
 
 **I-1: CORS defaults to any origin.** Defensible for a public NUT surface and warned
 about at startup. Make it an explicit decision by failing startup in non-local
@@ -563,7 +610,7 @@ the code. Severity labels (`sev:high` … `sev:info`) match the table above.
 | L-1 | [cashu-mint#428](https://github.com/398ja/cashu-mint/issues/428) |
 | L-2 | [cashu-mint#429](https://github.com/398ja/cashu-mint/issues/429) |
 | L-3 | [cashu-lib#264](https://github.com/398ja/cashu-lib/issues/264) |
-| L-4 | [cashu-mint#432](https://github.com/398ja/cashu-mint/issues/432), [cashu-lib#266](https://github.com/398ja/cashu-lib/issues/266), [cashu-vault#140](https://github.com/398ja/cashu-vault/issues/140), [cashu-voucher#36](https://github.com/398ja/cashu-voucher/issues/36), [cashu-wallet#48](https://github.com/398ja/cashu-wallet/issues/48), [cashu-ledger#9](https://github.com/398ja/cashu-ledger/issues/9) |
+| L-4 (High) | [cashu-mint#432](https://github.com/398ja/cashu-mint/issues/432), [cashu-lib#266](https://github.com/398ja/cashu-lib/issues/266), [cashu-vault#140](https://github.com/398ja/cashu-vault/issues/140), [cashu-voucher#36](https://github.com/398ja/cashu-voucher/issues/36), [cashu-wallet#48](https://github.com/398ja/cashu-wallet/issues/48), [cashu-ledger#9](https://github.com/398ja/cashu-ledger/issues/9) |
 | I-1 | [cashu-mint#430](https://github.com/398ja/cashu-mint/issues/430) |
 
 Two items outside the findings table, both surfaced while verifying other claims:
@@ -580,13 +627,15 @@ Two items outside the findings table, both surfaced while verifying other claims
 
 | Priority | Action | SLA |
 |---|---|---|
-| 1 | H-1: `@Valid` on both endpoints, in-task limits, explicit validator dependency, regression tests at unit and integration level | **Done** |
-| 2 | M-1: deny-by-default ledger filter chain (downgraded to Low after re-measurement; fail-closed today) | 90 days |
-| 3 | M-2: bind rate-limit identity to remote address; trusted-proxy allowlist | 30 days |
-| 4 | M-3: refuse plain-text admin password in non-local profiles; split merchant principal | 30 days |
-| 5 | M-4: run the integration suite in CI; repair the 5 pre-existing failures | 30 days |
-| 6 | L-1, L-2, L-4: stream constraints, identifier allowlist, secret scanning, ledger dependency scan | 90 days |
-| 7 | L-3: legacy-encoding sunset plan with an outstanding-proof metric | 90 days |
+| 1 | H-1: `@Valid` on both endpoints, in-task limits, regression tests at unit and integration level | **Done** |
+| 2 | L-4: make the dependency scan detect resolved coordinates; bump `jackson-databind` to 2.18.8 and `postgresql` to 42.7.12; enable Dependabot where disabled | 7 days |
+| 3 | M-4: run the integration suite in CI; repair the 5 pre-existing failures | 30 days |
+| 4 | M-2: bind rate-limit identity to remote address; trusted-proxy allowlist | 30 days |
+| 5 | M-3: refuse plain-text admin password in non-local profiles; split merchant principal | 30 days |
+| 6 | L-4 (cont.): secret scanning across all repositories; dependency scan for `cashu-ledger` | 90 days |
+| 7 | L-1, L-2: stream constraints, identifier allowlist | 90 days |
+| 8 | L-3: legacy-encoding sunset plan with an outstanding-proof metric | 90 days |
+| 9 | M-1: deny-by-default ledger filter chain (Low; fail-closed today) | 90 days |
 
 ## Suggested standing controls
 
