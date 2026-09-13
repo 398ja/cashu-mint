@@ -23,6 +23,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
+        <!--
+          The NUT request DTOs in cashu-lib-entities declare Bean Validation constraints
+          (PostRestoreRequest.MAX_OUTPUTS, PostCheckStateRequest.MAX_SECRETS). Without this
+          starter there is no validator on the classpath, so those constraints were inert no
+          matter what the controller annotated: /v1/restore and /v1/checkstate accepted lists
+          bounded only by the 2 MiB body cap, at one vault lookup per element.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <!-- Spec 002 T311 — HTTP Basic auth on /admin/** -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

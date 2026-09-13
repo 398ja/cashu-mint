@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
@@ -14,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class CheckStateTaskTest {
@@ -111,5 +114,29 @@ public class CheckStateTaskTest {
         assertEquals(NUT07.UNSPENT, state.getState());
         assertEquals(secret, state.getHashToCurveSecret());
         assertNull(state.getWitness());
+    }
+
+    // Confirms that a request carrying more Ys than the declared maximum is refused with
+    // too_many_inputs, and that the vault is never consulted: the task performs one lookup per Y
+    // and is run once per mint, so an unbounded list is an amplification attack on the vault.
+    @Test
+    public void refusesMoreSecretsThanTheMaximumWithoutTouchingTheVault() {
+        UUID mintId = UUID.randomUUID();
+        HashToCurveSecret secret = HashToCurveSecret.fromString(
+                "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
+        PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
+        when(request.getHashToCurveSecrets())
+                .thenReturn(Collections.nCopies(PostCheckStateRequest.MAX_SECRETS + 1, secret));
+
+        MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+
+        CheckStateTask task = new CheckStateTask(
+                mintId, request, mintProtocolService, proofVaultService, mintVaultService);
+
+        CashuErrorException thrown = assertThrows(CashuErrorException.class, task::execute);
+        assertEquals(CashuErrorCode.too_many_inputs, thrown.getErrorCode());
+        verifyNoInteractions(proofVaultService, mintVaultService);
     }
 }

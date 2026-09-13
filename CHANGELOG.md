@@ -2,6 +2,27 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- `/v1/restore` and `/v1/checkstate` now enforce their declared request-size limits.
+  `PostRestoreRequest.MAX_OUTPUTS` and `PostCheckStateRequest.MAX_SECRETS` were declared as
+  Bean Validation `@Size` constraints and never applied: the controllers bound the body
+  without `@Valid`, and `cashu-mint-rest` had no validation starter, so no validator existed
+  to apply them either. Both endpoints are unauthenticated and both perform one vault lookup
+  per element — and `checkstate` repeats that per mint, archived ones included — so a single
+  2 MiB body turned into tens of thousands of vault calls, amplifying into the component
+  every value-moving path depends on. The starter and `@Valid` are now in place, the limits
+  are additionally enforced inside `RestoreSignaturesTask` and `CheckStateTask` so they hold
+  for every caller rather than only the HTTP path, and `MethodArgumentNotValidException` is
+  mapped to the protocol's error shape. Both regression tests were confirmed to fail without
+  the enforcement.
+
+### Added
+- `docs/explanations/appsec-review-2026-09.md` — an application security review across
+  cashu-lib, cashu-mint, cashu-vault, cashu-ledger, cashu-voucher and cashu-wallet, recording
+  the findings, the reasoning behind each severity, and what the codebase already gets right.
+
 ## [0.36.2] - 2026-09-12
 
 ### Changed

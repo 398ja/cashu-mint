@@ -54,6 +54,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Voucher mint quotes as percentage fees](explanations/voucher-mint-quote-percentage.md) - Configure voucher mint pricing as a percentage of the face value.
 - [Payment webhook architecture](explanations/payment-webhook-architecture.md) - How payment notifications changed from polling to push-based webhooks in v0.8.0.
 - [Security measures](explanations/security-measures.md) - Comprehensive security mechanisms: double-spend prevention, cryptographic verification, input validation, webhook security, and operational security.
+- [Application security review, September 2026](explanations/appsec-review-2026-09.md) - An AppSec review across cashu-lib, cashu-mint, cashu-vault, cashu-ledger, cashu-voucher and cashu-wallet: what holds, the two enforcement gaps found, and what each one costs.
 - [Why `/v1/info` is derived from the wiring](explanations/mint-info-advertisement.md) - Why the advertised NUT-06 capabilities are generated from the code rather than written down, and what that costs.
 - [Why the mint fails closed on DLEQ](explanations/dleq-fail-closed.md) - Why a NUT-12 proof failure fails the request, and why the nonce is deterministic.
 - [Why validation runs before signing](explanations/validation-before-signing.md) - Why a rejected transaction must leave no blind signature in the vault, and how the checks are ordered to guarantee it.

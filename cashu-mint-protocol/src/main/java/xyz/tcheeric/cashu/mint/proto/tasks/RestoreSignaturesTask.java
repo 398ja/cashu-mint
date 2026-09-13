@@ -4,6 +4,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreRequest;
 import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreResponse;
@@ -82,6 +83,7 @@ public class RestoreSignaturesTask extends InstrumentedTask<PostRestoreResponse>
     @Override
     protected PostRestoreResponse doExecute() throws CashuErrorException {
         int requestedCount = request.getBlindedMessages().size();
+        requireCountWithinLimit(requestedCount);
         log.debug("NUT-09 restore request received: {} blinded messages", requestedCount);
 
         // Size lists to max possible matches (all messages have stored signatures)
@@ -113,5 +115,26 @@ public class RestoreSignaturesTask extends InstrumentedTask<PostRestoreResponse>
         }
 
         return new PostRestoreResponse(outputs, signatures);
+    }
+
+    /**
+     * Refuses a restore request carrying more outputs than {@link PostRestoreRequest#MAX_OUTPUTS}.
+     *
+     * <p>The limit is declared on the request DTO as a Bean Validation {@code @Size} constraint,
+     * but a constraint only fires where something applies it. It is enforced here as well, for
+     * the same reason {@code SwapTask} checks its own input and output counts rather than relying
+     * on the transport: this loop performs one vault lookup per output, so an unbounded list is
+     * an unauthenticated amplification attack on the vault that every value-moving path depends
+     * on. A limit that lives only in the web layer is one forgotten annotation away from absent.
+     *
+     * @throws CashuErrorException {@link CashuErrorCode#too_many_outputs} when the limit is exceeded
+     */
+    private void requireCountWithinLimit(int requestedCount) throws CashuErrorException {
+        if (requestedCount > PostRestoreRequest.MAX_OUTPUTS) {
+            log.warn("restore_task too_many_outputs count={} max={}",
+                    requestedCount, PostRestoreRequest.MAX_OUTPUTS);
+            throw new CashuErrorException(CashuErrorCode.too_many_outputs,
+                    "Maximum " + PostRestoreRequest.MAX_OUTPUTS + " outputs allowed");
+        }
     }
 }
