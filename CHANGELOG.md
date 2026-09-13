@@ -7,22 +7,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 ### Security
 - `/v1/restore` and `/v1/checkstate` now enforce their declared request-size limits.
   `PostRestoreRequest.MAX_OUTPUTS` and `PostCheckStateRequest.MAX_SECRETS` were declared as
-  Bean Validation `@Size` constraints and never applied: the controllers bound the body
-  without `@Valid`, and `cashu-mint-rest` had no validation starter, so no validator existed
-  to apply them either. Both endpoints are unauthenticated and both perform one vault lookup
+  Bean Validation `@Size` constraints and never applied, because the controllers bound the
+  body without `@Valid`. Both endpoints are unauthenticated and both perform one vault lookup
   per element — and `checkstate` repeats that per mint, archived ones included — so a single
-  2 MiB body turned into tens of thousands of vault calls, amplifying into the component
-  every value-moving path depends on. The starter and `@Valid` are now in place, the limits
-  are additionally enforced inside `RestoreSignaturesTask` and `CheckStateTask` so they hold
-  for every caller rather than only the HTTP path, and `MethodArgumentNotValidException` is
-  mapped to the protocol's error shape. Both regression tests were confirmed to fail without
-  the enforcement.
-- `CashuControllerRequestLimitTest` covers the HTTP contract for the two limits with a real
-  validator attached, including that a request *at* the limit still succeeds. Removing `@Valid`
-  while keeping the task-layer checks turns the checkstate assertion from 400 into 200 and
-  leaves restore passing: `CrossMintCheckStateMerger` only reaches `CheckStateTask` once it has
-  a mint to query, so with no mints the list is unbounded across mint loading itself. Neither
-  layer is redundant.
+  2 MiB body turned into tens of thousands of vault calls, amplifying into the component every
+  value-moving path depends on. The limits are additionally enforced inside
+  `RestoreSignaturesTask` and `CheckStateTask` so they hold for every caller rather than only
+  the HTTP path, and `MethodArgumentNotValidException` is mapped to the protocol's error
+  shape. Every regression test was confirmed to fail without the enforcement.
+- `CashuControllerRequestLimitTest` covers the HTTP contract with a supplied validator,
+  including that a request *at* the limit still succeeds. `RequestSizeLimitIT` covers the same
+  through the real application context, which is the only one of the two that speaks to the
+  deployed wiring. Removing `@Valid` fails both.
+- `cashu-mint-rest` now declares `spring-boot-starter-validation` explicitly. It is not what
+  fixed the vulnerability: a validator already reached the module transitively through
+  `cashu-mint-jpa`, which was confirmed by removing the dependency and observing the tests
+  still pass. It is declared because a runtime-scoped persistence module is not where a
+  web-layer validator should come from — if that module drops it, constraints on two
+  unauthenticated endpoints go silent with nothing failing to compile.
 
 ### Added
 - `docs/explanations/appsec-review-2026-09.md` — an application security review across

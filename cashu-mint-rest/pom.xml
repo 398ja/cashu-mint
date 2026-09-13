@@ -25,10 +25,15 @@
         </dependency>
         <!--
           The NUT request DTOs in cashu-lib-entities declare Bean Validation constraints
-          (PostRestoreRequest.MAX_OUTPUTS, PostCheckStateRequest.MAX_SECRETS). Without this
-          starter there is no validator on the classpath, so those constraints were inert no
-          matter what the controller annotated: /v1/restore and /v1/checkstate accepted lists
-          bounded only by the 2 MiB body cap, at one vault lookup per element.
+          (PostRestoreRequest.MAX_OUTPUTS, PostCheckStateRequest.MAX_SECRETS), and this module
+          applies them with @Valid, so it depends on a validator.
+
+          Declared explicitly rather than relied on transitively. A validator did already reach
+          this module, but only by way of cashu-mint-jpa, which is a runtime-scoped dependency
+          pulled in for persistence and has no reason to keep carrying a web-layer concern. If
+          that module ever drops the starter, the constraints on two unauthenticated endpoints
+          go quiet without anything failing to compile. Depending on what we actually use is
+          what keeps that from being a silent change.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

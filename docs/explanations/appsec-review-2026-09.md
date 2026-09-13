@@ -37,13 +37,19 @@ token comparisons are constant-time. Several classes carry comments naming the e
 exploit their structure prevents, which is the strongest sign that prior findings
 were fixed by design change rather than by patching a symptom.
 
-Two genuine gaps remain, both of the same kind: a limit that is declared in one
-layer and never enforced in the layer that receives the request.
+One genuine exploitable gap was found, and it is fixed: a pair of size limits declared in one
+layer and never applied in the layer that receives the request. The rest are hardening items.
+
+Two findings in this report were **downgraded after re-measurement**, and both corrections are
+recorded in place rather than quietly edited out. H-1 was reported as having two independent
+causes; it had one. M-1 was reported as Medium with 19 unguarded endpoints; re-counting showed
+the measurement was wrong and the trace surface fail-closes, so it is now Low. The method that
+caught both was the same: run the mutation, do not reason about it.
 
 | Sev | ID | Finding | Location |
 |---|---|---|---|
-| High | H-1 | Bean-validation size limits on `/v1/restore` and `/v1/checkstate` are never enforced; no `@Valid`, no validation starter — **fixed in this review** | `CashuController`, `cashu-mint-rest/pom.xml` |
-| Medium | M-1 | Trace ledger authorization is per-controller convention, not a filter-chain rule (`anyRequest().permitAll()`); 19 request mappings across 5 controllers have no authorization call at all | `cashu-ledger-web/.../SecurityConfig` |
+| High | H-1 | Bean-validation size limits on `/v1/restore` and `/v1/checkstate` are never enforced: the controllers bind the body without `@Valid` — **fixed in this review** | `CashuController` |
+| Low | M-1 | Trace ledger authorization lives in a filter prefix and per-handler throws, not in the filter chain (`anyRequest().permitAll()`); fail-closed today, but the boundary is not stated where it is configured | `cashu-ledger-web/.../SecurityConfig` |
 | Medium | M-2 | Issuance rate-limit identity is client-supplied and spoofable; the only real boundary is deployment topology | `IssuanceRateLimitFilter` |
 | Medium | M-3 | Admin authentication is a single shared in-memory credential, plain-text by default | `cashu-mint-rest/.../SecurityConfig` |
 | Low | L-1 | Jackson has no `StreamReadConstraints`; deep/long JSON is bounded only by the 2 MiB body cap | mint REST |
@@ -51,6 +57,7 @@ layer and never enforced in the layer that receives the request.
 | Low | L-3 | Legacy secret encoding is enabled by default, widening the set of secrets that verify | `SecretEncoding` |
 | Low | L-4 | `CRITICAL`-only CI gate; HIGH findings never block a merge | `dependency-scan.yml` |
 | Info | I-1 | CORS defaults to any origin with a startup warning | mint REST |
+| Medium | M-4 | Integration tests are skipped by default and not run by CI; 5 are currently failing on `master` unnoticed | `pom.xml`, `.github/workflows/ci.yml` |
 
 ---
 
@@ -85,12 +92,24 @@ public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckS
 public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request)
 ```
 
-Two independent reasons the constraints cannot fire:
+The reason the constraints cannot fire: no `@Valid` annotation anywhere in
+`cashu-mint-rest/src/main` (`grep -rn "@Valid\|jakarta.validation" cashu-mint-rest/src/main`
+returned nothing). Spring only validates a `@RequestBody` when the parameter asks to be
+validated, so the constraints were declared and never consulted.
 
-1. No `@Valid` annotation anywhere in `cashu-mint-rest/src/main`
-   (`grep -rn "@Valid\|jakarta.validation" cashu-mint-rest/src/main` returns nothing).
-2. No `spring-boot-starter-validation` dependency in `cashu-mint-rest/pom.xml`, so no
-   `LocalValidatorFactoryBean` exists to enforce them even if `@Valid` were added.
+**A correction to an earlier draft of this finding.** This report first claimed a *second*
+independent cause — that `cashu-mint-rest` declared no validation starter, so no validator
+existed either way. That was wrong, and the way it was caught is worth recording. The first
+regression test built its MockMvc with `standaloneSetup(...).setValidator(...)`, supplying its
+own validator, so it could not distinguish the two hypotheses. Re-testing through the real
+application context, then removing the starter from the pom and re-running, showed the
+assertions still passing: `mvn dependency:tree` traces a validator into the module
+transitively through `cashu-mint-jpa`. So the vulnerability had one cause, not two, and the
+missing `@Valid` was sufficient on its own to disable both limits.
+
+The explicit starter dependency is kept regardless, because relying on a runtime-scoped
+persistence module to supply a web-layer validator is how this would quietly regress: if
+`cashu-mint-jpa` drops it, these constraints go silent with nothing failing to compile.
 
 **Impact.** Both endpoints are unauthenticated and both loop per element:
 `RestoreSignaturesTask` issues one `signatureVaultService.retrieve(bm)` call per
@@ -109,7 +128,8 @@ and `spring.servlet.multipart.max-request-size` do not bound a
 `max-swallow-size`, which bounds bytes, not element count, and 2 MiB of elements is
 20x the intended limit.
 
-**Fix applied.** Both halves are required; either alone leaves the limit inert.
+**Fix applied.** The `@Valid` annotations are the operative change; the starter is declared so
+the validator is a stated dependency rather than an inherited accident.
 
 ```xml
 <!-- cashu-mint-rest/pom.xml -->
@@ -160,9 +180,33 @@ To confirm these test the vulnerability rather than restating the implementation
 (`Expected CashuErrorException to be thrown, but nothing was thrown`), and both passed again
 once the calls were restored. A test that cannot fail is not evidence.
 
+**Web-layer verification, at two levels.** The task tests do not exercise the HTTP contract, so
+the web layer is covered twice, deliberately:
+
+- `CashuControllerRequestLimitTest` (`cashu-mint-rest`) drives Spring MVC's argument resolver
+  with an explicitly supplied `LocalValidatorFactoryBean`. Three assertions, including that a
+  request *at* the limit still returns 200, without which a fix that rejected everything would
+  pass.
+- `RequestSizeLimitIT` (`cashu-mint-rest-it`) asserts the same through the real application
+  context, where the only validator is the one Spring Boot auto-configures. This is the one
+  that tests the production wiring; the unit test supplies its own validator and therefore
+  cannot.
+
+Note that the integration tests are skipped unless `-Pintegration-tests` is active, so a plain
+`mvn verify` does not run `RequestSizeLimitIT`. It was run explicitly with that profile.
+
+**Two things the mutation testing corrected.** Removing `@Valid` while keeping the task checks
+turned the *checkstate* assertion from 400 into 200 while restore still passed. The cause is
+structural and worth recording: `CrossMintCheckStateMerger` only reaches `CheckStateTask` once
+it has a mint to query, so with no mints the task-layer check never runs and the list is
+unbounded across mint loading itself. The two layers guard overlapping but not identical paths.
+
+Removing the *starter* changed nothing, which is what exposed the false second root cause
+described above. Both results came from running the mutation, not from reasoning about it.
+
 ---
 
-## M-1: Trace ledger authorization depends on convention, not configuration
+## M-1 (downgraded to Low): the trace boundary is not stated in the filter chain
 
 **Where.** `cashu-ledger-web/.../config/SecurityConfig.java:43`
 
@@ -172,40 +216,63 @@ http.csrf(csrf -> csrf.disable())
         .addFilterBefore(nip98Filter, UsernamePasswordAuthenticationFilter.class);
 ```
 
-The NIP-98 filter populates a principal, but the filter chain authorizes nothing.
-Every access decision is an in-method `requireAdmin(request)` call. Those calls are
-present today (`TraceAdminController` 9 occurrences, `TraceController` 20), but the
-other five controllers (`ProxyController`, `VoucherController`, `WatchController`,
-`TraceStreamController`, `UnclaimedController`) have none. Some of those are
-legitimately public reads; the problem is that nothing in the configuration says
-which, so a new admin endpoint is unauthenticated by default and a deleted
-`requireAdmin` line is a silent privilege escalation rather than a build failure.
+The chain authorizes nothing, so every access decision is made elsewhere. The question is
+whether "elsewhere" is reliable, and on inspection it largely is — this finding is weaker than
+its first draft claimed, and the correction is recorded below.
 
-Counted per controller (authorization calls vs. request mappings):
+**How access is actually decided.** `Nip98AuthenticationFilter` fail-closes for the whole trace
+surface. Its `shouldNotFilter` matches on the prefix `/api/v1/trace`, and within that prefix an
+unauthenticated request gets 401 (`TRACE_UNAUTHENTICATED`) and a request whose pubkey resolves
+to no authority gets 403 (`TRACE_FORBIDDEN`). Neither reaches a controller. Only then is a
+`TracePrincipal` attached as a request attribute.
 
-| Controller | Authz calls | Mappings |
-|---|---|---|
-| `TraceController` | 20 | 12 |
-| `TraceAdminController` | 9 | 5 |
-| `ProxyController` | 0 | 7 |
-| `VoucherController` | 0 | 6 |
-| `UnclaimedController` | 0 | 3 |
-| `HomeController` | 0 | 1 |
-| `TraceStreamController` | 0 | 1 |
-| `WatchController` | 0 | 1 |
+On top of that:
 
-So 19 mappings across five controllers are reachable with no authorization check in the
-handler and no rule in the chain.
+- `TraceAdminController` (`/api/v1/trace/admin`) calls `requireAdmin(request)`, which throws
+  `AdminForbiddenException` unless the principal `isAdmin()`. Six occurrences across five
+  mappings.
+- `TraceController` (`/api/v1/trace`) reads the principal to decide the *response shape* —
+  redaction — rather than to gate entry, and its `principal(request)` helper throws
+  `IllegalStateException` if the attribute is absent. So it fails closed too, by a different
+  mechanism.
+- The remaining controllers sit outside the trace prefix entirely: `/proxy` (7 mappings),
+  `/api/v1/vouchers` (6), `/api/v1/unclaimed` (3), `/api/v1/watch` (1), and `HomeController`
+  (1). These are the public voucher-inspection reads the class comment describes as
+  intentionally open, and `ProxyController` despite its name is not a forwarder: it delegates to
+  the same local `VoucherLedgerService` as `/api/v1/vouchers/*`.
 
-To be fair to the current state: these look like intentionally public reads. `ProxyController`
-despite its name is not an open forwarder — it delegates to the same local
-`VoucherLedgerService` as `/api/v1/vouchers/*`, serving `/proxy/*` for frontend compatibility,
-and voucher inspection is a public capability by design. So this finding is about the *absence
-of a stated boundary*, not a known-exploitable hole. The risk is the next endpoint, not the
-current ones: with `anyRequest().permitAll()`, an admin route added to any of these classes is
-open until someone remembers the in-method call, and no test or configuration will say
-otherwise. That is why the recommendation is to encode the decision in the chain rather than
-to add checks to these five controllers.
+**A correction.** An earlier draft of this finding reported "19 request mappings across 5
+controllers with no authorization call," including `TraceController` with "20 authorization
+calls." Both numbers were artefacts of a bad measurement: `grep -c` counts matching *lines*
+rather than occurrences, and the pattern included the type name `TracePrincipal`, so
+`TraceController`'s redaction logic was miscounted as access control. Re-counting occurrences
+with `grep -o | wc -l` gives `TraceController` zero `requireAdmin` calls — which prompted
+reading it properly and finding the filter that actually does the work.
+
+**What remains, at reduced severity.** The residual issue is narrow but real: the chain says
+`permitAll()`, so the boundary lives in a filter's `shouldNotFilter` prefix and in per-handler
+throws rather than in the authorization configuration. Two consequences worth fixing:
+
+1. An admin route added under a *different* prefix — or the trace prefix ever being renamed —
+   is unauthenticated with nothing failing to compile or to test.
+2. `TraceController`'s protection depends on an `IllegalStateException` from a helper. That is
+   fail-closed, but it presents as a 500 rather than a 401, so the failure mode is an alert
+   rather than a clean rejection.
+
+Encoding the decision in the chain makes both explicit:
+
+```java
+.authorizeHttpRequests(auth -> auth
+        .requestMatchers("/api/v1/trace/admin/**").hasAuthority("trace:admin")
+        .requestMatchers("/api/v1/trace/**").authenticated()
+        .requestMatchers(HttpMethod.GET, "/api/v1/vouchers/**", "/proxy/**",
+                "/api/v1/unclaimed/**", "/api/v1/watch/**").permitAll()
+        .requestMatchers(EndpointRequest.to("health")).permitAll()
+        .anyRequest().authenticated())
+```
+
+Keep the filter and the in-handler checks as defence in depth. Add a test asserting 401 on each
+admin route without credentials, so the boundary is stated in one place and verified in another.
 
 This is the same structural lesson `ProofAuthenticity` documents in the mint: "every
 handler remembers to do this" is the pattern that already failed once.
@@ -281,6 +348,40 @@ sentinel password was rightly reverted. Remaining weaknesses:
 encoder prefix. Introduce a distinct merchant principal for `/v1/vouchers/**`. Longer
 term, front the public mint's `/admin/**` with the same NAP session mechanism the
 admin module already uses, which removes the shared secret entirely.
+
+---
+
+## M-4: the integration suite is not run, and is currently red
+
+**Where.** `pom.xml:37` (`<skip.integration-tests>true</skip.integration-tests>`),
+`.github/workflows/ci.yml`
+
+Integration tests only execute under `-Pintegration-tests`, and no CI workflow passes that
+flag — `grep -n "integration-tests" .github/workflows/ci.yml` returns nothing. So `mvn verify`,
+which is what the contributing guide asks for and what CI runs, reports success without
+executing a single IT.
+
+Running `mvn -Pintegration-tests verify` on an unmodified `master` (verified by stashing all
+local changes first) fails with 5 errors in `cashu-mint-protocol`:
+
+- `MintThenRestoreIntegrationTest.mintThenRestore`
+- 4 of 5 in `NUT13RecoveryIntegrationTest`
+
+All fail with `CashuErrorException: Private key not found`, i.e. keyset fixture setup rather
+than a protocol defect. That they are *fixable* is not the point: they cover NUT-09 restore and
+NUT-13 recovery, which is exactly the surface H-1 was found on, and nobody has seen them fail
+because nothing runs them.
+
+**Why this is a security finding and not just hygiene.** A skipped suite is indistinguishable
+from a passing one in every report anyone reads. `ActuatorManagementPortIT` — the test that
+keeps `/actuator/prometheus` off the public port, protecting issuance rates and outstanding
+liability — is in that same unrun set. Its careful javadoc explains precisely how it would
+regress. It has not run in CI.
+
+**Recommendation.** Add an `integration-tests` job to CI, even if it starts as non-blocking
+while the 5 failures are repaired, so the trend is visible. Then fix the fixtures and make it
+blocking. This finding was discovered only because verifying H-1's fix required running the IT
+profile by hand.
 
 ---
 
@@ -399,12 +500,13 @@ These are load-bearing and should be protected by tests before any refactor:
 
 | Priority | Action | SLA |
 |---|---|---|
-| 1 | H-1: add validation starter + `@Valid`, plus in-task limits and regression tests | **Done** |
-| 2 | M-1: deny-by-default ledger filter chain | 30 days |
+| 1 | H-1: `@Valid` on both endpoints, in-task limits, explicit validator dependency, regression tests at unit and integration level | **Done** |
+| 2 | M-1: deny-by-default ledger filter chain (downgraded to Low after re-measurement; fail-closed today) | 90 days |
 | 3 | M-2: bind rate-limit identity to remote address; trusted-proxy allowlist | 30 days |
 | 4 | M-3: refuse plain-text admin password in non-local profiles; split merchant principal | 30 days |
-| 5 | L-1, L-2, L-4: stream constraints, identifier allowlist, secret scanning, ledger dependency scan | 90 days |
-| 6 | L-3: legacy-encoding sunset plan with an outstanding-proof metric | 90 days |
+| 5 | M-4: run the integration suite in CI; repair the 5 pre-existing failures | 30 days |
+| 6 | L-1, L-2, L-4: stream constraints, identifier allowlist, secret scanning, ledger dependency scan | 90 days |
+| 7 | L-3: legacy-encoding sunset plan with an outstanding-proof metric | 90 days |
 
 ## Suggested standing controls
 
@@ -420,6 +522,13 @@ These are load-bearing and should be protected by tests before any refactor:
 
 ---
 
-*Reviewed against the NUT specifications at cashubtc/nuts. Findings are based on
-static review of the source at the September 2026 `master` of each repository; no
-dynamic testing or deployed-environment assessment was performed.*
+*Reviewed against the NUT specifications at cashubtc/nuts, at the September 2026 `master` of
+each repository. Findings in `cashu-mint` were checked by execution — building, running the
+suites, and mutating the fix to confirm the tests detect its absence. Findings in the other five
+repositories are static review only. No deployed-environment or network assessment was
+performed, so the deployment-topology assumptions behind M-2 are taken on the code's word.*
+
+*Two findings were downgraded during the review after re-measurement showed the first reading
+was wrong, and M-4 was added only because verifying H-1 required running a test profile that CI
+does not. Both are recorded rather than tidied away: a review that never corrects itself is
+reporting its own confidence, not the codebase.*
