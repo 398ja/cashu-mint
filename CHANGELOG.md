@@ -27,6 +27,10 @@ All notable changes to the Cashu Mint will be documented in this file.
   unauthenticated endpoints go silent with nothing failing to compile.
 
 ### Added
+- `SigCountTest` covers the NUT-11 rule that a signature threshold counts distinct public
+  keys rather than signatures. The rule had no test: deleting the deduplication in
+  `SigningKeyCounter` lets one key satisfy a 2-of-2, which is a forged multisig, and nothing
+  in the suite objected. The implementation was already correct; only the coverage was missing.
 - `docs/explanations/appsec-review-2026-09.md` — an application security review across
   cashu-lib, cashu-mint, cashu-vault, cashu-ledger, cashu-voucher and cashu-wallet, recording
   the findings, the reasoning behind each severity, and what the codebase already gets right.

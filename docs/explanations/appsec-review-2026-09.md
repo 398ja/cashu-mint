@@ -23,7 +23,18 @@ Method: manual review of security-critical paths (value creation, value
 destruction, authentication, authorization, cryptographic operations, request
 parsing), cross-referenced against the NUT specifications and the OWASP Top 10 /
 CWE Top 25. Existing audit remediation notes in the code were treated as claims to
-verify, not as evidence.
+verify, not as evidence — and two of them did not survive that.
+
+Every finding that could be executed was executed rather than inspected, because the
+inspection-only passes in this review produced three wrong claims (H-1's second cause, M-1's
+endpoint counts, and the locktime rationale below). Concretely, that means: Jackson's real
+`StreamReadConstraints.defaults()` were printed, not recalled; `SecretEncoding.verificationOrder()`
+was run to confirm the legacy encoding is live; the DLEQ scalar bound was invoked with an
+oversized value to confirm it rejects rather than reduces; `SecurityConfig.adminUserDetails`
+was called with blank, plain and `{bcrypt}` passwords to observe what it registers; the CI
+scanner matrix was built by listing each repository's workflows; and the NUT-11 distinct-key
+rule was covered with a new test using real Schnorr signatures, then mutation-checked by
+deleting the deduplication and watching one key satisfy a 2-of-2.
 
 ## Executive summary
 
@@ -388,9 +399,16 @@ profile by hand.
 ## Low-severity findings
 
 **L-1: No Jackson `StreamReadConstraints`.** Deeply nested or very long JSON strings
-are bounded only by the 2 MiB body cap. Jackson 2.18 defaults are reasonable, but the
-limits should be explicit and tighter than the defaults for a protocol whose messages
-are shallow and fixed-shape:
+are bounded only by the 2 MiB body cap. The defaults were measured rather than assumed —
+running `StreamReadConstraints.defaults()` against the resolved `jackson-core` 2.18.3 gives
+`maxNestingDepth=1000`, `maxStringLength=20000000` (20 MB) and `maxNumberLength=1000`.
+
+Two of those three are larger than the request body the mint will accept, so in the current
+configuration they can never trigger: the 2 MiB cap is the real limit and Jackson's own
+guards are inert. That makes this genuinely low severity — it is not an open door, it is a
+guard positioned behind a narrower one, so it offers no defence if the body cap is ever
+raised or bypassed. Setting limits that match the protocol's actual shape (shallow,
+fixed-form messages) is what makes them load-bearing:
 
 ```java
 @Bean
@@ -438,9 +456,23 @@ For a mint that custodies value, split the difference: keep HIGH non-blocking fo
 transitive dependencies, but block on HIGH in the cryptographic and web-facing direct
 dependency set (BouncyCastle, Jackson, Spring Security, Tomcat, Netty). Also add
 secret scanning (gitleaks or `trufflehog`) — no repository currently has it, and the
-dependency scan does not cover credentials. `cashu-ledger` and `cashu-voucher` are
-missing scans that the other four repositories have; `cashu-ledger` has no
-`dependency-scan.yml` at all.
+dependency scan does not cover credentials.
+
+Measured across the six repositories (`ls .github/workflows` plus a grep for the scanner
+and the threshold):
+
+| Repository | Dependency scan | Blocking threshold | Secret scanning |
+|---|---|---|---|
+| `cashu-lib` | yes | `CRITICAL` (HIGH reports only) | no |
+| `cashu-mint` | yes | `CRITICAL` (HIGH reports only) | no |
+| `cashu-vault` | yes | `CRITICAL` (HIGH reports only) | no |
+| `cashu-voucher` | yes | `CRITICAL` (HIGH reports only) | no |
+| `cashu-wallet` | yes | `CRITICAL` (HIGH reports only) | no |
+| `cashu-ledger` | **none** | n/a | no |
+
+(An earlier draft said `cashu-voucher` was also missing a scan. It is not — it has
+`dependency-scan.yml` with the same thresholds as the rest. `cashu-ledger` is the only gap,
+and it is the repository holding the forensic trace ledger.)
 
 **I-1: CORS defaults to any origin.** Defensible for a public NUT surface and warned
 about at startup. Make it an explicit decision by failing startup in non-local
@@ -467,9 +499,29 @@ These are load-bearing and should be protected by tests before any refactor:
   The failure mode is a loss for one wallet, never inflation.
 - **NUT-11 thresholds count distinct keys.** `SigningKeyCounter` deduplicates on the
   x-only coordinate, so the same signature submitted twice, or a repeated pubkey in a
-  crafted secret, cannot satisfy an n-of-m threshold.
-- **Locktime is a `long`.** The comment records the narrowing bug: an `int` locktime
-  past 2038 wrapped negative, read as "long expired", and unlocked the proof.
+  crafted secret, cannot satisfy an n-of-m threshold. Verified with real BIP-340 signatures
+  in `SigCountTest`, added by this review: one key signing twice counts once, two distinct
+  keys count twice. Deleting the deduplication makes a single key satisfy a 2-of-2, i.e.
+  forge a multisig — so the test detects the thing that matters. It had **no prior test
+  coverage**, which for a rule standing between one key and an n-of-m spend is worth fixing
+  regardless of the implementation being correct.
+- **Locktime is a `long`.** `P2PKSecret.getLockTime()` returns `long`, confirmed by
+  reflection against the built class. This is the right type and the fix is real.
+
+  One correction to how the fix is described in the code, which this report repeated
+  uncritically before checking it. The comment in `P2PKSpendingCondition` says a narrowed
+  `int` locktime past 2038 "wrapped negative, which this comparison then read as 'long
+  expired' and unlocked the proof". Working through the historical code (`git log -S`, commit
+  `980ecb0a`) shows the guard was always `lockTime > 0 && lockTime < now`, and a wrapped
+  value is negative, so it fails the `> 0` test and the locktime reads as *not* passed. The
+  actual pre-fix failure was therefore the opposite one: a proof with a post-2038 locktime
+  stayed locked forever, and the refund pathway — which is only reachable after the locktime
+  passes — became unreachable. Funds stuck rather than funds stealable.
+
+  That is a milder bug than the comment claims, though still worth having fixed, and the
+  `long` type is correct either way. The point of recording it: a code comment asserting a
+  security rationale is a claim like any other, and this one does not survive reading the
+  history it refers to.
 - **DLEQ nonce is HMAC-derived.** `DeterministicDLEQNonce` removes RNG dependence
   from proof generation; nonce reuse across challenges leaks the mint private key
   outright, so this is the right construction.
@@ -511,7 +563,11 @@ These are load-bearing and should be protected by tests before any refactor:
 ## Suggested standing controls
 
 - **Security regression tests as policy.** Each finding above should close with a test
-  that fails on the unfixed code. H-1's two tests are the template.
+  that fails on the unfixed code. H-1's tests and `SigCountTest` are the template.
+- **Cover the invariants, not just the fixes.** `SigningKeyCounter` was correct but untested,
+  and the swap-hold and `ProofAuthenticity` rationales are load-bearing enough to deserve the
+  same treatment. A property that no test asserts is a property the next refactor may remove
+  silently.
 - **An `@Valid` lint.** The root cause of H-1 is that a constraint can be declared in
   one module and silently ignored in another. An ArchUnit rule requiring every
   `@RequestBody` parameter whose type declares Bean Validation constraints to also
