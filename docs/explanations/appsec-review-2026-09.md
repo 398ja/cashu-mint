@@ -477,12 +477,45 @@ across every `pom.xml`**, and zero on `package-lock.json`. Dependabot, on the sa
 `jackson.version` and `postgresql.version` are set in the parent `pom.xml` at lines 75 and 90 —
 direct, deliberate pins, not obscure transitives.
 
-**Why it misses them.** `trivy scan-type: fs` parses `pom.xml`, which expresses *declared*
-dependencies; the versions come from properties and the imported `imani-bom`, so the file-based
-scanner never resolves them to coordinates it can match against advisories. The
-`dependency:resolve` step before it populates the local repository but emits nothing Trivy
-reads. The workflow comment — "Trivy reads the resolved dependency tree, not just the poms" —
-describes an intent the configuration does not achieve.
+**Why it misses them.** The first explanation written here was that Trivy cannot resolve
+property-managed versions. That was wrong, and checking it produced a more specific and more
+actionable answer: **the coordinate and its version never appear in the same file.**
+
+The parent `pom.xml` carries them under `<dependencyManagement>`, which declares what version to
+use *if* something depends on it, rather than declaring a dependency:
+
+```xml
+<dependency>
+  <groupId>com.fasterxml.jackson.core</groupId>
+  <artifactId>jackson-databind</artifactId>
+  <version>${jackson.version}</version>   <!-- 2.18.1 -->
+</dependency>
+```
+
+The module that actually depends on it, `cashu-mint-jpa/pom.xml`, declares it with no version:
+
+```xml
+<dependency>
+  <groupId>com.fasterxml.jackson.core</groupId>
+  <artifactId>jackson-databind</artifactId>
+</dependency>
+```
+
+So a file-based scan sees, per file, either a managed version that is not a dependency or a
+dependency with no version. Neither is a resolvable "package X at version Y" to match against an
+advisory. The join happens inside Maven, in memory. The `dependency:resolve` step before the
+scan populates `~/.m2` but emits nothing Trivy reads, so the workflow comment — "Trivy reads the
+resolved dependency tree, not just the poms" — describes an intent the configuration does not
+achieve.
+
+This matters for the remedy: no flag or alternate file path helps, because no file in the tree
+contains the joined fact. The scan must consume something post-resolution. It is also a property
+of *ordinary multi-module Maven projects using `dependencyManagement`*, which is why the same
+gap should be expected across the ecosystem — consistent with `cashu-lib` being green while
+carrying four open alerts.
+
+Advisory staleness was ruled out: the five Maven HIGHs were published between 2026-05-05 and
+2026-07-21, alerts were raised 2026-07-26, and the scan ran 2026-09-13.
 
 **Ecosystem-wide, measured:**
 
@@ -490,13 +523,21 @@ describes an intent the configuration does not achieve.
 |---|---|---|
 | `cashu-mint` | green | **45** (1 critical, 20 high) |
 | `cashu-lib` | green | **4** (`assertj-core` high, `jackson-databind` medium) |
+| `cashu-ledger` | **no scan at all** | **6** (1 critical, 1 high) — *after enabling alerts* |
 | `cashu-voucher` | green | 0 |
 | `cashu-wallet` | green | 0 |
-| `cashu-vault` | green | **alerts disabled** |
-| `cashu-ledger` | **no scan at all** | **alerts disabled** |
+| `cashu-vault` | green | 0 — *after enabling alerts* |
 
-The two repositories with Dependabot disabled have no independent signal whatsoever; they would
-look identical whether clean or not.
+`cashu-vault` and `cashu-ledger` had Dependabot alerts **disabled**, so they had no independent
+signal at all and would have looked identical whether clean or not. Enabling alerts is
+reversible, additive and touches no code, so it was done during the review rather than filed:
+`cashu-vault` turned out to be genuinely clean, while `cashu-ledger` surfaced six findings
+immediately — on the one repository that also has no dependency scan.
+
+Its CRITICAL is a false alarm, which is worth stating because an unexplained CRITICAL trains
+people to ignore the list. CVE-2026-33634 affects `aquasecurity/trivy-action < 0.35.0`;
+`cashu-ledger` references trivy-action nowhere, and every sibling pins `@v0.36.0`. The real
+finding there is a runtime `logback-core` cluster clearing at 1.5.34.
 
 **This is the review's third instance of one pattern.** H-1 was a limit declared and never
 applied. M-4 is a test suite configured and never run. L-4 is a scanner wired up and detecting
@@ -508,7 +549,8 @@ review.
 
 1. Scan resolved coordinates rather than poms: generate a CycloneDX SBOM
    (`cyclonedx-maven-plugin`) and point `scan-type: sbom` at it, or run `trivy rootfs` over the
-   resolved `~/.m2` artifacts.
+   resolved `~/.m2` artifacts. Adding flags to the existing `scan-type: fs` step cannot work —
+   the joined coordinate-plus-version fact exists in no file.
 2. Add a CI assertion that the scan detects a known-vulnerable fixture, so a
    silently-detecting-nothing scanner fails loudly. A check that can only pass is not a check.
 3. Enable Dependabot alerts on `cashu-vault` and `cashu-ledger`; add a scan to `cashu-ledger`.
