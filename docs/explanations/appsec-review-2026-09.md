@@ -544,6 +544,13 @@ These are load-bearing and should be protected by tests before any refactor:
   commits or strands. `release()` is never called after signing. A commit that spends
   fewer proofs than were held is a failure, not a success, which catches a no-op vault.
   The failure mode is a loss for one wallet, never inflation.
+
+  **But nothing asserts the ordering.** Inverting it to `signOutputs()` then
+  `markSigning()` — precisely the hazard the javadoc warns about — leaves all 377
+  `cashu-mint-protocol` tests green. No test in that module so much as references
+  `markSigning`. The reasoning is documented and correct; a refactor that tidied those two
+  lines into a more natural-looking order would pass CI and reopen a double-spend window.
+  Tracked as [cashu-mint#437](https://github.com/398ja/cashu-mint/issues/437).
 - **NUT-11 thresholds count distinct keys.** `SigningKeyCounter` deduplicates on the
   x-only coordinate, so the same signature submitted twice, or a repeated pubkey in a
   crafted secret, cannot satisfy an n-of-m threshold. Verified with real BIP-340 signatures
@@ -613,13 +620,17 @@ the code. Severity labels (`sev:high` … `sev:info`) match the table above.
 | L-4 (High) | [cashu-mint#432](https://github.com/398ja/cashu-mint/issues/432), [cashu-lib#266](https://github.com/398ja/cashu-lib/issues/266), [cashu-vault#140](https://github.com/398ja/cashu-vault/issues/140), [cashu-voucher#36](https://github.com/398ja/cashu-voucher/issues/36), [cashu-wallet#48](https://github.com/398ja/cashu-wallet/issues/48), [cashu-ledger#9](https://github.com/398ja/cashu-ledger/issues/9) |
 | I-1 | [cashu-mint#430](https://github.com/398ja/cashu-mint/issues/430) |
 
-Two items outside the findings table, both surfaced while verifying other claims:
+Items outside the findings table, surfaced while verifying other claims or promised in
+§ Suggested standing controls:
 
 | Item | Issue |
 |---|---|
 | NUT-11 distinct-key counting had no test coverage | [cashu-lib#265](https://github.com/398ja/cashu-lib/issues/265) |
 | The locktime narrowing rationale is inverted in the code comment | [cashu-mint#431](https://github.com/398ja/cashu-mint/issues/431) |
 | `CONTRIBUTING.md` targets a `develop` branch 143 commits stale | [cashu-mint#434](https://github.com/398ja/cashu-mint/issues/434) |
+| ArchUnit rule requiring `@Valid` on constrained `@RequestBody` parameters | [cashu-mint#435](https://github.com/398ja/cashu-mint/issues/435) |
+| Bump `jackson` 2.18.1 → 2.18.8 and `postgresql` 42.7.7 → 42.7.12 (5 runtime HIGHs) | [cashu-mint#436](https://github.com/398ja/cashu-mint/issues/436) |
+| Audit load-bearing invariants for test coverage, not just correctness | [cashu-mint#437](https://github.com/398ja/cashu-mint/issues/437) |
 
 ---
 
@@ -642,9 +653,11 @@ Two items outside the findings table, both surfaced while verifying other claims
 - **Security regression tests as policy.** Each finding above should close with a test
   that fails on the unfixed code. H-1's tests and `SigCountTest` are the template.
 - **Cover the invariants, not just the fixes.** `SigningKeyCounter` was correct but untested,
-  and the swap-hold and `ProofAuthenticity` rationales are load-bearing enough to deserve the
-  same treatment. A property that no test asserts is a property the next refactor may remove
-  silently.
+  and so is the swap-hold `markSigning` ordering — inverting it leaves all 377 protocol tests
+  green. A property that no test asserts is a property the next refactor may remove silently,
+  and "the comment explains why" is not a control. Tracked as
+  [cashu-mint#437](https://github.com/398ja/cashu-mint/issues/437), with a list of the
+  invariants worth mutating.
 - **An `@Valid` lint.** The root cause of H-1 is that a constraint can be declared in
   one module and silently ignored in another. An ArchUnit rule requiring every
   `@RequestBody` parameter whose type declares Bean Validation constraints to also
