@@ -43,7 +43,7 @@ layer and never enforced in the layer that receives the request.
 | Sev | ID | Finding | Location |
 |---|---|---|---|
 | High | H-1 | Bean-validation size limits on `/v1/restore` and `/v1/checkstate` are never enforced; no `@Valid`, no validation starter — **fixed in this review** | `CashuController`, `cashu-mint-rest/pom.xml` |
-| Medium | M-1 | Trace ledger authorization is per-controller convention, not a filter-chain rule (`anyRequest().permitAll()`) | `cashu-ledger-web/.../SecurityConfig` |
+| Medium | M-1 | Trace ledger authorization is per-controller convention, not a filter-chain rule (`anyRequest().permitAll()`); 19 request mappings across 5 controllers have no authorization call at all | `cashu-ledger-web/.../SecurityConfig` |
 | Medium | M-2 | Issuance rate-limit identity is client-supplied and spoofable; the only real boundary is deployment topology | `IssuanceRateLimitFilter` |
 | Medium | M-3 | Admin authentication is a single shared in-memory credential, plain-text by default | `cashu-mint-rest/.../SecurityConfig` |
 | Low | L-1 | Jackson has no `StreamReadConstraints`; deep/long JSON is bounded only by the 2 MiB body cap | mint REST |
@@ -180,6 +180,32 @@ other five controllers (`ProxyController`, `VoucherController`, `WatchController
 legitimately public reads; the problem is that nothing in the configuration says
 which, so a new admin endpoint is unauthenticated by default and a deleted
 `requireAdmin` line is a silent privilege escalation rather than a build failure.
+
+Counted per controller (authorization calls vs. request mappings):
+
+| Controller | Authz calls | Mappings |
+|---|---|---|
+| `TraceController` | 20 | 12 |
+| `TraceAdminController` | 9 | 5 |
+| `ProxyController` | 0 | 7 |
+| `VoucherController` | 0 | 6 |
+| `UnclaimedController` | 0 | 3 |
+| `HomeController` | 0 | 1 |
+| `TraceStreamController` | 0 | 1 |
+| `WatchController` | 0 | 1 |
+
+So 19 mappings across five controllers are reachable with no authorization check in the
+handler and no rule in the chain.
+
+To be fair to the current state: these look like intentionally public reads. `ProxyController`
+despite its name is not an open forwarder — it delegates to the same local
+`VoucherLedgerService` as `/api/v1/vouchers/*`, serving `/proxy/*` for frontend compatibility,
+and voucher inspection is a public capability by design. So this finding is about the *absence
+of a stated boundary*, not a known-exploitable hole. The risk is the next endpoint, not the
+current ones: with `anyRequest().permitAll()`, an admin route added to any of these classes is
+open until someone remembers the in-method call, and no test or configuration will say
+otherwise. That is why the recommendation is to encode the decision in the chain rather than
+to add checks to these five controllers.
 
 This is the same structural lesson `ProofAuthenticity` documents in the mint: "every
 handler remembers to do this" is the pattern that already failed once.

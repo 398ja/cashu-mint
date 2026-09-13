@@ -17,6 +17,12 @@ All notable changes to the Cashu Mint will be documented in this file.
   for every caller rather than only the HTTP path, and `MethodArgumentNotValidException` is
   mapped to the protocol's error shape. Both regression tests were confirmed to fail without
   the enforcement.
+- `CashuControllerRequestLimitTest` covers the HTTP contract for the two limits with a real
+  validator attached, including that a request *at* the limit still succeeds. Removing `@Valid`
+  while keeping the task-layer checks turns the checkstate assertion from 400 into 200 and
+  leaves restore passing: `CrossMintCheckStateMerger` only reaches `CheckStateTask` once it has
+  a mint to query, so with no mints the list is unbounded across mint loading itself. Neither
+  layer is redundant.
 
 ### Added
 - `docs/explanations/appsec-review-2026-09.md` — an application security review across
