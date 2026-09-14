@@ -117,6 +117,9 @@ public class SecurityConfig {
         // than left to discover it: DelegatingPasswordEncoder honours an explicit {bcrypt}
         // prefix, and the branch below preserves it.
         if (!password.startsWith("{")) {
+            // Reachable only under the local profile: AdminPasswordStrengthValidator refuses an
+            // unprefixed value at startup in every other profile (issue #426), because a warning
+            // is not a decision and nothing here stopped one reaching production.
             log.warn("Admin password is stored in plain text. Prefer a hashed value: generate one "
                     + "with `spring encodepassword <password>` and set it including the {bcrypt} "
                     + "prefix.");
