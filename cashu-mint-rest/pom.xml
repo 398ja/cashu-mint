@@ -23,6 +23,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
+        <!--
+          The NUT request DTOs in cashu-lib-entities declare Bean Validation constraints
+          (PostRestoreRequest.MAX_OUTPUTS, PostCheckStateRequest.MAX_SECRETS,
+          PostSwapRequest/PostMintRequest MAX_OUTPUTS), and this module applies them with @Valid,
+          so it depends on a validator.
+
+          Declared explicitly rather than relied on transitively. A validator does already reach
+          this module by way of cashu-mint-jpa, but that is a runtime-scoped persistence
+          dependency with no reason to keep carrying a web-layer concern: if it ever drops the
+          starter, the constraints on unauthenticated endpoints go quiet with nothing failing to
+          compile.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <!-- Spec 002 T311 — HTTP Basic auth on /admin/** -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
