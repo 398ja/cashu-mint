@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
@@ -146,7 +147,19 @@ public class SwapProofHoldSigningOrderTest {
 
         assertThatThrownBy(() -> executeSwap(balancedRequest(2), holds, 0))
                 .as("a vault that spent no inputs must not yield a completed swap")
-                .isInstanceOf(CashuErrorException.class);
+                .isInstanceOf(CashuErrorException.class)
+                // proofs_pending, not a generic failure: the wallet is being told its inputs are
+                // in an unresolved state and must not be treated as spendable elsewhere.
+                .extracting(error -> ((CashuErrorException) error).getErrorCode())
+                .isEqualTo(CashuErrorCode.proofs_pending);
+
+        // Assert on the cause, not just that something was thrown. The swap wraps a failed commit
+        // in a stranded-hold exception, so without this the test would pass for any failure
+        // anywhere in the swap -- including one that never reached commit() at all.
+        assertThatThrownBy(() -> executeSwap(balancedRequest(2), holds, 0))
+                .cause()
+                .as("the failure must come from the commit count check itself")
+                .hasMessageContaining("only 0 were spent");
 
         assertThat(holds.phases)
                 .as("the hold must not be recorded COMMITTED when nothing was spent")
@@ -167,7 +180,11 @@ public class SwapProofHoldSigningOrderTest {
 
         assertThatThrownBy(() -> executeSwap(balancedRequest(2), holds, 1))
                 .as("a vault that spent 1 of 2 held inputs must not yield a completed swap")
-                .isInstanceOf(CashuErrorException.class);
+                .isInstanceOf(CashuErrorException.class)
+                .cause()
+                .as("the failure must name the shortfall, so it cannot be confused with an "
+                        + "unrelated swap failure that happened to throw")
+                .hasMessageContaining("held 2 inputs but only 1 were spent");
 
         assertThat(holds.phases)
                 .as("a partially spent hold must not be recorded COMMITTED")
@@ -186,11 +203,17 @@ public class SwapProofHoldSigningOrderTest {
         OrderRecordingHoldRepository holds = new OrderRecordingHoldRepository();
 
         assertThatThrownBy(() -> executeSwap(balancedRequest(2), holds, 0))
-                .isInstanceOf(CashuErrorException.class);
+                .isInstanceOf(CashuErrorException.class)
+                .cause()
+                .hasMessageContaining("only 0 were spent");
 
         assertThat(holds.phases)
                 .as("outputs are already signed, so the inputs must never become spendable again")
                 .doesNotContain(SwapHoldPhase.RELEASED);
+        assertThat(holds.phases)
+                .as("the hold must still exist to be recovered from, i.e. it was opened and "
+                        + "advanced to SIGNING before the commit failed")
+                .contains(SwapHoldPhase.SIGNING);
     }
 
     // --- harness ---------------------------------------------------------------------------
