@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.mint.rest.config.IssuanceRateLimitProperties;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -33,6 +34,20 @@ class IssuanceRateLimitFilterTest {
         IssuanceRateLimitProperties p = new IssuanceRateLimitProperties();
         p.setPerMinuteBurst(burst);
         p.setPerDay(perDay);
+        return p;
+    }
+
+    /**
+     * Properties that trust the identity header from the loopback-ish test addresses.
+     *
+     * <p>Needed since AppSec finding M-2 (issue #425): the header no longer selects a bucket on
+     * its own, because that let any caller rotate it and mint unlimited quota. It now only
+     * subdivides the remote address's bucket, and only from a peer on the trusted-proxy
+     * allowlist. Tests about per-identity isolation therefore have to say which peer is trusted.
+     */
+    private IssuanceRateLimitProperties trustingProps(int burst, int perDay) {
+        IssuanceRateLimitProperties p = props(burst, perDay);
+        p.setTrustedProxies(List.of("0.0.0.0/0"));
         return p;
     }
 
@@ -79,8 +94,10 @@ class IssuanceRateLimitFilterTest {
 
     @Test
     void secondIdentityUnaffected() throws Exception {
-        // One identity hitting its cap does not throttle a different identity (header-keyed).
-        TestableFilter filter = new TestableFilter(props(1, 100));
+        // One identity hitting its cap does not throttle a different identity behind the same
+        // trusted proxy. The proxy must be trusted for the header to be honoured at all (#425):
+        // from an untrusted peer both identities share the address bucket, which is the point.
+        TestableFilter filter = new TestableFilter(trustingProps(1, 100));
         FilterChain chain = mock(FilterChain.class);
         filter.run(request("alice", "1.1.1.1"), response(), chain); // alice #1 allowed
         filter.run(request("alice", "1.1.1.1"), response(), chain); // alice #2 blocked
@@ -92,7 +109,7 @@ class IssuanceRateLimitFilterTest {
     void identityHeaderControlCharsStripped() throws Exception {
         // Control chars in the identity header are stripped, so an injected variant maps to the SAME bucket
         // (defends against CR/LF log injection and bucket-bypass via cosmetic header variation).
-        TestableFilter filter = new TestableFilter(props(2, 100));
+        TestableFilter filter = new TestableFilter(trustingProps(2, 100));
         FilterChain chain = mock(FilterChain.class);
         filter.run(request("dave", "9.9.9.9"), response(), chain);   // dave #1 allowed
         filter.run(request("dave", "9.9.9.9"), response(), chain);   // dave #2 allowed (burst = 2)
@@ -113,5 +130,54 @@ class IssuanceRateLimitFilterTest {
         filter.run(request(null, "8.8.8.8"), response(), chain);   // different ip allowed
         verify(chain, times(2)).doFilter(any(), any());
         verify(blocked).setStatus(429);
+    }
+
+    @Test
+    void identityHeaderIgnoredWhenNoProxyIsTrusted() throws Exception {
+        // With no trusted-proxy allowlist configured -- the default -- the identity header must
+        // carry no weight at all. This is the state a fresh deployment starts in, so if the
+        // header were believed here, rotating it would mint unlimited quota on any mint that had
+        // not yet configured the allowlist: finding M-2 (issue #425) in its original form.
+        TestableFilter filter = new TestableFilter(props(1, 100));
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("alice", "9.9.9.9"), response(), chain);
+        HttpServletResponse blocked = response();
+        filter.run(request("bob", "9.9.9.9"), blocked, chain);
+        // Same address, different header: still one bucket, so the second call is refused.
+        verify(chain, times(1)).doFilter(any(), any());
+        verify(blocked).setStatus(429);
+    }
+
+    @Test
+    void identityHeaderIgnoredFromAnUntrustedPeer() throws Exception {
+        // An allowlist that does not cover the caller must be treated as no trust for that
+        // caller, rather than falling back to believing the header.
+        IssuanceRateLimitProperties properties = props(1, 100);
+        properties.setTrustedProxies(List.of("10.0.0.0/8"));
+        TestableFilter filter = new TestableFilter(properties);
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("alice", "9.9.9.9"), response(), chain);
+        HttpServletResponse blocked = response();
+        filter.run(request("bob", "9.9.9.9"), blocked, chain);
+        verify(chain, times(1)).doFilter(any(), any());
+        verify(blocked).setStatus(429);
+    }
+
+    @Test
+    void trustedPeerGetsAnIndependentBucketPerIdentity() throws Exception {
+        // Pins the cost of trusting a peer, which is easy to misread as a stronger guarantee than
+        // it is. Behind a trusted proxy each identity gets its own full-sized bucket, so four
+        // identities against a burst of 1 produce four admissions. That is the intended feature --
+        // it is what a proxy that reports real per-user identity is for -- but it means the
+        // allowlist is a statement that the operator vouches for those headers. List an address
+        // that can be reached by untrusted callers and the limit is effectively gone for them,
+        // which is why the allowlist is empty by default.
+        TestableFilter filter = new TestableFilter(trustingProps(1, 100));
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("id-1", "7.7.7.7"), response(), chain);
+        filter.run(request("id-2", "7.7.7.7"), response(), chain);
+        filter.run(request("id-3", "7.7.7.7"), response(), chain);
+        filter.run(request("id-4", "7.7.7.7"), response(), chain);
+        verify(chain, times(4)).doFilter(any(), any());
     }
 }

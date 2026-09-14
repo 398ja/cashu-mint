@@ -4,13 +4,16 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Dalia Phase 9 — per-identity mint-issuance rate limit knobs.
  *
  * <p>Bound under {@code cashu.mint.issuance.rate-limit} (deliberately not under
  * {@code cashu.mint.voucher.*}, to avoid colliding with the unrelated voucher {@code IouPolicy}).
- * The limit covers all {@code /v1/mint} issuance, keyed by an engine-supplied identity header when
- * present, else the caller's remote address.
+ * The limit covers all {@code /v1/mint} issuance, keyed by the caller's remote address, refined by
+ * an engine-supplied identity header when that header can be trusted.
  */
 @Getter
 @Setter
@@ -26,6 +29,23 @@ public class IssuanceRateLimitProperties {
     /** Max mint requests per identity per day. Default ~60 (spec §6.4 / O-13). */
     private int perDay = 60;
 
-    /** Header carrying the engine-supplied caller identity; falls back to the remote address. */
+    /** Header carrying the engine-supplied caller identity; refines the remote-address bucket. */
     private String identityHeader = "X-Dalia-Identity";
+
+    /**
+     * Peers whose {@link #identityHeader} is believed (AppSec finding M-2, issue #425).
+     *
+     * <p>The header is client-supplied. When it selected the bucket on its own, a caller who
+     * could reach {@code /v1/mint} directly rotated it per request and minted a fresh quota every
+     * time; the remote-address fallback never engaged, because the attacker always sent one.
+     *
+     * <p>Entries are literal remote addresses or CIDR blocks, e.g.
+     * {@code 10.0.0.0/8,127.0.0.1}. Empty — the default — means no peer is trusted and the header
+     * is ignored entirely, which is the safe reading when nobody has stated where the engine sits.
+     * Listing a peer means asserting its identity header is trustworthy: each distinct header value
+     * from that peer receives its own full-sized bucket. That is what makes a real proxy useful,
+     * and it is also why the list is empty by default -- an entry reachable by untrusted callers
+     * lets them multiply their quota by rotating the header.
+     */
+    private List<String> trustedProxies = new ArrayList<>();
 }

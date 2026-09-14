@@ -123,9 +123,21 @@ public class P2PKSpendingCondition implements SpendingCondition<P2PKSecret> {
         }
 
         boolean locktimeHasPassed() {
-            // long, not int: a locktime is a Unix timestamp, and narrowing one past 2038 wrapped
-            // it negative, which this comparison then read as "long expired" and unlocked the
-            // proof (cashu-lib audit H-5).
+            // long, not int: a locktime is a Unix timestamp, and one past 2038 does not fit in a
+            // signed int.
+            //
+            // An earlier version of this comment said a narrowed value "wrapped negative, which
+            // this comparison then read as 'long expired' and unlocked the proof". That is
+            // backwards, and worth correcting rather than deleting, because a wrong security
+            // rationale teaches the next reader the wrong threat model. The guard has always
+            // been `> 0 &&`, and a wrapped value is negative, so it fails that test and the
+            // locktime reads as NOT passed: 2_600_000_000L (year 2052) narrows to -1694967296.
+            //
+            // The real pre-fix failure was therefore the opposite one. A proof with a post-2038
+            // locktime stayed locked for ever, and the refund pathway -- reachable only after
+            // the locktime passes -- became unreachable with it. Funds stuck, not funds
+            // stealable. Milder than advertised, still worth having fixed, and `long` is the
+            // right type either way.
             long locktime = secret.getLockTime();
             return locktime > 0 && locktime < System.currentTimeMillis() / 1000;
         }

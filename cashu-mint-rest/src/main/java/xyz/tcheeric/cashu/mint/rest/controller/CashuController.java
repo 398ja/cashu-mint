@@ -8,8 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -159,7 +159,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // Spec-compliant: infer mint from inputs' keyset id
     @PostMapping("/swap")
-    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request,
+    public ResponseEntity<PostSwapResponse> swap(@Valid @RequestBody PostSwapRequest<T> request,
                                                  HttpServletRequest httpRequest) throws CashuErrorException {
         // Extract request ID for tracing duplicate requests
         String requestId = httpRequest.getHeader(REQUEST_ID_HEADER);
@@ -273,7 +273,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // NUT-04: POST /mint/{method} with quote and outputs in body
     @PostMapping("/mint/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
+    public ResponseEntity<PostMintResponse> mint(@Valid @RequestBody PostMintRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -367,7 +367,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // NUT-05: POST /melt/{method} with quote and inputs in body
     @PostMapping("/melt/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request,
+    public ResponseEntity<PostMeltResponse> melt(@Valid @RequestBody PostMeltRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -731,13 +731,13 @@ public class CashuController<T extends Secret> implements org.springframework.co
     }
 
     /**
-     * A request body that violates its declared Bean Validation constraints, reported in the
-     * protocol's own error shape.
+     * A request body that violates its declared Bean Validation constraints, in the protocol's
+     * own error shape.
      *
-     * <p>Without this handler Spring answers with its default body, which is not an
-     * {@link ErrorResponse} and carries no NUT error code, so a wallet cannot tell an
-     * over-sized request from any other 400. The constraint messages name the violated limit
-     * and nothing about the request's contents, so they are safe to return.
+     * <p>Without this, Spring answers with its default body, which is not an {@link ErrorResponse}
+     * and carries no NUT error code, so a wallet cannot tell an over-sized request from any other
+     * 400. The constraint messages name the violated limit and nothing about the request's
+     * contents, so they are safe to return.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRequestBody(MethodArgumentNotValidException ex) {
