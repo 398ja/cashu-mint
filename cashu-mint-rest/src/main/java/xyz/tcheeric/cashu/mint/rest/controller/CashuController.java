@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,6 +64,7 @@ import org.springframework.lang.Nullable;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -156,7 +159,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // Spec-compliant: infer mint from inputs' keyset id
     @PostMapping("/swap")
-    public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest<T> request,
+    public ResponseEntity<PostSwapResponse> swap(@Valid @RequestBody PostSwapRequest<T> request,
                                                  HttpServletRequest httpRequest) throws CashuErrorException {
         // Extract request ID for tracing duplicate requests
         String requestId = httpRequest.getHeader(REQUEST_ID_HEADER);
@@ -270,7 +273,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // NUT-04: POST /mint/{method} with quote and outputs in body
     @PostMapping("/mint/{method}")
-    public ResponseEntity<PostMintResponse> mint(@RequestBody PostMintRequest<T> request,
+    public ResponseEntity<PostMintResponse> mint(@Valid @RequestBody PostMintRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -364,7 +367,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // NUT-05: POST /melt/{method} with quote and inputs in body
     @PostMapping("/melt/{method}")
-    public ResponseEntity<PostMeltResponse> melt(@RequestBody PostMeltRequest<T> request,
+    public ResponseEntity<PostMeltResponse> melt(@Valid @RequestBody PostMeltRequest<T> request,
                                                          @PathVariable("method") String method) throws CashuErrorException {
         if (request.getQuoteId() == null || request.getQuoteId().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -472,12 +475,12 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // Spec-compliant: /v1/checkstate without mint id; infer or merge across mints
     @PostMapping("/checkstate")
-    public ResponseEntity<PostCheckStateResponse> checkstate(@RequestBody PostCheckStateRequest request) throws CashuErrorException {
+    public ResponseEntity<PostCheckStateResponse> checkstate(@Valid @RequestBody PostCheckStateRequest request) throws CashuErrorException {
         return ResponseEntity.ok(checkStateMerger.merge(request));
     }
 
     @PostMapping("/restore")
-    public ResponseEntity<PostRestoreResponse> restore(@RequestBody PostRestoreRequest request) throws CashuErrorException {
+    public ResponseEntity<PostRestoreResponse> restore(@Valid @RequestBody PostRestoreRequest request) throws CashuErrorException {
         PostRestoreResponse response = NUT09.restore(request, signatureVaultService);
         return ResponseEntity.ok(response);
     }
@@ -725,6 +728,27 @@ public class CashuController<T extends Secret> implements org.springframework.co
     public ResponseEntity<ErrorResponse> handleMalformedP2PKSecret(MalformedP2PKSecretException ex) {
         log.warn("verify_proof_failed_error malformed_p2pk_secret: {}", ex.getMessage());
         return respond(CashuErrorCode.verify_proof_failed_error, ex.getMessage());
+    }
+
+    /**
+     * A request body that violates its declared Bean Validation constraints, in the protocol's
+     * own error shape.
+     *
+     * <p>Without this, Spring answers with its default body, which is not an {@link ErrorResponse}
+     * and carries no NUT error code, so a wallet cannot tell an over-sized request from any other
+     * 400. The constraint messages name the violated limit and nothing about the request's
+     * contents, so they are safe to return.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRequestBody(MethodArgumentNotValidException ex) {
+        String detail = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        log.warn("invalid request body: {}", detail);
+        return new ResponseEntity<>(
+                ErrorResponse.of(CashuErrorCode.internal_error,
+                        detail.isEmpty() ? "Request body failed validation" : detail),
+                HttpStatus.BAD_REQUEST);
     }
 
     /**
