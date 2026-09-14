@@ -1,8 +1,16 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft -> 1.2.0
+  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft -> 1.2.0 -> 1.2.1
   Modified principles:
+    - 1.2.1: Development Workflow / Branching corrected to name `master`
+      rather than `develop`. PATCH: a wording fix that describes what the
+      project already does, with no principle added, removed or redefined.
+      The old text was actively harmful -- a PR opened against `develop` as
+      instructed showed 653 files changed because it swept in the 153
+      commits `master` had that `develop` lacked, hiding a 12-file change
+      from its reviewer. Fixed in CONTRIBUTING.md first (#447); this is the
+      same correction in the second place it was written down.
     - 1.2.0: Principle VII (Data Minimisation and Customer-Identity
       Custody) RATIFIED. Spec 004's plan + tasks + implementation
       (T010) demonstrate the principle in action. Promoted from
@@ -313,4 +321,4 @@ conventions.
   module structure, and operational patterns (vault persistence,
   gateway adapters, voucher system, virtual-thread usage).
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-22 | **Last Amended**: 2026-05-22
+**Version**: 1.2.1 | **Ratified**: 2026-05-22 | **Last Amended**: 2026-09-14
