@@ -5,6 +5,10 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.mock.env.MockEnvironment;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,6 +19,7 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,17 +52,66 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class RequestBodyValidationRuleTest {
 
+    /** Root package scanned for {@code @RestController} classes. */
+    private static final String CONTROLLER_PACKAGE = "xyz.tcheeric.cashu.mint.rest";
+
     /**
-     * Controllers scanned by this rule. Listed explicitly rather than discovered from the
-     * classpath: a scan that silently finds nothing is the failure mode this whole review kept
-     * running into, and an explicit list fails loudly when a class is renamed.
+     * Lower bound on the number of controllers the scan must find.
+     *
+     * <p>A scan that silently finds nothing is the failure mode this whole review kept running
+     * into, so the count is asserted rather than trusted. The bound is deliberately below the
+     * current count: it exists to catch a broken scan, not to need editing whenever a controller
+     * is added.
      */
-    private static final List<Class<?>> CONTROLLERS = List.of(
-            CashuController.class,
-            VoucherController.class,
-            VoucherProvenanceController.class,
-            xyz.tcheeric.cashu.mint.rest.controller.admin.MeltSagaAdminController.class,
-            xyz.tcheeric.cashu.mint.rest.controller.admin.VoucherForensicController.class);
+    private static final int MINIMUM_EXPECTED_CONTROLLERS = 5;
+
+    /**
+     * Every {@code @RestController} under {@link #CONTROLLER_PACKAGE}.
+     *
+     * <p>Discovered rather than listed. An earlier version of this rule enumerated the five
+     * controllers by hand, which meant a sixth would have been outside the rule entirely -- the
+     * new controller, the one most likely to repeat #424, would have been the one not checked.
+     * Self-review caught that.
+     */
+    private static List<Class<?>> controllers() {
+        // The scanner evaluates @Conditional metadata, so it must be given an environment in which
+        // the conditions hold. Without this, VoucherProvenanceController and
+        // VoucherForensicController -- both @ConditionalOnProperty(cashu.mint.jpa.enabled) -- were
+        // silently dropped, and the rule checked three controllers while appearing to check all of
+        // them. A conditionally-registered controller still serves requests wherever its condition
+        // holds, so it is exactly as much in scope as any other. The count assertion below caught
+        // this; overriding isCandidateComponent does not, because the condition check happens in a
+        // private method that runs earlier.
+        MockEnvironment environment = new MockEnvironment();
+        CONDITIONAL_PROPERTIES.forEach(environment::setProperty);
+
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false, environment);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
+
+        List<Class<?>> found = new ArrayList<>();
+        for (BeanDefinition definition : scanner.findCandidateComponents(CONTROLLER_PACKAGE)) {
+            try {
+                found.add(Class.forName(definition.getBeanClassName()));
+            } catch (ClassNotFoundException e) {
+                throw new IllegalStateException(
+                        "scanned controller " + definition.getBeanClassName()
+                                + " is not loadable; the rule cannot check it", e);
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Properties that must be set for conditionally-registered controllers to be scanned.
+     *
+     * <p>These are not configuration for the test so much as a statement that the controllers
+     * guarded by them are in scope. If a new {@code @ConditionalOnProperty} controller appears and
+     * is not represented here, the controller count assertion fails rather than quietly skipping
+     * it.
+     */
+    private static final Map<String, String> CONDITIONAL_PROPERTIES =
+            Map.of("cashu.mint.jpa.enabled", "true");
 
     /** How deep to walk a DTO's field types looking for constraints. Bounds cyclic models. */
     private static final int MAX_DEPTH = 3;
@@ -66,11 +120,14 @@ class RequestBodyValidationRuleTest {
     void everyConstrainedRequestBodyIsValidated() {
         List<String> violations = new ArrayList<>();
 
-        for (Class<?> controller : CONTROLLERS) {
-            assertThat(controller.isAnnotationPresent(RestController.class))
-                    .as("%s should be a @RestController; the rule is scanning the wrong class",
-                            controller.getSimpleName())
-                    .isTrue();
+        List<Class<?>> controllers = controllers();
+        assertThat(controllers)
+                .as("component scan of %s found %d controllers; a scan that finds nothing would "
+                                + "make this rule pass by checking nothing",
+                        CONTROLLER_PACKAGE, controllers.size())
+                .hasSizeGreaterThanOrEqualTo(MINIMUM_EXPECTED_CONTROLLERS);
+
+        for (Class<?> controller : controllers) {
 
             for (Method method : controller.getDeclaredMethods()) {
                 for (Parameter parameter : method.getParameters()) {
