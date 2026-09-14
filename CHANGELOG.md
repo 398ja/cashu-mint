@@ -2,6 +2,39 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- `/v1/restore` and `/v1/checkstate` now enforce their declared request-size limits.
+  `PostRestoreRequest.MAX_OUTPUTS` and `PostCheckStateRequest.MAX_SECRETS` were declared as
+  Bean Validation `@Size` constraints and never applied, because the controllers bound the
+  body without `@Valid`. Both endpoints are unauthenticated and both perform one vault lookup
+  per element — and `checkstate` repeats that per mint, archived ones included — so a single
+  2 MiB body turned into tens of thousands of vault calls, amplifying into the component every
+  value-moving path depends on. The limits are additionally enforced inside
+  `RestoreSignaturesTask` and `CheckStateTask` so they hold for every caller rather than only
+  the HTTP path, and `MethodArgumentNotValidException` is mapped to the protocol's error
+  shape. Every regression test was confirmed to fail without the enforcement.
+- `CashuControllerRequestLimitTest` covers the HTTP contract with a supplied validator,
+  including that a request *at* the limit still succeeds. `RequestSizeLimitIT` covers the same
+  through the real application context, which is the only one of the two that speaks to the
+  deployed wiring. Removing `@Valid` fails both.
+- `cashu-mint-rest` now declares `spring-boot-starter-validation` explicitly. It is not what
+  fixed the vulnerability: a validator already reached the module transitively through
+  `cashu-mint-jpa`, which was confirmed by removing the dependency and observing the tests
+  still pass. It is declared because a runtime-scoped persistence module is not where a
+  web-layer validator should come from — if that module drops it, constraints on two
+  unauthenticated endpoints go silent with nothing failing to compile.
+
+### Added
+- `SigCountTest` covers the NUT-11 rule that a signature threshold counts distinct public
+  keys rather than signatures. The rule had no test: deleting the deduplication in
+  `SigningKeyCounter` lets one key satisfy a 2-of-2, which is a forged multisig, and nothing
+  in the suite objected. The implementation was already correct; only the coverage was missing.
+- `docs/explanations/appsec-review-2026-09.md` — an application security review across
+  cashu-lib, cashu-mint, cashu-vault, cashu-ledger, cashu-voucher and cashu-wallet, recording
+  the findings, the reasoning behind each severity, and what the codebase already gets right.
+
 ## [0.36.3] - 2026-09-14
 
 ### Added

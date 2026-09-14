@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.HashToCurveSecret;
 import xyz.tcheeric.cashu.common.Mint;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
@@ -52,6 +53,7 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
 
     @Override
     protected PostCheckStateResponse doExecute() throws CashuErrorException {
+        requireCountWithinLimit();
         PostCheckStateResponse response = new PostCheckStateResponse();
 
         MintEntity mintEntity = mintProtocolService.toMintEntity(new Mint(mintId.toString()));
@@ -79,5 +81,26 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
         }
 
         return response;
+    }
+
+    /**
+     * Refuses a request carrying more {@code Ys} than {@link PostCheckStateRequest#MAX_SECRETS}.
+     *
+     * <p>The limit is declared on the request DTO as a Bean Validation {@code @Size} constraint,
+     * which only fires where something applies it. Enforced here because this task performs one
+     * vault lookup per requested {@code Y} and is run once per mint by
+     * {@code CrossMintCheckStateMerger} — across active and archived mints alike — so an
+     * unbounded list is multiplied before it reaches the vault that every value-moving path
+     * depends on. {@code /v1/checkstate} carries no authenticated principal, so the bound cannot
+     * rest on the caller being known.
+     *
+     * @throws CashuErrorException {@link CashuErrorCode#too_many_inputs} when the limit is exceeded
+     */
+    private void requireCountWithinLimit() throws CashuErrorException {
+        int requestedCount = request.getHashToCurveSecrets().size();
+        if (requestedCount > PostCheckStateRequest.MAX_SECRETS) {
+            throw new CashuErrorException(CashuErrorCode.too_many_inputs,
+                    "Maximum " + PostCheckStateRequest.MAX_SECRETS + " secrets allowed");
+        }
     }
 }
