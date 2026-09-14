@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 
 import javax.sql.DataSource;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Spec 004 review fix (Codex PR #324) — extracted from
@@ -31,6 +32,44 @@ public class VoucherIdentityBackfillBatch {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * Tables this batch may touch (AppSec finding L-2, issue #429).
+     *
+     * <p>The SQL below interpolates the table and column names, because neither can be a bind
+     * parameter. That is not exploitable today: the only production caller passes keys from
+     * {@code VoucherIdentityBackfillService.LIVE_TABLES}, and the values are parameterised. But
+     * {@code hashOneBatch} is public and takes three {@code String} identifiers, and
+     * {@code VoucherIdentityBackfillService} re-exposes it as another public overload, so it is
+     * one careless caller — an admin endpoint, an ops tool, a backfill for a new column — away
+     * from injection, with nothing at the boundary saying so.
+     *
+     * <p>Keeping the constraint next to the interpolation means it holds for every caller rather
+     * than relying on each one's discipline.
+     */
+    private static final Set<String> ALLOWED_TABLES = Set.of(
+            "voucher_quote", "voucher_quote_aud",
+            "customer_payment_funding", "customer_payment_funding_aud",
+            "merchant_debit_funding", "merchant_debit_funding_aud",
+            "merchant_iou_funding", "merchant_iou_funding_aud");
+
+    /** Identity columns this batch may hash. */
+    private static final Set<String> ALLOWED_COLUMNS = Set.of("customer_id", "merchant_id");
+
+    /**
+     * Refuses an identifier that is not on the allowlist.
+     *
+     * <p>Rejects rather than quotes. Quoting would make arbitrary identifiers safe to
+     * interpolate, which invites passing them; refusing keeps the set of reachable tables a
+     * property of this class that a reader can see at a glance.
+     */
+    private static void requireAllowed(String identifier, Set<String> allowed, String kind) {
+        if (identifier == null || !allowed.contains(identifier)) {
+            throw new IllegalArgumentException(
+                    "Not a permitted " + kind + " for the voucher identity backfill: "
+                            + identifier + ". Permitted: " + allowed);
+        }
+    }
+
     public VoucherIdentityBackfillBatch(@Qualifier("mintJpaDataSource") DataSource dataSource) {
         this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
@@ -48,6 +87,9 @@ public class VoucherIdentityBackfillBatch {
     @Transactional("mintTransactionManager")
     public long hashOneBatch(String liveTable, String audTable, String column,
                              IdentityHasher hasher, int batchSize) {
+        requireAllowed(liveTable, ALLOWED_TABLES, "table");
+        requireAllowed(audTable, ALLOWED_TABLES, "table");
+        requireAllowed(column, ALLOWED_COLUMNS, "column");
         String selectSql = "SELECT DISTINCT " + column + " FROM " + liveTable
                 + " WHERE " + column + " IS NOT NULL"
                 + "   AND " + column + " !~ '^[0-9a-f]{64}$'"
