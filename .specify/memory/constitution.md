@@ -281,8 +281,13 @@ rejected. The two principles are designed to coexist — see spec
   (`cashu-mint.version` and related `<groupId>.version` properties);
   use `/bumpup` for coordinated bumps across producer/consumer
   pin chains
-- **Branching**: Feature branches off `develop`; PRs target
-  `develop`; `master` tracks released versions
+- **Branching**: Feature branches off `master`; PRs target
+  `master`, which is the integration branch. An earlier revision of
+  this document named `develop`, but `develop` has been stale for
+  months (153 commits behind at the time of writing) while every PR
+  targeted `master`. Following the old guidance produced PRs whose
+  diff swept in everything `master` had that `develop` lacked, hiding
+  the actual change from reviewers
 - **Code review**: All PRs require review; financial-path changes
   MUST be reviewed by a second maintainer with explicit attention
   to the Token Integrity principle
