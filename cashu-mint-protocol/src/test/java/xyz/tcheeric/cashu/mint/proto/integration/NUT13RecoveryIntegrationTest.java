@@ -80,7 +80,13 @@ public class NUT13RecoveryIntegrationTest {
         // Mock protocol service
         protocolService = Mockito.mock(MintProtocolService.class);
         Mockito.when(protocolService.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        // Issuance resolves its key through getPrivateKeyForSigning, not getPrivateKey -- the two
+        // are deliberately separate so that archiving a keyset stops new issuance without
+        // breaking redemption of proofs it already signed (ADR-0004). Stubbing only the latter
+        // left signing with a null key, reported as "Private key not found".
         Mockito.when(protocolService.getPrivateKey(Mockito.anyString(), Mockito.anyInt(), Mockito.any()))
+                .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        Mockito.when(protocolService.getPrivateKeyForSigning(Mockito.anyString(), Mockito.anyInt(), Mockito.any()))
                 .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         // Mock mint load service with a Mint that has keyset(s) configured

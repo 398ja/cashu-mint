@@ -53,7 +53,16 @@ public class MintThenRestoreIntegrationTest {
 
         MintProtocolService protocolService = Mockito.mock(MintProtocolService.class);
         Mockito.when(protocolService.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        // Issuance resolves its key through getPrivateKeyForSigning, which is deliberately
+        // separate from getPrivateKey: archiving retires a keyset for issuance only, while the
+        // redemption paths must keep verifying proofs it already signed (ADR-0004). Stubbing
+        // only getPrivateKey left the signing path returning null, which surfaced as
+        // "Private key not found" -- a test that had rotted against the production code, not a
+        // defect in it. Both are stubbed so the test does not depend on which one the
+        // implementation reaches for.
         Mockito.when(protocolService.getPrivateKey(Mockito.anyString(), Mockito.anyInt(), Mockito.any()))
+                .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+        Mockito.when(protocolService.getPrivateKeyForSigning(Mockito.anyString(), Mockito.anyInt(), Mockito.any()))
                 .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
