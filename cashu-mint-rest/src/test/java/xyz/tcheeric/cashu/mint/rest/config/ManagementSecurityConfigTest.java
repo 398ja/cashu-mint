@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = {
         "voucher.enabled=false",
         "cashu.mint.admin.username=admin",
-        "cashu.mint.admin.password=test-operator-password"
+        "cashu.mint.admin.password={noop}test-operator-password"
 })
 class ManagementSecurityConfigTest {
 
