@@ -2,6 +2,15 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.36.3] - 2026-09-14
+
+### Added
+
+- **The swap-hold signing-order invariant is pinned by a test.** An AppSec review of the estate
+  raised it as an unwritten assumption: the order in which a swap and a hold are signed is
+  load-bearing, and nothing failed if it changed. A property nobody has written down is a
+  property the next refactor is free to break.
+
 ## [0.36.2] - 2026-09-12
 
 ### Changed
