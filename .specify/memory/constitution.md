@@ -1,8 +1,16 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft -> 1.2.0
+  Version change: 0.0.0 (template) -> 1.0.0 -> 1.1.0 -> 1.2.0-draft -> 1.2.0 -> 1.2.1
   Modified principles:
+    - 1.2.1: Development Workflow / Branching corrected to name `master`
+      rather than `develop`. PATCH: a wording fix that describes what the
+      project already does, with no principle added, removed or redefined.
+      The old text was actively harmful -- a PR opened against `develop` as
+      instructed showed 653 files changed because it swept in the 153
+      commits `master` had that `develop` lacked, hiding a 12-file change
+      from its reviewer. Fixed in CONTRIBUTING.md first (#447); this is the
+      same correction in the second place it was written down.
     - 1.2.0: Principle VII (Data Minimisation and Customer-Identity
       Custody) RATIFIED. Spec 004's plan + tasks + implementation
       (T010) demonstrate the principle in action. Promoted from
@@ -281,8 +289,13 @@ rejected. The two principles are designed to coexist — see spec
   (`cashu-mint.version` and related `<groupId>.version` properties);
   use `/bumpup` for coordinated bumps across producer/consumer
   pin chains
-- **Branching**: Feature branches off `develop`; PRs target
-  `develop`; `master` tracks released versions
+- **Branching**: Feature branches off `master`; PRs target
+  `master`, which is the integration branch. An earlier revision of
+  this document named `develop`, but `develop` has been stale for
+  months (153 commits behind at the time of writing) while every PR
+  targeted `master`. Following the old guidance produced PRs whose
+  diff swept in everything `master` had that `develop` lacked, hiding
+  the actual change from reviewers
 - **Code review**: All PRs require review; financial-path changes
   MUST be reviewed by a second maintainer with explicit attention
   to the Token Integrity principle
@@ -308,4 +321,4 @@ conventions.
   module structure, and operational patterns (vault persistence,
   gateway adapters, voucher system, virtual-thread usage).
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-22 | **Last Amended**: 2026-05-22
+**Version**: 1.2.1 | **Ratified**: 2026-05-22 | **Last Amended**: 2026-09-14
