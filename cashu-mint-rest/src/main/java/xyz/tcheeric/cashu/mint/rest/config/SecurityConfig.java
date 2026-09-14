@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
@@ -166,24 +167,37 @@ public class SecurityConfig {
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${cashu.mint.cors.allowed-origins:*}") String allowedOriginsCsv) {
+            @Value("${cashu.mint.cors.allowed-origins:}") String allowedOriginsCsv,
+            Environment environment) {
         CorsConfiguration config = new CorsConfiguration();
         List<String> origins = Arrays.stream(allowedOriginsCsv.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        if (origins.isEmpty() || origins.contains("*")) {
-            // Allow any origin. Browsers reject `*` on requests with
-            // credentials; cashu NUT endpoints don't carry credentials,
-            // so this is safe for the public protocol surface.
+        if (origins.isEmpty()) {
+            // Unset. `*` is defensible for a genuinely public NUT surface — browsers reject it
+            // on credentialed requests, and these endpoints carry no credentials — but a
+            // deployment should not arrive at it by default (AppSec finding I-1, issue #430).
+            // The previous code defaulted the property to `*` and logged a warning, which made
+            // "nobody configured this" indistinguishable from "we chose `*`".
             //
-            // Warned about because it is a default rather than a decision (audit M-1). The NUT
-            // surface is genuinely public, so `*` is defensible; what is not defensible is a
-            // deployment reaching production without anyone having considered whether it wanted
-            // that. Set cashu.mint.cors.allowed-origins to the wallet origins you serve.
+            // Outside the local profile that is now a startup failure. Writing `*` explicitly
+            // still works and is the documented way to keep the wildcard: the point is to
+            // convert a default into a decision, not to remove the option.
+            if (!isLocalProfile(environment)) {
+                throw new IllegalStateException(
+                        "cashu.mint.cors.allowed-origins is unset. The mint will not guess a "
+                                + "CORS policy for a non-local deployment. Set it to the wallet "
+                                + "origin(s) you serve, or to `*` if you intend the NUT surface "
+                                + "to be readable from any origin (which is reasonable for a "
+                                + "public mint, but should be a decision rather than a default).");
+            }
             log.warn("CORS is allowing ANY origin because cashu.mint.cors.allowed-origins is "
-                    + "unset. Acceptable for the public NUT surface; set it explicitly to the "
-                    + "wallet origin(s) you serve if that is not what you want.");
+                    + "unset. Permitted under the local profile only; a non-local profile fails "
+                    + "startup instead.");
+            config.addAllowedOriginPattern("*");
+        } else if (origins.contains("*")) {
+            log.info("CORS is allowing any origin by explicit configuration.");
             config.addAllowedOriginPattern("*");
         } else {
             config.setAllowedOrigins(origins);
@@ -202,5 +216,22 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/v1/**", config);
         source.registerCorsConfiguration("/webhook/**", config);
         return source;
+    }
+
+    /**
+     * Whether the mint is running under the {@code local} development profile.
+     *
+     * <p>Matches how {@code WebhookSecretStartupValidator} and
+     * {@code AdminPasswordStrengthValidator} decide the same question: {@code local} is for
+     * iterating without configuring production concerns, every other profile is treated as a
+     * real deployment.
+     */
+    private static boolean isLocalProfile(Environment environment) {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("local".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
