@@ -87,4 +87,28 @@ class CorsConfigurationPolicyTest {
                 ? java.util.List.of()
                 : config.getAllowedOriginPatterns();
     }
+
+    /**
+     * A wildcard mixed with named origins opens the surface to everything.
+     *
+     * <p>Worth pinning because the result is not obvious from the configuration. Writing
+     * {@code https://wallet.example,*} reads like "these origins, plus something else", but a
+     * wildcard subsumes every named entry, so the named ones have no effect. That is the correct
+     * CORS reading, and it is also how an operator ends up publishing an open policy while
+     * believing it is restricted -- so it should be a pinned, visible behaviour rather than a
+     * surprise discovered from a browser console.
+     */
+    @Test
+    void aWildcardAmongNamedOriginsOpensEverything() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("prod");
+
+        CorsConfigurationSource source =
+                securityConfig.corsConfigurationSource("https://wallet.example,*", environment);
+
+        assertThat(originPatternsFor(source)).contains("*");
+        assertThat(configFor(source).getAllowedOrigins())
+                .as("named origins are subsumed by the wildcard, not applied alongside it")
+                .isNullOrEmpty();
+    }
 }
