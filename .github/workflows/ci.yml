@@ -64,3 +64,54 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: '**/target/surefire-reports/*.xml'
+
+  # AppSec review finding M-4 (issue #427). Integration tests only run under
+  # -Pintegration-tests, and no workflow passed it, so `mvn verify` -- what CI runs and what
+  # CONTRIBUTING asks of contributors -- reported success without executing a single integration
+  # test. A skipped suite is indistinguishable from a passing one in every report anyone reads.
+  # The unrun set included ActuatorManagementPortIT, the test that keeps /actuator/prometheus
+  # (issuance rates, outstanding liability) off the public API port.
+  #
+  # Scoped to cashu-mint-protocol deliberately. Its 379 tests are hermetic and pass. The
+  # cashu-mint-rest-it module needs Docker and live sibling services: on a clean checkout it
+  # fails 47/37 of 169 with "Unexpected end of file from server" regardless of the change under
+  # review, so gating merges on it would produce a check that cannot go green -- the mirror of
+  # the check that cannot go red which this job exists to fix. Bringing that module into the
+  # gate needs its container fixtures sorted out first; tracked in #427.
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Install dependencies
+        run: ./mvnw -q -B -Pintegration-tests -pl cashu-mint-protocol -am -DskipTests install
+      - name: Run integration tests
+        run: ./mvnw -B -Pintegration-tests -pl cashu-mint-protocol test
+
+      # Proof that the profile actually selected integration tests. Without this, a change to
+      # the profile or the surefire includes could silently stop selecting them and this job
+      # would stay green -- which is exactly the failure mode #427 describes.
+      - name: Assert integration tests actually ran
+        if: always()
+        run: |
+          report_dir=cashu-mint-protocol/target/surefire-reports
+          test -d "$report_dir" || { echo "::error::No surefire reports produced"; exit 1; }
+          it_reports=$(ls "$report_dir" | grep -cE 'IntegrationTest\.txt$' || true)
+          echo "Integration test classes that ran: $it_reports"
+          if [ "$it_reports" -lt 2 ]; then
+            echo "::error::Only $it_reports integration test classes ran."
+            echo "::error::The -Pintegration-tests profile is not selecting them (issue #427)."
+            exit 1
+          fi
+
+      - name: Upload integration test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: cashu-mint-protocol/target/surefire-reports
+          if-no-files-found: ignore
