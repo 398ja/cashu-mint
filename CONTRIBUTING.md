@@ -6,7 +6,7 @@ Thank you for your interest in contributing to cashu-mint. This guide covers the
 
 1. Fork the repository and clone your fork.
 2. Set up your development environment following the [development workflow guide](docs/how-to/development-workflow.md).
-3. Create a branch from `develop` using the naming conventions below.
+3. Create a branch from `master` using the naming conventions below.
 
 ## Branch Naming
 
@@ -42,10 +42,17 @@ refactor(rest): extract mint resolution into service
    ```bash
    mvn -q verify
    ```
-2. Push your branch and open a PR against `develop`.
+2. Push your branch and open a PR against `master`.
 3. Fill in the PR template with a summary of changes and testing performed.
 4. Ensure CI checks pass (conventional commits, Google Java Format, unit tests).
-5. Address review feedback and keep the branch up to date with `develop`.
+5. Address review feedback and keep the branch up to date with `master`.
+
+> **On `develop`.** Earlier revisions of this guide named `develop` as the integration branch.
+> It has not been used as one for some time: it sits at `chore(release): cashu-mint 0.29.0`,
+> 143 commits behind `master`, while every recent PR targets `master` (#418, #420, #422, #423).
+> Following the old instruction produced a PR showing 653 files changed, because it swept in
+> everything `master` had that `develop` lacked — the real change was 12 files. `master` is the
+> integration branch; `develop` should be archived or fast-forwarded.
 
 ## Code Standards
 
