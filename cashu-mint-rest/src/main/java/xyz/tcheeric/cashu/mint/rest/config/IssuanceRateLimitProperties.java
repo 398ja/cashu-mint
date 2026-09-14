@@ -42,8 +42,10 @@ public class IssuanceRateLimitProperties {
      * <p>Entries are literal remote addresses or CIDR blocks, e.g.
      * {@code 10.0.0.0/8,127.0.0.1}. Empty — the default — means no peer is trusted and the header
      * is ignored entirely, which is the safe reading when nobody has stated where the engine sits.
-     * A request from a trusted peer still counts against that peer's address; the header only
-     * subdivides it. So a spoofed header splits one bucket rather than escaping it.
+     * Listing a peer means asserting its identity header is trustworthy: each distinct header value
+     * from that peer receives its own full-sized bucket. That is what makes a real proxy useful,
+     * and it is also why the list is empty by default -- an entry reachable by untrusted callers
+     * lets them multiply their quota by rotating the header.
      */
     private List<String> trustedProxies = new ArrayList<>();
 }

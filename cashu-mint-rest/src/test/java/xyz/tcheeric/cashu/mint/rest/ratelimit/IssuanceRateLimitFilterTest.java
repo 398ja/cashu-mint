@@ -131,4 +131,53 @@ class IssuanceRateLimitFilterTest {
         verify(chain, times(2)).doFilter(any(), any());
         verify(blocked).setStatus(429);
     }
+
+    @Test
+    void identityHeaderIgnoredWhenNoProxyIsTrusted() throws Exception {
+        // With no trusted-proxy allowlist configured -- the default -- the identity header must
+        // carry no weight at all. This is the state a fresh deployment starts in, so if the
+        // header were believed here, rotating it would mint unlimited quota on any mint that had
+        // not yet configured the allowlist: finding M-2 (issue #425) in its original form.
+        TestableFilter filter = new TestableFilter(props(1, 100));
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("alice", "9.9.9.9"), response(), chain);
+        HttpServletResponse blocked = response();
+        filter.run(request("bob", "9.9.9.9"), blocked, chain);
+        // Same address, different header: still one bucket, so the second call is refused.
+        verify(chain, times(1)).doFilter(any(), any());
+        verify(blocked).setStatus(429);
+    }
+
+    @Test
+    void identityHeaderIgnoredFromAnUntrustedPeer() throws Exception {
+        // An allowlist that does not cover the caller must be treated as no trust for that
+        // caller, rather than falling back to believing the header.
+        IssuanceRateLimitProperties properties = props(1, 100);
+        properties.setTrustedProxies(List.of("10.0.0.0/8"));
+        TestableFilter filter = new TestableFilter(properties);
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("alice", "9.9.9.9"), response(), chain);
+        HttpServletResponse blocked = response();
+        filter.run(request("bob", "9.9.9.9"), blocked, chain);
+        verify(chain, times(1)).doFilter(any(), any());
+        verify(blocked).setStatus(429);
+    }
+
+    @Test
+    void trustedPeerGetsAnIndependentBucketPerIdentity() throws Exception {
+        // Pins the cost of trusting a peer, which is easy to misread as a stronger guarantee than
+        // it is. Behind a trusted proxy each identity gets its own full-sized bucket, so four
+        // identities against a burst of 1 produce four admissions. That is the intended feature --
+        // it is what a proxy that reports real per-user identity is for -- but it means the
+        // allowlist is a statement that the operator vouches for those headers. List an address
+        // that can be reached by untrusted callers and the limit is effectively gone for them,
+        // which is why the allowlist is empty by default.
+        TestableFilter filter = new TestableFilter(trustingProps(1, 100));
+        FilterChain chain = mock(FilterChain.class);
+        filter.run(request("id-1", "7.7.7.7"), response(), chain);
+        filter.run(request("id-2", "7.7.7.7"), response(), chain);
+        filter.run(request("id-3", "7.7.7.7"), response(), chain);
+        filter.run(request("id-4", "7.7.7.7"), response(), chain);
+        verify(chain, times(4)).doFilter(any(), any());
+    }
 }

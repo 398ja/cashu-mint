@@ -37,11 +37,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * never touched the fallback. The limit was worth exactly as much as the network boundary in front
  * of it, and nothing in the code required that boundary to exist.
  *
- * <p>Now the bucket key always begins with the remote address, and the header may only
- * <em>subdivide</em> it, and only when the peer is listed in
- * {@code cashu.mint.issuance.rate-limit.trusted-proxies}. A spoofed or rotated header therefore
- * splits one address's quota into smaller pieces rather than escaping it: the attacker's own limit
- * gets stricter, not looser. An untrusted peer's header is ignored outright.
+ * <p>Now the bucket key always begins with the remote address, and the header only refines it when
+ * the peer is listed in {@code cashu.mint.issuance.rate-limit.trusted-proxies}. From any other
+ * caller the header is ignored outright, so rotating it changes nothing: every request from one
+ * address shares one bucket. The allowlist is empty by default, which means a mint that has not
+ * configured it is limited purely by address.
+ *
+ * <p>What trusting a peer costs is worth stating plainly, because it is easy to overstate the
+ * guarantee. Behind a trusted proxy each identity gets its <em>own</em> full-sized bucket, so N
+ * identities admit N times the burst. That is the point of the feature -- a proxy reporting real
+ * per-user identity should not have its users throttled as one -- but it means the allowlist is the
+ * operator asserting those headers are trustworthy. An allowlist entry reachable by untrusted
+ * callers hands them the same multiplication the fix removed.
+ * {@code trustedPeerGetsAnIndependentBucketPerIdentity} pins that behaviour so it stays a
+ * deliberate trade rather than a surprise.
  *
  * <p>This is still not authentication. A distributed caller has as many buckets as it has source
  * addresses, so for a genuinely public {@code /v1/mint} this should be fronted with real auth
