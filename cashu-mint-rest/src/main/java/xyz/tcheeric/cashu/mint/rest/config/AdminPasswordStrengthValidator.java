@@ -50,6 +50,7 @@ public class AdminPasswordStrengthValidator {
      * by {@code SecurityConfig}, which prepends {@code {noop}}.
      */
     private static final String ENCODER_PREFIX_START = "{";
+    private static final char ENCODER_PREFIX_END = '}';
 
     private final String password;
 
@@ -83,7 +84,20 @@ public class AdminPasswordStrengthValidator {
                             + "write the {noop} prefix explicitly.");
         }
 
+        int prefixEnd = password.indexOf(ENCODER_PREFIX_END);
+        if (prefixEnd <= 1) {
+            // "{" alone, "{}" or "{unclosed". Spring's DelegatingPasswordEncoder would accept
+            // startup and then throw IllegalArgumentException on the first login attempt, which
+            // surfaces as a confusing 500 long after the mistake was made. Failing here reports it
+            // while the operator is still looking at the configuration.
+            throw new IllegalStateException(
+                    "cashu.mint.admin.password starts with '{' but has no usable encoder id. "
+                            + "The format is {ENCODER}password, for example the output of "
+                            + "`spring encodepassword <password>`. As written, every admin login "
+                            + "would fail at authentication time rather than here.");
+        }
+
         log.info("Admin password uses encoder prefix {}",
-                password.substring(0, password.indexOf('}') + 1));
+                password.substring(0, prefixEnd + 1));
     }
 }

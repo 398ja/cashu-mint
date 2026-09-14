@@ -82,4 +82,34 @@ class AdminPasswordStrengthValidatorTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat("hunter2{bcrypt}".startsWith("{")).isFalse();
     }
+
+    /**
+     * A value that opens a prefix but never closes it is rejected at startup.
+     *
+     * <p>Spring would accept this configuration and then throw on the first login attempt, which
+     * reaches the operator as a 500 long after the typo. The point of this gate is to report a bad
+     * credential while someone is still looking at the config file.
+     */
+    @Test
+    void anUnclosedEncoderPrefixIsRejected() {
+        assertThatThrownBy(() -> new AdminPasswordStrengthValidator("{bcrypt$2a$10$abc").refusePlainTextPassword())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("{ENCODER}password");
+    }
+
+    /** An empty encoder id is equally unusable, and equally worth catching early. */
+    @Test
+    void anEmptyEncoderIdIsRejected() {
+        assertThatThrownBy(() -> new AdminPasswordStrengthValidator("{}hunter2").refusePlainTextPassword())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("{ENCODER}password");
+    }
+
+    /** A lone brace is the degenerate case of the same mistake. */
+    @Test
+    void aLoneBraceIsRejected() {
+        assertThatThrownBy(() -> new AdminPasswordStrengthValidator("{").refusePlainTextPassword())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("{ENCODER}password");
+    }
 }
