@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,6 +57,16 @@ class IssuanceRateLimitFilterTest {
         when(req.getRequestURI()).thenReturn("/v1/mint/bolt11");
         when(req.getHeader("X-Dalia-Identity")).thenReturn(header);
         when(req.getRemoteAddr()).thenReturn(ip);
+        return req;
+    }
+
+    /** A request arriving via a reverse proxy: same peer for everyone, distinct forwarded client. */
+    private HttpServletRequest forwardedRequest(String peer, String realIp) {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getRequestURI()).thenReturn("/v1/mint/bolt11");
+        when(req.getHeader("X-Dalia-Identity")).thenReturn(null);
+        when(req.getHeader("X-Real-IP")).thenReturn(realIp);
+        when(req.getRemoteAddr()).thenReturn(peer);
         return req;
     }
 
@@ -179,5 +190,65 @@ class IssuanceRateLimitFilterTest {
         filter.run(request("id-3", "7.7.7.7"), response(), chain);
         filter.run(request("id-4", "7.7.7.7"), response(), chain);
         verify(chain, times(4)).doFilter(any(), any());
+    }
+
+    /**
+     * Two callers behind one reverse proxy must not share a bucket.
+     *
+     * <p>This is the staging outage: a host nginx proxied to the mint, so every request — from
+     * internal services and from the public internet alike — arrived from the docker bridge
+     * gateway. All of them keyed to one identity, so 10 requests a minute was the budget for the
+     * ENTIRE platform, and merchant voucher issuance died on 429 while the limiter looked
+     * correctly configured.
+     *
+     * <p>Without the X-Real-IP resolution this fails on the second caller's first request.
+     */
+    @Test
+    void callersBehindOneTrustedProxyGetIndependentBuckets() throws Exception {
+        TestableFilter filter = new TestableFilter(trustingProps(1, 10));
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.run(forwardedRequest("172.19.0.1", "203.0.113.7"), response(), chain);
+
+        HttpServletResponse second = response();
+        filter.run(forwardedRequest("172.19.0.1", "203.0.113.8"), second, chain);
+
+        // The second caller is a different client, so its own burst is still intact.
+        verify(second, never()).setStatus(429);
+    }
+
+    /**
+     * The same forwarded client is still limited: this refines the key, it does not remove it.
+     */
+    @Test
+    void oneForwardedClientIsStillRateLimited() throws Exception {
+        TestableFilter filter = new TestableFilter(trustingProps(1, 10));
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.run(forwardedRequest("172.19.0.1", "203.0.113.7"), response(), chain);
+
+        HttpServletResponse second = response();
+        filter.run(forwardedRequest("172.19.0.1", "203.0.113.7"), second, chain);
+
+        verify(second).setStatus(429);
+    }
+
+    /**
+     * X-Real-IP from an UNTRUSTED peer is ignored, or the header becomes a limit bypass: a
+     * caller reaching the mint directly would rotate it and mint a fresh bucket per request.
+     * Same trust boundary the identity header already uses (M-2).
+     */
+    @Test
+    void forwardedAddressIgnoredFromAnUntrustedPeer() throws Exception {
+        TestableFilter filter = new TestableFilter(props(1, 10));
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.run(forwardedRequest("198.51.100.4", "203.0.113.7"), response(), chain);
+
+        HttpServletResponse second = response();
+        filter.run(forwardedRequest("198.51.100.4", "203.0.113.9"), second, chain);
+
+        // Rotating the header bought nothing: both keyed to the untrusted peer's own address.
+        verify(second).setStatus(429);
     }
 }

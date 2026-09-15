@@ -63,6 +63,12 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
 
     private static final String MINT_PATH_PREFIX = "/v1/mint";
     private static final String HEADER_RETRY_AFTER = "Retry-After";
+    /** Forwarded client address set by a single reverse proxy. Believed only from a trusted peer. */
+    private static final String REAL_IP_HEADER = "X-Real-IP";
+
+    /** Forwarded client chain; the first entry is the original client. Believed only from a trusted peer. */
+    private static final String FORWARDED_FOR_HEADER = "X-Forwarded-For";
+
     /** Cap on the client-supplied identity used as a cache key + log field (bounds memory + log-injection surface). */
     private static final int MAX_IDENTITY_LEN = 128;
 
@@ -126,10 +132,24 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
      * carve one address's quota into smaller shares, never mint new ones.
      */
     private String resolveIdentity(HttpServletRequest request) {
-        String remote = request.getRemoteAddr();
+        String peer = request.getRemoteAddr();
+        // The address that identifies the CALLER, which is not always the peer.
+        //
+        // When a reverse proxy terminates TLS and forwards to the mint, every request arrives
+        // from the proxy. On staging that is a host nginx proxying to localhost:7777, so the
+        // peer is the docker bridge gateway (172.19.0.1) for EVERY caller — internal services
+        // and the public internet alike. One bucket for the world: 10 requests a minute shared
+        // by every merchant, every wallet, and any stranger who found the mint. Merchant
+        // voucher issuance died on 429 while the limiter looked correctly configured.
+        //
+        // X-Real-IP is only believed from an allowlisted peer, which is the same trust
+        // boundary the identity header already uses. From anyone else it is ignored, so a
+        // caller who can reach the mint directly cannot mint a fresh bucket per request by
+        // spoofing it.
+        String remote = resolveCallerAddress(request, peer);
         String addressKey = "ip:" + (remote != null ? remote : "unknown");
 
-        if (!isTrustedPeer(remote)) {
+        if (!isTrustedPeer(peer)) {
             return addressKey;
         }
         String header = request.getHeader(properties.getIdentityHeader());
@@ -137,6 +157,28 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
             return addressKey;
         }
         return addressKey + "|id:" + sanitizeIdentity(header);
+    }
+
+    /**
+     * The caller's address: the forwarded client address when the peer is trusted, else the peer.
+     *
+     * <p>Only the FIRST entry of {@code X-Forwarded-For} is the original client; the rest are
+     * appended by intermediaries. {@code X-Real-IP} is preferred because a single proxy sets it
+     * to exactly that value. Both are ignored entirely from an untrusted peer.
+     */
+    private String resolveCallerAddress(HttpServletRequest request, String peer) {
+        if (!isTrustedPeer(peer)) {
+            return peer;
+        }
+        String realIp = request.getHeader(REAL_IP_HEADER);
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        String forwardedFor = request.getHeader(FORWARDED_FOR_HEADER);
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return peer;
     }
 
     /** Whether the identity header from this peer is believed. Empty allowlist trusts nobody. */
