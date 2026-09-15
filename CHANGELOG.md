@@ -4,6 +4,29 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.36.4] - 2026-09-15
+
+### Fixed
+
+- **The whole platform shared one issuance rate-limit bucket, so merchant voucher issuance died
+  on 429.** A reverse proxy fronts the mint and forwards to it, so every request arrived from the
+  proxy's address and keyed to one identity. Measured on staging: two different services and an
+  external internet caller all recorded as `identity=ip:172.19.0.1`. `perMinuteBurst=10` was
+  therefore the budget for every merchant, every wallet, and any stranger who found the mint —
+  and any caller could exhaust it for everyone.
+
+  The caller address now comes from `X-Real-IP` (falling back to the first `X-Forwarded-For`
+  entry), but **only from a peer on the existing `trusted-proxies` allowlist**. From any other
+  peer the headers are ignored, so this is not a limit bypass — the same trust boundary the
+  identity header has used since M-2. With the allowlist empty, behaviour is unchanged.
+
+- **NUT-04 quote status polling no longer spends the issuance budget.** The filter covered all of
+  `/v1/mint`, including the read-only `GET /v1/mint/quote/{method}/{quote_id}` that a wallet polls
+  every couple of seconds until the quote reports PAID. One voucher therefore exhausted a burst of
+  10 while waiting for its own invoice: 15 of 19 rejections on staging were reads against a single
+  quote id, and the wallet's circuit breaker opened on top. Writes under `/v1/mint` are limited
+  exactly as before.
+
 ### Security
 - `/v1/restore` and `/v1/checkstate` now enforce their declared request-size limits.
   `PostRestoreRequest.MAX_OUTPUTS` and `PostCheckStateRequest.MAX_SECRETS` were declared as
