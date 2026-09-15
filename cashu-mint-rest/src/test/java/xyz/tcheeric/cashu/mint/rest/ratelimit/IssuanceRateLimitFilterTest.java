@@ -11,6 +11,8 @@ import java.io.StringWriter;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -28,6 +30,10 @@ class IssuanceRateLimitFilterTest {
 
         void run(HttpServletRequest req, HttpServletResponse resp, FilterChain chain) throws Exception {
             doFilterInternal(req, resp, chain);
+        }
+
+        boolean skips(HttpServletRequest req) {
+            return shouldNotFilter(req);
         }
     }
 
@@ -56,6 +62,16 @@ class IssuanceRateLimitFilterTest {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/v1/mint/bolt11");
         when(req.getHeader("X-Dalia-Identity")).thenReturn(header);
+        when(req.getRemoteAddr()).thenReturn(ip);
+        return req;
+    }
+
+    /** A request with an explicit HTTP method, for the read-vs-write exemption. */
+    private HttpServletRequest methodRequest(String method, String ip) {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/abc");
+        when(req.getMethod()).thenReturn(method);
+        when(req.getHeader("X-Dalia-Identity")).thenReturn(null);
         when(req.getRemoteAddr()).thenReturn(ip);
         return req;
     }
@@ -250,5 +266,32 @@ class IssuanceRateLimitFilterTest {
 
         // Rotating the header bought nothing: both keyed to the untrusted peer's own address.
         verify(second).setStatus(429);
+    }
+
+    /**
+     * NUT-04 quote status polling must not spend the issuance budget.
+     *
+     * <p>The wallet polls GET /v1/mint/quote/{method}/{quote_id} every couple of seconds until the
+     * quote is PAID. Counting those as issuance made ONE voucher exhaust a burst of 10 while it
+     * waited for its own invoice — observed on staging as 15 rejections against a single quote id,
+     * stalling the voucher at "waiting to be backed" after the mint had already issued it.
+     */
+    @Test
+    void quoteStatusPollsAreNotRateLimited() {
+        TestableFilter filter = new TestableFilter(props(1, 10));
+
+        // Far beyond the burst of 1; none of these should even reach the bucket.
+        for (int i = 0; i < 20; i++) {
+            assertTrue(filter.skips(methodRequest("GET", "1.2.3.4")),
+                    "a read-only quote status poll must be exempt");
+        }
+    }
+
+    /** Writes under /v1/mint are still limited: the exemption is for reads only. */
+    @Test
+    void mintWritesAreStillRateLimited() {
+        TestableFilter filter = new TestableFilter(props(1, 10));
+        assertFalse(filter.skips(methodRequest("POST", "1.2.3.4")),
+                "minting must stay inside the limiter");
     }
 }
