@@ -101,7 +101,23 @@ public class IssuanceRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !properties.isEnabled() || !request.getRequestURI().startsWith(MINT_PATH_PREFIX);
+        if (!properties.isEnabled() || !request.getRequestURI().startsWith(MINT_PATH_PREFIX)) {
+            return true;
+        }
+        // Read-only quote status polls are NOT issuance and must not spend the issuance budget.
+        //
+        // NUT-04 has the wallet poll GET /v1/mint/quote/{method}/{quote_id} until the quote
+        // reports PAID. Counting those against the same bucket as minting makes the limit
+        // self-defeating: one voucher costs a single POST and then a poll every ~2s, so a
+        // perMinuteBurst of 10 is exhausted by ONE issuance waiting for its invoice. Observed on
+        // staging as 15 rejections on a single quote id, which stalled the voucher at "waiting to
+        // be backed" AFTER the mint had already issued it, and tripped the wallet's circuit
+        // breaker on top.
+        //
+        // The limit exists to cap how much a caller can MINT. A GET creates nothing, so
+        // exempting it gives up no protection that matters. Writes under /v1/mint are still
+        // limited exactly as before.
+        return "GET".equalsIgnoreCase(request.getMethod());
     }
 
     @Override
