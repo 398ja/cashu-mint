@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.36.5] - 2026-09-16
+
 ### Fixed
 
 - **Every Prometheus scrape of the mint was a 401, so the staging Grafana dashboards showed
