@@ -267,6 +267,13 @@ services:
       CASHU_MINT_MANAGEMENT_PORT: ${CASHU_MINT_MANAGEMENT_PORT:-9000}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Operator credential for /admin/** and everything on the management port
+      # except the health probes. Left unset, no user is registered and every
+      # Prometheus scrape is a 401, so the dashboards stay empty. The default is
+      # the bcrypt hash of `dev-admin-password` (the `dev` profile refuses plain
+      # text); the observability stack scrapes with that plain text by default.
+      # `$$` is compose escaping for a literal `$`.
+      MINT_ADMIN_PASSWORD: ${MINT_ADMIN_PASSWORD:-{bcrypt}$$2b$$10$$BD.LA1YKac.WBxgISXV/NOs9/ArnKMI6nJIZ6uBn52n6uAy1D0Yha}
       # Webhook configuration
       MINT_WEBHOOK_SECRET: ${MINT_WEBHOOK_SECRET:-dev-webhook-secret}
       # Gateway client timeouts (optimized for virtual threads)

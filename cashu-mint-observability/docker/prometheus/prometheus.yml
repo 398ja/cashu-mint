@@ -30,6 +30,15 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     scrape_interval: 15s
     scrape_timeout: 10s
+    # Everything on the management port except the health probes requires the
+    # operator credential (ManagementSecurityConfig, audit H-3). Without this
+    # block every scrape is a 401: `up` reads 0, and every dashboard panel reads
+    # "No data". The password file is supplied by docker-compose.observability.yml
+    # via CASHU_MINT_SCRAPE_PASSWORD_FILE: the plain text of the hash the mint holds
+    # in MINT_ADMIN_PASSWORD.
+    basic_auth:
+      username: 'admin'
+      password_file: '/run/secrets/cashu-mint-scrape-password'
     file_sd_configs:
       # Issue #346 — actuator is on the management port, not the public API port.
       - files:

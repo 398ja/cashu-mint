@@ -25,6 +25,11 @@
 # The stack assumes cashu-mint-rest-dev is running on the 'cashu' network.
 # Start the dev stack first with:
 #   docker compose -f docker-compose.dev.yml up -d
+#
+# Scraping needs the mint's operator credential: everything on the management
+# port except the health probes requires it (ManagementSecurityConfig). Point
+# CASHU_MINT_SCRAPE_PASSWORD_FILE at a file holding the plain text of the hash
+# the mint holds in MINT_ADMIN_PASSWORD. The default is the dev stack's default.
 
 services:
   prometheus:
@@ -32,6 +37,8 @@ services:
     container_name: cashu-prometheus
     ports:
       - "9090:9090"
+    secrets:
+      - cashu-mint-scrape-password
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -174,6 +181,12 @@ volumes:
     name: cashu-grafana-data
   loki-data:
     name: cashu-loki-data
+
+secrets:
+  # Read by the cashu-mint scrape job's basic_auth.password_file. Only the dev
+  # default is tracked; prometheus/secrets/.gitignore keeps operator files out.
+  cashu-mint-scrape-password:
+    file: ${CASHU_MINT_SCRAPE_PASSWORD_FILE:-./prometheus/secrets/cashu-mint-scrape-password.dev}
 
 networks:
   cashu:

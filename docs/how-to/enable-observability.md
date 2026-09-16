@@ -42,7 +42,7 @@ run them from inside the container instead:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec cashu-mint-rest \
-  curl -s localhost:9000/actuator/prometheus | head -50
+  curl -s -u "admin:$MINT_ADMIN_PLAINTEXT" localhost:9000/actuator/prometheus | head -50
 ```
 
 Run this from the directory holding your `.env`. Every credential in
@@ -51,10 +51,11 @@ whole file even for `exec`, and without `.env` it stops at the first missing pas
 running the command. See `.env.example`.
 
 
-Check that metrics are being collected:
+Check that metrics are being collected. The endpoint requires the operator
+credential (the dev stack's default is `dev-admin-password`):
 
 ```bash
-curl http://localhost:9000/actuator/prometheus | head -50
+curl -u admin:dev-admin-password http://localhost:9000/actuator/prometheus | head -50
 ```
 
 ## Configuration
@@ -245,10 +246,11 @@ Mount an environment-specific directory instead of editing the default:
 
 ```bash
 CASHU_PROMETHEUS_TARGETS_DIR=./prometheus/targets.staging \
+CASHU_MINT_SCRAPE_PASSWORD_FILE=/etc/cashu/scrape-password \
   docker compose -f cashu-mint-observability/docker/docker-compose.observability.yml up -d
 ```
 
-Two things to get right, both of which have silently emptied dashboards before:
+Three things to get right, each of which has silently emptied dashboards before:
 
 - **Use the management port (`9000`), not the API port (`7777`).** The actuator
   runs on its own port (issue #346); `/actuator/prometheus` does not exist on
@@ -257,6 +259,15 @@ Two things to get right, both of which have silently emptied dashboards before:
   published to host loopback only, so Prometheus scrapes it as a sibling
   container on the shared `cashu` network. Elsewhere, make sure the management
   port is reachable from Prometheus but not from the public internet.
+- **Prometheus must present the operator credential.** Everything on the
+  management port except the health probes requires the `admin` user whose
+  password the mint holds in `MINT_ADMIN_PASSWORD` (`ManagementSecurityConfig`).
+  The scrape job reads the plain-text password from a file, supplied through
+  `CASHU_MINT_SCRAPE_PASSWORD_FILE`. The default file holds `dev-admin-password`,
+  matching the dev stack's default hash. On any other host write the plain text
+  of the mint's hashed password to a file outside the repo and point the
+  variable at it. A wrong or missing credential shows as
+  `server returned HTTP status 401 Unauthorized` in the target's `lastError`.
 
 Confirm the target is actually being scraped before trusting a dashboard:
 
@@ -267,6 +278,7 @@ curl -s localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job:.labels
 A missing `cashu-mint` entry means no target matched the glob. Note that this
 also makes `up{job="cashu-mint"}` *absent* rather than `0`, so the
 `CashuMintDown` alert stays quiet: an empty dashboard is the only symptom.
+A `down` entry with a 401 in `lastError` means the credential does not match.
 
 ### Grafana Persistence
 

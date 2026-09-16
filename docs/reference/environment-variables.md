@@ -12,6 +12,19 @@ This reference lists the environment variables used to configure the Cashu mint 
 | `LOG_LEVEL_ROOT` | `INFO` | Root log level |
 | `LOG_LEVEL_SPRING` | `INFO` | Spring framework log level |
 | `LOG_LEVEL_CASHU` | `DEBUG` | Project log level |
+| `CASHU_MINT_MANAGEMENT_PORT` | `9000` | Actuator port (health, metrics, prometheus); never the API port |
+| `MINT_ADMIN_USERNAME` | `admin` | Operator user for `/admin/**` and the authenticated actuator endpoints |
+| `MINT_ADMIN_PASSWORD` | _(none)_ | Operator password; bcrypt hash outside `local`, `$` doubled in compose. Unset means 401 everywhere, including Prometheus scrapes |
+
+## Observability stack
+
+Read by `cashu-mint-observability/docker/docker-compose.observability.yml`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CASHU_PROMETHEUS_TARGETS_DIR` | `./prometheus/targets` | Directory of file-SD target files for the `cashu-mint` scrape job |
+| `CASHU_MINT_SCRAPE_PASSWORD_FILE` | `./prometheus/secrets/cashu-mint-scrape-password.dev` | File holding the plain text of `MINT_ADMIN_PASSWORD`, presented as basic auth on every scrape |
+| `CASHU_MINT_GRAFANA_RO_PASSWORD` | _(none)_ | Password of the read-only PostgreSQL role the voucher dashboards query |
 
 ## Vault
 

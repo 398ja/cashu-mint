@@ -4,6 +4,21 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every Prometheus scrape of the mint was a 401, so the staging Grafana dashboards showed
+  nothing.** `ManagementSecurityConfig` (0.36.0, audit H-3) put `/actuator/prometheus` behind
+  the operator credential, but the shipped `prometheus.yml` never presented one, so the target
+  went `down` with `server returned HTTP status 401 Unauthorized` and every panel read "No data".
+  The `cashu-mint` scrape job now sends basic auth from a `password_file` that the observability
+  compose file mounts as a secret, chosen through `CASHU_MINT_SCRAPE_PASSWORD_FILE`. The dev stack
+  gains a default bcrypt `MINT_ADMIN_PASSWORD` whose plain text matches the tracked dev scrape
+  file, so `docker compose up` on both stacks carries data again with no extra setup. The staging
+  install guide now covers the credential and the observability stack, and `.env.example` warns
+  that a bcrypt hash needs every `$` doubled or compose silently truncates it.
+- `PrometheusScrapeConfigTest` now fails if the scrape job loses its `basic_auth` block, so the dashboards
+  cannot go blank the same way again.
+
 ## [0.36.4] - 2026-09-15
 
 ### Fixed
