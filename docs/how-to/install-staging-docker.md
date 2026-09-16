@@ -27,6 +27,18 @@ needs to be fetched. (An earlier `vault-db-init` service applied `V1` by hand an
 re-created a constraint that made key rotation impossible; it has been removed.)
 
 ## Prepare a staging env file
+Generate the mint's operator credential first. The mint holds a bcrypt hash and
+Prometheus scrapes with the plain text, so both come from one script to keep
+them in step:
+
+```bash
+scripts/mint-admin-password.sh ~/cashu-mint-scrape-password
+```
+
+It writes the plain text to `~/cashu-mint-scrape-password` (mode 600) and
+prints the `MINT_ADMIN_PASSWORD=` line to paste below, with every `$` already
+doubled for compose.
+
 Create `.env.staging` in the same directory with the versions and secrets you want to run. Adjust values for your host as needed.
 
 ```bash
@@ -54,8 +66,7 @@ PHOENIXD_API_KEY=<your-staging-phoenixd-api-key>
 PHOENIXD_API_TOKEN=<your-staging-phoenixd-api-token>
 CASHU_MINT_ADMIN_SUPER_ADMIN_NPUB=<npub of the Super Administrator>
 # Operator credential for /admin/** and the actuator metrics Prometheus scrapes.
-# Must be a bcrypt hash outside the local profile: `spring encodepassword <pw>`.
-# Compose reads `$$` as a literal `$`, so double every `$` in the hash.
+# Paste the line printed by scripts/mint-admin-password.sh.
 MINT_ADMIN_PASSWORD={bcrypt}$$2b$$10$$<rest-of-hash>
 EOF
 ```
@@ -100,14 +111,10 @@ curl http://<staging-host>:${CASHU_MINT_ADMIN_PORT:-7778}/actuator/health/readin
 
 ## Start the observability stack
 Prometheus scrapes the mint's management port with the operator credential, so
-it needs the plain text of the hash you set in `MINT_ADMIN_PASSWORD`. Write it
-to a file outside the checkout, then start the stack with a staging targets
-directory:
+it reads the plain-text file `scripts/mint-admin-password.sh` wrote earlier.
+Start the stack with a staging targets directory:
 
 ```bash
-install -m 600 /dev/null ~/cashu-mint-scrape-password
-printf '%s' '<plain-text-admin-password>' > ~/cashu-mint-scrape-password
-
 mkdir -p cashu-mint-observability/docker/prometheus/targets.staging
 cat > cashu-mint-observability/docker/prometheus/targets.staging/cashu-mint.yml <<'EOF'
 - targets:

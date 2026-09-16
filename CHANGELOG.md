@@ -16,6 +16,9 @@ All notable changes to the Cashu Mint will be documented in this file.
   file, so `docker compose up` on both stacks carries data again with no extra setup. The staging
   install guide now covers the credential and the observability stack, and `.env.example` warns
   that a bcrypt hash needs every `$` doubled or compose silently truncates it.
+- `scripts/mint-admin-password.sh` generates the mint's operator credential in both forms it is
+  consumed in: the compose-escaped bcrypt line for `MINT_ADMIN_PASSWORD` and the plain-text file
+  Prometheus scrapes with, from one random password so the two cannot drift.
 - `PrometheusScrapeConfigTest` now fails if the scrape job loses its `basic_auth` block, so the dashboards
   cannot go blank the same way again.
 

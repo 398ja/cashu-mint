@@ -264,9 +264,10 @@ Three things to get right, each of which has silently emptied dashboards before:
   password the mint holds in `MINT_ADMIN_PASSWORD` (`ManagementSecurityConfig`).
   The scrape job reads the plain-text password from a file, supplied through
   `CASHU_MINT_SCRAPE_PASSWORD_FILE`. The default file holds `dev-admin-password`,
-  matching the dev stack's default hash. On any other host write the plain text
-  of the mint's hashed password to a file outside the repo and point the
-  variable at it. A wrong or missing credential shows as
+  matching the dev stack's default hash. On any other host run
+  `scripts/mint-admin-password.sh`: it writes the plain text to a file outside
+  the repo and prints the matching `MINT_ADMIN_PASSWORD` line for the mint's
+  env file. A wrong or missing credential shows as
   `server returned HTTP status 401 Unauthorized` in the target's `lastError`.
 
 Confirm the target is actually being scraped before trusting a dashboard:
