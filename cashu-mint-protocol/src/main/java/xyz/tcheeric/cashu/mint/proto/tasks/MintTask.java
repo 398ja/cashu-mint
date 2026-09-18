@@ -460,6 +460,27 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // PAID → ISSUING CAS (spec 007). The legacy regular path
             // (mintQuoteRepository == null, unit-test contexts) has no durable
             // CAS to guard, so it validates here.
+            //
+            // WHAT THE MINT PERMITS HERE, NOT EVERY CLIENT TOLERATES. Read as an
+            // invitation to issue vouchers in coarse denominations (one 1500 proof
+            // rather than 1024+256+128+64+16+8+4, which would shrink tokens ~7x),
+            // this needs one check first, because the two wallets differ:
+            //
+            //  - imani-wallet (the real wallet app) COPES. It never selects proof
+            //    subsets client-side; it splits server-side via /api/v1/atomic-send
+            //    and this mint, re-splitting on every spend. Any denomination the
+            //    keyset signs is spendable there.
+            //  - imani-apps' OFFLINE bearer tier does NOT. It cannot swap by
+            //    design, so it pays by selecting whole held proofs, and its
+            //    selection is a greedy largest-first pass that is only correct over
+            //    powers of two. It fails SILENTLY: holdings [6,5,4] asked for 9
+            //    report "no exact subset" although 5+4=9, and the UI then steers
+            //    the user into over- or underpaying.
+            //
+            // So "free splitting" means the mint will not REFUSE these outputs.
+            // Whether the estate can use them depends on whether that offline tier
+            // is still in scope for vouchers.
+            // See imani-deploy/docs/specs/cashu-token-size-per-proof-payload.md.
             if (isVoucherQuote) {
                 log.info("mint_task voucher_quote amount={} arbitrary_denominations=true",
                         blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
