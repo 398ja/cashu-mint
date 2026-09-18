@@ -461,28 +461,36 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // (mintQuoteRepository == null, unit-test contexts) has no durable
             // CAS to guard, so it validates here.
             //
-            // WHAT THE MINT PERMITS HERE, NOT EVERY CLIENT TOLERATES. Read as an
-            // invitation to issue vouchers in coarse denominations (one 1500 proof
-            // rather than 1024+256+128+64+16+8+4, which would shrink tokens ~7x),
-            // this needs one check first, because the two wallets differ:
+            // "FREE SPLITTING" IS NOT A SIGNING CAPABILITY. It means only that this
+            // quote skips validateOutputs. Signing still resolves a key by EXACT
+            // amount from the keyset, and the live keyset is eleven keys, 1..1024,
+            // so a 1500-denomination output fails with sign_private_key_not_found.
             //
-            //  - imani-wallet (the real wallet app) COPES. It never selects proof
-            //    subsets client-side; it splits server-side via /api/v1/atomic-send
-            //    and this mint, re-splitting on every spend. Any denomination the
-            //    keyset signs is spendable there.
-            //  - imani-apps' OFFLINE bearer tier does NOT. It cannot swap by
-            //    design, so it pays by selecting whole held proofs, and its
-            //    selection is a greedy largest-first pass that is only correct over
-            //    powers of two. It fails SILENTLY: holdings [6,5,4] asked for 9
-            //    report "no exact subset" although 5+4=9, and the UI then steers
-            //    the user into over- or underpaying.
+            // SignBlindedMessageTask does have a voucherMode branch that derives a
+            // key for any amount (VoucherKeyDerivation, HMAC over the amount), but
+            // it is DEAD CODE: every construction site here, in SwapTask and in
+            // MeltTask uses the 4-arg constructor, which hardcodes voucherMode=false,
+            // and no VOUCHER_MASTER_SECRET is configured anywhere.
             //
-            // So "free splitting" means the mint will not REFUSE these outputs.
-            // Whether the estate can use them depends on whether that offline tier
-            // is still in scope for vouchers.
+            // This matters because the log line below reads as permission to issue
+            // vouchers in coarse denominations (one 1500 proof rather than
+            // 1024+256+128+64+16+8+4, which would shrink tokens ~7x). It is not.
+            // Delivering that needs either a keyset rotation (a NUT-02 v2 id hashes
+            // the keys, so adding denominations mints a new keyset id) or wiring up
+            // voucherMode, which moves voucher signing to HMAC-derived keys outside
+            // the vault and is a key-custody decision.
+            //
+            // Client-side, if it were ever enabled: imani-wallet copes (it re-splits
+            // server-side through this mint on every spend); imani-apps' offline
+            // bearer tier does not (greedy selection that is only correct over powers
+            // of two, and it fails silently).
             // See imani-deploy/docs/specs/cashu-token-size-per-proof-payload.md.
             if (isVoucherQuote) {
-                log.info("mint_task voucher_quote amount={} arbitrary_denominations=true",
+                // Reports what is actually true: output denominations were not
+                // validated. It used to say arbitrary_denominations=true, which
+                // claimed a capability the mint does not have — signing still needs
+                // a keyset key for the exact amount.
+                log.info("mint_task voucher_quote amount={} output_validation=skipped",
                         blindedMessages.stream().mapToLong(BlindedMessage::getAmount).sum());
             } else if (mintQuoteRepository == null) {
                 validateOutputs(blindedMessages, mint);
