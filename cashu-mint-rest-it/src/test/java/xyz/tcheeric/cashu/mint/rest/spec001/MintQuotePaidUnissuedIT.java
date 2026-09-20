@@ -158,18 +158,26 @@ class MintQuotePaidUnissuedIT extends AbstractMintDurableIT {
     }
 
     /**
-     * The poller must actually run this query into the gauge. The query being
-     * right is not the same as it being wired, and this invariant has no
-     * reconciler to notice if the poller never calls it.
+     * A poll must not disturb the rows it counts.
+     *
+     * <p>Narrow on purpose. This asserts only that the invariant query is
+     * read-only, which is worth pinning because it runs every 60s against a
+     * money-bearing table. It deliberately does <em>not</em> claim the poller
+     * is wired to the gauge: re-reading the database after {@code pollTick}
+     * cannot see the exported value, so it would pass even with the
+     * {@code paid_unissued} line deleted from
+     * {@link xyz.tcheeric.cashu.mint.jpa.InvariantGaugePoller#pollTick}.
+     * {@code StuckPaymentInvariantGaugeIT.paidUnissuedGaugeExportsTheStrandedCount}
+     * is what covers that, by reading the scrape.
      */
     @Test
-    void thePollerRunsTheInvariantWithoutThrowing() {
+    void aPollDoesNotDisturbTheQuotesItCounts() {
         seed(LifecycleState.PAID, WELL_PAST_TTL);
 
         poller.pollTick();
 
         assertThat(gauge())
-                .as("the poll must not have disturbed the underlying data")
+                .as("the invariant query must be read-only")
                 .isEqualTo(1L);
     }
 }

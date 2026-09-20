@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestTemplate;
 import xyz.tcheeric.cashu.mint.jpa.InvariantGaugePoller;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaEntity;
@@ -13,12 +15,17 @@ import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaTransitionEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaTransitionJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherQuoteJpaRepository;
+import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
+import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherQuoteEntity;
 import xyz.tcheeric.cashu.mint.rest.spec001.AbstractMintDurableIT;
 import xyz.tcheeric.cashu.mint.rest.spec003.support.VoucherTestSupport;
 
+import javax.sql.DataSource;
+
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.regex.Matcher;
@@ -58,6 +65,11 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
     @Autowired
     InvariantGaugePoller poller;
 
+    /** Only for backdating updated_at; @PrePersist would otherwise stamp it now. */
+    @Autowired
+    @Qualifier("mintJpaDataSource")
+    DataSource mintJpaDataSource;
+
     @Autowired
     MeltSagaJpaRepository sagas;
 
@@ -75,6 +87,10 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         transitions.deleteAll();
         sagas.deleteAll();
         voucherQuotes.deleteAll();
+        // Also @AfterEach: the base class only wipes mint_quote before each
+        // test, so a stranded row seeded here would otherwise be visible to
+        // whichever class runs next in the same context.
+        mintQuoteJpaRepository.deleteAll();
     }
 
     /** The gauge must be scrapeable before the invariant ever breaks. */
@@ -240,6 +256,30 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
     }
 
     /**
+     * Issue #459 — the paid-unfunded gauge must carry its count out to the
+     * scrape, not merely be registered.
+     *
+     * <p>Same blind spot as {@link #paidUnissuedGaugeExportsTheStrandedCount}:
+     * the reconciler ITs prove the query, and the metric ITs prove the series
+     * exists, but nothing observed the value actually reaching the exposition.
+     * Deleting the {@code paid_unfunded} line from
+     * {@link InvariantGaugePoller#pollTick} left every other test green.
+     */
+    @Test
+    void paidUnfundedGaugeExportsTheStrandedCount() {
+        VoucherQuoteEntity stranded = VoucherTestSupport.unfundedQuote("paid-unfunded-exported", 20_000L);
+        voucherQuotes.save(stranded);
+        webhookEventJpaRepository.save(VoucherTestSupport.acceptedWebhookEvent(
+                "phoenixd-it", "evt-paid-unfunded-exported", "paid-unfunded-exported", 20_000L));
+
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_voucher_paid_unfunded"))
+                .as("a paid-but-unfunded quote must reach the scrape, or the alert never fires")
+                .isEqualTo(1.0);
+    }
+
+    /**
      * Issue #460 — a mint quote stuck in {@code PAID} is money accepted with
      * nothing issued against it, and nothing will issue it without the client
      * returning.
@@ -257,6 +297,45 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         assertThat(gaugeValue(scrape(), "cashu_mint_quote_paid_unissued"))
                 .as("the alert reads this series; absent is not the same as zero")
                 .isEqualTo(0.0);
+    }
+
+    /**
+     * Issue #460 — and the gauge must actually carry the stranded count out to
+     * the scrape.
+     *
+     * <p>Asserting only the healthy zero above cannot distinguish a working
+     * gauge from one that is bound but never polled: both read {@code 0}
+     * forever. Deleting the {@code paid_unissued} line from
+     * {@link InvariantGaugePoller#pollTick} leaves that test green, which is
+     * exactly the "declared but dead" failure this class exists to prevent —
+     * so the value has to be observed with a stranded quote present.
+     */
+    @Test
+    void paidUnissuedGaugeExportsTheStrandedCount() {
+        MintQuoteEntity stranded = new MintQuoteEntity();
+        stranded.setQuoteId("paid-unissued-exported");
+        stranded.setAmount(300L);
+        stranded.setUnit("sat");
+        stranded.setMintUrl("https://mint.example");
+        stranded.setPaymentMethod("bolt11");
+        stranded.setInvoiceId("paid-unissued-exported");
+        stranded.setLifecycleState(MintQuote.LifecycleState.PAID);
+        stranded.setRequestHash("0".repeat(64));
+        mintQuoteJpaRepository.save(stranded);
+        mintQuoteJpaRepository.flush();
+        // The invariant measures time in state, and @PrePersist stamps
+        // updated_at with now(), so push it past the TTL at the SQL level.
+        new JdbcTemplate(mintJpaDataSource).update(
+                "UPDATE mint_quote SET created_at = ?, updated_at = ? WHERE quote_id = ?",
+                Timestamp.from(Instant.now().minus(Duration.ofHours(6))),
+                Timestamp.from(Instant.now().minus(Duration.ofHours(6))),
+                "paid-unissued-exported");
+
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_quote_paid_unissued"))
+                .as("the stranded quote must reach the scrape, or the alert never fires")
+                .isEqualTo(1.0);
     }
 
     private void seedPaymentUnknown(String sagaId, String quoteId, Instant createdAt) {
