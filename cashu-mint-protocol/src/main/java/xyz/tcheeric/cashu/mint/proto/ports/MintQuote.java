@@ -28,7 +28,21 @@ public interface MintQuote {
         /** TTL elapsed before {@code ISSUED}. */
         EXPIRED,
         /** Operator-initiated triage state. */
-        FAILED
+        FAILED;
+
+        /**
+         * Whether no further transition is possible. Mirrors
+         * {@code MeltSagaState#isTerminal} and
+         * {@code VoucherLifecycleState#isTerminal} so all four machines
+         * express terminality the same executable way (#461).
+         *
+         * <p>{@code FAILED} is included: it is operator-initiated triage, so
+         * a row resting there is already someone's problem by construction
+         * rather than something a sweep should pick up.
+         */
+        public boolean isTerminal() {
+            return this == ISSUED || this == EXPIRED || this == FAILED;
+        }
     }
 
     String quoteId();

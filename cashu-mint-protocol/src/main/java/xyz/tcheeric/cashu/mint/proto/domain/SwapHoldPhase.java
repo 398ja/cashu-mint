@@ -32,5 +32,14 @@ public enum SwapHoldPhase {
     COMMITTED,
 
     /** The inputs were returned unspent before anything was signed. Terminal. */
-    RELEASED
+    RELEASED;
+
+    /**
+     * Whether no further transition is possible, so a row resting here can
+     * never be stranded. See {@code VoucherLifecycleState#isTerminal}; #461's
+     * coverage rule computes over this rather than over javadoc prose.
+     */
+    public boolean isTerminal() {
+        return this == COMMITTED || this == RELEASED;
+    }
 }

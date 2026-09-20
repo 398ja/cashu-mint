@@ -26,5 +26,18 @@ public enum VoucherLifecycleState {
     /** TTL elapsed before reaching ISSUED. */
     EXPIRED,
     /** Operator-initiated triage state. */
-    FAILED
+    FAILED;
+
+    /**
+     * Whether no further transition is possible, so a row resting here can
+     * never be stranded.
+     *
+     * <p>Stated in code rather than only in the javadoc above because #461's
+     * reconciler-coverage rule has to compute over it: a machine-readable
+     * predicate is what lets CI ask "is every non-terminal state swept?"
+     * instead of a human re-reading prose.
+     */
+    public boolean isTerminal() {
+        return this == ISSUED || this == EXPIRED || this == FAILED;
+    }
 }

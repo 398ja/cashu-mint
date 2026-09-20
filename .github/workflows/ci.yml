@@ -108,6 +108,61 @@ jobs:
             exit 1
           fi
 
+      # Issue #461 / #463 — the rest-it module, brought under the gate as a ratchet.
+      #
+      # The comment above explains why it was excluded: on a clean checkout it failed
+      # 47 of 169 regardless of the change under review, so gating on green would have
+      # produced a check that cannot pass — the mirror of the check that cannot fail.
+      # That reasoning was right, and it is now out of date. The causes were found:
+      # a signature-validator stub that stopped matching the interface it stood in for,
+      # a @Profile("!test") that does not exclude "websocket-test", and assertions on
+      # error names against bodies that carry numeric wire codes. The module now runs
+      # 197 tests with 8 failures and 1 error, all pre-existing and individually tracked.
+      #
+      # A budget rather than a green gate, because the remaining 9 are genuine bugs
+      # (FeeBearingSwapIT returning a melt-saga error from a swap, most of all) and
+      # blocking every merge on them would get this job deleted. The budget only moves
+      # down: fixing one and not lowering the number is how a ratchet silently becomes
+      # a rubber stamp.
+      #
+      # The assertion that the suite RAN is the load-bearing half. 197 executing with
+      # 8 failures is a worse-looking and far more useful signal than 0 executing with
+      # none, which is what this repo reported for months.
+      - name: Run rest-it integration tests
+        if: always()
+        run: ./mvnw -B -Pintegration-tests -pl cashu-mint-rest-it -am -DskipTests install
+             && ./mvnw -B -Pintegration-tests -pl cashu-mint-rest-it verify || true
+
+      - name: Assert rest-it ran, and that failures are within budget
+        if: always()
+        run: |
+          report_dir=cashu-mint-rest-it/target/surefire-reports
+          test -d "$report_dir" || { echo "::error::rest-it produced no reports at all"; exit 1; }
+
+          ran=$(grep -h '^Tests run' "$report_dir"/*.txt | sed 's/Tests run: \([0-9]*\).*/\1/' | paste -sd+ | bc)
+          bad=$(grep -h '^Tests run' "$report_dir"/*.txt \
+                | sed 's/.*Failures: \([0-9]*\), Errors: \([0-9]*\).*/\1+\2/' | paste -sd+ | bc)
+          echo "rest-it: $ran tests ran, $bad failing"
+
+          # A suite that does not run is the failure this job exists to catch.
+          if [ "$ran" -lt 150 ]; then
+            echo "::error::Only $ran rest-it tests ran; expected ~197."
+            echo "::error::The suite is not being selected — see #463."
+            exit 1
+          fi
+
+          # Ratchet. Lower this number when you fix one; never raise it.
+          budget=9
+          if [ "$bad" -gt "$budget" ]; then
+            echo "::error::rest-it has $bad failing tests, budget is $budget."
+            echo "::error::A new failure was introduced, or a fixed one regressed (#463)."
+            exit 1
+          fi
+          if [ "$bad" -lt "$budget" ]; then
+            echo "::notice::rest-it is down to $bad failing (budget $budget)."
+            echo "::notice::Lower the budget in ci.yml to lock the improvement in."
+          fi
+
       - name: Upload integration test reports
         if: always()
         uses: actions/upload-artifact@v4
