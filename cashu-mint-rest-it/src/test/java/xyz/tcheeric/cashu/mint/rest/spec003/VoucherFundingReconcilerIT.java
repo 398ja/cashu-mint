@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.mint.jpa.entity.VoucherQuoteEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.WebhookEventEntity;
 import xyz.tcheeric.cashu.mint.jpa.repository.WebhookEventJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
+import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.rest.spec003.support.AbstractVoucherDurableIT;
 import xyz.tcheeric.cashu.mint.rest.spec003.support.VoucherTestSupport;
 
@@ -30,6 +31,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class VoucherFundingReconcilerIT extends AbstractVoucherDurableIT {
 
     private static final String PROVIDER = "phoenixd-it";
+
+    /**
+     * Comfortably past the reconciler's 2m grace period, so a row excluded from
+     * the sweep is excluded on its outcome and not merely because it is young.
+     */
+    private static final Duration GRACE_MARGIN = Duration.ofMinutes(30);
 
     @Autowired
     VoucherFundingReconciler reconciler;
@@ -127,6 +134,69 @@ class VoucherFundingReconcilerIT extends AbstractVoucherDurableIT {
 
         assertThat(voucherQuoteJpaRepository.findById(quoteId).orElseThrow().getLifecycleState())
                 .isEqualTo(VoucherLifecycleState.UNFUNDED);
+    }
+
+    /**
+     * Only {@code accepted} means money arrived. The other ten outcomes are
+     * rejections and forensic records — {@code tamper} and
+     * {@code amount_mismatch} in particular describe a payment the mint
+     * refused — so funding a voucher off one of those would issue value
+     * against a payment that never happened.
+     *
+     * <p>Worth an explicit test because the sweep's predicate is a native-SQL
+     * string literal (<code>e.outcome = 'accepted'</code>): nothing in the type
+     * system connects it to the enum, so a renamed constant or a widened
+     * predicate would fail silently and in the expensive direction.
+     *
+     * <p><strong>Two independent guards enforce this</strong>, and the test
+     * asserts both, because asserting only the outcome cannot tell them apart:
+     * deleting the {@code accepted} clause from the sweep query leaves this
+     * test green, since {@code VoucherFundingResolverImpl} filters on
+     * {@code accepted} again when it looks for the event to build funding from.
+     * That redundancy is a good thing — it is why a widened sweep cannot issue
+     * value — but a test that cannot see the difference would let the first
+     * guard rot unnoticed. So the sweep query is asserted directly as well.
+     */
+    @Test
+    void sweepIgnoresQuotesWhoseOnlyPaymentEventWasRejected() {
+        int rejectedOutcomes = 0;
+        for (WebhookEvent.Outcome outcome : WebhookEvent.Outcome.values()) {
+            if (outcome == WebhookEvent.Outcome.accepted) {
+                continue;
+            }
+            rejectedOutcomes++;
+            // newQuoteId appends a UUID; quote_id is varchar(64), so keep the prefix short.
+            String quoteId = VoucherTestSupport.newQuoteId("rej");
+            voucherQuoteJpaRepository.save(VoucherTestSupport.unfundedQuote(quoteId, 20_000L));
+
+            WebhookEventEntity event = VoucherTestSupport.acceptedWebhookEvent(
+                    PROVIDER, "evt-" + quoteId, quoteId, 20_000L);
+            event.setOutcome(outcome);
+            event.setReceivedAt(Instant.now().minus(Duration.ofHours(1)));
+            webhookEvents.save(event);
+        }
+        assertThat(rejectedOutcomes)
+                .as("every non-accepted outcome must be covered; a new enum constant "
+                        + "should force this test to be revisited")
+                .isEqualTo(WebhookEvent.Outcome.values().length - 1);
+
+        // Guard 1: the sweep query itself must not even select these rows.
+        assertThat(voucherQuoteJpaRepository.findPaidButUnfunded(
+                Instant.now().minus(GRACE_MARGIN), 200))
+                .as("the sweep query must filter on outcome='accepted'; a widened "
+                        + "predicate is masked by the resolver and would go unnoticed")
+                .isEmpty();
+
+        // Guard 2: and the end-to-end sweep must leave them alone.
+        reconciler.reconcileTick();
+
+        assertThat(voucherQuoteJpaRepository.findAll())
+                .as("a refused payment must never fund a voucher")
+                .allSatisfy(quote -> assertThat(quote.getLifecycleState())
+                        .isEqualTo(VoucherLifecycleState.UNFUNDED));
+        assertThat(voucherQuoteJpaRepository.countPaidUnfunded())
+                .as("the gauge counts money taken, so a refused payment must not inflate it")
+                .isZero();
     }
 
     /**

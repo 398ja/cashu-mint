@@ -2,6 +2,8 @@ package xyz.tcheeric.cashu.mint.rest.spec003;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 import xyz.tcheeric.cashu.mint.jpa.VoucherFundingReconciler;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
@@ -40,6 +42,9 @@ class VoucherFundingWiringIT extends AbstractVoucherDurableIT {
     @Autowired
     VoucherFundingReconciler reconciler;
 
+    @Autowired
+    ApplicationContext applicationContext;
+
     /**
      * The end-to-end guarantee, through the real bean graph: a payment webhook
      * for a voucher quote funds it, with no client mint request anywhere.
@@ -72,31 +77,50 @@ class VoucherFundingWiringIT extends AbstractVoucherDurableIT {
     }
 
     /**
-     * A reconciler that is not a bean is a safety net that never runs. The
-     * scheduler would then be the only thing standing between a leaked payment
-     * and a stranded voucher, and it would not exist.
+     * A sweep nobody calls is not a safety net.
+     *
+     * <p>Asserting that the bean exists and carries {@code @Scheduled} would be
+     * close to tautological: {@code @Autowired} already fails the context if the
+     * bean is missing, and reading the annotation is just reflection over this
+     * change's own source. Neither shows that anything will ever invoke it.
+     *
+     * <p>So this asks Spring's {@link ScheduledAnnotationBeanPostProcessor} for
+     * the tasks it actually registered, which is the list the scheduler drives.
+     * If {@code @EnableScheduling} were removed, or the sweep's interval
+     * property resolved to something unparseable, the bean and its annotation
+     * would look perfectly healthy and this is the assertion that would fail.
      */
     @Test
     void theReconcilerIsAScheduledBeanInTheRealContext() {
-        assertThat(reconciler)
-                .as("VoucherFundingReconciler must be wired, or nothing sweeps")
-                .isNotNull();
-        assertThat(ReflectionSupport.hasScheduledMethod(reconciler.getClass()))
-                .as("the sweep must be @Scheduled; a bean nobody calls is not a safety net")
-                .isTrue();
+        assertThat(scheduledTaskTargets())
+                .as("the scheduler must hold a registered task for the sweep, or nothing "
+                        + "ever drives it and the reconciler is decorative")
+                .anyMatch(task -> task.contains(VoucherFundingReconciler.class.getName())
+                        && task.contains("reconcileTick"));
     }
 
-    /** Tiny helper kept local: the assertion is about this class, not a shared concern. */
-    private static final class ReflectionSupport {
-        static boolean hasScheduledMethod(Class<?> type) {
-            Class<?> target = type.getName().contains("$$") ? type.getSuperclass() : type;
-            for (var method : target.getDeclaredMethods()) {
-                if (method.isAnnotationPresent(
-                        org.springframework.scheduling.annotation.Scheduled.class)) {
-                    return true;
-                }
-            }
-            return false;
-        }
+    /**
+     * The target methods of every task the scheduler has actually registered,
+     * as {@code Class#method} strings.
+     *
+     * <p>Reads the fixed-rate, fixed-delay and cron sets rather than a single
+     * one, so moving the sweep between trigger styles does not silently empty
+     * the assertion.
+     *
+     * <p>Matches on the runnable's {@code toString}, which is the method
+     * reference, rather than unwrapping to the target bean: Spring wraps the
+     * runnable (for observability and error handling), so an
+     * {@code instanceof ScheduledMethodRunnable} filter silently discards every
+     * task and leaves an empty list that no {@code anyMatch} can ever satisfy.
+     * That is exactly the vacuous-assertion trap this test was written to avoid.
+     */
+    private java.util.List<String> scheduledTaskTargets() {
+        ScheduledAnnotationBeanPostProcessor processor =
+                applicationContext.getBean(ScheduledAnnotationBeanPostProcessor.class);
+        return processor.getScheduledTasks().stream()
+                .map(org.springframework.scheduling.config.ScheduledTask::getTask)
+                .map(org.springframework.scheduling.config.Task::getRunnable)
+                .map(Object::toString)
+                .toList();
     }
 }
