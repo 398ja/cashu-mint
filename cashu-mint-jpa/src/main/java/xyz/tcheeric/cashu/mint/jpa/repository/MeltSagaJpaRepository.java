@@ -214,4 +214,49 @@ public interface MeltSagaJpaRepository extends JpaRepository<MeltSagaEntity, Str
               )
             """)
     long countPaymentSentBurnFailed();
+
+    /**
+     * Issue #464 — a terminal saga whose proof settlement may never have
+     * happened, and which nothing will retry.
+     *
+     * <p>The reconciler records the transition and then calls the vault. If
+     * that call fails it logs and continues, and {@code casState} has already
+     * moved the saga out of the state the sweep selects on, so no later pass
+     * finds it. The proofs stay {@code PENDING} at the vault: a wallet cannot
+     * spend them and no process will free them.
+     *
+     * <p>The mint cannot see proof state — that lives in the vault's database —
+     * so this counts the shape it does own: a saga that reached
+     * {@code COMPLETED} or {@code FAILED} through the reconciler
+     * ({@code actor in ('poll','sweep')}) and never recorded a settlement
+     * outcome afterwards. The reconciler appends {@code proof_settled} on
+     * success, so its absence past a grace period means the settle either
+     * failed or never ran.
+     *
+     * <p>Non-zero is an operator condition, not something to automate: the
+     * remedy is to check the vault for {@code PENDING} proofs bound to that
+     * hold and replay the settle, which is safe because both vault operations
+     * are idempotent conditional updates.
+     *
+     * @param settledBefore only consider sagas terminal for longer than this,
+     *                      so a settle in flight does not read as a failure
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM melt_saga s
+            WHERE s.current_state IN ('COMPLETED', 'FAILED')
+              AND EXISTS (
+                  SELECT 1 FROM melt_saga_transition t
+                  WHERE t.melt_saga_id = s.melt_saga_id
+                    AND t.to_state = s.current_state
+                    AND t.actor IN ('poll', 'sweep')
+                    AND t.at < :settledBefore
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM melt_saga_transition t
+                  WHERE t.melt_saga_id = s.melt_saga_id
+                    AND t.reason = 'proof_settled'
+              )
+            """)
+    long countTerminalWithUnsettledProofs(@Param("settledBefore") Instant settledBefore);
 }

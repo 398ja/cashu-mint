@@ -74,6 +74,15 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindTerminalUnsettled(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_melt_terminal_unsettled", value)
+                .description("Melt sagas terminal via the reconciler with no proof-settlement "
+                        + "recorded — proofs may be stuck PENDING and nothing will retry "
+                        + "(see MeltSagaJpaRepository#countTerminalWithUnsettledProofs)")
+                .register(registry);
+    }
+
+    @Override
     public void bindPaidUnissued(Supplier<Number> value) {
         Gauge.builder("cashu_mint_quote_paid_unissued", value)
                 .description("Mint quotes in PAID past the stranded TTL: payment accepted, "

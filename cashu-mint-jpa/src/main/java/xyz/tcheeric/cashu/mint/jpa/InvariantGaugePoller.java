@@ -83,12 +83,16 @@ public class InvariantGaugePoller {
     private final Duration paymentUnknownTtl;
     private final Duration paidUnissuedTtl;
     private final InvariantMetricsRecorder recorder;
+    /** How long a terminal saga may go unsettled before it counts (#464). */
+    private static final Duration SETTLE_GRACE = Duration.ofMinutes(5);
+
     private final AtomicLong stuckPaymentUnknown = new AtomicLong();
     private final AtomicLong paymentSentBurnFailed = new AtomicLong();
     private final AtomicLong orphanIssuance = new AtomicLong();
     private final AtomicLong paidUnfunded = new AtomicLong();
     private final AtomicLong unfundedWithoutWebhook = new AtomicLong();
     private final AtomicLong unfundedRejectedOnly = new AtomicLong();
+    private final AtomicLong terminalUnsettled = new AtomicLong();
     private final AtomicLong paidUnissued = new AtomicLong();
 
     /**
@@ -122,6 +126,7 @@ public class InvariantGaugePoller {
         recorder.bindPaidUnfunded(paidUnfunded::get);
         recorder.bindUnfundedWithoutWebhook(unfundedWithoutWebhook::get);
         recorder.bindUnfundedRejectedOnly(unfundedRejectedOnly::get);
+        recorder.bindTerminalUnsettled(terminalUnsettled::get);
         recorder.bindPaidUnissued(paidUnissued::get);
     }
 
@@ -136,6 +141,10 @@ public class InvariantGaugePoller {
                 voucherQuotes::countUnfundedWithoutWebhook);
         poll("unfunded_rejected_only", unfundedRejectedOnly,
                 voucherQuotes::countUnfundedRejectedOnly);
+        // Grace period so a settle still in flight does not read as a failure.
+        poll("terminal_unsettled", terminalUnsettled,
+                () -> meltSagas.countTerminalWithUnsettledProofs(
+                        Instant.now().minus(SETTLE_GRACE)));
         poll("paid_unissued", paidUnissued,
                 () -> mintQuotes.countPaidUnissued(Instant.now().minus(paidUnissuedTtl)));
     }

@@ -103,6 +103,27 @@ public interface InvariantMetricsRecorder {
     void bindUnfundedRejectedOnly(Supplier<Number> value);
 
     /**
+     * Binds the Terminal-Unsettled gauge to {@code value}. Emits
+     * {@code cashu_mint_melt_terminal_unsettled}: melt sagas that reached a
+     * terminal state through the reconciler and never recorded that their
+     * proofs were settled (issue #464).
+     *
+     * <p>The reconciler records the transition, then calls the vault. A failed
+     * vault call is logged and execution continues, and the CAS has already
+     * moved the saga out of the state the sweep selects on — so nothing
+     * retries, and the customer's proofs stay PENDING with no process that
+     * will free them.
+     *
+     * <p>Non-zero is an operator condition rather than something to automate.
+     * The remedy is to replay the settle for that hold, which is safe because
+     * both vault operations are idempotent conditional updates, but deciding
+     * to do so needs a human looking at why the first attempt failed.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindTerminalUnsettled(Supplier<Number> value);
+
+    /**
      * Binds the Paid-Unissued gauge to {@code value}. Emits
      * {@code cashu_mint_quote_paid_unissued}: mint quotes in {@code PAID} past
      * the stranded TTL (issue #460).

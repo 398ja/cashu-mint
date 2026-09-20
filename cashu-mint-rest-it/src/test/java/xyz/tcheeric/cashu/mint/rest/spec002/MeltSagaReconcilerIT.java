@@ -71,6 +71,15 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
     @org.springframework.beans.factory.annotation.Autowired
     MeltSagaJpaRepository sagas;
 
+    /**
+     * The vault is an external service this suite does not run. A mock that
+     * answers 0 by default is exactly right for these tests: refundForHold is
+     * an idempotent conditional update, so "no rows matched" is a legitimate
+     * success, and any test needing a failure stubs it explicitly.
+     */
+    @org.springframework.boot.test.mock.mockito.MockBean
+    xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService;
+
     @org.springframework.beans.factory.annotation.Autowired
     MeltSagaTransitionJpaRepository transitions;
 
@@ -203,11 +212,18 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
         // And nothing may move it back out of FAILED afterwards: FAILED is
         // terminal, so a later transition away from it would mean the sweep's
         // work was undone.
+        // Nothing may transition AWAY from FAILED. The proof_settled marker
+        // (#464) is a self-transition FAILED -> FAILED recording that the
+        // proofs were settled, so it is excluded: it does not move the saga,
+        // and requiring its absence would forbid the audit trail this issue
+        // exists to guarantee.
         assertThat(timeline)
-                .as("FAILED is terminal; nothing may transition out of it. timeline=%s",
+                .as("FAILED is terminal; nothing may move the saga out of it. timeline=%s",
                         describe(timeline))
-                .noneSatisfy(entry ->
-                        assertThat(entry.getFromState()).isEqualTo(MeltSagaState.FAILED));
+                .noneSatisfy(entry -> {
+                    assertThat(entry.getFromState()).isEqualTo(MeltSagaState.FAILED);
+                    assertThat(entry.getToState()).isNotEqualTo(MeltSagaState.FAILED);
+                });
     }
 
     @Test
@@ -225,6 +241,99 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
                 .untilAsserted(() -> assertThat(
                         sagas.findById("saga-fresh-held").orElseThrow().getCurrentState())
                         .isEqualTo(MeltSagaState.PROOFS_HELD));
+    }
+
+    /**
+     * Issue #464 — the audit row must be written before the money moves.
+     *
+     * <p>The reconciler used to settle proofs and then record the transition.
+     * A failure between the two left proofs already moved with nothing in the
+     * timeline saying why, and {@code casState} had taken the saga out of the
+     * state the sweep selects on, so nothing would retry. The record was lost
+     * exactly when it mattered.
+     *
+     * <p>Asserting on order rather than presence: both rows exist either way,
+     * so a test that only checked they were there would pass against the
+     * original bug.
+     */
+    @Test
+    void theTransitionIsRecordedBeforeTheProofsAreSettled() {
+        seed("saga-order", "quote-order", MeltSagaState.PROOFS_HELD,
+                Instant.now().minus(Duration.ofMinutes(10)));
+
+        reconciler.reconcileTick();
+
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-order");
+        int terminal = indexOfReason(timeline, "proofs_held_ttl_expired");
+        int settled = indexOfReason(timeline, "proof_settled");
+
+        assertThat(terminal)
+                .as("the PROOFS_HELD -> FAILED transition must be recorded. timeline=%s",
+                        describe(timeline))
+                .isGreaterThanOrEqualTo(0);
+        assertThat(settled)
+                .as("a successful settle must leave a proof_settled marker. timeline=%s",
+                        describe(timeline))
+                .isGreaterThanOrEqualTo(0);
+        assertThat(terminal)
+                .as("""
+                        The audit row must come first. Both vault operations are idempotent                         conditional updates, so a record written and not acted on is                         recoverable; money moved with no record of it is not. timeline=%s""",
+                        describe(timeline))
+                .isLessThan(settled);
+    }
+
+    /**
+     * A settle that fails must leave the saga visibly unsettled.
+     *
+     * <p>Nothing retries this path, so the marker's absence is the only signal
+     * that a customer's proofs are stuck PENDING. {@code
+     * countTerminalWithUnsettledProofs} is what the
+     * {@code cashu_mint_melt_terminal_unsettled} gauge reads.
+     */
+    @Test
+    void aFailedSettleLeavesTheSagaCountedAsUnsettled() throws Exception {
+        org.mockito.Mockito.when(
+                        proofVaultService.refundForHold(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new RuntimeException("vault down"));
+
+        seed("saga-unsettled", "quote-unsettled", MeltSagaState.PROOFS_HELD,
+                Instant.now().minus(Duration.ofMinutes(10)));
+
+        reconciler.reconcileTick();
+
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-unsettled");
+        assertThat(indexOfReason(timeline, "proof_settled"))
+                .as("a failed settle must NOT claim to have settled. timeline=%s",
+                        describe(timeline))
+                .isEqualTo(-1);
+
+        assertThat(sagas.countTerminalWithUnsettledProofs(Instant.now()))
+                .as("""
+                        The saga is terminal, its proofs may still be PENDING, and no sweep                         will find it again because casState already moved it. The gauge is                         the whole mechanism here, so it has to count this.""")
+                .isEqualTo(1L);
+    }
+
+    /** A settle that succeeds must not be counted as unsettled. */
+    @Test
+    void aSuccessfulSettleIsNotCountedAsUnsettled() {
+        seed("saga-settled", "quote-settled", MeltSagaState.PROOFS_HELD,
+                Instant.now().minus(Duration.ofMinutes(10)));
+
+        reconciler.reconcileTick();
+
+        assertThat(sagas.countTerminalWithUnsettledProofs(Instant.now()))
+                .as("a gauge that counts healthy sagas is one nobody will act on")
+                .isZero();
+    }
+
+    /** Index of the first transition with the given reason, or -1. */
+    private static int indexOfReason(List<MeltSagaTransitionEntity> timeline, String reason) {
+        for (int i = 0; i < timeline.size(); i++) {
+            if (reason.equals(timeline.get(i).getReason())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Renders a timeline so a failure names what actually happened. */

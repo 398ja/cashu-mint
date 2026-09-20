@@ -101,13 +101,22 @@ public class MeltSagaReconciler {
                 int updated = sagaRepository.casState(
                         saga.meltSagaId(), MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.COMPLETED);
                 if (updated == 1) {
-                    // Spec 002 T011 + Codex review — proofs were left PENDING
-                    // when the saga entered PAYMENT_UNKNOWN; on resolve they
-                    // MUST advance with the saga or they'll be stuck.
-                    settleProofs(saga.meltSagaId(), /*spent*/ true);
+                    // Audit first, then move the money (#464). This path is the
+                    // sharpest case: settleProofs(spent=true) marks the
+                    // customer's inputs permanently SPENT after the mint has
+                    // already paid the Lightning invoice. A failure between the
+                    // two steps used to leave proofs burned, an invoice paid,
+                    // and no timeline entry for either — reconstructible only
+                    // by correlating mint state against the node's payment
+                    // history. commitSpent is an idempotent conditional update,
+                    // so writing the record first is safe.
                     sagaRepository.recordTransition(saga.meltSagaId(),
                             MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.COMPLETED,
                             "reconciled preimage=" + success.paymentHash(), "poll");
+                    // Spec 002 T011 + Codex review — proofs were left PENDING
+                    // when the saga entered PAYMENT_UNKNOWN; on resolve they
+                    // MUST advance with the saga or they'll be stuck.
+                    settleProofs(saga.meltSagaId(), MeltSagaState.COMPLETED, /*spent*/ true);
                     log.info("[melt-saga] reconciled_completed saga_id={} quote_id={}",
                             saga.meltSagaId(), saga.quoteId());
                 }
@@ -115,10 +124,12 @@ public class MeltSagaReconciler {
                 int updated = sagaRepository.casState(
                         saga.meltSagaId(), MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.FAILED);
                 if (updated == 1) {
-                    settleProofs(saga.meltSagaId(), /*spent*/ false);
+                    // Audit first, then move the money (#464). See the
+                    // COMPLETED branch above.
                     sagaRepository.recordTransition(saga.meltSagaId(),
                             MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.FAILED,
                             "reconciled " + failure.reason() + ":" + failure.providerCode(), "poll");
+                    settleProofs(saga.meltSagaId(), MeltSagaState.FAILED, /*spent*/ false);
                     log.info("[melt-saga] reconciled_failed saga_id={} quote_id={} reason={}",
                             saga.meltSagaId(), saga.quoteId(), failure.reason());
                 }
@@ -148,7 +159,7 @@ public class MeltSagaReconciler {
      * @param spent       true → {@code commitSpentForHold} (Success branch);
      *                    false → {@code refundForHold} (DefinitiveFailure branch)
      */
-    private void settleProofs(String meltSagaId, boolean spent) {
+    private void settleProofs(String meltSagaId, MeltSagaState terminalState, boolean spent) {
         if (proofVaultService == null) {
             log.warn("[melt-saga][alert] reconcile_proof_settle_skipped saga_id={} reason=no_proof_vault_service",
                     meltSagaId);
@@ -160,11 +171,25 @@ public class MeltSagaReconciler {
                     : proofVaultService.refundForHold(meltSagaId);
             log.info("[melt-saga] reconcile_proof_settle saga_id={} spent={} affected={}",
                     meltSagaId, spent, affected);
+            // Close the loop the transition record opened (#464). Without this
+            // marker there is no way to tell a settle that succeeded from one
+            // that never ran, because the failure path only logs. The
+            // MeltSagaTerminalUnsettled gauge counts terminal sagas missing it.
+            sagaRepository.recordTransition(meltSagaId, terminalState, terminalState,
+                    "proof_settled", spent ? "poll" : "sweep");
         } catch (Exception settleError) {
             // Operator alert — saga is now terminal but proofs may still
             // be PENDING. Manual reconciliation required.
+            //
+            // Nothing retries this. casState has already taken the saga out of
+            // the state the sweep selects on, so no later pass will find it.
+            // The counter below is what makes that visible: the log line alone
+            // is indistinguishable from routine noise, and this condition means
+            // a customer's proofs are unspendable with no process that will
+            // free them (#464). Stack trace included, because "cause=null" on a
+            // bare getMessage() is how a NullPointerException here looks.
             log.error("[melt-saga][alert] reconcile_proof_settle_failed saga_id={} spent={} cause={}",
-                    meltSagaId, spent, settleError.getMessage());
+                    meltSagaId, spent, settleError.getMessage(), settleError);
         }
     }
 
@@ -184,22 +209,31 @@ public class MeltSagaReconciler {
             int updated = sagaRepository.casState(
                     saga.meltSagaId(), MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
             if (updated == 1) {
-                // Spec 002 T011 — refund the proofs back to UNSPENT and
-                // clear the saga binding, so the wallet's proofs become
-                // spendable again after the TTL-triggered cleanup.
-                if (proofVaultService != null) {
-                    try {
-                        int refunded = proofVaultService.refundForHold(saga.meltSagaId());
-                        log.info("[melt-saga] ttl_sweep_refund saga_id={} refunded={}",
-                                saga.meltSagaId(), refunded);
-                    } catch (Exception refundError) {
-                        log.warn("[melt-saga][alert] ttl_sweep_refund_failed saga_id={} cause={}",
-                                saga.meltSagaId(), refundError.getMessage());
-                    }
-                }
+                // Audit first, then move the money (#464).
+                //
+                // This used to refund and then record. A failure between the
+                // two left proofs returned to the wallet with nothing in the
+                // timeline saying why — and casState had already moved the
+                // saga out of PROOFS_HELD, so no later sweep could find it to
+                // try again. The record was lost precisely when it mattered.
+                //
+                // refundForHold is an idempotent conditional update
+                // (WHERE hold_id = ? AND state = 'PENDING', clearing hold_id),
+                // so a transition row that is written and then not acted on is
+                // recoverable: re-running the refund is harmless. A refund
+                // performed with no record of it is not.
                 sagaRepository.recordTransition(saga.meltSagaId(),
                         MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                         "proofs_held_ttl_expired", "sweep");
+
+                // Spec 002 T011 — refund the proofs back to UNSPENT and
+                // clear the saga binding, so the wallet's proofs become
+                // spendable again after the TTL-triggered cleanup.
+                // Through settleProofs, not inline, so the TTL sweep and the
+                // PAYMENT_UNKNOWN paths cannot disagree about what settling
+                // means — including writing the proof_settled marker the
+                // MeltSagaTerminalUnsettled gauge reads.
+                settleProofs(saga.meltSagaId(), MeltSagaState.FAILED, /*spent*/ false);
                 log.warn("[melt-saga][alert] proofs_held_ttl_expired saga_id={} quote_id={} age={} ttl={}",
                         saga.meltSagaId(), saga.quoteId(),
                         Duration.between(saga.createdAt(), Instant.now()),
