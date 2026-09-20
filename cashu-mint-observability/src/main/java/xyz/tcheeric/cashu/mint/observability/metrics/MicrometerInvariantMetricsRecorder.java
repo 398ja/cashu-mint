@@ -65,6 +65,15 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindUnfundedRejectedOnly(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_voucher_unfunded_rejected_only", value)
+                .description("Voucher quotes UNFUNDED whose only payment events were rejected — the "
+                        + "mint was told and said no "
+                        + "(see VoucherQuoteJpaRepository#countUnfundedRejectedOnly)")
+                .register(registry);
+    }
+
+    @Override
     public void bindPaidUnissued(Supplier<Number> value) {
         Gauge.builder("cashu_mint_quote_paid_unissued", value)
                 .description("Mint quotes in PAID past the stranded TTL: payment accepted, "

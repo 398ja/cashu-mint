@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -132,14 +133,40 @@ class SecurityValidationIT extends AbstractAdminIntegrationIT {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
     }
 
-    // Reading the audit trail requires a permission rather than merely a valid session.
-    @Test
-    void shouldRefuseAuditReadWithoutRequiredRole() {
-        final String session = operatorSession(UUID.randomUUID().toString(), List.of(OPS_ADMIN_ROLE));
+    // Every Operator role reads the audit trail. That is a deliberate policy
+    // (AdminRole, "fix(admin): give every Operator role read access to the
+    // audit trail"): the trail is read-only, it is how an Operator checks what
+    // was done to the deployment they are on call for, and the dashboard's
+    // recent-activity panel is built from it.
+    //
+    // This test previously asserted 403 for OPS_ADMIN and had been failing ever
+    // since that policy landed — the production code was changed and the test
+    // was not. It was asserting a rule the system had deliberately stopped
+    // having, so it could only ever have been satisfied by reintroducing the
+    // very behaviour that was removed on purpose.
+    //
+    // The real boundary is authentication, not role: no session means no
+    // access. Parameterised over every role so that adding one cannot quietly
+    // reintroduce a gap.
+    @ParameterizedTest
+    @ValueSource(strings = {MINT_ADMIN_ROLE, USER_ADMIN_ROLE, OPS_ADMIN_ROLE})
+    void shouldAllowAuditReadForEveryOperatorRole(final String role) {
+        final String session = operatorSession(UUID.randomUUID().toString(), List.of(role));
 
         final ResponseEntity<JsonNode> response = adminApiClient().get("/admin/audit/events", session);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(403);
+        assertThat(response.getStatusCode().value())
+            .as("%s must be able to read the audit trail", role)
+            .isEqualTo(200);
+    }
+
+    @Test
+    void shouldRefuseAuditReadWithoutASession() {
+        final ResponseEntity<JsonNode> response = adminApiClient().get("/admin/audit/events", null);
+
+        assertThat(response.getStatusCode().value())
+            .as("the audit trail is open to every role, but never to an unauthenticated caller")
+            .isEqualTo(401);
     }
 
     // The Audit Trail names the operator the server authenticated. A body field

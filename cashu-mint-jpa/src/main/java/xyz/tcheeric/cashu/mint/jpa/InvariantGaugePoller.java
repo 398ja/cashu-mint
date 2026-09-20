@@ -88,6 +88,7 @@ public class InvariantGaugePoller {
     private final AtomicLong orphanIssuance = new AtomicLong();
     private final AtomicLong paidUnfunded = new AtomicLong();
     private final AtomicLong unfundedWithoutWebhook = new AtomicLong();
+    private final AtomicLong unfundedRejectedOnly = new AtomicLong();
     private final AtomicLong paidUnissued = new AtomicLong();
 
     /**
@@ -120,6 +121,7 @@ public class InvariantGaugePoller {
         recorder.bindOrphanIssuance(orphanIssuance::get);
         recorder.bindPaidUnfunded(paidUnfunded::get);
         recorder.bindUnfundedWithoutWebhook(unfundedWithoutWebhook::get);
+        recorder.bindUnfundedRejectedOnly(unfundedRejectedOnly::get);
         recorder.bindPaidUnissued(paidUnissued::get);
     }
 
@@ -132,6 +134,8 @@ public class InvariantGaugePoller {
         poll("paid_unfunded", paidUnfunded, voucherQuotes::countPaidUnfunded);
         poll("unfunded_without_webhook", unfundedWithoutWebhook,
                 voucherQuotes::countUnfundedWithoutWebhook);
+        poll("unfunded_rejected_only", unfundedRejectedOnly,
+                voucherQuotes::countUnfundedRejectedOnly);
         poll("paid_unissued", paidUnissued,
                 () -> mintQuotes.countPaidUnissued(Instant.now().minus(paidUnissuedTtl)));
     }

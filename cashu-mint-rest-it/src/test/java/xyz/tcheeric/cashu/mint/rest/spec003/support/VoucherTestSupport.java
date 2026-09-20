@@ -121,6 +121,17 @@ public final class VoucherTestSupport {
 
     public static WebhookEventEntity acceptedWebhookEvent(String provider, String providerEventId,
                                                          String quoteId, long amount) {
+        return webhookEvent(provider, providerEventId, quoteId, amount, WebhookEvent.Outcome.accepted);
+    }
+
+    /**
+     * A webhook event with an explicit outcome. {@code accepted} is only one of
+     * eleven; the rest (amount_mismatch, tamper, expired, orphan, …) record
+     * that the mint saw something and rejected it.
+     */
+    public static WebhookEventEntity webhookEvent(String provider, String providerEventId,
+                                                  String quoteId, long amount,
+                                                  WebhookEvent.Outcome outcome) {
         WebhookEventEntity e = new WebhookEventEntity();
         e.setProvider(provider);
         e.setProviderEventId(providerEventId);
@@ -128,7 +139,7 @@ public final class VoucherTestSupport {
         e.setAmount(amount);
         e.setUnit(DEFAULT_UNIT);
         e.setPaymentMethod("bolt11");
-        e.setOutcome(WebhookEvent.Outcome.accepted);
+        e.setOutcome(outcome);
         e.setReceivedAt(Instant.now());
         return e;
     }

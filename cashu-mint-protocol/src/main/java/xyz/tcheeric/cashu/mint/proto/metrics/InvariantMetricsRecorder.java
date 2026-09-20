@@ -85,6 +85,24 @@ public interface InvariantMetricsRecorder {
     void bindUnfundedWithoutWebhook(Supplier<Number> value);
 
     /**
+     * Binds the Unfunded-Rejected-Only gauge to {@code value}. Emits
+     * {@code cashu_mint_voucher_unfunded_rejected_only}: voucher quotes still
+     * {@code UNFUNDED} whose only payment events were rejected (#459, #462).
+     *
+     * <p>The third of three, and the one that completes the partition.
+     * {@code outcome} has eleven values, so "has an accepted event" and "has
+     * no event" do not cover the population between them: a quote whose only
+     * events were {@code amount_mismatch} or {@code tamper} raises neither.
+     *
+     * <p>Unlike its two siblings this one is unambiguous about whether the
+     * mint was told. It was, and it refused. What the customer is owed depends
+     * on which outcome it was, which is why this reports rather than resolves.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindUnfundedRejectedOnly(Supplier<Number> value);
+
+    /**
      * Binds the Paid-Unissued gauge to {@code value}. Emits
      * {@code cashu_mint_quote_paid_unissued}: mint quotes in {@code PAID} past
      * the stranded TTL (issue #460).

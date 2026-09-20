@@ -186,4 +186,44 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
                )
             """)
     long countUnfundedWithoutWebhook();
+
+    /**
+     * Issue #459 / #462 — the third bucket, and the one that is easiest to
+     * miss because it looks like it cannot exist.
+     *
+     * <p>{@code outcome} has eleven values. {@link #countPaidUnfunded} counts
+     * quotes with an {@code accepted} event, {@link #countUnfundedWithoutWebhook}
+     * counts quotes with no event at all, and a quote whose only events were
+     * <em>rejected</em> falls between them: it has rows, so it is not
+     * "without webhook", but none are {@code accepted}, so it is not
+     * "paid-unfunded" either. Two gauges over eleven outcomes do not
+     * partition anything.
+     *
+     * <p>Staging has only ever recorded {@code accepted} (130 of 130 events as
+     * of 2026-09-20), so this reads zero there and the omission would not have
+     * shown up on any dashboard. That is a property of the current data, not
+     * of the design.
+     *
+     * <p>Non-zero means the mint saw a payment event for a known quote and
+     * refused it — {@code amount_mismatch}, {@code unit_mismatch},
+     * {@code tamper}, {@code expired}. Unlike the other two, this one is not
+     * ambiguous about whether the mint was told: it was, and it said no. The
+     * outcome column says why, and whether the customer is owed anything
+     * depends on which outcome it was, so there is no single remedy to
+     * automate.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*) FROM voucher_quote q
+             WHERE q.lifecycle_state = 'UNFUNDED'
+               AND EXISTS (
+                   SELECT 1 FROM webhook_event e
+                    WHERE e.quote_id = q.quote_id
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM webhook_event e
+                    WHERE e.quote_id = q.quote_id
+                      AND e.outcome = 'accepted'
+               )
+            """)
+    long countUnfundedRejectedOnly();
 }

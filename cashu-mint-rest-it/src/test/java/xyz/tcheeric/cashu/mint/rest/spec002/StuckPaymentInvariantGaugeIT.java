@@ -18,6 +18,7 @@ import xyz.tcheeric.cashu.mint.jpa.repository.VoucherQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherQuoteEntity;
 import xyz.tcheeric.cashu.mint.rest.spec001.AbstractMintDurableIT;
@@ -87,6 +88,10 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         transitions.deleteAll();
         sagas.deleteAll();
         voucherQuotes.deleteAll();
+        // webhook_event outlives voucher_quote and is keyed by quote_id, not
+        // by FK, so events left behind would re-attach to a later test's
+        // quote with the same id and silently change what the gauges count.
+        webhookEventJpaRepository.deleteAll();
         // Also @AfterEach: the base class only wipes mint_quote before each
         // test, so a stranded row seeded here would otherwise be visible to
         // whichever class runs next in the same context.
@@ -322,6 +327,55 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         assertThat(gaugeValue(scrape, "cashu_mint_voucher_paid_unfunded"))
                 .as("the two with accepted webhooks, and not the one the mint never heard about")
                 .isEqualTo(2.0);
+    }
+
+    /**
+     * The third bucket, which my first version of these gauges missed
+     * entirely (#459, #462).
+     *
+     * <p>{@code outcome} has eleven values, not two. Partitioning on
+     * "has an accepted webhook" versus "has no webhook row" leaves a quote
+     * whose only events were rejected — {@code amount_mismatch},
+     * {@code tamper}, {@code expired} — counted by <em>neither</em> gauge:
+     * Paid-Unfunded requires {@code accepted}, and Unfunded-Without-Webhook
+     * requires the absence of any row.
+     *
+     * <p>Staging happens to have only ever recorded {@code accepted} (130 of
+     * 130), so today the bucket is empty and no dashboard would reveal the
+     * hole. That is luck, not design: {@code amount_mismatch} means the mint
+     * saw money arrive for a known quote and refused it, which is exactly when
+     * someone needs to know.
+     *
+     * <p>This asserts the three buckets are disjoint and that their sum is the
+     * whole {@code UNFUNDED} population, so no future partition can silently
+     * drop rows between them.
+     */
+    @Test
+    void aQuoteWhoseOnlyWebhookWasRejectedIsStillAccountedFor() {
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("rejected-only", 40L));
+        webhookEventJpaRepository.save(VoucherTestSupport.webhookEvent(
+                "phoenixd-it", "evt-rejected-only", "rejected-only", 40L,
+                WebhookEvent.Outcome.amount_mismatch));
+
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("no-webhook", 30L));
+
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("accepted-webhook", 20_000L));
+        webhookEventJpaRepository.save(VoucherTestSupport.acceptedWebhookEvent(
+                "phoenixd-it", "evt-accepted-webhook", "accepted-webhook", 20_000L));
+
+        long paidUnfunded = voucherQuotes.countPaidUnfunded();
+        long withoutWebhook = voucherQuotes.countUnfundedWithoutWebhook();
+        long rejectedOnly = voucherQuotes.countUnfundedRejectedOnly();
+        long allUnfunded = voucherQuotes.count();
+
+        assertThat(paidUnfunded).as("only the quote with an accepted webhook").isEqualTo(1);
+        assertThat(withoutWebhook).as("only the quote with no webhook row at all").isEqualTo(1);
+        assertThat(rejectedOnly)
+                .as("the quote whose only event was rejected: seen, refused, and otherwise invisible")
+                .isEqualTo(1);
+        assertThat(paidUnfunded + withoutWebhook + rejectedOnly)
+                .as("the three buckets must partition UNFUNDED exactly, with no row falling between them")
+                .isEqualTo(allUnfunded);
     }
 
     /**
