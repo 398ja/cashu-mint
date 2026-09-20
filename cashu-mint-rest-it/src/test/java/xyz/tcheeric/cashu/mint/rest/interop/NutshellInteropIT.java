@@ -78,39 +78,31 @@ class NutshellInteropIT extends AbstractMintDurableIT {
     /**
      * Pinned so a Nutshell release cannot silently change what this measures.
      *
-     * <p><strong>Both tests fail against 0.16.5, and that image is not the
-     * problem.</strong> It predates the current NUT-20 message format and
-     * signs the legacy {@code utf8(quote_id || B_hex)}; our implementation
-     * matches the spec byte-for-byte, so the 20008 is this mint correctly
-     * refusing a signature over a message the spec no longer defines.
-     *
-     * <p>Raising the pin to 0.21.0 is the real goal and is <em>close</em>.
-     * Driving a current wallet against this mint found three genuine
-     * spec-compliance defects, two of them now fixed:
+     * <p>Raised from 0.16.5 to 0.21.0 once the mint could actually talk to a
+     * current wallet. Driving one against this mint found three
+     * spec-compliance defects, each hidden behind the one in front of it:
      *
      * <ol>
-     *   <li><strong>Fixed.</strong> {@code GET /v1/keys} omitted the NUT-01
-     *       {@code active} field. Wallets model it as required, so the whole
-     *       response failed to deserialise and the mint appeared to have no
-     *       keysets at all ({@code KeysetNotFoundError ... or they are
-     *       unsupported by this wallet}).</li>
-     *   <li><strong>Fixed.</strong> {@code PostMeltQuoteResponse} returned
-     *       null for the required {@code unit} and {@code request} fields, so
-     *       no wallet could obtain a melt quote.</li>
-     *   <li><strong>Open, see #465.</strong> {@code POST /v1/melt} still
-     *       returns the deprecated {@code {paid, payment_preimage}} shape.
-     *       NUT-05 now expects the full quote object; a current wallet reports
-     *       8 missing fields. {@code PostMeltResponse} has 30 non-test usages
-     *       across this repo and cashu-lib, so it is a migration rather than a
-     *       patch.</li>
+     *   <li>{@code GET /v1/keys} omitted the NUT-01 {@code active} field.
+     *       Wallets model it as required, so the whole response failed to
+     *       deserialise and the mint appeared to have no keysets at all.</li>
+     *   <li>{@code PostMeltQuoteResponse} returned null for the required
+     *       {@code unit} and {@code request}, so no melt quote could be
+     *       obtained.</li>
+     *   <li>{@code POST /v1/melt} returned the pre-NUT-23
+     *       {@code {paid, payment_preimage}} shape instead of the quote
+     *       object, so a melt that had already succeeded could not be
+     *       parsed.</li>
      * </ol>
      *
-     * <p>With the first two fixed, 0.21.0 gets through mint and swap and fails
-     * only at the last step. Raise the pin once the melt response is migrated,
-     * and this class starts measuring interop against a wallet anyone actually
-     * runs.
+     * <p>0.16.5 could never have caught any of them: it predates the current
+     * NUT-20 message format and signs the legacy
+     * {@code utf8(quote_id || B_hex)}, so it failed at the mint step for a
+     * reason of its own. An interop test pinned to a client old enough to
+     * share our bugs measures agreement rather than correctness — which is
+     * how a mint that no modern wallet could use went unnoticed.
      */
-    private static final String NUTSHELL_IMAGE = "cashubtc/nutshell:0.16.5";
+    private static final String NUTSHELL_IMAGE = "cashubtc/nutshell:0.21.0";
     private static final String FLOW_SCRIPT = "interop/nutshell_flow.py";
     private static final String CONTAINER_SCRIPT_PATH = "/interop/nutshell_flow.py";
     private static final String RESULT_PREFIX = "RESULT_JSON ";

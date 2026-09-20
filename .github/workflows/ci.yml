@@ -160,7 +160,12 @@ jobs:
           fi
 
           # Ratchet. Lower this number when you fix one; never raise it.
-          budget=2
+          #
+          # Zero as of the NUT-01/NUT-05 interop fixes: the suite is green,
+          # including NutshellInteropIT against a current wallet. Any failure
+          # is now a regression rather than a known gap, which is what a gate
+          # is supposed to mean.
+          budget=0
           if [ "$bad" -gt "$budget" ]; then
             echo "::error::rest-it has $bad failing tests, budget is $budget."
             echo "::error::A new failure was introduced, or a fixed one regressed (#463)."

@@ -448,7 +448,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         meltSagaRepository.casState(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT, MeltSagaState.COMPLETED,
                 "preimage=" + success.paymentHash(), "system");
-        PostMeltResponse response = new PostMeltResponse(true, success.paymentHash());
+        PostMeltResponse response = meltResponse(quoteId, success.paymentHash(), gateway);
 
         // Spec 002 T215 / FR-013 — NUT-08 overpaid-melt change return. Computed
         // against the persisted saga (NOT the in-memory request) so the
@@ -665,7 +665,48 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error);
         }
         createInvalidateProofsTask(proofsToMelt).execute();
-        return new PostMeltResponse(true, gateway.getPaymentPreimage(quoteId));
+        return meltResponse(quoteId, gateway.getPaymentPreimage(quoteId), gateway);
+    }
+
+
+    /**
+     * Builds a NUT-05 melt response.
+     *
+     * <p>The spec's melt response is the melt <em>quote</em> response plus the
+     * proof of payment, not the {@code {paid, payment_preimage}} pair this
+     * mint used to return. A current wallet models the quote fields as
+     * required and rejects the short form outright with eight missing fields —
+     * so it cannot parse a melt it has already paid for, which is worse than
+     * a refusal: an unparseable success is indistinguishable from a failure,
+     * and a wallet that retries has already had its inputs spent.
+     *
+     * <p>{@code paid} is still set alongside {@code state}. They say the same
+     * thing in two vocabularies, and dropping the boolean to satisfy new
+     * wallets would break every existing one (#466).
+     *
+     * <p>Both call sites go through here so the two cannot drift; that they
+     * had drifted is why only one of them was ever noticed.
+     */
+    private PostMeltResponse meltResponse(String quoteId, String preimage,
+                                          xyz.tcheeric.payment.adapter.core.common.Gateway gateway) {
+        PostMeltResponse response = new PostMeltResponse();
+        response.setQuoteId(quoteId);
+        response.setPaid(true);
+        response.setState(xyz.tcheeric.cashu.entities.rest.nut05.MeltQuoteState.PAID);
+        response.setPaymentPreimage(preimage);
+        response.setMethod(method == null ? "bolt11" : method.name().toLowerCase());
+        try {
+            response.setRequest(gateway.getRequest(quoteId));
+            response.setAmount((int) gateway.getAmount(quoteId));
+        } catch (RuntimeException gatewayError) {
+            // The payment has already succeeded; a gateway hiccup reading back
+            // its own quote must not turn that into a failure for the wallet.
+            // The required fields are still present, just less informative.
+            log.warn("melt_response_quote_detail_unavailable quote_id={} cause={}",
+                    quoteId, gatewayError.getMessage());
+        }
+        response.setUnit(unit == null ? "sat" : unit);
+        return response;
     }
 
     private static final ObjectMapper RESPONSE_MAPPER = new ObjectMapper();
