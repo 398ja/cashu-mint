@@ -80,8 +80,28 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
     @BeforeEach
     void clean() {
-        transitions.deleteAll();
-        sagas.deleteAll();
+        // deleteAllInBatch, not deleteAll.
+        //
+        // deleteAll() loads every entity and removes them one by one through
+        // the persistence context. The reconciler writes transition rows from
+        // its own transaction, so a row inserted after this test's context
+        // last read the table is invisible to that load and survives the
+        // delete — and then the saga delete fails:
+        //
+        //   update or delete on table "melt_saga" violates foreign key
+        //   constraint "melt_saga_transition_saga_fk"
+        //   Detail: Key (melt_saga_id)=(saga-stale-held) is still
+        //           referenced from table "melt_saga_transition".
+        //
+        // That left the previous test's saga in place, so the next test's
+        // seed() collided with it and the sweep it expected had already run.
+        // It failed roughly one run in four, and the message it produced
+        // pointed at the assertion rather than at the cleanup.
+        //
+        // deleteAllInBatch issues a single DELETE and sees every committed
+        // row regardless of which transaction wrote it.
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
         mock().reset();
     }
 

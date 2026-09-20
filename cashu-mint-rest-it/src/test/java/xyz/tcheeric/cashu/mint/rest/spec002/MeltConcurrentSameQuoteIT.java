@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.spec002;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -99,8 +100,28 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
-        transitions.deleteAll();
-        sagas.deleteAll();
+        // deleteAllInBatch: a row written by the reconciler from its own
+        // transaction is invisible to deleteAll()'s entity load and survives
+        // the delete. See MeltSagaReconcilerIT.clean().
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
+    }
+
+    /**
+     * Clean up after, not only before.
+     *
+     * <p>Every melt IT shares one Postgres. Cleaning only on the way in leaves
+     * this class's rows visible to whichever class runs next, and
+     * {@code quote-terminal} then collides with their seed on
+     * {@code melt_saga_quote_id_uq}. That surfaced as an intermittent failure
+     * in MeltSagaReconcilerIT: its seed threw, so its saga never existed, and
+     * the sweep's transition insert failed the foreign key — a message three
+     * steps removed from this omission.
+     */
+    @AfterEach
+    void cleanSagasAfter() {
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
     }
 
     @Test

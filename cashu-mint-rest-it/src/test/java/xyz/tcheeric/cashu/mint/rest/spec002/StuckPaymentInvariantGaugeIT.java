@@ -85,8 +85,12 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
     @BeforeEach
     @AfterEach
     void clean() {
-        transitions.deleteAll();
-        sagas.deleteAll();
+        // deleteAllInBatch: a row written by the reconciler from its own
+        // transaction is invisible to deleteAll()'s entity load, survives the
+        // delete, and then blocks the saga delete on the FK. See
+        // MeltSagaReconcilerIT.clean() for the full account.
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
         voucherQuotes.deleteAll();
         // webhook_event outlives voucher_quote and is keyed by quote_id, not
         // by FK, so events left behind would re-attach to a later test's

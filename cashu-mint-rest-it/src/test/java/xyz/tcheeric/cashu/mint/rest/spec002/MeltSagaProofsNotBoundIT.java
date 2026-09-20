@@ -141,8 +141,12 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
         me.setId(UUID.fromString(mint.getId()));
         when(mintVaultService.retrieveMint(anyString())).thenReturn(me);
-        transitions.deleteAll();
-        sagas.deleteAll();
+        // deleteAllInBatch: a row written by the reconciler from its own
+        // transaction is invisible to deleteAll()'s entity load, survives the
+        // delete, and then blocks the saga delete on the FK. See
+        // MeltSagaReconcilerIT.clean() for the full account.
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
         ((MockLightningPaymentPort) paymentPort).reset();
     }
 
@@ -293,5 +297,18 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Clean up after, not only before. Every melt IT shares one Postgres, so
+     * rows left behind are visible to whichever class runs next and collide
+     * with its seed on {@code melt_saga_quote_id_uq}. See
+     * MeltConcurrentSameQuoteIT for the failure that traced back to exactly
+     * this omission.
+     */
+    @org.junit.jupiter.api.AfterEach
+    void cleanSagasAfterEachTest() {
+        transitions.deleteAllInBatch();
+        sagas.deleteAllInBatch();
     }
 }
