@@ -20,6 +20,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -72,6 +75,22 @@ class FeeBearingSwapIT extends AbstractMintDurableIT {
 
   @MockBean MintLoadService mintLoadService;
 
+  /**
+   * The vault is an external service this suite does not run.
+   *
+   * <p>Without these, {@code SwapProofHold.claim} calls a live vault on
+   * :3333, gets 404 "MintEntity not found", and fails the swap closed with
+   * {@code proofs_not_bound} — correct behaviour, but it means the three
+   * tests that complete a swap were asserting nothing about fees. This class
+   * was written at 10:14 on 2026-08-29; the vault-backed claim landed at
+   * 11:35 the same day, and the tests have been red ever since.
+   *
+   * <p>Mirrors how the melt ITs handle the same dependency.
+   */
+  @MockBean ProofVaultService proofVaultService;
+
+  @MockBean MintVaultService mintVaultService;
+
   private final RestTemplate restTemplate = new RestTemplate();
 
   private static MintProtocolService originalProtocolService;
@@ -105,6 +124,32 @@ class FeeBearingSwapIT extends AbstractMintDurableIT {
   @BeforeEach
   void serveAFeeBearingKeySet() throws Exception {
     wireKeySetPricedAt(ONE_SAT_PER_INPUT_PPK);
+    stubVault();
+  }
+
+  /**
+   * Makes the vault report every submitted input as claimed.
+   *
+   * <p>Deliberately answers with the submitted count rather than a fixed
+   * number: {@code claim} compares what it asked for against what it got, so
+   * a hardcoded value would pass the fee tests while hiding a real mismatch.
+   */
+  private void stubVault() throws Exception {
+    MintEntity mintEntity = new MintEntity();
+    mintEntity.setId(MINT_UUID);
+    when(mintVaultService.retrieveMint(anyString())).thenReturn(mintEntity);
+    java.util.Map<String, Integer> heldByHold = new java.util.concurrent.ConcurrentHashMap<>();
+    when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
+        .thenAnswer(invocation -> {
+          int claimed = invocation.getArgument(0, List.class).size();
+          heldByHold.put(invocation.getArgument(1, String.class), claimed);
+          return claimed;
+        });
+    // commit must spend exactly what the same hold claimed. Returning a
+    // constant here would let a swap that held two inputs and spent one
+    // still pass, which is the accounting error the hold exists to prevent.
+    when(proofVaultService.commitSpentForHold(anyString()))
+        .thenAnswer(invocation -> heldByHold.getOrDefault(invocation.getArgument(0, String.class), 0));
   }
 
   /**
