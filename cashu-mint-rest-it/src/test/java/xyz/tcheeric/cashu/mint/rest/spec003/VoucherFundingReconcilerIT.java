@@ -17,6 +17,10 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Issue #459 — drives {@link VoucherFundingReconciler} and its sweep query
@@ -253,10 +257,10 @@ class VoucherFundingReconcilerIT extends AbstractVoucherDurableIT {
         seedPaidButUnfunded(quoteId, Instant.now().minus(Duration.ofHours(1)));
 
         int replicas = 4;
-        var start = new java.util.concurrent.CountDownLatch(1);
-        var done = new java.util.concurrent.CountDownLatch(replicas);
-        var errors = new java.util.concurrent.ConcurrentLinkedQueue<Throwable>();
-        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(replicas)) {
+        var start = new CountDownLatch(1);
+        var done = new CountDownLatch(replicas);
+        var errors = new ConcurrentLinkedQueue<Throwable>();
+        try (var pool = Executors.newFixedThreadPool(replicas)) {
             for (int i = 0; i < replicas; i++) {
                 pool.submit(() -> {
                     try {
@@ -270,7 +274,7 @@ class VoucherFundingReconcilerIT extends AbstractVoucherDurableIT {
                 });
             }
             start.countDown();
-            assertThat(done.await(30, java.util.concurrent.TimeUnit.SECONDS))
+            assertThat(done.await(30, TimeUnit.SECONDS))
                     .as("sweeps should finish promptly")
                     .isTrue();
         }

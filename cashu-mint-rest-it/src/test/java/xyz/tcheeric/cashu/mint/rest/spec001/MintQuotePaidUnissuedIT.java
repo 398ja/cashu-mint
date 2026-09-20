@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import javax.sql.DataSource;
+import java.sql.Timestamp;
 
 /**
  * Issue #460 — the Paid-Unissued invariant, against a live Postgres.
@@ -53,7 +55,7 @@ class MintQuotePaidUnissuedIT extends AbstractMintDurableIT {
      */
     @Autowired
     @Qualifier("mintJpaDataSource")
-    javax.sql.DataSource mintDataSource;
+    DataSource mintDataSource;
 
     @BeforeEach
     void clean() {
@@ -84,7 +86,7 @@ class MintQuotePaidUnissuedIT extends AbstractMintDurableIT {
         mintQuotes.flush();
         new JdbcTemplate(mintDataSource).update(
                 "UPDATE mint_quote SET created_at = ?, updated_at = ? WHERE quote_id = ?",
-                java.sql.Timestamp.from(when), java.sql.Timestamp.from(when), quoteId);
+                Timestamp.from(when), Timestamp.from(when), quoteId);
         return quoteId;
     }
 

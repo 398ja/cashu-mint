@@ -14,6 +14,8 @@ import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import xyz.tcheeric.cashu.mint.rest.support.PrometheusScrape;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -126,18 +128,7 @@ class IssuanceWebhookRecorderMetricsIT extends AbstractMintDurableIT {
     }
 
     private String scrape() {
-        // ManagementSecurityConfig puts /actuator/prometheus behind the operator
-        // credential (0.36.0, audit H-3). Without it every call here is a 401,
-        // which surfaces as an ERROR rather than a failure and leaves the whole
-        // class asserting nothing — the same way the real Prometheus target sat
-        // down until 0.36.5 gave it a password_file.
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.setBasicAuth("admin-it", "it-admin-password",
-                java.nio.charset.StandardCharsets.UTF_8);
-        return restTemplate.exchange(
-                "http://localhost:" + managementPort + "/actuator/prometheus",
-                org.springframework.http.HttpMethod.GET,
-                new org.springframework.http.HttpEntity<>(headers), String.class).getBody();
+        return PrometheusScrape.body(restTemplate, managementPort);
     }
 
     private Matcher sampleMatcher(String scrape, String metric, String labelFilter) {

@@ -14,6 +14,9 @@ import xyz.tcheeric.cashu.mint.webhook.QuoteStatusUpdater;
 import xyz.tcheeric.cashu.mint.webhook.WebhookOutcome;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.scheduling.config.Task;
+import org.springframework.scheduling.config.ScheduledTask;
+import java.util.List;
 
 /**
  * Issue #459 — proves the fix is actually wired in the assembled application,
@@ -114,12 +117,12 @@ class VoucherFundingWiringIT extends AbstractVoucherDurableIT {
      * task and leaves an empty list that no {@code anyMatch} can ever satisfy.
      * That is exactly the vacuous-assertion trap this test was written to avoid.
      */
-    private java.util.List<String> scheduledTaskTargets() {
+    private List<String> scheduledTaskTargets() {
         ScheduledAnnotationBeanPostProcessor processor =
                 applicationContext.getBean(ScheduledAnnotationBeanPostProcessor.class);
         return processor.getScheduledTasks().stream()
-                .map(org.springframework.scheduling.config.ScheduledTask::getTask)
-                .map(org.springframework.scheduling.config.Task::getRunnable)
+                .map(ScheduledTask::getTask)
+                .map(Task::getRunnable)
                 .map(Object::toString)
                 .toList();
     }

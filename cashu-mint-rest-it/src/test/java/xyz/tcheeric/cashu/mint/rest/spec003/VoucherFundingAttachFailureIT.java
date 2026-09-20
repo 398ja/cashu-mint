@@ -20,6 +20,7 @@ import xyz.tcheeric.cashu.mint.webhook.QuoteStatusUpdater;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.data.domain.Limit;
 
 /**
  * Issue #459 — what actually happens to the payment record when the funding
@@ -97,7 +98,7 @@ class VoucherFundingAttachFailureIT extends AbstractVoucherDurableIT {
                 .isTrue();
 
         assertThat(webhookEvents.findAcceptedByQuoteId(
-                quoteId, org.springframework.data.domain.Limit.of(1)))
+                quoteId, Limit.of(1)))
                 .as("the accepted event must survive, or nothing can ever heal this quote "
                         + "and the provider will not retry")
                 .hasSize(1);

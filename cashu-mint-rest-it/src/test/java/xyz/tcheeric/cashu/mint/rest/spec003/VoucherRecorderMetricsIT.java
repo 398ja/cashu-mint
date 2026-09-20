@@ -24,6 +24,8 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import xyz.tcheeric.cashu.mint.rest.support.PrometheusScrape;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -205,17 +207,7 @@ class VoucherRecorderMetricsIT extends AbstractVoucherDurableIT {
     }
 
     private String scrape() {
-        // ManagementSecurityConfig puts /actuator/prometheus behind the
-        // operator credential (0.36.0, audit H-3), so an unauthenticated
-        // scrape is a 401 — the same way the real Prometheus target went
-        // down until 0.36.5 gave it a password_file. Present the credential
-        // here for the same reason the scrape job does.
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBasicAuth("admin-it", "it-admin-password", StandardCharsets.UTF_8);
-        return restTemplate.exchange(
-                "http://localhost:" + managementPort + "/actuator/prometheus",
-                org.springframework.http.HttpMethod.GET,
-                new HttpEntity<>(headers), String.class).getBody();
+        return PrometheusScrape.body(restTemplate, managementPort);
     }
 
     /**
