@@ -13,9 +13,10 @@ All notable changes to the Cashu Mint will be documented in this file.
   `webhook_event`, and the funding row was created lazily by `VoucherFundingResolverImpl`, which is
   reached only from an inbound client mint request. Sequential sales hid this by giving each part
   its own polling window; five payments inside one window exhausted the client's 60s budget after
-  two, and the rest stayed `UNFUNDED` with the money taken. 68 such rows (3432 EUR) had
-  accumulated on staging. The webhook now resolves and attaches the funding row in the same
-  transaction as the payment it justifies, so the two commit together or not at all (#459).
+  two, and the rest stayed `UNFUNDED` with the money taken. 62 such rows (341610 sat) were
+  stranded on staging, the oldest since 2026-08-29. The webhook now resolves and attaches the
+  funding row in the same transaction as the payment it justifies, so the two commit together or
+  not at all (#459).
 - **`VoucherFundingReconciler` sweeps for anything that bypasses that path** — a bug, a rollback, a
   manual edit, or a future payment provider wired straight to the event table. Quotes left
   `UNFUNDED` with an accepted payment older than `cashu.mint.voucher.funding-grace-period` (2m) are

@@ -94,6 +94,26 @@ where before there was nothing to return to. Where half A is impossible for the 
 mint quote path), the sweep is the *only* available fix, which raises its priority rather than
 lowering it.
 
+### The rule does not cross service boundaries by itself
+
+Every machine above is swept by asking the database a question about rows it already holds. That
+works precisely because the obligation and the evidence live in the same schema.
+
+It fails at a service boundary. Validating the #459 fix against staging turned up 7 quotes that
+are `PAID` in the payment adapter with **no `webhook_event` in the mint at all** — one of them a
+`mint_quote` still reading `UNPAID` while the adapter holds the customer's money (#462). No
+mint-side reconciler can find those, because the mint's entire notion of "this was paid" *is* the
+webhook event: a delivery that never happened leaves nothing to reconcile against.
+
+So the rule needs a second clause. **When the obligation and the evidence live in different
+services, the gauge belongs to the side that knows the event happened**, and the reconciler must
+compare the two sides rather than query one. A mint-side invariant cannot express "money was taken
+elsewhere and I was not told", and a green gauge that cannot see the failure is worse than no
+gauge, because it reads as proof of health.
+
+This also bounds what an ArchUnit rule of the #461 shape can do: it sees one repository, and a
+state machine can be stranded by a peer service that never calls it.
+
 ## Consequences
 
 **A new state costs a sentence of justification.** #461 encodes this as an ArchUnit rule with an
