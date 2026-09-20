@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
+import xyz.tcheeric.cashu.mint.rest.support.WebhookSigning;
 import xyz.tcheeric.cashu.mint.webhook.PaymentNotification;
 import xyz.tcheeric.cashu.mint.webhook.PaymentWebhookController;
 import xyz.tcheeric.cashu.mint.webhook.QuoteStatusUpdater;
@@ -78,20 +79,6 @@ class PaymentWebhookIT {
 
         @Bean
         @Primary
-        public WebhookSignatureValidator webhookSignatureValidator() {
-            // Spec 001 FR-007 made the real validator fail closed when the
-            // secret is blank. These tests target the cache/controller flow,
-            // not signature validation, so stub the validator to accept every
-            // delivery — equivalent to the pre-spec-001 dev-mode behaviour.
-            WebhookSignatureValidator stub = org.mockito.Mockito.mock(WebhookSignatureValidator.class);
-            org.mockito.Mockito.when(stub.validate(org.mockito.Mockito.any(), org.mockito.Mockito.any()))
-                    .thenReturn(true);
-            org.mockito.Mockito.when(stub.isEnabled()).thenReturn(false);
-            return stub;
-        }
-
-        @Bean
-        @Primary
         public PaymentWebhookController paymentWebhookController(
                 QuoteStatusUpdater quoteStatusUpdater,
                 WebhookSignatureValidator signatureValidator) {
@@ -124,9 +111,7 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.message").value("Payment recorded"));
@@ -156,9 +141,7 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk());
 
         // Then
@@ -185,9 +168,7 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk());
 
         // Then
@@ -214,16 +195,12 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When - first request
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Payment recorded"));
 
         // When - duplicate request
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Duplicate ignored"));
 
@@ -251,9 +228,7 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
+        mockMvc.perform(signedWebhook(json))
                 .andExpect(status().isOk());
 
         // Then
@@ -280,9 +255,7 @@ class PaymentWebhookIT {
                     .paidAt(Instant.now())
                     .build();
 
-            mockMvc.perform(post("/webhook/payment")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(notification)))
+            mockMvc.perform(signedWebhook(objectMapper.writeValueAsString(notification)))
                     .andExpect(status().isOk());
         }
 
@@ -309,9 +282,7 @@ class PaymentWebhookIT {
                 .paidAt(Instant.now())
                 .build();
 
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(notification)))
+        mockMvc.perform(signedWebhook(objectMapper.writeValueAsString(notification)))
                 .andExpect(status().isOk());
 
         assertTrue(paymentStatusChecker.isPaid(quoteId));
@@ -342,9 +313,7 @@ class PaymentWebhookIT {
                 .paidAt(Instant.now())
                 .build();
 
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(notification)))
+        mockMvc.perform(signedWebhook(objectMapper.writeValueAsString(notification)))
                 .andExpect(status().isOk());
 
         // Step 3: Quote is now paid
@@ -376,9 +345,7 @@ class PaymentWebhookIT {
                     .paidAt(Instant.now())
                     .build();
 
-            mockMvc.perform(post("/webhook/payment")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(notification)))
+            mockMvc.perform(signedWebhook(objectMapper.writeValueAsString(notification)))
                     .andExpect(status().isOk());
         }
 
@@ -408,13 +375,29 @@ class PaymentWebhookIT {
         String json = objectMapper.writeValueAsString(notification);
 
         // When
-        mockMvc.perform(post("/webhook/payment")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .header("X-Idempotency-Key", "bolt11:idempotency-key-quote-008")
-                        .content(json))
+        mockMvc.perform(signedWebhook(json)
+                        .header("X-Idempotency-Key", "bolt11:idempotency-key-quote-008"))
                 .andExpect(status().isOk());
 
         // Then
         assertTrue(quoteStatusUpdater.isPaid("idempotency-key-quote-008"));
+    }
+
+    /**
+     * A {@code /webhook/payment} POST signed the way a real sender signs it.
+     *
+     * <p>These tests predate {@code require-timestamp}, which defaults to
+     * true, and were sending neither header — so every one of them was
+     * getting 401 and the class had been fully dead. The timestamp is bound
+     * into the MAC, so both headers are needed together.
+     */
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder signedWebhook(
+            String body) {
+        String timestamp = WebhookSigning.now();
+        return post("/webhook/payment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Webhook-Timestamp", timestamp)
+                .header("X-Webhook-Signature", WebhookSigning.sign(body, timestamp))
+                .content(body);
     }
 }

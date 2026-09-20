@@ -14,13 +14,10 @@ import org.springframework.web.client.RestTemplate;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
+import xyz.tcheeric.cashu.mint.rest.support.WebhookSigning;
 import xyz.tcheeric.cashu.mint.webhook.PaymentNotification;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -153,7 +150,11 @@ class WebhookAmountBindingIT extends AbstractMintDurableIT {
         headers.setContentType(MediaType.APPLICATION_JSON);
         try {
             String body = MAPPER.writeValueAsString(notification);
-            headers.add("X-Webhook-Signature", sign(body));
+            // require-timestamp defaults to true, and the timestamp is bound
+            // into the MAC, so signing the bare body is not enough.
+            String timestamp = WebhookSigning.now();
+            headers.add("X-Webhook-Timestamp", timestamp);
+            headers.add("X-Webhook-Signature", WebhookSigning.sign(body, timestamp));
             HttpEntity<String> entity = new HttpEntity<>(body, headers);
             return restTemplate.postForEntity(
                     "http://localhost:" + port + "/webhook/payment",
@@ -163,18 +164,6 @@ class WebhookAmountBindingIT extends AbstractMintDurableIT {
             return ResponseEntity.status(e.getStatusCode())
                     .headers(e.getResponseHeaders())
                     .body(e.getResponseBodyAsString());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /** Mirrors the HMAC-SHA256 + Base64 scheme used by WebhookSignatureValidator. */
-    private static String sign(String body) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec("it-shared-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] hash = mac.doFinal(body.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
