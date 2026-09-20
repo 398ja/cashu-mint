@@ -169,4 +169,47 @@ class VoucherFundingReconcilerIT extends AbstractVoucherDurableIT {
                 .isEqualTo(fundingAfterFirst);
         assertThat(voucherFundingJpaRepository.count()).isEqualTo(1L);
     }
+
+    /**
+     * Two replicas sweeping at once must not create two funding rows for one
+     * payment. The class javadoc claims this holds by construction — the lazy
+     * insert is keyed on {@code (provider, provider_event_id)} and the attach is
+     * a CAS — so the claim is worth executing rather than trusting, because the
+     * failure it guards against is the mint backing one payment twice.
+     */
+    @Test
+    void concurrentSweepsAttachExactlyOneFundingRow() throws Exception {
+        String quoteId = VoucherTestSupport.newQuoteId("it-concurrent");
+        seedPaidButUnfunded(quoteId, Instant.now().minus(Duration.ofHours(1)));
+
+        int replicas = 4;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var done = new java.util.concurrent.CountDownLatch(replicas);
+        var errors = new java.util.concurrent.ConcurrentLinkedQueue<Throwable>();
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(replicas)) {
+            for (int i = 0; i < replicas; i++) {
+                pool.submit(() -> {
+                    try {
+                        start.await();
+                        reconciler.reconcileTick();
+                    } catch (Throwable t) {
+                        errors.add(t);
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertThat(done.await(30, java.util.concurrent.TimeUnit.SECONDS))
+                    .as("sweeps should finish promptly")
+                    .isTrue();
+        }
+
+        assertThat(errors).as("a concurrent sweep must not throw").isEmpty();
+        assertThat(voucherQuoteJpaRepository.findById(quoteId).orElseThrow().getLifecycleState())
+                .isEqualTo(VoucherLifecycleState.FUNDED);
+        assertThat(voucherFundingJpaRepository.count())
+                .as("one payment must back exactly one funding row, whatever the replica count")
+                .isEqualTo(1L);
+    }
 }

@@ -237,6 +237,49 @@ class VoucherFundingReconcilerTest {
         verify(voucherQuotes, never()).findPaidButUnfunded(any(), anyInt());
     }
 
+    /**
+     * A misconfigured batch size of zero would make the sweep a silent no-op —
+     * the one failure mode a safety net must not have, because it looks exactly
+     * like a healthy system with nothing to do.
+     */
+    @Test
+    void shouldRefuseANonPositiveBatchSizeRatherThanSweepNothing() {
+        // Arrange
+        VoucherFundingReconciler misconfigured =
+                new VoucherFundingReconciler(voucherQuotes, fundingResolver, GRACE, 0);
+        when(voucherQuotes.findPaidButUnfunded(any(), anyInt())).thenReturn(List.of());
+
+        // Act
+        misconfigured.reconcileTick();
+
+        // Assert — swept with a usable batch size, not 0.
+        verify(voucherQuotes).findPaidButUnfunded(any(), Mockito.intThat(size -> size > 0));
+    }
+
+    /**
+     * The sweep takes the oldest rows first and bounds the batch, so rows that
+     * can never resolve hold the front of every tick and starve newer ones.
+     * A full batch is the only signal that distinguishes that from ordinary
+     * progress, since the gauge is non-zero in both cases.
+     */
+    @Test
+    void shouldStillSweepEveryRowWhenTheBatchComesBackFull() {
+        // Arrange — exactly BATCH rows, i.e. there may be more waiting.
+        VoucherQuoteEntity[] full = new VoucherQuoteEntity[BATCH];
+        for (int i = 0; i < BATCH; i++) {
+            full[i] = quote("v-full-" + i);
+            when(fundingResolver.resolveForQuote(full[i]))
+                    .thenReturn(Optional.of(funding("f-full-" + i)));
+            when(voucherQuotes.attachFundingAndAdvance("v-full-" + i, "f-full-" + i)).thenReturn(1);
+        }
+
+        // Act
+        sweepFinding(full);
+
+        // Assert — every row in the batch is attempted, none dropped.
+        assertThat(reconcileOutcomes).hasSize(BATCH).containsOnly(true);
+    }
+
     private record FundingStub(String fundingId) implements VoucherFunding {
         @Override public VoucherFundingSource fundingSource() {
             return VoucherFundingSource.CUSTOMER_PAYMENT;

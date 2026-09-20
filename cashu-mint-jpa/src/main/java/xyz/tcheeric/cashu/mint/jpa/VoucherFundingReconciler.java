@@ -26,7 +26,7 @@ import java.util.List;
  * so the two were <em>coincidentally</em> linked rather than causally: a
  * 1000 EUR sale auto-split into five parts paid within two seconds exhausted
  * the client's 60s polling budget after two, and the remaining three sat
- * {@code UNFUNDED} with the money taken. Sixty-eight such rows had accumulated
+ * {@code UNFUNDED} with the money taken. Sixty-two such rows had accumulated
  * before anyone noticed.
  *
  * <p>{@code QuoteStatusUpdater} now attaches funding in the webhook
@@ -52,11 +52,25 @@ import java.util.List;
  * changes is that the value is now durably backed and waiting: a returning
  * client — or the gateway's own {@code PurchaseRecoveryJob} retry — completes
  * it, where before there was nothing to return to.
+ *
+ * <p><strong>Multi-replica behaviour.</strong> Unlike the gateway's recovery
+ * jobs, this sweep carries no ShedLock, matching {@link MeltSagaReconciler} and
+ * {@link SwapHoldReconciler} and the single-instance assumption
+ * {@link InvariantGaugePoller} documents. It is safe under concurrency anyway,
+ * which is worth stating because it is a property of the design rather than of
+ * the deployment: two replicas sweeping the same quote both resolve the same
+ * funding row — {@code VoucherFundingResolverImpl} keys the lazy insert on
+ * {@code (provider, provider_event_id)} and re-reads the winner on conflict —
+ * and {@code attachFundingAndAdvance} is a CAS, so exactly one wins and the
+ * loser logs {@code race_lost}. The cost of a second replica is a duplicated
+ * metric increment, not a duplicated funding row.
  */
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
 public class VoucherFundingReconciler {
+
+    private static final int DEFAULT_BATCH_SIZE = 200;
 
     private final VoucherQuoteJpaRepository voucherQuotes;
     private final VoucherFundingResolver fundingResolver;
@@ -71,7 +85,17 @@ public class VoucherFundingReconciler {
         this.voucherQuotes = voucherQuotes;
         this.fundingResolver = fundingResolver;
         this.gracePeriod = gracePeriod;
-        this.batchSize = batchSize;
+        // A non-positive batch size would make the sweep a silent no-op, which is
+        // the one failure this class must never have: it would look healthy,
+        // log nothing, and quietly stop being a safety net. Refuse the value
+        // rather than honour it.
+        if (batchSize <= 0) {
+            log.warn("voucher_funding_reconcile invalid_batch_size={} — falling back to {}",
+                    batchSize, DEFAULT_BATCH_SIZE);
+            this.batchSize = DEFAULT_BATCH_SIZE;
+        } else {
+            this.batchSize = batchSize;
+        }
     }
 
     @Scheduled(fixedDelayString = "${cashu.mint.voucher.funding-reconcile-interval:PT60S}")
@@ -84,13 +108,26 @@ public class VoucherFundingReconciler {
             sweepPaidButUnfunded();
         } catch (RuntimeException e) {
             // One bad tick must not stop the schedule: the next sweep is the recovery.
-            log.warn("voucher_funding_reconcile sweep_failed cause={}", e.getMessage());
+            // Logged with the throwable: this is the sweep itself failing, and a
+            // bare getMessage() is null for exceptions like NullPointerException,
+            // which would leave "cause=null" as the only trace of a broken net.
+            log.warn("voucher_funding_reconcile sweep_failed", e);
         }
     }
 
     void sweepPaidButUnfunded() {
         List<VoucherQuoteEntity> stranded =
                 voucherQuotes.findPaidButUnfunded(Instant.now().minus(gracePeriod), batchSize);
+        if (stranded.size() >= batchSize) {
+            // The sweep takes the oldest rows first and bounds the batch, so a
+            // quote that can never be resolved keeps its place at the front of
+            // every tick. Enough of those and newer, recoverable quotes are
+            // never even attempted. The gauge stays non-zero either way, so
+            // this line is what distinguishes "working through a backlog" from
+            // "stuck behind rows that will never clear".
+            log.warn("voucher_funding_reconcile batch_full size={} — backlog exceeds one tick; "
+                    + "check for repeated VOUCHER_FUNDING_UNRESOLVED quote_ids", batchSize);
+        }
         for (VoucherQuoteEntity quote : stranded) {
             attachFunding(quote);
         }
@@ -126,8 +163,8 @@ public class VoucherFundingReconciler {
                     quote.getQuoteId(), funding.fundingId());
             MetricRecorders.voucher().fundingReconciled(true);
         } catch (RuntimeException e) {
-            log.error("[voucher-funding][alert] VOUCHER_FUNDING_RECONCILE_FAILED quote_id={} cause={}",
-                    quote.getQuoteId(), e.getMessage());
+            log.error("[voucher-funding][alert] VOUCHER_FUNDING_RECONCILE_FAILED quote_id={}",
+                    quote.getQuoteId(), e);
             MetricRecorders.voucher().fundingReconciled(false);
         }
     }

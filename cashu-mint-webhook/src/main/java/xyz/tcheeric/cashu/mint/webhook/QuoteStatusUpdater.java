@@ -296,9 +296,12 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             log.info("voucher_funding webhook_attached quote_id={} funding_id={} lifecycle=FUNDED",
                     voucher.quoteId(), funding.fundingId());
         } catch (RuntimeException e) {
-            log.error("voucher_funding webhook_attach_failed quote_id={} cause={} "
+            // The throwable is logged, not just its message: getMessage() is null
+            // for a NullPointerException, and "cause=null" on the one path that
+            // silently leaves money unfunded is not enough to debug from.
+            log.error("voucher_funding webhook_attach_failed quote_id={} "
                             + "— payment recorded, reconciler will retry",
-                    voucher.quoteId(), e.getMessage());
+                    voucher.quoteId(), e);
         }
     }
 
