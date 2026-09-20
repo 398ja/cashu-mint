@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaJpaRepository;
+import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherIssuanceJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherQuoteJpaRepository;
 import org.springframework.beans.factory.ObjectProvider;
@@ -51,6 +52,13 @@ import java.util.concurrent.atomic.AtomicLong;
  *       {@code UNFUNDED} despite an accepted payment event
  *       ({@link VoucherQuoteJpaRepository#countPaidUnfunded()}). The mint has
  *       taken money it has not issued against; issue #459.</li>
+ *   <li>{@code cashu_mint_quote_paid_unissued} — mint quotes stuck in
+ *       {@code PAID} past the stranded TTL
+ *       ({@link MintQuoteJpaRepository#countPaidUnissued(Instant)}). Issue #460,
+ *       and the only invariant here with no reconciler behind it: issuing needs
+ *       the client's blinded outputs, so nothing can resolve these without the
+ *       client returning. The gauge is the whole mechanism, not a check on
+ *       one.</li>
  *   <li>{@code cashu_mint_invariant_poll_failures_total} — polls that threw.
  *       Without it a failing query would park the gauge on a stale zero and
  *       silently disarm the alert; the companion alert rule watches this
@@ -71,12 +79,15 @@ public class InvariantGaugePoller {
     private final MeltSagaJpaRepository meltSagas;
     private final VoucherIssuanceJpaRepository voucherIssuances;
     private final VoucherQuoteJpaRepository voucherQuotes;
+    private final MintQuoteJpaRepository mintQuotes;
     private final Duration paymentUnknownTtl;
+    private final Duration paidUnissuedTtl;
     private final InvariantMetricsRecorder recorder;
     private final AtomicLong stuckPaymentUnknown = new AtomicLong();
     private final AtomicLong paymentSentBurnFailed = new AtomicLong();
     private final AtomicLong orphanIssuance = new AtomicLong();
     private final AtomicLong paidUnfunded = new AtomicLong();
+    private final AtomicLong paidUnissued = new AtomicLong();
 
     /**
      * The recorder is injected rather than read off {@link MetricRecorders}
@@ -89,12 +100,16 @@ public class InvariantGaugePoller {
     public InvariantGaugePoller(MeltSagaJpaRepository meltSagas,
                                 VoucherIssuanceJpaRepository voucherIssuances,
                                 VoucherQuoteJpaRepository voucherQuotes,
+                                MintQuoteJpaRepository mintQuotes,
                                 ObjectProvider<InvariantMetricsRecorder> recorderProvider,
-                                @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl) {
+                                @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl,
+                                @Value("${cashu.mint.quote.paid-unissued-ttl:PT1H}") Duration paidUnissuedTtl) {
         this.meltSagas = meltSagas;
         this.voucherIssuances = voucherIssuances;
         this.voucherQuotes = voucherQuotes;
+        this.mintQuotes = mintQuotes;
         this.paymentUnknownTtl = paymentUnknownTtl;
+        this.paidUnissuedTtl = paidUnissuedTtl;
         this.recorder = recorderProvider.getIfAvailable(MetricRecorders::invariant);
         // Bound eagerly so the series is scrapeable before the first poll: a
         // meter that only materialises once something breaks is
@@ -103,6 +118,7 @@ public class InvariantGaugePoller {
         recorder.bindPaymentSentBurnFailed(paymentSentBurnFailed::get);
         recorder.bindOrphanIssuance(orphanIssuance::get);
         recorder.bindPaidUnfunded(paidUnfunded::get);
+        recorder.bindPaidUnissued(paidUnissued::get);
     }
 
     @Scheduled(fixedDelayString = "${cashu.mint.invariant.poll-interval:PT60S}")
@@ -112,6 +128,8 @@ public class InvariantGaugePoller {
         poll("payment_sent_burn_failed", paymentSentBurnFailed, meltSagas::countPaymentSentBurnFailed);
         poll("orphan_issuance", orphanIssuance, voucherIssuances::countOrphanIssuance);
         poll("paid_unfunded", paidUnfunded, voucherQuotes::countPaidUnfunded);
+        poll("paid_unissued", paidUnissued,
+                () -> mintQuotes.countPaidUnissued(Instant.now().minus(paidUnissuedTtl)));
     }
 
     /**

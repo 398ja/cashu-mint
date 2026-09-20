@@ -62,6 +62,21 @@ public interface InvariantMetricsRecorder {
     void bindPaidUnfunded(Supplier<Number> value);
 
     /**
+     * Binds the Paid-Unissued gauge to {@code value}. Emits
+     * {@code cashu_mint_quote_paid_unissued}: mint quotes in {@code PAID} past
+     * the stranded TTL (issue #460).
+     *
+     * <p>Sibling to {@link #bindPaidUnfunded}, and the one invariant here with
+     * no reconciler behind it: issuing needs the client's blinded outputs, so
+     * nothing can resolve these without the client returning. The gauge is the
+     * whole mechanism rather than a check on one, which is why its absence
+     * matters more than most.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindPaidUnissued(Supplier<Number> value);
+
+    /**
      * An invariant poll threw. Emits
      * {@code cashu_mint_invariant_poll_failures_total} — without it a failing
      * poll would hold a stale gauge value and silently disarm the alert.

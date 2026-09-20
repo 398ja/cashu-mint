@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.MintQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 
+import java.time.Instant;
+
 /**
  * Spring Data JPA backing for {@code mint_quote}. The single non-derived query
  * is {@link #casLifecycle}, which compiles to a conditional UPDATE so that
@@ -66,4 +68,38 @@ public interface MintQuoteJpaRepository extends JpaRepository<MintQuoteEntity, S
     int casLifecycle(@Param("id") String id,
                      @Param("from") LifecycleState from,
                      @Param("to") LifecycleState to);
+
+    /**
+     * Issue #460 / ADR 0002 — the Paid-Unissued invariant, exported as a
+     * DB-derived gauge by {@code InvariantGaugePoller}.
+     *
+     * <p>A quote in {@code PAID} has had the customer's payment settle and
+     * accepted. {@code PAID → ISSUING → ISSUED} is driven by
+     * {@code MintTask.casLifecycle}, which runs only on an inbound client mint
+     * request, so a client that never returns leaves the money taken and
+     * nothing issued. Two such quotes sat unnoticed on staging for three weeks.
+     *
+     * <p><strong>Why this is a gauge and not a reconciler.</strong> Every other
+     * stranded state in this system is swept. This one cannot be: issuing
+     * requires the client's blinded outputs, which the mint never persists, so
+     * no background job can complete the transition on the client's behalf.
+     * Nor may the row be expired to tidy the count — issuance CASes from
+     * {@code PAID}, so moving it to {@code EXPIRED} would permanently bar the
+     * customer from the money they already paid, which is the reasoning
+     * {@code MintTask.alreadyPaid} records: an expiry bounds how long the payer
+     * has to pay, not how long the mint will honour a payment it has taken.
+     * The row must stay claimable, so visibility is the fix.
+     *
+     * <p>Bounded by {@code updatedAtBefore} rather than counting every
+     * {@code PAID} row: a quote paid seconds ago has a client mid-flight and is
+     * not stranded. {@code updated_at} is the moment it became {@code PAID},
+     * since that CAS is what last wrote the row.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*)
+            FROM mint_quote q
+            WHERE q.lifecycle_state = 'PAID'
+              AND q.updated_at < :updatedAtBefore
+            """)
+    long countPaidUnissued(@Param("updatedAtBefore") Instant updatedAtBefore);
 }

@@ -96,6 +96,10 @@ public final class MetricRecorders {
         }
 
         @Override
+        public void bindPaidUnissued(java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
         public void pollFailed() {
         }
     };

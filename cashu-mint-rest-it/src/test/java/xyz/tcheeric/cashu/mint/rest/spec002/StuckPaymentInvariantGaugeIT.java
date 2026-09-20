@@ -237,6 +237,26 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
         assertThat(gaugeValue(scrape(), "cashu_mint_voucher_orphan_issuance")).isEqualTo(0.0);
     }
 
+    /**
+     * Issue #460 — a mint quote stuck in {@code PAID} is money accepted with
+     * nothing issued against it, and nothing will issue it without the client
+     * returning.
+     *
+     * <p>The series must be present reading {@code 0} before anything is
+     * stranded. {@code gaugeValue} answers {@code -1} for an absent family,
+     * which is what distinguishes "nothing stranded" from "the gauge is gone" —
+     * and for this invariant, unlike every other one here, there is no
+     * reconciler whose silence would eventually give the game away.
+     */
+    @Test
+    void paidUnissuedGaugeIsExportedAndReadsZeroWhenNothingIsStranded() {
+        poller.pollTick();
+
+        assertThat(gaugeValue(scrape(), "cashu_mint_quote_paid_unissued"))
+                .as("the alert reads this series; absent is not the same as zero")
+                .isEqualTo(0.0);
+    }
+
     private void seedPaymentUnknown(String sagaId, String quoteId, Instant createdAt) {
         seedSaga(sagaId, quoteId, MeltSagaState.PAYMENT_UNKNOWN, createdAt);
     }
@@ -283,8 +303,18 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
     }
 
     private String scrape() {
-        return restTemplate.getForEntity(
-                "http://localhost:" + managementPort + "/actuator/prometheus", String.class).getBody();
+        // ManagementSecurityConfig puts /actuator/prometheus behind the operator
+        // credential (0.36.0, audit H-3). Without it every call here is a 401,
+        // which surfaces as an ERROR rather than a failure and leaves the whole
+        // class asserting nothing — the same way the real Prometheus target sat
+        // down until 0.36.5 gave it a password_file.
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setBasicAuth("admin-it", "it-admin-password",
+                java.nio.charset.StandardCharsets.UTF_8);
+        return restTemplate.exchange(
+                "http://localhost:" + managementPort + "/actuator/prometheus",
+                org.springframework.http.HttpMethod.GET,
+                new org.springframework.http.HttpEntity<>(headers), String.class).getBody();
     }
 
     /** Value of a single gauge series, or -1 when the family is absent. */

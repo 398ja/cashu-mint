@@ -194,12 +194,30 @@ class MeltRecorderMetricsIT extends AbstractMintDurableIT {
                         MeltProofFixture.proofJson(4)));
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody()).contains("insufficient_input");
+        // The rejection is identified on the wire by its NUT error code, not by
+        // the Java constant's name: the body is
+        // {"detail":"sum(proofs)=100 < invoice=100 + feeReserve=5 (need 105)","code":11005}.
+        // This assertion previously looked for "insufficient_input" and could
+        // never have matched — it went unnoticed because every call in this
+        // class was failing on a 401 before reaching it.
+        assertThat(response.getBody())
+                .as("under-funded melt must be rejected with the insufficient-input code")
+                .contains("\"code\":11005");
     }
 
     private String scrape() {
-        return restTemplate.getForEntity(
-                "http://localhost:" + managementPort + "/actuator/prometheus", String.class).getBody();
+        // ManagementSecurityConfig puts /actuator/prometheus behind the operator
+        // credential (0.36.0, audit H-3). Without it every call here is a 401,
+        // which surfaces as an ERROR rather than a failure and leaves the whole
+        // class asserting nothing — the same way the real Prometheus target sat
+        // down until 0.36.5 gave it a password_file.
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setBasicAuth("admin-it", "it-admin-password",
+                java.nio.charset.StandardCharsets.UTF_8);
+        return restTemplate.exchange(
+                "http://localhost:" + managementPort + "/actuator/prometheus",
+                org.springframework.http.HttpMethod.GET,
+                new org.springframework.http.HttpEntity<>(headers), String.class).getBody();
     }
 
     /** The label block of the single series for {@code metric}, or "" when absent. */

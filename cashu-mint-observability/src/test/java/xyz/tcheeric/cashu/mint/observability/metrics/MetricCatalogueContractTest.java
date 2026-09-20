@@ -249,6 +249,7 @@ class MetricCatalogueContractTest {
                         "bindPaymentSentBurnFailed", r -> r.bindPaymentSentBurnFailed(() -> 0),
                         "bindOrphanIssuance", r -> r.bindOrphanIssuance(() -> 0),
                         "bindPaidUnfunded", r -> r.bindPaidUnfunded(() -> 0),
+                        "bindPaidUnissued", r -> r.bindPaidUnissued(() -> 0),
                         "pollFailed", InvariantMetricsRecorder::pollFailed)));
 
         return mapping;

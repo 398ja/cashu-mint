@@ -77,10 +77,33 @@ the flow is stranded on**, and the answer differs per machine:
 | `melt_saga` `PROOFS_HELD` | before paying | fail, release the proofs |
 | `swap_hold` `SIGNING` | after signing may have begun | commit; releasing would double-spend |
 | `voucher_quote` `UNFUNDED` | after the customer's money was taken | fund; abandoning loses value |
-| `mint_quote` `PAID` | after payment, but issuing needs client outputs | expire and flag for refund |
+| `mint_quote` `PAID` | after payment, but issuing needs client outputs | **none possible** — leave claimable, alert |
 
 Copying a neighbouring reconciler's direction without asking this question is how a sweep turns
 into the defect it was meant to prevent.
+
+### Sometimes the answer is that no sweep is correct
+
+`mint_quote PAID` is the case that proves the rule has a boundary, and #460 originally proposed
+the wrong answer for it: *expire the quote and flag the payment for refund*. Both halves fail.
+
+Issuance CAS-transitions **from** `PAID`, so moving the row to `EXPIRED` permanently bars the
+customer from money the mint has already taken. `MintTask.alreadyPaid` had already settled this
+question in the opposite direction, and its reasoning is worth repeating because it is the
+general principle:
+
+> An expiry bounds how long the payer has to pay an invoice, not how long the mint will honour a
+> payment it has already taken. Rejecting one takes the customer's money and issues nothing.
+
+And "flag for refund" has no implementation to flag: the mint holds no Lightning refund
+machinery, so the phrase describes an operator process, not a code path. A sweep that expires
+rows would therefore convert a *visible* stranded payment into an *invisible* destroyed claim,
+while making the gauge read zero — the tidy count being precisely the danger.
+
+So the rule's second clause: **a reconciler is mandatory only where a correct resolution exists.**
+Where none does, the requirement becomes a gauge and an alert that stay loud, and the state must
+remain in whatever form keeps the customer's claim alive. Tidying a money-at-risk state into a
+terminal one to satisfy a coverage rule is worse than the stranding it was meant to fix.
 
 ### What a sweep cannot do
 

@@ -28,6 +28,19 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Added
 
+- `cashu_mint_quote_paid_unissued` gauge (ADR 0002, DB-derived): mint quotes in `PAID` past
+  `cashu.mint.quote.paid-unissued-ttl` (1h). The customer's payment settled and was accepted, but
+  `PAID → ISSUED` runs only on an inbound client mint request, so a client that never returns
+  leaves the money taken and nothing issued. Two such quotes sat unnoticed on staging for three
+  weeks (#460).
+
+  **This is the one money-at-risk invariant with no reconciler behind it, and that is deliberate.**
+  Issuing needs the client's blinded outputs, which the mint never persists, so no background job
+  can complete the transition. Nor is the quote expired to tidy the count: issuance CAS-transitions
+  from `PAID`, so expiring it would permanently bar the customer from money already taken —
+  `MintTask.alreadyPaid` already records why, namely that an expiry bounds how long the payer has
+  to pay, not how long the mint will honour a payment it has taken. The row stays claimable and
+  the gauge is the whole mechanism.
 - `cashu_mint_voucher_paid_unfunded` gauge (ADR 0002, DB-derived): voucher quotes still `UNFUNDED`
   despite an accepted payment. Non-zero means the mint has taken money it has not issued against;
   there is no benign instance of it.

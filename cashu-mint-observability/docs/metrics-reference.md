@@ -134,6 +134,7 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_melt_payment_sent_burn_failed` | gauge | — | Melt sagas whose payment settled but whose proofs were never burned (see MeltSagaJpaRepository#countPaymentSentBurnFailed) |
 | `cashu_mint_melt_proofs_not_bound_total` | counter | — | Melt requests failed closed because proofs could not be bound exclusively to the saga |
 | `cashu_mint_melt_stuck_payment_unknown` | gauge | — | Melt sagas stuck in PAYMENT_UNKNOWN past cashu.mint.melt.payment-unknown-ttl (see MeltSagaJpaRepository#countStuckPaymentUnknown) |
+| `cashu_mint_quote_paid_unissued` | gauge | — | Mint quotes in PAID past the stranded TTL: payment accepted, nothing issued, and nothing will issue it without the client returning (see MintQuoteJpaRepository#countPaidUnissued) |
 | `cashu_mint_voucher_funding_reconciled_total` | counter | `outcome` | Paid-but-unfunded voucher quotes resolved by the reconciler, by outcome |
 | `cashu_mint_voucher_iou_issued_total` | counter | — | IOU-funded voucher issuances attempted, whatever the policy outcome |
 | `cashu_mint_voucher_issued_total` | counter | `funding_source` | Vouchers issued, by funding source |

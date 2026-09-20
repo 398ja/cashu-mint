@@ -56,6 +56,15 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindPaidUnissued(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_quote_paid_unissued", value)
+                .description("Mint quotes in PAID past the stranded TTL: payment accepted, "
+                        + "nothing issued, and nothing will issue it without the client "
+                        + "returning (see MintQuoteJpaRepository#countPaidUnissued)")
+                .register(registry);
+    }
+
+    @Override
     public void pollFailed() {
         pollFailures.increment();
     }
