@@ -153,4 +153,37 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
                )
             """)
     long countPaidUnfunded();
+
+    /**
+     * Issue #459 / #462 — the blind spot between the two. Voucher quotes still
+     * {@code UNFUNDED} with <strong>no {@code webhook_event} row at all</strong>.
+     *
+     * <p>{@link #countPaidUnfunded} deliberately requires an {@code accepted}
+     * webhook before it will call a quote stranded, because within the mint
+     * that event is the only evidence money changed hands. That is the right
+     * predicate for a gauge that claims "the mint took money" — but it means a
+     * payment the mint was never told about is invisible to it, and equally
+     * invisible to {@link #findPaidButUnfunded}, which carries the same clause.
+     * The reconciler cannot resolve these and must not: minting against a
+     * payment the mint has no record of is exactly the failure it exists to
+     * prevent.
+     *
+     * <p>Observed on staging 2026-09-20: 68 {@code UNFUNDED} quotes, 62 with an
+     * accepted webhook, 6 with none — and all 6 were {@code PAID} at the
+     * payment adapter. Those 6 are recoverable only by re-delivery from the
+     * adapter side (#462), never by the sweep.
+     *
+     * <p>Non-zero here is therefore not "the mint has a problem" but "the mint
+     * and the adapter disagree, and the mint cannot see which side is right".
+     * It is a prompt to run the adapter-side cross-check, not to mint anything.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*) FROM voucher_quote q
+             WHERE q.lifecycle_state = 'UNFUNDED'
+               AND NOT EXISTS (
+                   SELECT 1 FROM webhook_event e
+                    WHERE e.quote_id = q.quote_id
+               )
+            """)
+    long countUnfundedWithoutWebhook();
 }

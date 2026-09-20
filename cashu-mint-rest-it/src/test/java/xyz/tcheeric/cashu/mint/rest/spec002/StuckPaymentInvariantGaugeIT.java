@@ -280,6 +280,51 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
     }
 
     /**
+     * Issues #459 and #462 — the gap between the two gauges, which is where
+     * staging's real discrepancy lived.
+     *
+     * <p>On 2026-09-20 staging held 68 {@code UNFUNDED} voucher quotes. The
+     * shipped {@code countPaidUnfunded} reported 62, because 6 had no
+     * {@code webhook_event} at all — yet all 6 were {@code PAID} at the payment
+     * adapter. Paid-Unfunded is right to require an accepted webhook, and the
+     * reconciler is right to skip rows without one, so those 6 were invisible
+     * to every signal the mint had while still being money taken.
+     *
+     * <p>This asserts both gauges from one fixture, because the invariant that
+     * matters is the <em>relationship</em>: a quote with no payment event must
+     * raise the new gauge and must not raise Paid-Unfunded. Asserting either
+     * alone would pass with the two queries accidentally identical.
+     *
+     * <p>The counts are deliberately asymmetric — 1 without a webhook, 2 with.
+     * An earlier version of this test used one of each, and inverting the
+     * {@code NOT EXISTS} in {@code countUnfundedWithoutWebhook} to
+     * {@code EXISTS} left it green, because both queries then returned 1. Equal
+     * fixture sizes cannot distinguish a query from its own negation.
+     */
+    @Test
+    void aPaymentTheMintWasNeverToldAboutRaisesOnlyTheWithoutWebhookGauge() {
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("never-notified", 30L));
+
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("webhook-arrived", 20_000L));
+        webhookEventJpaRepository.save(VoucherTestSupport.acceptedWebhookEvent(
+                "phoenixd-it", "evt-webhook-arrived", "webhook-arrived", 20_000L));
+
+        voucherQuotes.save(VoucherTestSupport.unfundedQuote("webhook-arrived-2", 10_000L));
+        webhookEventJpaRepository.save(VoucherTestSupport.acceptedWebhookEvent(
+                "phoenixd-it", "evt-webhook-arrived-2", "webhook-arrived-2", 10_000L));
+
+        poller.pollTick();
+        String scrape = scrape();
+
+        assertThat(gaugeValue(scrape, "cashu_mint_voucher_unfunded_without_webhook"))
+                .as("only the quote with no payment event: the one the sweep can never recover")
+                .isEqualTo(1.0);
+        assertThat(gaugeValue(scrape, "cashu_mint_voucher_paid_unfunded"))
+                .as("the two with accepted webhooks, and not the one the mint never heard about")
+                .isEqualTo(2.0);
+    }
+
+    /**
      * Issue #460 — a mint quote stuck in {@code PAID} is money accepted with
      * nothing issued against it, and nothing will issue it without the client
      * returning.

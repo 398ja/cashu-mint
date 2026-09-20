@@ -56,6 +56,15 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindUnfundedWithoutWebhook(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_voucher_unfunded_without_webhook", value)
+                .description("Voucher quotes UNFUNDED with no payment event at all — the mint and "
+                        + "the payment adapter disagree and the sweep cannot resolve it "
+                        + "(see VoucherQuoteJpaRepository#countUnfundedWithoutWebhook)")
+                .register(registry);
+    }
+
+    @Override
     public void bindPaidUnissued(Supplier<Number> value) {
         Gauge.builder("cashu_mint_quote_paid_unissued", value)
                 .description("Mint quotes in PAID past the stranded TTL: payment accepted, "

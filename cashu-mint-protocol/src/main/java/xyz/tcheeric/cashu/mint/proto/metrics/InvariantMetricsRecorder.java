@@ -62,6 +62,29 @@ public interface InvariantMetricsRecorder {
     void bindPaidUnfunded(Supplier<Number> value);
 
     /**
+     * Binds the Unfunded-Without-Webhook gauge to {@code value}. Emits
+     * {@code cashu_mint_voucher_unfunded_without_webhook}: voucher quotes still
+     * {@code UNFUNDED} for which the mint holds no payment event whatsoever
+     * (issues #459 and #462).
+     *
+     * <p>This is the complement of {@link #bindPaidUnfunded}, and exists
+     * because that gauge's correctness creates a blind spot. Paid-Unfunded
+     * requires an {@code accepted} webhook before it counts a row, since inside
+     * the mint that event is the only evidence money moved. A payment the mint
+     * was never told about therefore raises neither gauge, and the #459
+     * reconciler skips it for the same reason — correctly, because minting
+     * against an unrecorded payment is precisely the failure being guarded.
+     *
+     * <p>Non-zero does not mean the mint mishandled anything. It means the mint
+     * and the payment adapter disagree, and the mint cannot tell from its own
+     * data which side is right. The response is the adapter-side cross-check
+     * and re-delivery (#462), never a local fix-up.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindUnfundedWithoutWebhook(Supplier<Number> value);
+
+    /**
      * Binds the Paid-Unissued gauge to {@code value}. Emits
      * {@code cashu_mint_quote_paid_unissued}: mint quotes in {@code PAID} past
      * the stranded TTL (issue #460).
