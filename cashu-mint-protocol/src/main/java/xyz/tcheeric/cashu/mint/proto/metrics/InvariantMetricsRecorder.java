@@ -49,6 +49,19 @@ public interface InvariantMetricsRecorder {
     void bindOrphanIssuance(Supplier<Number> value);
 
     /**
+     * Binds the Paid-Unfunded gauge to {@code value}. Emits
+     * {@code cashu_mint_voucher_paid_unfunded}: voucher quotes still
+     * {@code UNFUNDED} despite an accepted payment event (issue #459).
+     *
+     * <p>Non-zero means the mint has taken money it has not issued against.
+     * There is no benign instance of this; the alert carries a short sustain
+     * period only so a quote caught mid-reconcile does not page anyone.
+     *
+     * @param value supplier read on every scrape
+     */
+    void bindPaidUnfunded(Supplier<Number> value);
+
+    /**
      * An invariant poll threw. Emits
      * {@code cashu_mint_invariant_poll_failures_total} — without it a failing
      * poll would hold a stale gauge value and silently disarm the alert.

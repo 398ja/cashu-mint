@@ -60,6 +60,7 @@ public final class MetricCatalogue {
         invariant.bindStuckPaymentUnknown(() -> 0);
         invariant.bindPaymentSentBurnFailed(() -> 0);
         invariant.bindOrphanIssuance(() -> 0);
+        invariant.bindPaidUnfunded(() -> 0);
 
         return registry.getMeters().stream()
                 .map(MetricCatalogue::toDeclaration)

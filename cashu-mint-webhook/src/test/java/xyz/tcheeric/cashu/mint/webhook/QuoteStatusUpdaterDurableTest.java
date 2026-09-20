@@ -13,6 +13,9 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEventRepository;
@@ -43,6 +46,7 @@ class QuoteStatusUpdaterDurableTest {
     private MintQuoteRepository mintQuoteRepository;
     private VoucherQuoteRepository voucherQuoteRepository;
     private WebhookEventRepository webhookEventRepository;
+    private VoucherFundingResolver voucherFundingResolver;
     private WebhookProperties webhookProperties;
     private SimpleMeterRegistry meterRegistry;
 
@@ -70,6 +74,7 @@ class QuoteStatusUpdaterDurableTest {
         mintQuoteRepository = Mockito.mock(MintQuoteRepository.class);
         voucherQuoteRepository = Mockito.mock(VoucherQuoteRepository.class);
         webhookEventRepository = Mockito.mock(WebhookEventRepository.class);
+        voucherFundingResolver = Mockito.mock(VoucherFundingResolver.class);
         webhookProperties = new WebhookProperties();
         webhookProperties.setProvider(PROVIDER);
         meterRegistry = new SimpleMeterRegistry();
@@ -79,7 +84,7 @@ class QuoteStatusUpdaterDurableTest {
         updater = new QuoteStatusUpdater(
                 Duration.ofHours(1), Duration.ofHours(24), 10_485_760L, 100_000,
                 meterRegistry, mintQuoteRepository, voucherQuoteRepository,
-                webhookEventRepository, webhookProperties);
+                webhookEventRepository, voucherFundingResolver, webhookProperties);
     }
 
     @Test
@@ -226,6 +231,109 @@ class QuoteStatusUpdaterDurableTest {
         assertThat(captor.getValue().unit()).isEqualTo("sat");
         // No mint_quote lifecycle CAS — vouchers have their own state machine.
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
+    }
+
+    /**
+     * Issue #459 — the customer's payment must fund the voucher by itself. This
+     * is the defect the 1000 EUR sale exposed: funding used to be created only
+     * when a client sent a mint request, so a client that stopped polling left
+     * the quote UNFUNDED with the money taken.
+     */
+    @Test
+    void voucher_funding_is_attached_by_the_webhook_without_any_client_request() {
+        PaymentNotification n = bolt11("v-fund", 50, "preimage-v-fund");
+        VoucherQuote quote = voucherStub("v-fund", 1000L, 50L, "sat");
+        when(mintQuoteRepository.findById("v-fund")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-fund")).thenReturn(Optional.of(quote));
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(voucherFundingResolver.resolveForQuote(quote))
+                .thenReturn(Optional.of(fundingStub("f-1", 50L)));
+        when(voucherQuoteRepository.attachFundingAndAdvance("v-fund", "f-1")).thenReturn(1);
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        verify(voucherQuoteRepository).attachFundingAndAdvance("v-fund", "f-1");
+    }
+
+    /**
+     * Reproduces the incident directly: a 1000 EUR sale auto-split into five
+     * 200 EUR parts, all paid within two seconds. Previously only the two parts
+     * whose webhooks landed inside the client's polling window were funded and
+     * the customer received 200 of 1000. Every part must now fund itself.
+     */
+    @Test
+    void every_part_of_a_five_way_split_is_funded_even_though_the_client_polls_for_none() {
+        for (int part = 0; part < 5; part++) {
+            String quoteId = "v-split-" + part;
+            String fundingId = "f-split-" + part;
+            VoucherQuote quote = voucherStub(quoteId, 20_000L, 50L, "sat");
+            when(mintQuoteRepository.findById(quoteId)).thenReturn(Optional.empty());
+            when(voucherQuoteRepository.findById(quoteId)).thenReturn(Optional.of(quote));
+            when(voucherFundingResolver.resolveForQuote(quote))
+                    .thenReturn(Optional.of(fundingStub(fundingId, 50L)));
+            when(voucherQuoteRepository.attachFundingAndAdvance(quoteId, fundingId)).thenReturn(1);
+        }
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        for (int part = 0; part < 5; part++) {
+            WebhookOutcome outcome = updater.record(
+                    bolt11("v-split-" + part, 50, "preimage-split-" + part));
+            assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        }
+
+        for (int part = 0; part < 5; part++) {
+            verify(voucherQuoteRepository)
+                    .attachFundingAndAdvance("v-split-" + part, "f-split-" + part);
+        }
+    }
+
+    /**
+     * A client mint request racing the webhook wins the CAS; the webhook must
+     * treat that as a no-op rather than attaching a second funding row.
+     */
+    @Test
+    void voucher_funding_attach_is_a_no_op_when_a_concurrent_client_request_wins_the_cas() {
+        PaymentNotification n = bolt11("v-race", 50, "preimage-v-race");
+        VoucherQuote quote = voucherStub("v-race", 1000L, 50L, "sat");
+        when(mintQuoteRepository.findById("v-race")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-race")).thenReturn(Optional.of(quote));
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(voucherFundingResolver.resolveForQuote(quote))
+                .thenReturn(Optional.of(fundingStub("f-race", 50L)));
+        // 0 = the row was no longer UNFUNDED.
+        when(voucherQuoteRepository.attachFundingAndAdvance("v-race", "f-race")).thenReturn(0);
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        verify(voucherQuoteRepository, times(1)).attachFundingAndAdvance("v-race", "f-race");
+    }
+
+    /**
+     * The payment is real whether or not the funding attach succeeds, so a
+     * resolver failure must still leave an accepted event behind. Failing the
+     * delivery would invite a retry that classifies as a duplicate and still
+     * leaves the quote unfunded; the reconciler is what recovers it.
+     */
+    @Test
+    void voucher_payment_is_still_accepted_when_the_funding_attach_fails() {
+        PaymentNotification n = bolt11("v-boom", 50, "preimage-v-boom");
+        VoucherQuote quote = voucherStub("v-boom", 1000L, 50L, "sat");
+        when(mintQuoteRepository.findById("v-boom")).thenReturn(Optional.empty());
+        when(voucherQuoteRepository.findById("v-boom")).thenReturn(Optional.of(quote));
+        when(webhookEventRepository.findById(anyString(), anyString())).thenReturn(Optional.empty());
+        when(webhookEventRepository.insert(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(voucherFundingResolver.resolveForQuote(quote))
+                .thenThrow(new RuntimeException("funding store unreachable"));
+
+        WebhookOutcome outcome = updater.record(n);
+
+        assertThat(outcome.outcome()).isEqualTo(Outcome.accepted);
+        verify(webhookEventRepository).insert(any());
     }
 
     @Test
@@ -378,6 +486,18 @@ class QuoteStatusUpdaterDurableTest {
 
     private static VoucherQuote voucherStub(String quoteId, long faceValue, long chargedAmount, String unit) {
         return new VoucherQuoteStub(quoteId, faceValue, chargedAmount, unit);
+    }
+
+    private static VoucherFunding fundingStub(String fundingId, long amount) {
+        return new VoucherFundingStub(fundingId, amount);
+    }
+
+    private record VoucherFundingStub(String fundingId, long amount) implements VoucherFunding {
+        @Override public VoucherFundingSource fundingSource() {
+            return VoucherFundingSource.CUSTOMER_PAYMENT;
+        }
+        @Override public String unit() { return "sat"; }
+        @Override public Instant createdAt() { return Instant.now(); }
     }
 
     private record VoucherQuoteStub(String quoteId, long faceValue, long chargedAmount, String unit)

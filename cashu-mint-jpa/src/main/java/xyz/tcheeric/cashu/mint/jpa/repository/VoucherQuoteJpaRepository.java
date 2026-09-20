@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.VoucherQuoteEntity;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -97,4 +99,58 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
             + "  AND q.lifecycleState = xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState.ISSUING")
     int recordIssuance(@Param("id") String id,
                        @Param("amount") long originalTokenAmount);
+
+    /**
+     * Issue #459 — the reconciler sweep. Voucher quotes still {@code UNFUNDED}
+     * that already have an {@code accepted} {@code webhook_event}: the customer
+     * paid and the mint recorded it, but no funding row was ever attached.
+     *
+     * <p><strong>This is the query shape that distinguishes a swept machine
+     * from a stranded one</strong> (#461). A sweep is time-bounded and finds
+     * rows it was not told about; a client flow already knows which row it is
+     * asking about, which is exactly why the request path could never have
+     * recovered these.
+     *
+     * <p>{@code receivedBefore} is a grace period, not an age filter: half A
+     * attaches funding in the webhook transaction, so a quote paid moments ago
+     * is mid-flight rather than stranded. Bounding on the event's
+     * {@code received_at} (not the quote's {@code created_at}) measures time
+     * since the money arrived, which is the duration that matters — a quote
+     * created last week and paid ten seconds ago is not stranded.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT q.* FROM voucher_quote q
+             WHERE q.lifecycle_state = 'UNFUNDED'
+               AND EXISTS (
+                   SELECT 1 FROM webhook_event e
+                    WHERE e.quote_id = q.quote_id
+                      AND e.outcome = 'accepted'
+                      AND e.received_at < :receivedBefore
+               )
+             ORDER BY q.created_at
+             LIMIT :batchSize
+            """)
+    List<VoucherQuoteEntity> findPaidButUnfunded(@Param("receivedBefore") Instant receivedBefore,
+                                                 @Param("batchSize") int batchSize);
+
+    /**
+     * Issue #459 / ADR 0002 — the Paid-Unfunded invariant, exported as a
+     * DB-derived gauge by {@code InvariantGaugePoller}.
+     *
+     * <p>Non-zero means the mint has taken money it has not issued against.
+     * There is no benign instance of this: every row is a customer who paid
+     * and received nothing. Deliberately unbounded by time — the gauge counts
+     * the standing liability, while {@link #findPaidButUnfunded} applies the
+     * grace period so the sweep does not race half A.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT count(*) FROM voucher_quote q
+             WHERE q.lifecycle_state = 'UNFUNDED'
+               AND EXISTS (
+                   SELECT 1 FROM webhook_event e
+                    WHERE e.quote_id = q.quote_id
+                      AND e.outcome = 'accepted'
+               )
+            """)
+    long countPaidUnfunded();
 }

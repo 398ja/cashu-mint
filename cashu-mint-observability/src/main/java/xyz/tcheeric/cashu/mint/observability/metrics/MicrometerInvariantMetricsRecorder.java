@@ -48,6 +48,14 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
     }
 
     @Override
+    public void bindPaidUnfunded(Supplier<Number> value) {
+        Gauge.builder("cashu_mint_voucher_paid_unfunded", value)
+                .description("Voucher quotes still UNFUNDED despite an accepted payment event "
+                        + "(see VoucherQuoteJpaRepository#countPaidUnfunded)")
+                .register(registry);
+    }
+
+    @Override
     public void pollFailed() {
         pollFailures.increment();
     }

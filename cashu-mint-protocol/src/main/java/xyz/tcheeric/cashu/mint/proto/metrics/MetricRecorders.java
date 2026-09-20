@@ -45,6 +45,10 @@ public final class MetricRecorders {
         }
 
         @Override
+        public void fundingReconciled(boolean recovered) {
+        }
+
+        @Override
         public void rateLimitBreach() {
         }
     };
@@ -85,6 +89,10 @@ public final class MetricRecorders {
 
         @Override
         public void bindOrphanIssuance(java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
+        public void bindPaidUnfunded(java.util.function.Supplier<Number> value) {
         }
 
         @Override

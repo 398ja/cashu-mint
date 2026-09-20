@@ -15,6 +15,8 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEventRepository;
@@ -57,6 +59,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     private final MintQuoteRepository mintQuoteRepository;
     private final VoucherQuoteRepository voucherQuoteRepository;
     private final WebhookEventRepository webhookEventRepository;
+    private final VoucherFundingResolver voucherFundingResolver;
     private final WebhookProperties webhookProperties;
     private final MeterRegistry meterRegistry;
 
@@ -69,6 +72,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             @Autowired(required = false) MintQuoteRepository mintQuoteRepository,
             @Autowired(required = false) VoucherQuoteRepository voucherQuoteRepository,
             @Autowired(required = false) WebhookEventRepository webhookEventRepository,
+            @Autowired(required = false) VoucherFundingResolver voucherFundingResolver,
             @Autowired(required = false) WebhookProperties webhookProperties) {
 
         this.paidQuotes = Caffeine.newBuilder()
@@ -89,6 +93,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         this.mintQuoteRepository = mintQuoteRepository;
         this.voucherQuoteRepository = voucherQuoteRepository;
         this.webhookEventRepository = webhookEventRepository;
+        this.voucherFundingResolver = voucherFundingResolver;
         this.webhookProperties = webhookProperties;
         this.meterRegistry = meterRegistry;
 
@@ -214,9 +219,21 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
      * quote's {@code charged_amount} (the fee) and records an {@code accepted}
      * (or {@code amount_mismatch}) {@code webhook_event}, inheriting the
      * quote's unit (the {@link PaymentNotification} carries none, mirroring
-     * the mint_quote path). It deliberately does NOT advance any lifecycle —
-     * the voucher {@code FUNDED → ISSUING} machine is driven by {@code MintTask}
-     * via {@code VoucherFundingResolverImpl}, which consumes the accepted event.
+     * the mint_quote path), then attaches the funding row in the SAME
+     * transaction (issue #459).
+     *
+     * <p><strong>Why the attach happens here.</strong> It used to be left to
+     * {@code MintTask}, which reaches {@code VoucherFundingResolverImpl} only
+     * on an inbound client mint request. That made payment acceptance and
+     * funding creation <em>coincidentally</em> linked rather than causally: a
+     * client that stopped polling — five auto-split parts paid within two
+     * seconds exhaust a 60s budget after two — left the quote {@code UNFUNDED}
+     * forever with the money taken. Committing both together closes that
+     * window; {@code VoucherFundingReconciler} catches whatever bypasses it.
+     *
+     * <p>The {@code FUNDED → ISSUING → ISSUED} half still belongs to
+     * {@code MintTask} and cannot move here: signing needs the client's
+     * blinded outputs, which the mint does not hold until it is asked.
      */
     private WebhookOutcome classifyVoucherQuote(String provider, String providerEventId,
                                                 PaymentNotification notification, long amount) {
@@ -235,7 +252,54 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         // The voucher_quote row stores no payment_method (the gateway is
         // unit-scoped per method), so there is no method to cross-check here;
         // the persisted event still records the notification's method.
-        return persistAccepted(provider, providerEventId, notification, amount, voucher.unit());
+        WebhookOutcome outcome =
+                persistAccepted(provider, providerEventId, notification, amount, voucher.unit());
+        if (outcome.isAccepted()) {
+            attachFunding(voucher);
+        }
+        return outcome;
+    }
+
+    /**
+     * Issue #459 — resolves and attaches the funding row for a voucher quote
+     * whose payment was just accepted, advancing {@code UNFUNDED → FUNDED}.
+     *
+     * <p>Runs inside {@link #record}'s transaction, so the funding row and the
+     * {@code webhook_event} that justifies it commit together or not at all.
+     *
+     * <p>A failure to attach must NOT fail the webhook. The payment is real and
+     * the {@code accepted} event is the durable record of it; rejecting the
+     * delivery would invite a provider retry that now classifies as a duplicate
+     * and still leaves the quote unfunded. Logging and leaving it for
+     * {@code VoucherFundingReconciler} keeps the money traceable, which is what
+     * the safety net exists for.
+     */
+    private void attachFunding(VoucherQuote voucher) {
+        if (voucherFundingResolver == null || voucherQuoteRepository == null) {
+            return;
+        }
+        try {
+            VoucherFunding funding = voucherFundingResolver.resolveForQuote(voucher).orElse(null);
+            if (funding == null) {
+                log.warn("voucher_funding webhook_attach_unresolved quote_id={}", voucher.quoteId());
+                return;
+            }
+            // CAS: 0 means a concurrent client mint request attached first,
+            // which is a no-op rather than a double-attach.
+            int attached = voucherQuoteRepository
+                    .attachFundingAndAdvance(voucher.quoteId(), funding.fundingId());
+            if (attached == 0) {
+                log.info("voucher_funding webhook_attach_race_lost quote_id={} funding_id={}",
+                        voucher.quoteId(), funding.fundingId());
+                return;
+            }
+            log.info("voucher_funding webhook_attached quote_id={} funding_id={} lifecycle=FUNDED",
+                    voucher.quoteId(), funding.fundingId());
+        } catch (RuntimeException e) {
+            log.error("voucher_funding webhook_attach_failed quote_id={} cause={} "
+                            + "— payment recorded, reconciler will retry",
+                    voucher.quoteId(), e.getMessage());
+        }
     }
 
     private WebhookOutcome classifyReplay(WebhookEvent existing, PaymentNotification notification,

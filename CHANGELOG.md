@@ -4,6 +4,36 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A customer could pay for a voucher and never receive it.** A 1000 EUR sale auto-split into
+  five 200 EUR parts delivered 200: all five invoices settled and all five webhooks were accepted,
+  but only two vouchers were issued. Recording the payment and creating the funding row that backs
+  it were never causally linked — `QuoteStatusUpdater` deliberately stopped at the `accepted`
+  `webhook_event`, and the funding row was created lazily by `VoucherFundingResolverImpl`, which is
+  reached only from an inbound client mint request. Sequential sales hid this by giving each part
+  its own polling window; five payments inside one window exhausted the client's 60s budget after
+  two, and the rest stayed `UNFUNDED` with the money taken. 68 such rows (3432 EUR) had
+  accumulated on staging. The webhook now resolves and attaches the funding row in the same
+  transaction as the payment it justifies, so the two commit together or not at all (#459).
+- **`VoucherFundingReconciler` sweeps for anything that bypasses that path** — a bug, a rollback, a
+  manual edit, or a future payment provider wired straight to the event table. Quotes left
+  `UNFUNDED` with an accepted payment older than `cashu.mint.voucher.funding-grace-period` (2m) are
+  driven through the same resolver the request path uses, so the two cannot diverge in what counts
+  as funded. The existing stranded rows heal on the first sweep. Note that the sweep restores
+  `FUNDED`, not `ISSUED`: signing needs the client's blinded outputs, which the mint never
+  persists, so the value ends up durably backed and waiting for a returning client rather than
+  issued unilaterally.
+
+### Added
+
+- `cashu_mint_voucher_paid_unfunded` gauge (ADR 0002, DB-derived): voucher quotes still `UNFUNDED`
+  despite an accepted payment. Non-zero means the mint has taken money it has not issued against;
+  there is no benign instance of it.
+- `cashu_mint_voucher_funding_reconciled_total{outcome="recovered|failed"}`: the safety net's own
+  health. A steady `recovered` rate means the webhook-side attach is leaking and should be
+  investigated rather than celebrated.
+
 ## [0.36.5] - 2026-09-16
 
 ### Fixed

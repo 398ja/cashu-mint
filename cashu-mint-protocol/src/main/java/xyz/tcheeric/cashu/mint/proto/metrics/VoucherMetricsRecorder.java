@@ -65,6 +65,19 @@ public interface VoucherMetricsRecorder {
     void lazyFundingCreated();
 
     /**
+     * The reconciler resolved a voucher quote that was paid for but never
+     * funded (issue #459). Emits
+     * {@code cashu_mint_voucher_funding_reconciled_total{outcome="recovered|failed"}}.
+     *
+     * <p>This measures the safety net's own health, which is not the same as
+     * the system's: a steady {@code recovered} rate means the webhook-side
+     * attach is leaking and should be investigated rather than celebrated.
+     *
+     * @param recovered whether the quote reached {@code FUNDED}
+     */
+    void fundingReconciled(boolean recovered);
+
+    /**
      * A caller exceeded the per-principal voucher rate limit (spec 003
      * FR-008). Emits {@code cashu_mint_voucher_rate_limit_breach_total} — no
      * principal label; see the class Javadoc.

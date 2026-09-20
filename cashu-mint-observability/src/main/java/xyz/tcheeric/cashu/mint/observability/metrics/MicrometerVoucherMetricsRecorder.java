@@ -33,6 +33,8 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
             new EnumMap<>(VoucherFundingSource.class);
     private final Counter iouIssuanceAttempted;
     private final Counter lazyFundingCreated;
+    private final Counter fundingRecovered;
+    private final Counter fundingReconcileFailed;
     private final Counter rateLimitBreach;
 
     public MicrometerVoucherMetricsRecorder(MeterRegistry registry) {
@@ -53,6 +55,17 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
                 .register(registry);
         this.lazyFundingCreated = Counter.builder(METRIC_PREFIX + "lazy_funding_total")
                 .description("Funding rows lazily created from an accepted webhook event")
+                .register(registry);
+        // Both outcomes pre-registered so the family is scrapeable before the
+        // first sweep recovers anything: a series that only appears once
+        // something breaks reads as a broken exporter on a dashboard.
+        this.fundingRecovered = Counter.builder(METRIC_PREFIX + "funding_reconciled_total")
+                .description("Paid-but-unfunded voucher quotes resolved by the reconciler, by outcome")
+                .tag("outcome", "recovered")
+                .register(registry);
+        this.fundingReconcileFailed = Counter.builder(METRIC_PREFIX + "funding_reconciled_total")
+                .description("Paid-but-unfunded voucher quotes resolved by the reconciler, by outcome")
+                .tag("outcome", "failed")
                 .register(registry);
         this.rateLimitBreach = Counter.builder(METRIC_PREFIX + "rate_limit_breach_total")
                 .description("Voucher requests rejected by the per-principal rate limit")
@@ -77,6 +90,11 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
     @Override
     public void lazyFundingCreated() {
         lazyFundingCreated.increment();
+    }
+
+    @Override
+    public void fundingReconciled(boolean recovered) {
+        (recovered ? fundingRecovered : fundingReconcileFailed).increment();
     }
 
     @Override

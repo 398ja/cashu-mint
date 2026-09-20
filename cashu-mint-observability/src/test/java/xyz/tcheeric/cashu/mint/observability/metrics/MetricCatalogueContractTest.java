@@ -228,6 +228,7 @@ class MetricCatalogueContractTest {
                                 xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource.values()[0]),
                         "iouIssuanceAttempted", VoucherMetricsRecorder::iouIssuanceAttempted,
                         "lazyFundingCreated", VoucherMetricsRecorder::lazyFundingCreated,
+                        "fundingReconciled", r -> r.fundingReconciled(true),
                         "rateLimitBreach", VoucherMetricsRecorder::rateLimitBreach)));
 
         mapping.putAll(probe(IssuanceMetricsRecorder.class, MicrometerIssuanceMetricsRecorder::new,
@@ -247,6 +248,7 @@ class MetricCatalogueContractTest {
                                 r.bindStuckPaymentUnknown(() -> 0),
                         "bindPaymentSentBurnFailed", r -> r.bindPaymentSentBurnFailed(() -> 0),
                         "bindOrphanIssuance", r -> r.bindOrphanIssuance(() -> 0),
+                        "bindPaidUnfunded", r -> r.bindPaidUnfunded(() -> 0),
                         "pollFailed", InvariantMetricsRecorder::pollFailed)));
 
         return mapping;

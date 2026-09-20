@@ -134,10 +134,12 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_melt_payment_sent_burn_failed` | gauge | — | Melt sagas whose payment settled but whose proofs were never burned (see MeltSagaJpaRepository#countPaymentSentBurnFailed) |
 | `cashu_mint_melt_proofs_not_bound_total` | counter | — | Melt requests failed closed because proofs could not be bound exclusively to the saga |
 | `cashu_mint_melt_stuck_payment_unknown` | gauge | — | Melt sagas stuck in PAYMENT_UNKNOWN past cashu.mint.melt.payment-unknown-ttl (see MeltSagaJpaRepository#countStuckPaymentUnknown) |
+| `cashu_mint_voucher_funding_reconciled_total` | counter | `outcome` | Paid-but-unfunded voucher quotes resolved by the reconciler, by outcome |
 | `cashu_mint_voucher_iou_issued_total` | counter | — | IOU-funded voucher issuances attempted, whatever the policy outcome |
 | `cashu_mint_voucher_issued_total` | counter | `funding_source` | Vouchers issued, by funding source |
 | `cashu_mint_voucher_lazy_funding_total` | counter | — | Funding rows lazily created from an accepted webhook event |
 | `cashu_mint_voucher_orphan_issuance` | gauge | — | Issued voucher quotes with no funding row (see VoucherIssuanceJpaRepository#countOrphanIssuance) |
+| `cashu_mint_voucher_paid_unfunded` | gauge | — | Voucher quotes still UNFUNDED despite an accepted payment event (see VoucherQuoteJpaRepository#countPaidUnfunded) |
 | `cashu_mint_voucher_rate_limit_breach_total` | counter | — | Voucher requests rejected by the per-principal rate limit |
 | `cashu_mint_voucher_rejected_total` | counter | `reason` | Voucher mints refused, by reason |
 | `cashu_mint_webhook_event_total` | counter | `outcome` | Webhook deliveries processed, by outcome (FR-008) |
