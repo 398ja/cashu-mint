@@ -141,6 +141,55 @@ class VoucherRecorderMetricsIT extends AbstractVoucherDurableIT {
         assertThat(scrape()).doesNotContain("cashu_mint_vouchers_");
     }
 
+    /**
+     * Issue #459 — the paid-unfunded gauge must be present on the scrape even
+     * while it reads zero. An alert rule (`cashu_mint_voucher_paid_unfunded > 0`)
+     * cannot distinguish a healthy zero from a missing series, so a gauge that
+     * only materialises once money is stranded is an alert that never arms.
+     */
+    @Test
+    void paidUnfundedGaugeIsScrapeableBeforeAnythingIsStranded() {
+        assertThat(scrape())
+                .as("the alert rule reads this name; it must exist at zero")
+                .contains("cashu_mint_voucher_paid_unfunded");
+    }
+
+    /**
+     * Issue #459 — both outcomes of the reconciler counter must be on the
+     * scrape from the start. The dashboard panels select on
+     * {@code outcome="recovered"} and {@code outcome="failed"}; a family that
+     * appears only on first use reads as a broken exporter until then.
+     */
+    @Test
+    void fundingReconciledCounterCarriesBothOutcomesFromStartup() {
+        String scrape = scrape();
+        assertThat(labelsOf(scrape, "cashu_mint_voucher_funding_reconciled_total", "recovered"))
+                .as("the recovered series must be pre-registered")
+                .contains("recovered");
+        assertThat(labelsOf(scrape, "cashu_mint_voucher_funding_reconciled_total", "failed"))
+                .as("the failed series must be pre-registered")
+                .contains("failed");
+    }
+
+    /** A recovery must move the series the dashboard and alert actually read. */
+    @Test
+    void fundingRecoveryIncrementsTheRecoveredSeriesOnly() {
+        double recoveredBefore =
+                valueOf(scrape(), "cashu_mint_voucher_funding_reconciled_total", "recovered");
+        double failedBefore =
+                valueOf(scrape(), "cashu_mint_voucher_funding_reconciled_total", "failed");
+
+        MetricRecorders.voucher().fundingReconciled(true);
+
+        String scrape = scrape();
+        assertThat(valueOf(scrape, "cashu_mint_voucher_funding_reconciled_total", "recovered")
+                - recoveredBefore)
+                .isEqualTo(1.0);
+        assertThat(valueOf(scrape, "cashu_mint_voucher_funding_reconciled_total", "failed"))
+                .as("a recovery must not be counted as a failure")
+                .isEqualTo(failedBefore);
+    }
+
     private ResponseEntity<String> post(String body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBasicAuth("admin-it", "it-admin-password", StandardCharsets.UTF_8);
@@ -156,8 +205,17 @@ class VoucherRecorderMetricsIT extends AbstractVoucherDurableIT {
     }
 
     private String scrape() {
-        return restTemplate.getForEntity(
-                "http://localhost:" + managementPort + "/actuator/prometheus", String.class).getBody();
+        // ManagementSecurityConfig puts /actuator/prometheus behind the
+        // operator credential (0.36.0, audit H-3), so an unauthenticated
+        // scrape is a 401 — the same way the real Prometheus target went
+        // down until 0.36.5 gave it a password_file. Present the credential
+        // here for the same reason the scrape job does.
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth("admin-it", "it-admin-password", StandardCharsets.UTF_8);
+        return restTemplate.exchange(
+                "http://localhost:" + managementPort + "/actuator/prometheus",
+                org.springframework.http.HttpMethod.GET,
+                new HttpEntity<>(headers), String.class).getBody();
     }
 
     /**
