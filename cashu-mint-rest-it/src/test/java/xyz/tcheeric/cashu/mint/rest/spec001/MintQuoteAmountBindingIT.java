@@ -137,7 +137,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
         assertThat(response.getStatusCode().isError())
                 .as("status=%s body=%s", response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("amount_mismatch");
+        assertThat(response.getBody())
+                .as("amount_mismatch is wire code 11005; the body carries the number, not the name")
+                .contains("\"code\":11005");
         assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
                 .as("under-mint must not advance the quote out of PAID")
                 .isEqualTo(LifecycleState.PAID);
@@ -155,7 +157,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                         Map.of("amount", 1, "id", TEST_KEYSET_ID, "B_", B_AMT_1)));
 
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("amount_mismatch");
+        assertThat(response.getBody())
+                .as("amount_mismatch is wire code 11005; the body carries the number, not the name")
+                .contains("\"code\":11005");
         assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
                 .isEqualTo(LifecycleState.PAID);
         assertThat(issuanceRecordJpaRepository.count()).isEqualTo(0L);
@@ -176,7 +180,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                 .as("deterministic output error must be a clean 4xx, not 500 — status=%s body=%s",
                         response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("invalid_output_amount");
+        assertThat(response.getBody())
+                .as("invalid_output_amount is wire code 90001; the body carries the number, not the name")
+                .contains("\"code\":90001");
         assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
                 .as("a deterministically-invalid output set must not consume the quote into ISSUING")
                 .isEqualTo(LifecycleState.PAID);
@@ -199,7 +205,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                 .as("null output must be a clean 4xx, not 500 — status=%s body=%s",
                         response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("mint_request_contains_null_output");
+        assertThat(response.getBody())
+                .as("mint_request_contains_null_output is wire code 90005; the body carries the number, not the name")
+                .contains("\"code\":90005");
         assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
                 .isEqualTo(LifecycleState.PAID);
         assertThat(issuanceRecordJpaRepository.count()).isEqualTo(0L);
@@ -239,7 +247,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                 .as("deterministic output error must be a clean 4xx, not 500 — status=%s body=%s",
                         response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("invalid_denominations");
+        assertThat(response.getBody())
+                .as("invalid_denominations is wire code 90002; the body carries the number, not the name")
+                .contains("\"code\":90002");
         assertThat(mintQuoteJpaRepository.findById("q-it-mint-bind").orElseThrow().getLifecycleState())
                 .isEqualTo(LifecycleState.PAID);
         assertThat(issuanceRecordJpaRepository.count()).isEqualTo(0L);
@@ -303,7 +313,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                 Map.of("amount", 1, "id", TEST_KEYSET_ID, "B_", B_AMT_1));
         ResponseEntity<String> response = postMint("q-it-mint-bind", different);
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("quote_already_issued");
+        assertThat(response.getBody())
+                .as("quote_already_issued is wire code 20002; the body carries the number, not the name")
+                .contains("\"code\":20002");
         assertThat(issuanceRecordJpaRepository.count()).isEqualTo(1L);
     }
 
@@ -314,7 +326,9 @@ class MintQuoteAmountBindingIT extends AbstractMintDurableIT {
                 List.of(Map.of("amount", 10, "id", TEST_KEYSET_ID, "B_", B_AMT_8)));
 
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("quote_not_found");
+        assertThat(response.getBody())
+                .as("quote_not_found is wire code 90007; the body carries the number, not the name")
+                .contains("\"code\":90007");
     }
 
     // ---------------------- helpers ----------------------

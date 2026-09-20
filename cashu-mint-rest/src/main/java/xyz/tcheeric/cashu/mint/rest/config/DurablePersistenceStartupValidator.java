@@ -35,7 +35,12 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@Profile("!local & !test")
+// `websocket-test` is a distinct profile name, so `!test` does not exclude
+// it: Spring matches profile names exactly, not by prefix. Two IT classes
+// on that profile (13 tests) had been failing to boot ever since this
+// validator landed, because they inherit jpa.enabled=false like every
+// other test context but were not covered by the exemption.
+@Profile("!local & !test & !websocket-test")
 @RequiredArgsConstructor
 public class DurablePersistenceStartupValidator {
 
