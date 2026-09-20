@@ -152,7 +152,7 @@ jobs:
           fi
 
           # Ratchet. Lower this number when you fix one; never raise it.
-          budget=9
+          budget=5
           if [ "$bad" -gt "$budget" ]; then
             echo "::error::rest-it has $bad failing tests, budget is $budget."
             echo "::error::A new failure was introduced, or a fixed one regressed (#463)."

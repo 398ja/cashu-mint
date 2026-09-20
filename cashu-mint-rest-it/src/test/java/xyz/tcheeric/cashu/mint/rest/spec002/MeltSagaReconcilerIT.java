@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.context.annotation.Primary;
 import xyz.tcheeric.cashu.mint.jpa.MeltSagaReconciler;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaEntity;
@@ -39,6 +40,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * signed-proof fixture and is deferred.
  */
 @Import(MeltSagaReconcilerIT.MockPaymentConfig.class)
+// The reconciler this test drives is also @Scheduled every 60s by default.
+// A tick that fires between seed() and the explicit reconcileTick() sweeps
+// the saga first, so the transition the assertions look for is already
+// there and the *next* one belongs to a different actor — an intermittent
+// "expected sweep but was system" that depends only on wall-clock timing.
+// Pushing the schedule out to an hour leaves reconcileTick() the sole
+// driver, which is what every assertion here assumes.
+@TestPropertySource(properties = {
+        "cashu.mint.melt.reconcile-interval=PT1H",
+        "cashu.mint.invariant.poll-interval=PT1H"
+})
 class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
     @TestConfiguration
@@ -144,11 +156,38 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
         assertThat(sagas.findById("saga-stale-held").orElseThrow().getCurrentState())
                 .isEqualTo(MeltSagaState.FAILED);
+        // Assert the transition the sweep is responsible for, not whichever
+        // entry happens to be last.
+        //
+        // The previous version read timeline.get(size - 1) and expected actor
+        // "sweep". It failed intermittently — roughly two runs in three — with
+        // "expected sweep but was system", and adding an instrumentation write
+        // to the same method made it pass three for three. That timing
+        // sensitivity is the tell: something else can append to this saga's
+        // timeline around the sweep, and asserting on position rather than on
+        // content made the test depend on winning that race.
+        //
+        // What the sweep must guarantee is that PROOFS_HELD -> FAILED happened
+        // and that the sweep is the actor who did it. That is true regardless
+        // of what else lands on the timeline, so this states it directly.
         List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-stale-held");
-        MeltSagaTransitionEntity last = timeline.get(timeline.size() - 1);
-        assertThat(last.getActor()).isEqualTo("sweep");
-        assertThat(last.getFromState()).isEqualTo(MeltSagaState.PROOFS_HELD);
-        assertThat(last.getToState()).isEqualTo(MeltSagaState.FAILED);
+        assertThat(timeline)
+                .as("the TTL sweep must record its own PROOFS_HELD -> FAILED transition; "
+                        + "timeline=%s", describe(timeline))
+                .anySatisfy(entry -> {
+                    assertThat(entry.getActor()).isEqualTo("sweep");
+                    assertThat(entry.getFromState()).isEqualTo(MeltSagaState.PROOFS_HELD);
+                    assertThat(entry.getToState()).isEqualTo(MeltSagaState.FAILED);
+                });
+
+        // And nothing may move it back out of FAILED afterwards: FAILED is
+        // terminal, so a later transition away from it would mean the sweep's
+        // work was undone.
+        assertThat(timeline)
+                .as("FAILED is terminal; nothing may transition out of it. timeline=%s",
+                        describe(timeline))
+                .noneSatisfy(entry ->
+                        assertThat(entry.getFromState()).isEqualTo(MeltSagaState.FAILED));
     }
 
     @Test
@@ -166,6 +205,14 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
                 .untilAsserted(() -> assertThat(
                         sagas.findById("saga-fresh-held").orElseThrow().getCurrentState())
                         .isEqualTo(MeltSagaState.PROOFS_HELD));
+    }
+
+    /** Renders a timeline so a failure names what actually happened. */
+    private static String describe(List<MeltSagaTransitionEntity> timeline) {
+        return timeline.stream()
+                .map(t -> t.getSeq() + ":" + t.getActor() + ":" + t.getReason()
+                        + ":" + t.getFromState() + "->" + t.getToState())
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private void seed(String sagaId, String quoteId, MeltSagaState state, Instant createdAt) {
