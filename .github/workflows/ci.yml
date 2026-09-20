@@ -139,9 +139,17 @@ jobs:
           report_dir=cashu-mint-rest-it/target/surefire-reports
           test -d "$report_dir" || { echo "::error::rest-it produced no reports at all"; exit 1; }
 
-          ran=$(grep -h '^Tests run' "$report_dir"/*.txt | sed 's/Tests run: \([0-9]*\).*/\1/' | paste -sd+ | bc)
-          bad=$(grep -h '^Tests run' "$report_dir"/*.txt \
+          # Default to 0 when the reports are empty or malformed. Without this
+          # the arithmetic yields an empty string, `[ "" -lt 150 ]` prints
+          # "integer expression expected" and returns 0, and the guard passes
+          # for a build that produced no tests at all — the exact failure this
+          # job exists to catch, reintroduced inside the check itself.
+          ran=$(grep -h '^Tests run' "$report_dir"/*.txt 2>/dev/null \
+                | sed 's/Tests run: \([0-9]*\).*/\1/' | paste -sd+ | bc)
+          bad=$(grep -h '^Tests run' "$report_dir"/*.txt 2>/dev/null \
                 | sed 's/.*Failures: \([0-9]*\), Errors: \([0-9]*\).*/\1+\2/' | paste -sd+ | bc)
+          ran=${ran:-0}
+          bad=${bad:-0}
           echo "rest-it: $ran tests ran, $bad failing"
 
           # A suite that does not run is the failure this job exists to catch.

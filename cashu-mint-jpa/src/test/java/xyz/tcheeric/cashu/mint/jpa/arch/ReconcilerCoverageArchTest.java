@@ -13,6 +13,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -146,9 +150,10 @@ class ReconcilerCoverageArchTest {
 
     /**
      * The discriminating check, and the reason this test is not the naive one:
-     * a sweep takes a time cutoff and returns a collection. Deleting the
-     * {@code Instant} parameter from a reconciler's query turns it into a
-     * request-path lookup, and this notices.
+     * a sweep reads rows in bulk, keyed on state or on a time cutoff. A
+     * request path never needs that, because a client already knows which row
+     * it is asking about. Removing such a query from a reconciled machine's
+     * repository leaves the scheduler with nothing to sweep, and this notices.
      */
     @Test
     @DisplayName("each reconciled machine exposes a time-bounded sweep, not just a lookup")
@@ -186,6 +191,44 @@ class ReconcilerCoverageArchTest {
      * is worse than no rule, because it certifies the thing it was written to
      * prevent.
      */
+    /**
+     * Every state machine on the classpath is registered here.
+     *
+     * <p>{@link #MACHINES} is a hand-maintained list, which is the rule's
+     * largest blind spot: a new value-bearing state machine is not "uncovered"
+     * by this rule, it is <em>invisible</em> to it. Every other assertion here
+     * iterates that list, so forgetting to add an entry silently reduces the
+     * rule's scope to zero for the new machine — and the failure looks like a
+     * passing build.
+     *
+     * <p>{@code isTerminal()} is the marker. It exists on exactly the enums
+     * that model a lifecycle with non-terminal states, which is precisely the
+     * population this rule governs, so scanning for it finds machines the
+     * author of a new one cannot forget to declare.
+     */
+    @Test
+    @DisplayName("no state machine on the classpath is missing from MACHINES")
+    void everyStateMachineOnTheClasspathIsRegistered() {
+        JavaClasses domain = new ClassFileImporter()
+                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .importPackages("xyz.tcheeric.cashu.mint.proto.domain");
+
+        Set<String> onClasspath = domain.stream()
+                .filter(JavaClass::isEnum)
+                .filter(c -> c.tryGetMethod("isTerminal").isPresent())
+                .map(JavaClass::getSimpleName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<String> registered = MACHINES.stream()
+                .map(m -> m.stateEnum().getSimpleName())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        assertThat(registered)
+                .as("""
+                        An enum declaring isTerminal() models a lifecycle, and every lifecycle                         with a non-terminal state is in scope for #461. Add it to MACHINES with                         its repository and scheduler, or the rule will pass by simply not                         looking at it — which is the failure mode this whole issue is about.""")
+                .containsAll(onClasspath);
+    }
+
     @Test
     @DisplayName("each named scheduler actually carries @Scheduled")
     void namedSchedulersAreActuallyScheduled() {
