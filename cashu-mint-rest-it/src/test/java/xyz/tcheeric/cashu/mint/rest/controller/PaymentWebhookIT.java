@@ -384,6 +384,88 @@ class PaymentWebhookIT {
     }
 
     /**
+     * An unsigned delivery must be refused.
+     *
+     * <p>This class had no such test, and that is why the stub survived. Every
+     * test here signed nothing and the stub accepted everything, so the suite
+     * could not tell "signature verification works" from "signature
+     * verification is not running". When spec 008 changed the validator's
+     * arity the stub stopped matching, every test flipped to 401 at once, and
+     * the class sat dead for months reporting an auth misconfiguration that
+     * did not exist.
+     *
+     * <p>Removing the stub fixed the positive path; without this, the negative
+     * path would still be unproven at the HTTP boundary. The validator itself
+     * is well covered by unit tests — what was never asserted is that the
+     * controller actually consults it.
+     */
+    @Test
+    void anUnsignedWebhookIsRejected() throws Exception {
+        PaymentNotification notification = PaymentNotification.builder()
+                .quoteId("unsigned-quote")
+                .paymentMethod("bolt11")
+                .amount(1000)
+                .preimage("preimage-unsigned")
+                .paidAt(Instant.now())
+                .build();
+
+        mockMvc.perform(post("/webhook/payment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(notification)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * A signature over the body alone must be refused.
+     *
+     * <p>{@code require-timestamp} defaults to true and the timestamp is bound
+     * into the MAC, so a body-only signature is exactly what an attacker
+     * replaying an observed delivery would present. WebhookAmountBindingIT
+     * signed this way and had been failing for that reason, which makes the
+     * distinction worth pinning rather than leaving as folklore.
+     */
+    @Test
+    void aSignatureThatOmitsTheTimestampIsRejected() throws Exception {
+        PaymentNotification notification = PaymentNotification.builder()
+                .quoteId("body-only-signature")
+                .paymentMethod("bolt11")
+                .amount(1000)
+                .preimage("preimage-body-only")
+                .paidAt(Instant.now())
+                .build();
+        String body = objectMapper.writeValueAsString(notification);
+
+        mockMvc.perform(post("/webhook/payment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Webhook-Timestamp", WebhookSigning.now())
+                        .header("X-Webhook-Signature", WebhookSigning.sign(body, null))
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** A signature made with the wrong secret must be refused. */
+    @Test
+    void aForgedSignatureIsRejected() throws Exception {
+        PaymentNotification notification = PaymentNotification.builder()
+                .quoteId("forged-signature")
+                .paymentMethod("bolt11")
+                .amount(1000)
+                .preimage("preimage-forged")
+                .paidAt(Instant.now())
+                .build();
+        String body = objectMapper.writeValueAsString(notification);
+        String timestamp = WebhookSigning.now();
+
+        mockMvc.perform(post("/webhook/payment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Webhook-Timestamp", timestamp)
+                        .header("X-Webhook-Signature",
+                                WebhookSigning.sign(body, timestamp, "not-the-shared-secret"))
+                        .content(body))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
      * A {@code /webhook/payment} POST signed the way a real sender signs it.
      *
      * <p>These tests predate {@code require-timestamp}, which defaults to

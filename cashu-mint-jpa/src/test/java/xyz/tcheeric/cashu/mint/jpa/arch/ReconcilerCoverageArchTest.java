@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import xyz.tcheeric.cashu.mint.jpa.MeltSagaReconciler;
 import xyz.tcheeric.cashu.mint.jpa.SwapHoldReconciler;
@@ -171,6 +172,42 @@ class ReconcilerCoverageArchTest {
                 .as("a scheduled reconciler with no time-bounded query cannot find rows it was "
                         + "not told about, which is the only thing that distinguishes a swept "
                         + "machine from a stranded one")
+                .isEmpty();
+    }
+
+    /**
+     * The named scheduler must actually be scheduled.
+     *
+     * <p>Caught reviewing this test rather than the code it guards: the
+     * coverage check only asked whether a scheduler class was <em>named</em>.
+     * Commenting out {@code @Scheduled} on {@code VoucherFundingReconciler}
+     * left all three tests green — a reconciler that exists, compiles, is
+     * wired, and never runs. That is #459 exactly, and a rule that misses it
+     * is worse than no rule, because it certifies the thing it was written to
+     * prevent.
+     */
+    @Test
+    @DisplayName("each named scheduler actually carries @Scheduled")
+    void namedSchedulersAreActuallyScheduled() {
+        Map<String, String> unscheduled = new LinkedHashMap<>();
+
+        for (Machine machine : MACHINES) {
+            if (machine.scheduler() == null) {
+                continue;
+            }
+            boolean scheduled = Arrays.stream(machine.scheduler().getDeclaredMethods())
+                    .anyMatch(m -> m.isAnnotationPresent(Scheduled.class));
+            if (!scheduled) {
+                unscheduled.put(machine.name(),
+                        machine.scheduler().getSimpleName()
+                                + " has no @Scheduled method, so nothing ever calls it and the "
+                                + "machine is swept only in principle");
+            }
+        }
+
+        assertThat(unscheduled)
+                .as("a reconciler that is never invoked is indistinguishable from no reconciler, "
+                        + "except that it reads like coverage")
                 .isEmpty();
     }
 
