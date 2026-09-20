@@ -78,29 +78,37 @@ class NutshellInteropIT extends AbstractMintDurableIT {
     /**
      * Pinned so a Nutshell release cannot silently change what this measures.
      *
-     * <p><strong>Both tests in this class currently fail, and the mint is not
-     * at fault.</strong> 0.16.5 predates the current NUT-20 message format and
-     * signs the legacy {@code utf8(quote_id || B_hex)}. Verified by taking a
-     * signature this image produced and checking it against both formats with
-     * BIP-340 directly:
+     * <p><strong>Both tests fail against 0.16.5, and that image is not the
+     * problem.</strong> It predates the current NUT-20 message format and
+     * signs the legacy {@code utf8(quote_id || B_hex)}; our implementation
+     * matches the spec byte-for-byte, so the 20008 is this mint correctly
+     * refusing a signature over a message the spec no longer defines.
      *
-     * <pre>
-     *   spec  (Cashu_MintQuoteSig_v1 || len32-prefixed fields) -> false
-     *   legacy(quote_id || B_hex)                              -> true
-     * </pre>
+     * <p>Raising the pin to 0.21.0 is the real goal and is <em>close</em>.
+     * Driving a current wallet against this mint found three genuine
+     * spec-compliance defects, two of them now fixed:
      *
-     * <p>Our {@code MintQuoteSignatureMessage} produces bytes identical to the
-     * worked example in NUT-20 — compared hash-for-hash against an independent
-     * implementation of the spec text — and {@code MintQuoteSignatureTest}
-     * passes the spec vectors. So 20008 here is the mint correctly refusing a
-     * signature made over a message the spec no longer defines.
+     * <ol>
+     *   <li><strong>Fixed.</strong> {@code GET /v1/keys} omitted the NUT-01
+     *       {@code active} field. Wallets model it as required, so the whole
+     *       response failed to deserialise and the mint appeared to have no
+     *       keysets at all ({@code KeysetNotFoundError ... or they are
+     *       unsupported by this wallet}).</li>
+     *   <li><strong>Fixed.</strong> {@code PostMeltQuoteResponse} returned
+     *       null for the required {@code unit} and {@code request} fields, so
+     *       no wallet could obtain a melt quote.</li>
+     *   <li><strong>Open, see #465.</strong> {@code POST /v1/melt} still
+     *       returns the deprecated {@code {paid, payment_preimage}} shape.
+     *       NUT-05 now expects the full quote object; a current wallet reports
+     *       8 missing fields. {@code PostMeltResponse} has 30 non-test usages
+     *       across this repo and cashu-lib, so it is a migration rather than a
+     *       patch.</li>
+     * </ol>
      *
-     * <p>Bumping the tag is not the fix: 0.21.0 fails earlier still, at
-     * {@code KeysetNotFoundError: no active keysets found for unit sat}, which
-     * is a separate compatibility question about how this harness provisions
-     * keysets. Tracked in #465 rather than papered over, because a green
-     * interop test against a wallet three years stale would be worth less than
-     * a red one that says which version we no longer match.
+     * <p>With the first two fixed, 0.21.0 gets through mint and swap and fails
+     * only at the last step. Raise the pin once the melt response is migrated,
+     * and this class starts measuring interop against a wallet anyone actually
+     * runs.
      */
     private static final String NUTSHELL_IMAGE = "cashubtc/nutshell:0.16.5";
     private static final String FLOW_SCRIPT = "interop/nutshell_flow.py";
@@ -175,8 +183,21 @@ class NutshellInteropIT extends AbstractMintDurableIT {
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
         mintEntity.setId(UUID.fromString(mint.getId()));
         when(mintVaultService.retrieveMint(anyString())).thenReturn(mintEntity);
+        // Both halves of a hold must be stubbed. Claim reports how many inputs
+        // were bound; commit must report the same number spent, or
+        // SwapProofHold.commit fails and the swap returns 11002 "inputs remain
+        // held ... must be committed, never released". Answering from the
+        // arguments keeps the stub faithful: a swap that held two and spent one
+        // still fails, which is the accounting error the hold exists to catch.
+        java.util.Map<String, Integer> heldByHold = new java.util.concurrent.ConcurrentHashMap<>();
         when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
-                .thenAnswer(call -> call.getArgument(0, List.class).size());
+                .thenAnswer(call -> {
+                    int claimed = call.getArgument(0, List.class).size();
+                    heldByHold.put(call.getArgument(1, String.class), claimed);
+                    return claimed;
+                });
+        when(proofVaultService.commitSpentForHold(anyString()))
+                .thenAnswer(call -> heldByHold.getOrDefault(call.getArgument(0, String.class), 0));
     }
 
     // A real wallet picks its own output denominations. This is the flow an

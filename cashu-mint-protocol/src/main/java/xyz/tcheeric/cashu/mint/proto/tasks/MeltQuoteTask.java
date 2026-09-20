@@ -82,8 +82,23 @@ public class MeltQuoteTask extends InstrumentedTask<PostMeltQuoteResponse> {
         AmountLimitContext.policy().requireWithinMeltLimits(amount, resolveUnit());
         feeReserve += (int) Math.ceil(amount * FeeConfig.getFeeReservePercent());
 
+        // `unit` and `request` are not optional. NUT-05 lists both on
+        // PostMeltQuoteResponse, and wallets model them as required strings, so
+        // omitting them does not degrade the response — it fails the whole
+        // thing to deserialise:
+        //
+        //   ValidationError: 2 validation errors for PostMeltQuoteResponse
+        //   unit    Input should be a valid string [input_value=None]
+        //   request Input should be a valid string [input_value=None]
+        //
+        // A wallet therefore cannot melt against this mint at all. Both values
+        // were already to hand: resolveUnit() is used two lines above for the
+        // limit check, and request.getRequest() is the invoice the quote is
+        // for.
         return PostMeltQuoteResponse.builder()
                 .quoteId(quoteId)
+                .request(request.getRequest())
+                .unit(resolveUnit())
                 .feeReserve(feeReserve)
                 .expiry(expiry)
                 .amount(amount)
