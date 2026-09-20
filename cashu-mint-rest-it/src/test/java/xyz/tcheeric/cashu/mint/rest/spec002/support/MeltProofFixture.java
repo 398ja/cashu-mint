@@ -95,7 +95,13 @@ public final class MeltProofFixture {
      * differ).
      */
     public static xyz.tcheeric.cashu.common.BlindedMessage blindedMessageForChange(int amount, int salt) {
-        java.math.BigInteger scalar = BigInteger.valueOf(amount).add(BigInteger.valueOf(salt))
+        // amount + salt collides: (2,4) and (1,5) both sum to 6, so both
+        // derive the same key and the mint correctly refuses the request as
+        // "Duplicate outputs provided". Mixing the salt into a different
+        // decimal position keeps every (amount, salt) pair distinct, which is
+        // what a caller of this helper is entitled to assume.
+        java.math.BigInteger scalar = BigInteger.valueOf(amount)
+                .add(BigInteger.valueOf(salt).multiply(BigInteger.valueOf(1_000)))
                 .add(BigInteger.valueOf(257)); // avoid colliding with mint priv keys
         String hex = String.format("%064x", scalar);
         PrivateKey priv = PrivateKey.fromString(hex);

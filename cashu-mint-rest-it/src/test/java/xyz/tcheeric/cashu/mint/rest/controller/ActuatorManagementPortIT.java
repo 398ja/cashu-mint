@@ -48,9 +48,20 @@ import static org.assertj.core.api.Assertions.assertThat;
         "management.prometheus.metrics.export.enabled=true",
         "management.endpoints.web.exposure.include=health,info,prometheus,metrics",
         "voucher.enabled=false",
-        "cashu.mint.webhook.shared-secret=it-shared-secret"
+        "cashu.mint.webhook.shared-secret=it-shared-secret",
+        // The scrape endpoint is deliberately authenticated (#346): anyone who
+        // can reach the management port would otherwise read issuance rates and
+        // outstanding liability. Registering an operator here is what lets this
+        // class assert the endpoint SERVES metrics rather than merely that it
+        // exists — the unauthenticated request it used to make got a 401, which
+        // is the endpoint working as designed.
+        "cashu.mint.admin.username=" + ActuatorManagementPortIT.SCRAPE_USER,
+        "cashu.mint.admin.password={noop}" + ActuatorManagementPortIT.SCRAPE_PASSWORD
 })
 class ActuatorManagementPortIT {
+
+    static final String SCRAPE_USER = "scrape-it";
+    static final String SCRAPE_PASSWORD = "scrape-it-password";
 
     @LocalServerPort
     private int applicationPort;
@@ -90,7 +101,13 @@ class ActuatorManagementPortIT {
         // assertion would pass or fail on test ordering alone.
         get(applicationPort, "/v1/info");
 
-        ResponseEntity<String> response = get(managementPort, "/actuator/prometheus");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setBasicAuth(SCRAPE_USER, SCRAPE_PASSWORD);
+        ResponseEntity<String> response = restTemplate.exchange(
+                "http://localhost:" + managementPort + "/actuator/prometheus",
+                org.springframework.http.HttpMethod.GET,
+                new org.springframework.http.HttpEntity<>(headers),
+                String.class);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody())

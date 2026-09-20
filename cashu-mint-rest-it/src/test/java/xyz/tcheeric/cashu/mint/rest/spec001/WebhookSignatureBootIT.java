@@ -71,9 +71,46 @@ class WebhookSignatureBootIT {
     void stagingProfile_withSecret_bootsCleanly() {
         contextRunner
                 .withSystemProperties("spring.profiles.active=staging")
-                .withPropertyValues("cashu.mint.webhook.shared-secret=staging-secret")
+                .withPropertyValues(
+                        "cashu.mint.webhook.shared-secret=staging-secret",
+                        // b43a45ab made this a second precondition. The runner does
+                        // not load application.properties, where it defaults to true,
+                        // so it has to be stated here — a real deployment gets it from
+                        // MINT_WEBHOOK_REQUIRE_TIMESTAMP or the property file.
+                        "cashu.mint.webhook.require-timestamp=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
+                });
+    }
+
+    /**
+     * A secret alone is not enough, and this is the case the class was missing.
+     *
+     * <p>{@code b43a45ab} made {@code require-timestamp} a second precondition
+     * for non-local profiles: with it false, an attacker who captured any
+     * historical delivery replays it for ever by simply omitting the
+     * {@code X-Webhook-Timestamp} header, because the validator then falls back
+     * to a bare-body MAC that still verifies. A signature with no replay bound
+     * is not much of a defence.
+     *
+     * <p>The test above was written before that rule existed and had been
+     * failing ever since — it set only the secret, so it was asserting that a
+     * deployment with replay protection switched off starts cleanly, which is
+     * exactly what the new rule forbids. Fixing it by adding the property
+     * would have left the rule itself untested, so this asserts it directly.
+     */
+    @Test
+    void stagingProfile_withSecretButNoTimestampRequirement_refusesToStart() {
+        contextRunner
+                .withSystemProperties("spring.profiles.active=staging")
+                .withPropertyValues(
+                        "cashu.mint.webhook.shared-secret=staging-secret",
+                        "cashu.mint.webhook.require-timestamp=false")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .rootCause()
+                            .hasMessageContaining("require-timestamp must be true");
                 });
     }
 }

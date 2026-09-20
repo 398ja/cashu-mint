@@ -75,7 +75,33 @@ class NutshellInteropIT extends AbstractMintDurableIT {
 
     private static final Logger log = LoggerFactory.getLogger(NutshellInteropIT.class);
 
-    /** Pinned so a Nutshell release cannot silently change what this measures. */
+    /**
+     * Pinned so a Nutshell release cannot silently change what this measures.
+     *
+     * <p><strong>Both tests in this class currently fail, and the mint is not
+     * at fault.</strong> 0.16.5 predates the current NUT-20 message format and
+     * signs the legacy {@code utf8(quote_id || B_hex)}. Verified by taking a
+     * signature this image produced and checking it against both formats with
+     * BIP-340 directly:
+     *
+     * <pre>
+     *   spec  (Cashu_MintQuoteSig_v1 || len32-prefixed fields) -> false
+     *   legacy(quote_id || B_hex)                              -> true
+     * </pre>
+     *
+     * <p>Our {@code MintQuoteSignatureMessage} produces bytes identical to the
+     * worked example in NUT-20 — compared hash-for-hash against an independent
+     * implementation of the spec text — and {@code MintQuoteSignatureTest}
+     * passes the spec vectors. So 20008 here is the mint correctly refusing a
+     * signature made over a message the spec no longer defines.
+     *
+     * <p>Bumping the tag is not the fix: 0.21.0 fails earlier still, at
+     * {@code KeysetNotFoundError: no active keysets found for unit sat}, which
+     * is a separate compatibility question about how this harness provisions
+     * keysets. Tracked in #465 rather than papered over, because a green
+     * interop test against a wallet three years stale would be worth less than
+     * a red one that says which version we no longer match.
+     */
     private static final String NUTSHELL_IMAGE = "cashubtc/nutshell:0.16.5";
     private static final String FLOW_SCRIPT = "interop/nutshell_flow.py";
     private static final String CONTAINER_SCRIPT_PATH = "/interop/nutshell_flow.py";
