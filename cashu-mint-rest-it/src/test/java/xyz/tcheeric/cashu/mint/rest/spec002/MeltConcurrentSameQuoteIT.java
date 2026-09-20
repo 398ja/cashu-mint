@@ -126,7 +126,7 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
                 .as("FR-005 melt_in_progress on concurrent quote (status=%s body=%s)",
                         response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("melt_in_progress");
+        assertThat(response.getBody()).contains("\"code\":20005");
         // The pre-seeded saga is still the only one for that quote_id.
         assertThat(sagas.count()).isEqualTo(1);
     }
@@ -158,7 +158,7 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
         assertThat(response.getStatusCode().isError())
                 .as("status=%s body=%s", response.getStatusCode(), response.getBody())
                 .isTrue();
-        assertThat(response.getBody()).contains("melt_in_progress");
+        assertThat(response.getBody()).contains("\"code\":20005");
     }
 
     private ResponseEntity<String> postMelt(String quoteId, List<Map<String, Object>> proofs) {

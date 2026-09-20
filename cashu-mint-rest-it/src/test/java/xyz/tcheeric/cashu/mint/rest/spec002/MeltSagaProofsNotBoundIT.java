@@ -158,7 +158,7 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
 
         // The wallet receives an error response carrying proofs_not_bound.
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("proofs_not_bound");
+        assertThat(response.getBody()).contains("\"code\":90021");
 
         // Saga lands in FAILED.
         MeltSagaEntity saga = sagas.findByQuoteId("quote-partial").orElseThrow();
@@ -188,7 +188,7 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         ResponseEntity<String> response = postMelt("quote-zero", overFundedProofs());
 
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("proofs_not_bound");
+        assertThat(response.getBody()).contains("\"code\":90021");
 
         MeltSagaEntity saga = sagas.findByQuoteId("quote-zero").orElseThrow();
         assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.FAILED);
@@ -213,7 +213,7 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         assertThat(response.getStatusCode().isError()).isTrue();
         // Client-facing terminal error is the same proofs_not_bound code as
         // the partial / zero-bind cases above — never leaks the vault cause.
-        assertThat(response.getBody()).contains("proofs_not_bound");
+        assertThat(response.getBody()).contains("\"code\":90021");
 
         // The saga record exists, and lightningPaymentPort.pay was never invoked.
         MeltSagaEntity saga = sagas.findByQuoteId("quote-vault-down").orElseThrow();

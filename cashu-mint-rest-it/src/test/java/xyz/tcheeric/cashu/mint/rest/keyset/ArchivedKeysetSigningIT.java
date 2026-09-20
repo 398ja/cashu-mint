@@ -146,7 +146,7 @@ class ArchivedKeysetSigningIT extends AbstractMintDurableIT {
         .isTrue();
     assertThat(response.getBody())
         .as("the wallet must be told to refresh its keysets, not handed a generic failure")
-        .contains("keyset_inactive");
+        .contains("\"code\":12002");
     // Distinguishable from an unknown keyset, because the recovery differs.
     assertThat(response.getBody()).doesNotContain("keyset_not_found");
     assertThat(issuanceRecordJpaRepository.count())

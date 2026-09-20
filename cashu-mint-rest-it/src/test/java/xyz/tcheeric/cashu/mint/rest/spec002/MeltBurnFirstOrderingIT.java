@@ -198,7 +198,7 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
 
         // The response carries payment_unknown.
         assertThat(response.getStatusCode().isError()).isTrue();
-        assertThat(response.getBody()).contains("payment_unknown");
+        assertThat(response.getBody()).contains("\"code\":90029");
         MeltSagaEntity saga = sagas.findByQuoteId("quote-unknown").orElseThrow();
         assertThat(saga.getCurrentState()).isEqualTo(MeltSagaState.PAYMENT_UNKNOWN);
         // FR-007: no auto-retry of pay() — only one invocation.

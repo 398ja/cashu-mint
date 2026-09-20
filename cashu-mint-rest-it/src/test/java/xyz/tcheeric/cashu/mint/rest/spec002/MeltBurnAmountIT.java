@@ -114,7 +114,7 @@ class MeltBurnAmountIT extends AbstractMintDurableIT {
                         MeltProofFixture.proofJson(4)));
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody()).contains("insufficient_input");
+        assertThat(response.getBody()).contains("\"code\":11005");
         // SC-001: no external payment was attempted.
         assertThat(((MockLightningPaymentPort) paymentPort).payInvocations()).isEmpty();
     }
@@ -160,7 +160,7 @@ class MeltBurnAmountIT extends AbstractMintDurableIT {
                         MeltProofFixture.proofJson(32),
                         MeltProofFixture.proofJson(8)));
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody()).contains("insufficient_input");
+        assertThat(response.getBody()).contains("\"code\":11005");
         assertThat(((MockLightningPaymentPort) paymentPort).payInvocations()).isEmpty();
     }
 

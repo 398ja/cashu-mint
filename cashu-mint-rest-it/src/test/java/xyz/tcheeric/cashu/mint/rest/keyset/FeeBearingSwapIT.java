@@ -174,7 +174,7 @@ class FeeBearingSwapIT extends AbstractMintDurableIT {
     assertThat(response.getStatusCode().is4xxClientError())
         .as("an unpaid fee is the wallet's error to fix — status=%s", response.getStatusCode())
         .isTrue();
-    assertThat(response.getBody()).contains("transaction_not_balanced");
+    assertThat(response.getBody()).contains("\"code\":11005");
   }
 
   /**
