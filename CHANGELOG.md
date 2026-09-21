@@ -4,6 +4,29 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-09-22
+
+### Fixed
+
+- **`/v1/keys` no longer fans out hundreds of vault calls** (#467). Each uncached read is the
+  O(keys) walk that once killed `imani-vault-jpa` with an `OutOfMemoryError`, taking its
+  `http-nio` acceptor thread with it — so the vault refused all connections and nothing could
+  mint.
+
+  A cache alone made that rarer rather than impossible, and left it aimed at the worst moments:
+  every restart begins cold, and a deploy is exactly when every wallet reconnects at once.
+  Measured at 20 concurrent requests against a cold cache producing 20 full vault loads.
+
+  A per-generation lock with a double-check means one loader per generation while the rest wait
+  and then read the cache. Active and archived lock separately, so a slow archived read cannot
+  stall wallets asking for active keys.
+
+- **The same fan-out on ARCHIVED keysets**, which the first fix missed. On any mint that has
+  rotated its keys the original bug was still fully present for archived reads.
+
+**Operators need not act.** No configuration, schema or wire change; this is the same responses
+served with far fewer vault reads.
+
 ## [0.37.1] - 2026-09-21
 
 ### Changed
