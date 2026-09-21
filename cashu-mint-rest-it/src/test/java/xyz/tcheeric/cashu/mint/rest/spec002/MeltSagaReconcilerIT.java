@@ -121,17 +121,17 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
     @Test
     void reconciler_advances_PAYMENT_UNKNOWN_to_COMPLETED_when_provider_confirms() {
-        seed("saga-unknown-ok", "quote-unknown-ok",
+        seed(sagaId("saga-unknown-ok"), "quote-unknown-ok",
                 MeltSagaState.PAYMENT_UNKNOWN, Instant.now());
         mock().enqueueCheckStatus(new PaymentOutcome.Success(
                 "preimage-ok", 100L, 0L, "evt-ok"));
 
         reconciler.reconcileTick();
 
-        assertThat(sagas.findById("saga-unknown-ok").orElseThrow().getCurrentState())
+        assertThat(sagas.findById(sagaId("saga-unknown-ok")).orElseThrow().getCurrentState())
                 .isEqualTo(MeltSagaState.COMPLETED);
         // Transition timeline shows the reconciler's append.
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-unknown-ok");
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-unknown-ok"));
         assertThat(timeline).extracting(MeltSagaTransitionEntity::getToState)
                 .contains(MeltSagaState.COMPLETED);
         assertThat(timeline.get(timeline.size() - 1).getActor()).isEqualTo("poll");
@@ -141,14 +141,14 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
     @Test
     void reconciler_advances_PAYMENT_UNKNOWN_to_FAILED_on_definitive_failure() {
-        seed("saga-unknown-fail", "quote-unknown-fail",
+        seed(sagaId("saga-unknown-fail"), "quote-unknown-fail",
                 MeltSagaState.PAYMENT_UNKNOWN, Instant.now());
         mock().enqueueCheckStatus(new PaymentOutcome.DefinitiveFailure(
                 "route_not_found", "1001"));
 
         reconciler.reconcileTick();
 
-        assertThat(sagas.findById("saga-unknown-fail").orElseThrow().getCurrentState())
+        assertThat(sagas.findById(sagaId("saga-unknown-fail")).orElseThrow().getCurrentState())
                 .isEqualTo(MeltSagaState.FAILED);
         assertThat(mock().payCallsFor("quote-unknown-fail")).isEqualTo(0);
     }
@@ -178,12 +178,12 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
     @Test
     void reconciler_sweeps_stale_PROOFS_HELD_to_FAILED() {
         // Seed an old PROOFS_HELD that exceeds the configured 5-min TTL.
-        seed("saga-stale-held", "quote-stale-held", MeltSagaState.PROOFS_HELD,
+        seed(sagaId("saga-stale-held"), "quote-stale-held", MeltSagaState.PROOFS_HELD,
                 Instant.now().minus(Duration.ofMinutes(10)));
 
         reconciler.reconcileTick();
 
-        assertThat(sagas.findById("saga-stale-held").orElseThrow().getCurrentState())
+        assertThat(sagas.findById(sagaId("saga-stale-held")).orElseThrow().getCurrentState())
                 .isEqualTo(MeltSagaState.FAILED);
         // Assert the transition the sweep is responsible for, not whichever
         // entry happens to be last.
@@ -199,7 +199,7 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
         // What the sweep must guarantee is that PROOFS_HELD -> FAILED happened
         // and that the sweep is the actor who did it. That is true regardless
         // of what else lands on the timeline, so this states it directly.
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-stale-held");
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-stale-held"));
         assertThat(timeline)
                 .as("the TTL sweep must record its own PROOFS_HELD -> FAILED transition; "
                         + "timeline=%s", describe(timeline))
@@ -228,7 +228,7 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
 
     @Test
     void fresh_PROOFS_HELD_is_NOT_swept() {
-        seed("saga-fresh-held", "quote-fresh-held", MeltSagaState.PROOFS_HELD,
+        seed(sagaId("saga-fresh-held"), "quote-fresh-held", MeltSagaState.PROOFS_HELD,
                 Instant.now());
 
         reconciler.reconcileTick();
@@ -239,7 +239,7 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
         Awaitility.await().atMost(2, TimeUnit.SECONDS)
                 .pollInterval(200, TimeUnit.MILLISECONDS)
                 .untilAsserted(() -> assertThat(
-                        sagas.findById("saga-fresh-held").orElseThrow().getCurrentState())
+                        sagas.findById(sagaId("saga-fresh-held")).orElseThrow().getCurrentState())
                         .isEqualTo(MeltSagaState.PROOFS_HELD));
     }
 
@@ -258,12 +258,12 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
      */
     @Test
     void theTransitionIsRecordedBeforeTheProofsAreSettled() {
-        seed("saga-order", "quote-order", MeltSagaState.PROOFS_HELD,
+        seed(sagaId("saga-order"), "quote-order", MeltSagaState.PROOFS_HELD,
                 Instant.now().minus(Duration.ofMinutes(10)));
 
         reconciler.reconcileTick();
 
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-order");
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-order"));
         int terminal = indexOfReason(timeline, "proofs_held_ttl_expired");
         int settled = indexOfReason(timeline, "proof_settled");
 
@@ -296,12 +296,12 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
                         proofVaultService.refundForHold(org.mockito.ArgumentMatchers.anyString()))
                 .thenThrow(new RuntimeException("vault down"));
 
-        seed("saga-unsettled", "quote-unsettled", MeltSagaState.PROOFS_HELD,
+        seed(sagaId("saga-unsettled"), "quote-unsettled", MeltSagaState.PROOFS_HELD,
                 Instant.now().minus(Duration.ofMinutes(10)));
 
         reconciler.reconcileTick();
 
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline("saga-unsettled");
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-unsettled"));
         assertThat(indexOfReason(timeline, "proof_settled"))
                 .as("a failed settle must NOT claim to have settled. timeline=%s",
                         describe(timeline))
@@ -316,7 +316,7 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
     /** A settle that succeeds must not be counted as unsettled. */
     @Test
     void aSuccessfulSettleIsNotCountedAsUnsettled() {
-        seed("saga-settled", "quote-settled", MeltSagaState.PROOFS_HELD,
+        seed(sagaId("saga-settled"), "quote-settled", MeltSagaState.PROOFS_HELD,
                 Instant.now().minus(Duration.ofMinutes(10)));
 
         reconciler.reconcileTick();
@@ -334,6 +334,27 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
             }
         }
         return -1;
+    }
+
+
+    /**
+     * A saga id unique to this JVM run.
+     *
+     * <p>Every melt IT shares one Postgres, and several wipe melt_saga in
+     * their own @BeforeEach. With fixed ids, a sibling's cleanup could delete
+     * a row this test had just seeded — the reconciler would then CAS it,
+     * refund against the vault, and fail to write the transition with
+     *
+     *   Key (melt_saga_id)=(saga-stale-held) is not present in table "melt_saga"
+     *
+     * surfacing as "the TTL sweep must record its own transition", three steps
+     * from the cause. Namespacing the ids removes the collision instead of
+     * trying to order the classes.
+     */
+    private static final String RUN = java.util.UUID.randomUUID().toString().substring(0, 8);
+
+    private static String sagaId(String name) {
+        return name + "-" + RUN;
     }
 
     /** Renders a timeline so a failure names what actually happened. */
@@ -357,6 +378,20 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
         s.setCreatedAt(createdAt);
         s.setUpdatedAt(createdAt);
         sagas.save(s);
+        // Fail here, not three assertions later.
+        //
+        // These ITs share one Postgres, and melt_saga has a unique constraint
+        // on quote_id. If a sibling class left a row behind, this save is
+        // rejected, the saga never exists, and the reconciler has nothing to
+        // sweep — which surfaced as "expected sweep but was system" on an
+        // assertion about the timeline, three steps from the cause. Asserting
+        // the precondition turns an intermittent misleading failure into an
+        // immediate accurate one.
+        assertThat(sagas.findById(sagaId))
+                .as("seed(%s) must actually persist; a unique-constraint collision with a "
+                        + "sibling class's leftover row would otherwise surface later as a "
+                        + "missing sweep", sagaId)
+                .isPresent();
         // Seed a first transition so the timeline isn't empty.
         MeltSagaTransitionEntity t = new MeltSagaTransitionEntity();
         t.setMeltSagaId(sagaId);

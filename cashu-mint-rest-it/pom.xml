@@ -123,6 +123,31 @@
                     <excludes combine.self="override"/>
                 </configuration>
             </plugin>
+
+            <!--
+              Failsafe must NOT also run these.
+
+              The parent's integration-tests profile binds failsafe to
+              **/*IT.java, and surefire above claims the same pattern in this
+              module (see the comment on that plugin). Under `mvn verify` both
+              fired, so every IT class ran TWICE against one shared Postgres —
+              the second run colliding with rows the first had left mid-flight.
+
+              That produced an intermittent MeltSagaReconcilerIT failure whose
+              message pointed at a timeline assertion, and which moved between
+              the surefire and failsafe report directories from run to run.
+              Chasing it through the reports was misleading precisely because
+              two different executions were writing two different answers.
+
+              Skipping failsafe here leaves exactly one owner for this module.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <skipITs>true</skipITs>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
