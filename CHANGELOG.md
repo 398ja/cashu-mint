@@ -27,6 +27,17 @@ All notable changes to the Cashu Mint will be documented in this file.
 **Operators need not act.** No configuration, schema or wire change; this is the same responses
 served with far fewer vault reads.
 
+### Fixed (release machinery)
+
+- **The `cashu-mint-admin` modules are versioned with the rest of the reactor again.** Their
+  parent and their own `<version>` were left at 0.37.0 when 0.37.1 was cut, along with the root
+  `<cashu-mint.version>` property whose own comment says to keep it in step on every release.
+
+  The release workflow has therefore failed on every tag since v0.37.0, which is why
+  `mint-admin-core`, `mint-admin-rest` and `mint-admin-web` have never been published at any
+  0.37.x coordinate. A local `mvn install` hides this completely: the parent resolves from the
+  working tree, so the reactor builds while CI cannot read the projects at all.
+
 ## [0.37.1] - 2026-09-21
 
 ### Changed
