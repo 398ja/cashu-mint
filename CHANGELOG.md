@@ -4,6 +4,19 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-09-21
+
+### Changed
+
+- **Adopts imani-bom 0.1.87** for cashu-lib 0.30.4 and cashu-voucher 0.14.3.
+
+  The previous pin (0.1.86) named cashu-lib 0.30.3, a tag that contains no warrant code, while the
+  code that did contain it claimed to be the already-published 0.30.2. The mint does not read
+  warrants, so nothing here behaved differently, but it resolved a coordinate whose published bytes
+  did not match the source it was cut from. This moves it onto fresh coordinates per ADR 0006,
+  which keeps cashu-lib, cashu-voucher and cashu-mint on one consistent set.
+
+
 ## [0.37.0] - 2026-09-21
 
 ### Fixed

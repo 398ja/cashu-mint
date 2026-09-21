@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.37.0</version>
+    <version>0.37.1</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -46,7 +46,7 @@
 
              These come from imani-bom, imported first in dependencyManagement.
              Only versions the BOM does NOT manage are pinned here. -->
-        <imani-bom.version>0.1.86</imani-bom.version>
+        <imani-bom.version>0.1.87</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
