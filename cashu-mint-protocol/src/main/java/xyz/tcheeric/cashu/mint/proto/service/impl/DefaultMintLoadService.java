@@ -10,7 +10,7 @@ import xyz.tcheeric.cashu.vault.api.db.impl.DBMintVault;
 import java.util.List;
 import java.util.UUID;
 
-@Service
+@Service("defaultMintLoadService")
 @Profile({"!dev", "!test"})
 public class DefaultMintLoadService implements MintLoadService {
     @Override

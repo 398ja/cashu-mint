@@ -62,7 +62,9 @@ import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
 
 import org.springframework.lang.Nullable;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -133,17 +135,56 @@ public class CashuController<T extends Secret> implements org.springframework.co
      * ({@code /v1/keysets} + {@code /v1/keys/{id}}), which cashu-ts
      * 4.x clients cannot consume.
      *
-     * <p>Implementation: aggregate the per-keyset NUT-02 lookups instead of
-     * touching the inner protocol layer — keeps blast radius minimal and
-     * reuses the proven {@code LoadKeySetTask} path.
+     * <p><b>One load, filtered — not a load per keyset.</b> This previously
+     * called {@code NUT02.keys(id)} for each active keyset, and each of those
+     * runs {@code LoadKeySetTask}, which calls {@code keySets()} — itself
+     * {@code keySets(false) + keySets(true)}, i.e. two <em>full</em> loads of
+     * every mint, every keyset and every key. With K active keysets that is
+     * 2K full loads to answer one request, on a path where a single load is
+     * already O(keys) HTTP calls to the vault.
+     *
+     * <p>The javadoc that stood here defended the old shape as keeping "blast
+     * radius minimal" by reusing the proven per-keyset path. That reasoning did
+     * not survive contact with the vault: it took the mint down (#467). The
+     * active keysets already carry their ids, and {@code keySets(false)}
+     * returns the loaded {@link KeySet} objects for exactly that generation, so
+     * the answer is one load and a filter.
+     *
+     * <p>Ordering is preserved against {@code activeKeySets()} so a client
+     * comparing {@code /v1/keysets} with {@code /v1/keys} sees the same
+     * sequence.
      */
     @GetMapping("/keys")
     public ResponseEntity<KeySetResponse> allActiveKeys() throws CashuErrorException {
         List<ActiveKeySet> active = NUT02.activeKeySets(mintLoadService);
+
+        // The active generation, loaded once. `keySets(false)` is the same call
+        // `activeKeySets()` already made, so with the load cache in front of it
+        // this costs nothing additional.
+        Map<String, KeySet> loadedById = new LinkedHashMap<>();
+        for (KeySet keySet : mintLoadService.keySets(false)) {
+            if (keySet.getId() != null) {
+                loadedById.put(keySet.getId(), keySet);
+            }
+        }
+
         List<KeySet> keysets = new java.util.ArrayList<>(active.size());
         for (ActiveKeySet aks : active) {
+            KeySet loaded = loadedById.get(aks.getId());
+            if (loaded != null) {
+                keysets.add(loaded);
+                continue;
+            }
+            // Advertised as active but absent from the active generation. Rather
+            // than drop it silently - a wallet that cannot see a keyset cannot
+            // spend against it - fall back to the single-keyset path for this
+            // one id. Expected to be unreachable; logged so it is not silent if
+            // it ever is.
+            log.warn("keys() active keyset {} not present in the loaded active generation;"
+                    + " falling back to a direct load", aks.getId());
             keysets.add(NUT02.keys(aks.getId(), mintLoadService));
         }
+
         log.debug("keys() returned {} active keysets", keysets.size());
         return ResponseEntity.ok(new KeySetResponse(keysets));
     }

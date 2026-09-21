@@ -6,7 +6,6 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -26,8 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Slf4j
-@Service
-@Primary
+@Service("preloadMintLoadService")
 @ConditionalOnProperty(name = "mint.preload.enabled", havingValue = "true", matchIfMissing = true)
 public class PreloadMintLoadService implements MintLoadService {
 
