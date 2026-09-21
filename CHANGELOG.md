@@ -4,7 +4,30 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-09-21
+
 ### Fixed
+
+- **The mint could not interoperate with any spec-conformant wallet.** Three defects, each hidden
+  behind the one in front, found by driving a current Nutshell wallet against a live mint rather
+  than against the test harness. `GET /v1/keys` omitted the NUT-01 `active` field; the melt quote
+  returned null for the required `unit` and `request`; and `POST /v1/melt` returned the pre-NUT-23
+  `{paid, payment_preimage}` shape instead of the quote object. The last is the worst: the melt
+  completes at the mint, so a wallet that cannot parse the answer sees something indistinguishable
+  from a failure, and a wallet that retries has already had its inputs spent. `NutshellInteropIT`
+  now runs against a current wallet and completes the full mint → swap → melt flow (#465, #466).
+
+- **The melt reconciler settled proofs before recording the transition, outside any transaction.**
+  On all three terminal paths. A failure in between left the money moved with no record of why —
+  and the CAS had already taken the saga out of the state the sweep selects on, so nothing would
+  retry. The `COMPLETED` path was sharpest: it burns the customer's inputs *after* the invoice is
+  paid. Both vault operations are idempotent conditional updates, so recording first is safe and
+  recoverable; the reverse is not (#464).
+
+- **A settle that failed was invisible.** It was logged and skipped, with nothing retrying, so a
+  customer's proofs sat `PENDING` with no signal. `cashu_mint_melt_terminal_unsettled` now counts
+  terminal sagas with no settlement recorded, alerting at critical with a pager route — unlike the
+  voucher gauges, this invariant has no reconciler behind it by construction (#464).
 
 - **A customer could pay for a voucher and never receive it.** A 1000 EUR sale auto-split into
   five 200 EUR parts delivered 200: all five invoices settled and all five webhooks were accepted,
@@ -27,6 +50,18 @@ All notable changes to the Cashu Mint will be documented in this file.
   issued unilaterally.
 
 ### Added
+
+- **`ReconcilerCoverageArchTest`** — every non-terminal state of a value-bearing machine must be
+  swept on a schedule or carry a written exemption. "No correct resolution exists" is a
+  first-class reason, with `MintQuote.LifecycleState.PAID` as the worked example: issuance needs
+  blinded outputs the mint never persists, so a sweep there would bar a customer from money
+  already taken. The rule is verified against the bug it exists to catch (#461).
+
+- **CI runs the integration suite and asserts it ran.** `cashu-mint-rest-it` executes its ITs
+  through surefire while `skip.integration-tests` defaults to true, so `mvn verify` printed
+  `BUILD SUCCESS` over a suite that never executed. Repairing that surfaced nine distinct test
+  defects — none in production code, every one a test that had stopped describing the system
+  (#463).
 
 - `cashu_mint_quote_paid_unissued` gauge (ADR 0002, DB-derived): mint quotes in `PAID` past
   `cashu.mint.quote.paid-unissued-ttl` (1h). The customer's payment settled and was accepted, but
