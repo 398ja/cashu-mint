@@ -135,20 +135,32 @@ public class CashuController<T extends Secret> implements org.springframework.co
      * ({@code /v1/keysets} + {@code /v1/keys/{id}}), which cashu-ts
      * 4.x clients cannot consume.
      *
-     * <p><b>One load, filtered — not a load per keyset.</b> This previously
-     * called {@code NUT02.keys(id)} for each active keyset, and each of those
-     * runs {@code LoadKeySetTask}, which calls {@code keySets()} — itself
+     * <p><b>One load per generation, filtered — not a load per keyset.</b> This
+     * previously called {@code NUT02.keys(id)} for each keyset, and each of
+     * those runs {@code LoadKeySetTask}, which calls {@code keySets()} — itself
      * {@code keySets(false) + keySets(true)}, i.e. two <em>full</em> loads of
-     * every mint, every keyset and every key. With K active keysets that is
-     * 2K full loads to answer one request, on a path where a single load is
-     * already O(keys) HTTP calls to the vault.
+     * every mint, every keyset and every key. With K keysets that is 2K full
+     * loads to answer one request, on a path where a single load is already
+     * O(keys) HTTP calls to the vault.
      *
      * <p>The javadoc that stood here defended the old shape as keeping "blast
      * radius minimal" by reusing the proven per-keyset path. That reasoning did
-     * not survive contact with the vault: it took the mint down (#467). The
-     * active keysets already carry their ids, and {@code keySets(false)}
-     * returns the loaded {@link KeySet} objects for exactly that generation, so
-     * the answer is one load and a filter.
+     * not survive contact with the vault: it took the mint down (#467).
+     *
+     * <p><b>Both generations are indexed, and that is not an optimisation.</b>
+     * {@code activeKeySets()} returns archived keysets alongside active ones —
+     * it merges {@code keySets(true)} and {@code keySets(false)}, flagging the
+     * archived ones {@code active=false} rather than dropping them. Indexing
+     * only the active generation would therefore miss every archived keyset and
+     * send each one down the per-keyset fallback, which is the original
+     * fan-out: 2 further full loads per archived keyset. A mint that has
+     * rotated its keys even a few times would be back where it started.
+     *
+     * <p>Whether {@code /v1/keys} <em>should</em> carry archived keysets is a
+     * separate question this change does not answer. It is the behaviour that
+     * shipped, wallets redeem against retired keysets by design (NUT-02), and
+     * changing the response shape belongs in its own change rather than
+     * smuggled into a performance fix.
      *
      * <p>Ordering is preserved against {@code activeKeySets()} so a client
      * comparing {@code /v1/keysets} with {@code /v1/keys} sees the same
@@ -156,36 +168,43 @@ public class CashuController<T extends Secret> implements org.springframework.co
      */
     @GetMapping("/keys")
     public ResponseEntity<KeySetResponse> allActiveKeys() throws CashuErrorException {
-        List<ActiveKeySet> active = NUT02.activeKeySets(mintLoadService);
+        List<ActiveKeySet> advertised = NUT02.activeKeySets(mintLoadService);
 
-        // The active generation, loaded once. `keySets(false)` is the same call
-        // `activeKeySets()` already made, so with the load cache in front of it
-        // this costs nothing additional.
+        // Both generations, one load each. These are the same two calls
+        // `activeKeySets()` just made, so behind the load cache they are free;
+        // without it they are still 2 loads rather than 2 per keyset.
         Map<String, KeySet> loadedById = new LinkedHashMap<>();
         for (KeySet keySet : mintLoadService.keySets(false)) {
             if (keySet.getId() != null) {
                 loadedById.put(keySet.getId(), keySet);
             }
         }
+        for (KeySet keySet : mintLoadService.keySets(true)) {
+            // putIfAbsent: a keyset present in both generations is active, and
+            // the active load is the one whose state the mint signs with.
+            if (keySet.getId() != null) {
+                loadedById.putIfAbsent(keySet.getId(), keySet);
+            }
+        }
 
-        List<KeySet> keysets = new java.util.ArrayList<>(active.size());
-        for (ActiveKeySet aks : active) {
+        List<KeySet> keysets = new java.util.ArrayList<>(advertised.size());
+        for (ActiveKeySet aks : advertised) {
             KeySet loaded = loadedById.get(aks.getId());
             if (loaded != null) {
                 keysets.add(loaded);
                 continue;
             }
-            // Advertised as active but absent from the active generation. Rather
-            // than drop it silently - a wallet that cannot see a keyset cannot
-            // spend against it - fall back to the single-keyset path for this
-            // one id. Expected to be unreachable; logged so it is not silent if
-            // it ever is.
-            log.warn("keys() active keyset {} not present in the loaded active generation;"
+            // Advertised by activeKeySets() but in neither generation. Both come
+            // from the same loads, so this should be unreachable; it is a real
+            // anomaly rather than the routine archived case, which is why it
+            // warns. Falling back rather than dropping it: a wallet that cannot
+            // see a keyset cannot spend against it.
+            log.warn("keys() keyset {} was advertised but is in neither generation;"
                     + " falling back to a direct load", aks.getId());
             keysets.add(NUT02.keys(aks.getId(), mintLoadService));
         }
 
-        log.debug("keys() returned {} active keysets", keysets.size());
+        log.debug("keys() returned {} keysets", keysets.size());
         return ResponseEntity.ok(new KeySetResponse(keysets));
     }
 

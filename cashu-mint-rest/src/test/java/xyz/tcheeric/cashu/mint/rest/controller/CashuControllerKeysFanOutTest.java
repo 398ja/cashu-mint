@@ -40,19 +40,23 @@ class CashuControllerKeysFanOutTest {
 
         private final AtomicInteger loads = new AtomicInteger();
         private final List<String> activeIds;
+        private final List<String> archivedIds;
 
         private CountingLoadService(List<String> activeIds) {
+            this(activeIds, List.of());
+        }
+
+        private CountingLoadService(List<String> activeIds, List<String> archivedIds) {
             this.activeIds = activeIds;
+            this.archivedIds = archivedIds;
         }
 
         @Override
         public List<Mint> load(boolean archive) {
             loads.incrementAndGet();
             Mint mint = new Mint(UUID.randomUUID().toString());
-            if (!archive) {
-                for (String id : activeIds) {
-                    mint.addKeySet(fakeKeySet(id));
-                }
+            for (String id : archive ? archivedIds : activeIds) {
+                mint.addKeySet(fakeKeySet(id));
             }
             List<Mint> mints = new ArrayList<>(1);
             mints.add(mint);
@@ -139,6 +143,58 @@ class CashuControllerKeysFanOutTest {
     }
 
     @Test
+    @DisplayName("Archived keysets do not reopen the per-keyset fan-out")
+    void archivedKeysetsDoNotFanOut() throws CashuErrorException {
+        // THE CASE THE FIRST FIX MISSED. `activeKeySets()` does not return only
+        // active keysets: it merges both generations and flags the archived
+        // ones `active=false`. Indexing only `keySets(false)` therefore found
+        // no entry for any archived keyset and sent each one down the
+        // per-keyset fallback -- 2 further full loads apiece, which is the
+        // original bug on any mint that has ever rotated its keys.
+        List<String> archived = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            archived.add("retired-" + i);
+        }
+
+        CountingLoadService delegate = new CountingLoadService(THREE_ACTIVE, archived);
+        CashuController<Secret> controller =
+                controllerOver(new CachingMintLoadService(delegate, 60));
+
+        KeySetResponse response = controller.allActiveKeys().getBody();
+
+        assertThat(response).isNotNull();
+        // Both generations are served, which is the behaviour that shipped:
+        // wallets redeem against retired keysets by design.
+        assertThat(response.getKeysets()).hasSize(15);
+        assertThat(response.getKeysets()).extracting(KeySet::getId)
+                .contains("keyset-a", "retired-0", "retired-11");
+
+        // Still two loads. Before this fix it was 2 + 2*12 = 26.
+        assertThat(delegate.loads).hasValue(2);
+    }
+
+    @Test
+    @DisplayName("Archived keysets stay flat without the cache too")
+    void archivedKeysetsAreFlatUncached() throws CashuErrorException {
+        List<String> archived = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            archived.add("retired-" + i);
+        }
+
+        CountingLoadService few = new CountingLoadService(THREE_ACTIVE, List.of("retired-0"));
+        controllerOver(few).allActiveKeys();
+
+        CountingLoadService many = new CountingLoadService(THREE_ACTIVE, archived);
+        controllerOver(many).allActiveKeys();
+
+        // Four uncached loads: activeKeySets() walks both generations, and the
+        // controller indexes both. Flat in the number of archived keysets,
+        // which is the property that matters.
+        assertThat(few.loads).hasValue(4);
+        assertThat(many.loads).hasValue(4);
+    }
+
+    @Test
     @DisplayName("Without the cache the controller is flat, not linear in keyset count")
     void controllerAloneDoesNotFanOut() throws CashuErrorException {
         CountingLoadService threeKeysets = new CountingLoadService(THREE_ACTIVE);
@@ -151,14 +207,14 @@ class CashuControllerKeysFanOutTest {
         CountingLoadService fortyKeysets = new CountingLoadService(many);
         controllerOver(fortyKeysets).allActiveKeys();
 
-        // Three loads uncached: activeKeySets() walks both generations, and the
-        // controller's own keySets(false) is a third. Not two, as first assumed
-        // -- the point is that it does not MOVE with the keyset count. The old
-        // code was 2 + 2K, so these two cases would have been 8 and 82.
-        assertThat(threeKeysets.loads).hasValue(3);
-        assertThat(fortyKeysets.loads).hasValue(3);
+        // Four loads uncached: activeKeySets() walks both generations, and the
+        // controller indexes both. The point is that it does not MOVE with the
+        // keyset count -- the old code was 2 + 2K, so these two cases would
+        // have been 8 and 82.
+        assertThat(threeKeysets.loads).hasValue(4);
+        assertThat(fortyKeysets.loads).hasValue(4);
 
-        // The cache is what collapses the remaining 3 to 2; the controller fix
+        // The cache is what collapses the remaining 4 to 2; the controller fix
         // is what stops it growing. Each is pinned separately so a later change
         // to one does not silently depend on the other.
     }
