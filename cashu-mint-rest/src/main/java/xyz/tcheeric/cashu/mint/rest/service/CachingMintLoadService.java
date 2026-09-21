@@ -131,6 +131,17 @@ public class CachingMintLoadService implements MintLoadService {
     private final AtomicLong misses = new AtomicLong();
 
     /**
+     * One lock per generation, so a cold cache produces one vault load rather
+     * than one per waiting request.
+     *
+     * <p>Separate objects rather than locking the service: the active and
+     * archived generations are independent loads, and sharing a lock would make
+     * a slow archived read block every wallet asking for active keys.
+     */
+    private final Object ACTIVE_LOCK = new Object();
+    private final Object ARCHIVED_LOCK = new Object();
+
+    /**
      * @param candidates every {@code MintLoadService} bean, including this one.
      *                   Spring injects a lazy list so this does not cycle: the
      *                   list is resolved after construction begins, and this
@@ -208,9 +219,24 @@ public class CachingMintLoadService implements MintLoadService {
     /**
      * The cached read. Every keyset lookup in the mint funnels through here.
      *
-     * <p>A load that throws is <b>not</b> cached: Caffeine propagates the
-     * exception and stores nothing, so a vault blip does not pin a failure for
-     * the TTL. The next caller retries.
+     * <p>A load that throws is <b>not</b> cached: the exception propagates and
+     * nothing is stored, so a vault blip does not pin a failure for the TTL.
+     * The next caller retries.
+     *
+     * <p><b>One loader at a time per generation.</b> Without this, a cold cache
+     * and N simultaneous requests produce N full vault loads — measured at 20
+     * out of 20 before the lock was added. That is precisely the fan-out #467
+     * exists to remove, merely made rarer: it returns on every restart, after
+     * every TTL expiry under load, and hardest exactly when the mint is busiest.
+     * Since a cold cache is guaranteed after any deploy, and the vault has
+     * already died once from this traffic, the uncontended-case cost of a lock
+     * is not a real trade.
+     *
+     * <p>The lock is held across the delegate call, which is deliberate. Callers
+     * that arrive during a load wait for it and then read the cache, instead of
+     * starting loads of their own. Waiting is what makes this safe: the two
+     * generations lock independently, so an active-keyset load never blocks an
+     * archived one.
      */
     @Override
     public List<Mint> load(boolean archive) throws CashuErrorException {
@@ -220,18 +246,30 @@ public class CachingMintLoadService implements MintLoadService {
             return cached;
         }
 
-        // Loaded outside the cache's mapping function so a CashuErrorException
-        // propagates as itself. Caffeine's `get(key, fn)` cannot throw checked
-        // exceptions, and wrapping this one would erase the type that callers
-        // dispatch on.
-        misses.incrementAndGet();
-        List<Mint> loaded = delegate.load(archive);
-        if (loaded != null) {
-            byArchive.put(archive, loaded);
+        // Per-generation lock, so `true` and `false` never contend.
+        synchronized (archive ? ARCHIVED_LOCK : ACTIVE_LOCK) {
+            // Re-check: while waiting, the thread that held the lock has very
+            // likely populated this. This is the whole point of the lock, and
+            // skipping the re-check would make it pure overhead.
+            cached = byArchive.getIfPresent(archive);
+            if (cached != null) {
+                hits.incrementAndGet();
+                return cached;
+            }
+
+            // Loaded outside any Caffeine mapping function so a
+            // CashuErrorException propagates as itself: `get(key, fn)` cannot
+            // throw checked exceptions, and wrapping this one would erase the
+            // type that callers dispatch on.
+            misses.incrementAndGet();
+            List<Mint> loaded = delegate.load(archive);
+            if (loaded != null) {
+                byArchive.put(archive, loaded);
+            }
+            log.debug("keyset_cache_miss archive={} mints={} hits={} misses={}",
+                    archive, loaded == null ? 0 : loaded.size(), hits.get(), misses.get());
+            return loaded;
         }
-        log.debug("keyset_cache_miss archive={} mints={} hits={} misses={}",
-                archive, loaded == null ? 0 : loaded.size(), hits.get(), misses.get());
-        return loaded;
     }
 
     /** Passed through; see the class javadoc for why this one is not cached. */

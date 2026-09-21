@@ -11,6 +11,11 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CountDownLatch;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -204,5 +209,119 @@ class CachingMintLoadServiceTest {
         // Not on the hot path, and caching per-id would grow an entry for every
         // id ever asked about, including ones that do not exist.
         assertThat(delegate.idLoads).hasValue(2);
+    }
+
+    /**
+     * A cold cache under concurrent load must produce ONE vault load, not one per request.
+     *
+     * <p>This is the failure #467 is about, in its most dangerous form. Caching alone makes the
+     * fan-out rarer without removing it: every restart begins cold, wallets reconnect together,
+     * and each concurrent miss starts its own full load — measured at <b>20 vault loads for 20
+     * requests</b> before the per-generation lock existed. The vault has already died once of
+     * exactly this traffic, taking its HTTP acceptor thread with it and leaving the whole stack
+     * unable to mint.
+     *
+     * <p>The delegate sleeps so the requests genuinely overlap; without that they would queue
+     * naturally and the test would pass whether or not the lock is there.
+     */
+    @Test
+    @DisplayName("a cold cache under concurrent load triggers one vault load, not one per caller")
+    void concurrentMissesCollapseToOneLoad() throws Exception {
+        AtomicInteger vaultLoads = new AtomicInteger();
+        MintLoadService slowDelegate = new MintLoadService() {
+            @Override
+            public List<Mint> load(boolean archive) {
+                vaultLoads.incrementAndGet();
+                try {
+                    Thread.sleep(120);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return List.of();
+            }
+
+            @Override
+            public Mint load(UUID mintId, boolean archive) {
+                return null;
+            }
+        };
+
+        CachingMintLoadService cache = new CachingMintLoadService(slowDelegate, 60);
+
+        int callers = 20;
+        ExecutorService pool = Executors.newFixedThreadPool(callers);
+        CountDownLatch startTogether = new CountDownLatch(1);
+        List<Future<List<Mint>>> results = new ArrayList<>();
+        try {
+            for (int i = 0; i < callers; i++) {
+                results.add(pool.submit(() -> {
+                    startTogether.await();
+                    return cache.load(false);
+                }));
+            }
+            startTogether.countDown();
+            for (Future<List<Mint>> result : results) {
+                assertThat(result.get(30, TimeUnit.SECONDS)).isNotNull();
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(vaultLoads.get())
+                .describedAs("%d concurrent cold-cache requests must collapse to a single "
+                        + "vault load; one load per caller is the #467 fan-out returning "
+                        + "on every restart", callers)
+                .isEqualTo(1);
+    }
+
+    /**
+     * The two generations must not block each other.
+     *
+     * <p>A single shared lock would also pass the test above while making a slow archived-keyset
+     * read stall every wallet asking for active keys — trading a thundering herd for a queue.
+     */
+    @Test
+    @DisplayName("active and archived loads do not contend")
+    void generationsLoadIndependently() throws Exception {
+        CountDownLatch archivedStarted = new CountDownLatch(1);
+        CountDownLatch releaseArchived = new CountDownLatch(1);
+
+        MintLoadService blockingArchive = new MintLoadService() {
+            @Override
+            public List<Mint> load(boolean archive) {
+                if (archive) {
+                    archivedStarted.countDown();
+                    try {
+                        releaseArchived.await(30, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return List.of();
+            }
+
+            @Override
+            public Mint load(UUID mintId, boolean archive) {
+                return null;
+            }
+        };
+
+        CachingMintLoadService cache = new CachingMintLoadService(blockingArchive, 60);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            pool.submit(() -> cache.load(true));
+            assertThat(archivedStarted.await(10, TimeUnit.SECONDS))
+                    .describedAs("archived load should have started")
+                    .isTrue();
+
+            // Must complete while the archived load is still held open.
+            Future<List<Mint>> active = pool.submit(() -> cache.load(false));
+            assertThat(active.get(10, TimeUnit.SECONDS))
+                    .describedAs("an active load must not wait behind a slow archived one")
+                    .isNotNull();
+        } finally {
+            releaseArchived.countDown();
+            pool.shutdownNow();
+        }
     }
 }
