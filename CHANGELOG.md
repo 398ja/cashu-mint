@@ -4,6 +4,38 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-09-22
+
+### Changed
+
+- **The denomination ladder reaches the mint's own per-operation cap: 1..2^23 instead of
+  1..1024.** A ladder that stops below the amounts being signed is not a smaller ladder, it is a
+  different cost curve. While the ladder reaches the amount, a greedy largest-first split uses
+  each denomination at most once and proof count is the amount's POPCOUNT. Once the amount
+  outgrows it, the top denomination repeats and proof count scales **linearly** with magnitude,
+  unbounded.
+
+  That second regime is what shipped. On 1..1024 a EUR 25.00 sale (33,246 sat) was 39 proofs
+  rather than 8, and a EUR 1000 sale was 1,302 — which is how a token-size ceiling came to refuse
+  ordinary trade at about EUR 18 a sale (398ja/imani-gateway-portal#43).
+
+  2^23 = 8,388,608 is the largest power of two at or below the 10,000,000 sat cap staging sets
+  (imani-deploy#59). Every amount the mint will sign is now at most 24 proofs, flat across the
+  range rather than degrading at the top.
+
+  **Minor rather than patch: this changes what a new keyset contains.** The admin defaults, the
+  preload `keyset.properties` and the provisioning tool move together — the admin default stopped
+  at 128, lower still, so a mint provisioned through it was born with this bug.
+
+### Operators must act
+
+- **Existing mints need a key rotation to get the new ladder.** Denominations are read fresh at
+  rotation (the same path a fee change takes, ADR-0009), so updating the mint's configured
+  denominations and rotating is the whole operation. **Nothing is destroyed:** rotation archives
+  the superseded keyset and reinstates it if provisioning fails, and the mint serves archived
+  keysets alongside the active one — so coupons already issued keep redeeming at their original
+  keyset.
+
 ## [0.37.2] - 2026-09-22
 
 ### Fixed
