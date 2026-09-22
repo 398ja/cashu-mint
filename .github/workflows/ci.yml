@@ -20,7 +20,12 @@ jobs:
       # satisfy references that no longer exist in the source tree, so an
       # incremental build passes while a fresh checkout would not (issue #399).
       - name: Build with Maven
-        run: ./mvnw -q -B clean verify
+        # -U: actions/setup-java's maven cache restores ~/.m2 including the *.lastUpdated
+        # markers Maven writes when a lookup fails, so a run that raced an internal release
+        # caches that failure for 24h and never retries -- "was not found ... during a
+        # previous attempt". A CI run starting seconds before imani-bom finished publishing
+        # then stays red all day regardless of re-runs, which happened today.
+        run: ./mvnw -q -B -U clean verify
       - name: Run tests with VT pinning detection
         run: |
           ./mvnw -q test -pl cashu-mint-protocol \
@@ -88,7 +93,7 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
       - name: Install dependencies
-        run: ./mvnw -q -B -Pintegration-tests -pl cashu-mint-protocol -am -DskipTests install
+        run: ./mvnw -q -B -U -Pintegration-tests -pl cashu-mint-protocol -am -DskipTests install
       - name: Run integration tests
         run: ./mvnw -B -Pintegration-tests -pl cashu-mint-protocol test
 
@@ -130,7 +135,7 @@ jobs:
       # none, which is what this repo reported for months.
       - name: Run rest-it integration tests
         if: always()
-        run: ./mvnw -B -Pintegration-tests -pl cashu-mint-rest-it -am -DskipTests install
+        run: ./mvnw -B -U -Pintegration-tests -pl cashu-mint-rest-it -am -DskipTests install
              && ./mvnw -B -Pintegration-tests -pl cashu-mint-rest-it verify || true
 
       - name: Assert rest-it ran, and that failures are within budget
