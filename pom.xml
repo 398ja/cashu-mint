@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.38.3</version>
+    <version>0.38.4</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -53,16 +53,23 @@
 
              These come from imani-bom, imported first in dependencyManagement.
              Only versions the BOM does NOT manage are pinned here. -->
-        <imani-bom.version>0.1.97</imani-bom.version>
+        <imani-bom.version>0.1.98</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
              with imani-bom's cashu-vault.version by hand, because an image tag
              is not something a BOM can manage. -->
+        <!-- KNOWN STALE. The newest cashu-vault image published to docker.398ja.xyz is
+             0.9.1; every value since is a tag that does not exist, so the opt-in e2e suite
+             cannot start its vault container whatever this says. Left at the last value
+             rather than advanced to 0.12.5, because moving a pointer to a second
+             nonexistent tag would imply it had been checked. Tracked in cashu-vault#144,
+             whose root cause is the same: cashu-vault has published nothing since 0.12.1,
+             images included. -->
         <cashu-vault.version>0.12.1</cashu-vault.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.38.3</cashu-mint.version>
+        <cashu-mint.version>0.38.4</cashu-mint.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Spring Boot (imported as BOM) -->
         <!-- Kept only because submodules write ${spring-boot.version} on

@@ -2,6 +2,66 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [0.38.4] - 2026-09-22
+
+### Security
+
+- **BouncyCastle 1.84 -> 1.85 for CVE-2026-8763 (CRITICAL)**, via `imani-bom` 0.1.98. X.509
+  Name Constraints can be bypassed with a trailing dot in an `rfc822Name` or URI, so a
+  certificate can assert a name the constraint exists to forbid.
+
+  Found by this repository's own SBOM-based dependency scan (#432) — the first CRITICAL it has
+  caught, and the argument for having rebuilt it. The file-based scan it replaced reported
+  zero findings against the same tree, because in a multi-module Maven build the coordinate
+  and its version never appear in the same file.
+
+  The scan had been failing on every run for days before anyone read what it said, which is
+  the same failure one layer up: a control that works, reports truthfully, and is not read.
+
+- **Secret scanning added.** This was the only repository in the ecosystem without it (#438),
+  and the shared template's own header cites a cashu-mint test fixture as its example finding.
+
+  A bare scan reports 178 findings over 1689 commits; none is a credential. 105 are keyset
+  ids, pubkeys and proof commitments — 64-hex by construction and public by design — and 72
+  are `local-dev-token` in the admin tutorials. The shared `.gitleaks.toml` takes that to 73,
+  and two exact-value entries take it to zero.
+
+  Allowlisting is by **value shape, never by path**: exempting a directory exempts every rule
+  in it, so a real token pasted into a tutorial would go unreported. Verified by planting a
+  GitHub PAT, an AWS key and a Stripe live key in a test file — all three are still caught.
+
+### Added
+
+- **A test binding the four copies of the denomination ladder together.** The ladder is
+  written out in `VaultProvisioningOutboxHandler`, `MintPreloadDataGenerator`,
+  `keyset.properties` and `tools/provision-mint`, and `DenominationLadderTest` only ever
+  checked one of them.
+
+  Truncating the provisioning copy to `2^20` and running the entire suite produced **no
+  failure**, while a mint provisioned through that path would silently be unable to sign
+  above ~1M: the exact defect 0.38.0 widened the ladder to fix, reintroduced through the one
+  door nobody was watching.
+
+### Changed
+
+- `imani-bom` 0.1.87 -> 0.1.98.
+- CI forces a dependency re-check (`-U`). `actions/setup-java`'s cache restores `~/.m2`
+  including the `*.lastUpdated` markers Maven writes when a lookup *fails*, so a run that
+  raced an internal release cached that failure for 24 hours and never retried — turning an
+  ordinary publishing race into a day of red builds that re-running could not fix.
+
+### Notes for operators
+
+- **This release cannot build on a clean runner until cashu-vault publishes.** `imani-bom`
+  names `cashu-vault` 0.12.5, and that repository has published nothing since 0.12.1
+  (cashu-vault#144). Local builds succeed only because the artifact is installed in `~/.m2`
+  by hand, which is precisely the masking that issue describes.
+
+- `cashu-vault.version` in this pom is the **docker image tag** for the opt-in admin e2e
+  suite, not a library version. It is knowingly stale: the newest published image is 0.9.1,
+  so every value since names a tag that does not exist. Left at 0.12.1 rather than advanced,
+  because moving a pointer to a second nonexistent tag would imply it had been checked.
+
 ## [Unreleased]
 
 ## [0.38.3] - 2026-09-22
