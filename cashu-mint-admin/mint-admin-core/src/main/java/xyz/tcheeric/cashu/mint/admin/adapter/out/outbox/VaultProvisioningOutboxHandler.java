@@ -36,7 +36,31 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
 
     private static final Logger log = LoggerFactory.getLogger(VaultProvisioningOutboxHandler.class);
     private static final String DEFAULT_UNIT = "sat";
-    private static final List<Integer> DEFAULT_DENOMINATIONS = List.of(1, 2, 4, 8, 16, 32, 64, 128);
+    /**
+     * Powers of two from 1 to 2^23, which is the smallest ladder that reaches the mint's own
+     * per-operation amount cap.
+     *
+     * <p><b>A ladder that stops below the amounts being signed is not a smaller ladder, it is a
+     * different cost curve.</b> A greedy largest-first split uses the top denomination
+     * repeatedly once the amount outgrows it, so proof count stops tracking the amount's
+     * POPCOUNT and starts scaling LINEARLY with its magnitude. Against the old 1..1024 ladder
+     * that turned a EUR 25.00 sale (33,246 sat) into 39 proofs rather than 8, and a EUR 1000
+     * sale into 1,302 — which is how a token size ceiling came to refuse ordinary trade
+     * (398ja/imani-gateway-portal#43).
+     *
+     * <p>2^23 = 8,388,608 is the largest power of two at or below the 10,000,000 sat cap staging
+     * sets (imani-deploy#59). Reaching the cap is the property that matters: every amount the
+     * mint will ever sign is then representable in at most 24 proofs, and the curve is flat
+     * across the whole range instead of degrading at the top of it.
+     *
+     * <p>Twenty-four keys rather than eight costs three times the key material per keyset, which
+     * is a fixed and small cost — keys are generated once per rotation — against a proof count
+     * that was otherwise unbounded in the amount.
+     */
+    private static final List<Integer> DEFAULT_DENOMINATIONS = List.of(
+        1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
+        2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288,
+        1048576, 2097152, 4194304, 8388608);
 
     /**
      * Fees are off unless an operator configures one, so a mint that says nothing about

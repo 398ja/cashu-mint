@@ -38,7 +38,7 @@ public class ProvisionMint {
         String body = "{\"mintId\":\"" + mintId + "\","
                 + "\"metadata\":{\"displayName\":\"v2 provisioning probe\"},"
                 + "\"configuration\":{\"cashu.unit\":\"sat\","
-                + "\"cashu.denominations\":\"1,2,4,8,16,32,64,128,256,512,1024\","
+                + "\"cashu.denominations\":\"1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,1048576,2097152,4194304,8388608\","
                 + "\"cashu.input_fee_ppk\":" + fee + "}}";
 
         HttpHeaders h = new HttpHeaders();
