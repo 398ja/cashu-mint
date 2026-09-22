@@ -4,6 +4,37 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.3] - 2026-09-22
+
+### Fixed
+
+- **A melt reconciler pass that died part-way through was logged as routine noise (#464).**
+  Both passes in `reconcileTick` caught `RuntimeException` and logged `warn` with
+  `getMessage()`. Two things were wrong with that line.
+
+  It was the **wrong level**. A pass throws only after `casState` has already moved some
+  saga out of the state that pass selects on, so no later tick can find it to retry — the
+  exception marks a saga now terminal with its proofs possibly unsettled, which is a
+  customer's money frozen with no process that will free it. At `warn`, indistinguishable
+  from "there was nothing to sweep". Five such failures ran for three weeks unnoticed.
+
+  It also **dropped the stack trace**. A `NullPointerException` has a null message, so the
+  most common runtime failure rendered as `cause=null` — the least informative line for the
+  failure hardest to diagnose. The same bug had already been fixed in `settleProofs`'s
+  catch for the same reason.
+
+  Now `error`, alert-tagged, with the throwable attached and a note that no later tick will
+  retry. Deliberately no new counter: `melt_saga_terminal_unsettled` already counts the
+  consequence, and a second metric for the cause would fire in lockstep and add no decision.
+
+### Notes
+
+- The ordering halves of #464 were already in place: both `sweepStaleProofsHeld` and
+  `resolvePaymentUnknown` record the transition **before** moving the money, relying on
+  `refundForHold` / `commitSpentForHold` being idempotent conditional updates. An audit row
+  written for work that did not complete is recoverable; money moved with no record of it
+  is not.
+
 ## [0.38.2] - 2026-09-22
 
 ### Fixed

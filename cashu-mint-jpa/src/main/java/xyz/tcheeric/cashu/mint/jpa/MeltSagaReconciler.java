@@ -78,13 +78,43 @@ public class MeltSagaReconciler {
         try {
             resolvePaymentUnknown();
         } catch (RuntimeException e) {
-            log.warn("melt_saga_reconcile payment_unknown_pass_failed cause={}", e.getMessage());
+            reportPassFailure("payment_unknown", e);
         }
         try {
             sweepStaleProofsHeld();
         } catch (RuntimeException e) {
-            log.warn("melt_saga_reconcile proofs_held_sweep_failed cause={}", e.getMessage());
+            reportPassFailure("proofs_held_sweep", e);
         }
+    }
+
+    /**
+     * Reports a pass that died part-way through (#464).
+     *
+     * <p>ERROR and alert-tagged, not {@code warn}. A pass throws only after
+     * {@code casState} has already moved some saga out of the state the pass
+     * selects on, so no later tick can find it to try again — the exception
+     * marks a saga that is now terminal with its proofs possibly unsettled,
+     * which is a customer's money frozen with no process that will free it.
+     * That is not the same event as "there was nothing to sweep", and it was
+     * previously logged at the same level with the same shape, so the two were
+     * indistinguishable. Five such failures ran for three weeks unnoticed.
+     *
+     * <p>The stack trace is passed, not {@code getMessage()}. The same bug was
+     * already fixed in {@link #settleProofs}'s catch for the same reason: a
+     * {@code NullPointerException} has a null message, so {@code cause=null} is
+     * exactly how the most common runtime failure renders — the one line that
+     * says least about the failure that says least about itself.
+     *
+     * <p>No counter here on purpose. {@code melt_saga_terminal_unsettled}
+     * already counts terminal sagas whose proofs never settled, which is the
+     * consequence this produces and the thing worth alerting on; a second
+     * metric for the cause would fire in lockstep and add no decision.
+     */
+    private void reportPassFailure(final String pass, final RuntimeException e) {
+        log.error("[melt-saga][alert] melt_saga_reconcile pass_failed pass={} cause={} "
+                        + "detail=a saga may be terminal with proofs unsettled; "
+                        + "no later tick will retry it",
+                pass, e.getMessage(), e);
     }
 
     /**

@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.38.2</version>
+    <version>0.38.3</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -62,7 +62,7 @@
         <cashu-vault.version>0.12.1</cashu-vault.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.38.2</cashu-mint.version>
+        <cashu-mint.version>0.38.3</cashu-mint.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Spring Boot (imported as BOM) -->
         <!-- Kept only because submodules write ${spring-boot.version} on

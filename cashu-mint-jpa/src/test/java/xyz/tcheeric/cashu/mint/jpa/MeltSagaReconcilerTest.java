@@ -155,6 +155,75 @@ class MeltSagaReconcilerTest {
         verify(paymentPort, never()).pay(anyString(), any(Duration.class));
     }
 
+    /**
+     * A pass that throws must not stop the other pass (#464).
+     *
+     * <p>The two are wrapped separately for this reason: they sweep different
+     * states and a failure in one says nothing about the other. If they shared
+     * a try block, a transient fault polling Lightning would silently stop the
+     * TTL sweep, and proofs would sit held with nothing coming to free them.
+     */
+    @Test
+    void a_failing_pass_does_not_stop_the_other_pass() {
+        when(sagaRepo.findByState(MeltSagaState.PAYMENT_UNKNOWN))
+                .thenThrow(new IllegalStateException("database blip"));
+        when(sagaRepo.findByState(MeltSagaState.PROOFS_HELD)).thenReturn(List.of());
+
+        reconciler.reconcileTick();
+
+        // The sweep still ran despite the first pass throwing.
+        verify(sagaRepo).findByState(MeltSagaState.PROOFS_HELD);
+    }
+
+    /**
+     * A pass failure is reported at ERROR with the throwable attached (#464).
+     *
+     * <p>Both halves matter and both were wrong. It was logged at WARN, which
+     * made a saga left terminal with unsettled proofs indistinguishable from
+     * routine noise — five such failures ran for three weeks unnoticed. And it
+     * passed {@code getMessage()} rather than the exception, so the most common
+     * runtime failure, a NullPointerException with a null message, rendered as
+     * {@code cause=null}: the least informative line for the failure that is
+     * already hardest to diagnose.
+     *
+     * <p>Asserted through a log appender rather than by reading the method,
+     * because the level and the throwable are the behaviour here — there is no
+     * return value or state change to observe.
+     */
+    @Test
+    void a_failing_pass_is_reported_at_error_with_the_throwable() {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(MeltSagaReconciler.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            RuntimeException boom = new IllegalStateException("database blip");
+            when(sagaRepo.findByState(MeltSagaState.PAYMENT_UNKNOWN)).thenThrow(boom);
+            when(sagaRepo.findByState(MeltSagaState.PROOFS_HELD)).thenReturn(List.of());
+
+            reconciler.reconcileTick();
+
+            ch.qos.logback.classic.spi.ILoggingEvent event = appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().contains("pass_failed"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "a pass that threw must be reported; nothing was logged"));
+
+            org.junit.jupiter.api.Assertions.assertEquals(
+                    ch.qos.logback.classic.Level.ERROR, event.getLevel(),
+                    "a saga may be terminal with proofs unsettled and no tick will retry it; "
+                            + "at WARN that is indistinguishable from routine noise");
+            org.junit.jupiter.api.Assertions.assertNotNull(
+                    event.getThrowableProxy(),
+                    "the throwable must be attached: a NullPointerException has a null "
+                            + "message, so getMessage() alone renders it as cause=null");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
     private static MeltSaga stub(String sagaId, String quoteId, MeltSagaState state, Instant createdAt) {
         MeltSaga saga = Mockito.mock(MeltSaga.class);
         when(saga.meltSagaId()).thenReturn(sagaId);
