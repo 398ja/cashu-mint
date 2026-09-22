@@ -4,6 +4,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-09-22
+
+### Fixed
+
+- **The `cashu-mint-admin` parent pom was never published (#359).** The root reactor
+  listed the four `mint-admin-*` modules directly and never the aggregator they all
+  declare as their parent. It was therefore never built and never deployed — 404 at
+  every version, while the modules themselves published perfectly well.
+
+  The effect is invisible from inside this build, which resolves the parent from the
+  working tree, and fatal from outside it: anyone resolving `mint-admin-core` and
+  friends fails on a parent that does not exist in any repository.
+
+  The root now lists `cashu-mint-admin` alone. The aggregator already declares all four
+  children, so naming them here as well duplicates them in the reactor and Maven refuses
+  to start the build — which is why the obvious fix of *adding* the aggregator beside
+  them does not work.
+
 ## [0.38.1] - 2026-09-22
 
 ### Fixed

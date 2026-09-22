@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.38.1</version>
+    <version>0.38.2</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -17,11 +17,18 @@
         <module>cashu-mint-webhook</module>
         <module>cashu-mint-rest</module>
         <module>cashu-mint-rest-it</module>
-        <!-- Admin modules (git submodule: cashu-mint-admin) -->
-        <module>cashu-mint-admin/mint-admin-core</module>
-        <module>cashu-mint-admin/mint-admin-rest</module>
-        <module>cashu-mint-admin/mint-admin-web</module>
-        <module>cashu-mint-admin/mint-admin-tests</module>
+        <!-- Admin modules (git submodule: cashu-mint-admin).
+             The AGGREGATOR is listed, not its children. It already declares all
+             four mint-admin-* modules, so naming them here as well duplicates
+             them in the reactor and the build refuses to start.
+             Listing the children instead of the aggregator was the original
+             mistake: every mint-admin-* module declares
+             xyz.tcheeric:cashu-mint-admin as its parent, but that pom was then
+             outside the reactor, so it was never built and never deployed — 404
+             at every version. The modules published fine and nobody outside
+             this build could resolve them, because their parent did not exist.
+             See #359. -->
+        <module>cashu-mint-admin</module>
     </modules>
 
     <properties>
@@ -55,7 +62,7 @@
         <cashu-vault.version>0.12.1</cashu-vault.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
         <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.38.1</cashu-mint.version>
+        <cashu-mint.version>0.38.2</cashu-mint.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Spring Boot (imported as BOM) -->
         <!-- Kept only because submodules write ${spring-boot.version} on
