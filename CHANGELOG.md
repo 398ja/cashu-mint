@@ -4,6 +4,31 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-09-22
+
+### Fixed
+
+- **`VaultPreloadSeeder` treated any vault error as "keyset absent".** `keySetExists`
+  caught `Exception` and returned `false`, so a transport or validation failure became
+  a decision to seed a keyset that already existed. Seeding then failed inside
+  `store()`, which performs the same lookup.
+
+  Observed against a vault that rejected NUT-02 v2 keyset ids: the mint logged
+  `Failed to seed the vault from preload JSON` for a keyset it was serving correctly at
+  that moment, which is about as misleading as a log line gets. Worse, the seeding
+  attempt POSTed the key set back, and a bug on the vault side (fixed in cashu-vault
+  0.12.3) turned that into a deletion of every key the keyset had.
+
+  Only a 404 now counts as absence — a real "not there". Anything else means the
+  question could not be answered, and answering "missing" is the one response
+  guaranteed to cause damage, so it propagates and is logged as the failure it is.
+
+### Notes for operators
+
+- Pair this with cashu-vault >= 0.12.3. This change stops the mint from *asking* to
+  re-store a keyset it should not; 0.12.3 stops that request destroying keys if it is
+  ever made again.
+
 ## [0.38.0] - 2026-09-22
 
 ### Changed

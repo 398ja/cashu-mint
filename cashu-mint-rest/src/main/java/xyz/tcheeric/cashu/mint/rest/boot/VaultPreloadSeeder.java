@@ -84,10 +84,26 @@ public class VaultPreloadSeeder implements ApplicationRunner {
         log.info("Seeded the vault with mint {} keyset {}", mintId, keySetId);
     }
 
+    /**
+     * Answers whether the vault already holds this keyset.
+     * <p>
+     * Only "absent" answers may return {@code false}. This used to catch
+     * {@code Exception} and treat everything as absent, which turned any
+     * transport or validation failure into a decision to seed: a vault that
+     * rejected v2 keyset ids (they exceeded a stale length cap) reported 400,
+     * this read that as "not there", and seeding then failed inside
+     * {@code store()} on the very same lookup. The log said seeding had failed
+     * while the mint was serving that keyset perfectly well.
+     * <p>
+     * A 404 or an empty body is a real absence. Anything else means the
+     * question could not be answered, and pretending the keyset is missing is
+     * the one answer guaranteed to cause damage — so it propagates, and
+     * {@link #run} logs it as the failure it is.
+     */
     private boolean keySetExists(final String keySetId) {
         try {
             return VaultClientFactory.keySetClient().getByKeySetId(keySetId) != null;
-        } catch (final Exception e) {
+        } catch (final HttpClientErrorException.NotFound e) {
             return false;
         }
     }
