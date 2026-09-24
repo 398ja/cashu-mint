@@ -191,12 +191,12 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
      * Issue #459 / #462 — the third bucket, and the one that is easiest to
      * miss because it looks like it cannot exist.
      *
-     * <p>{@code outcome} has eleven values. {@link #countPaidUnfunded} counts
+     * <p>{@code outcome} has twelve values. {@link #countPaidUnfunded} counts
      * quotes with an {@code accepted} event, {@link #countUnfundedWithoutWebhook}
      * counts quotes with no event at all, and a quote whose only events were
      * <em>rejected</em> falls between them: it has rows, so it is not
      * "without webhook", but none are {@code accepted}, so it is not
-     * "paid-unfunded" either. Two gauges over eleven outcomes do not
+     * "paid-unfunded" either. Two gauges over twelve outcomes do not
      * partition anything.
      *
      * <p>Staging has only ever recorded {@code accepted} (130 of 130 events as

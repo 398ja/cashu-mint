@@ -236,4 +236,31 @@ public class VoucherFeeCalculatorTest {
         // deliberately rather than by rounding.
         assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(1, 10.0, 0));
     }
+
+    @Test
+    public void aMinimumAboveFaceValueStillCharges_butIsAMisconfiguration() {
+        // Found in review. A floor above the face value means the customer
+        // pays more than the voucher is worth. The default of 1 can only reach
+        // it at faceValue=1; a larger configured minimum reaches it for every
+        // small denomination, silently.
+        //
+        // Pinned rather than prevented: refusing here would take out issuance
+        // instead of the bad setting, and the mint is not where a business's
+        // pricing is decided. It warns, and this records that the behaviour is
+        // deliberate rather than unnoticed.
+        assertEquals(50, VoucherFeeCalculator.calculateChargeableFee(1, 10.0, 50));
+        assertEquals(50, VoucherFeeCalculator.calculateChargeableFee(10, 10.0, 50));
+    }
+
+    @Test
+    public void theDefaultMinimumNeverExceedsFaceValueAboveOneSat() {
+        // The property that makes the default safe: at minimumFee=1, only a
+        // 1-sat voucher can be charged its whole face value, and everything
+        // larger is charged strictly less.
+        for (int faceValue = 2; faceValue <= 200; faceValue++) {
+            long charged = VoucherFeeCalculator.calculateChargeableFee(faceValue, 10.0, 1);
+            assertTrue(charged < faceValue,
+                "charged " + charged + " for a " + faceValue + " sat voucher");
+        }
+    }
 }

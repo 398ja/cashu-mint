@@ -90,9 +90,15 @@ public interface InvariantMetricsRecorder {
      * {@code UNFUNDED} whose only payment events were rejected (#459, #462).
      *
      * <p>The third of three, and the one that completes the partition.
-     * {@code outcome} has eleven values, so "has an accepted event" and "has
+     * {@code outcome} has twelve values, so "has an accepted event" and "has
      * no event" do not cover the population between them: a quote whose only
-     * events were {@code amount_mismatch} or {@code tamper} raises neither.
+     * events were {@code invalid_amount}, {@code amount_mismatch} or
+     * {@code tamper} raises neither.
+     *
+     * <p>The query behind this keys on {@code outcome = 'accepted'} rather
+     * than listing the rejections, so a new outcome is counted here without
+     * being added anywhere. That is deliberate: enumerating refusals would
+     * mean a refusal introduced later silently left the partition.
      *
      * <p>Unlike its two siblings this one is unambiguous about whether the
      * mint was told. It was, and it refused. What the customer is owed depends

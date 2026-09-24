@@ -117,6 +117,20 @@ public final class VoucherFeeCalculator {
         }
 
         if (fee < minimumFee) {
+            // A floor above the face value means the customer pays more than
+            // the voucher is worth. That is always a misconfiguration: the
+            // default of 1 can only reach it for a 1-sat voucher, but an
+            // operator setting a larger minimum without adjusting the
+            // denominations they sell would silently overcharge every small
+            // one. Said at WARN rather than refused, because the mint is not
+            // the right place to decide a business's pricing, and refusing
+            // here would take out issuance rather than the bad setting.
+            if (minimumFee > voucherAmount) {
+                log.warn("voucher_fee minimum_exceeds_face_value amount={} minimum={} "
+                                + "- the customer would pay more than the voucher is worth; "
+                                + "check voucher.quote.fee-min-sat against the denominations sold",
+                        voucherAmount, minimumFee);
+            }
             log.info("voucher_fee floored amount={} percentage={}% computed={} charged={}",
                 voucherAmount, feePercentage, fee, minimumFee);
             return minimumFee;

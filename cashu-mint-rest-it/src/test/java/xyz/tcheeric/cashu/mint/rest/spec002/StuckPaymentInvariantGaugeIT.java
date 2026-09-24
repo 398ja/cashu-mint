@@ -337,7 +337,7 @@ class StuckPaymentInvariantGaugeIT extends AbstractMintDurableIT {
      * The third bucket, which my first version of these gauges missed
      * entirely (#459, #462).
      *
-     * <p>{@code outcome} has eleven values, not two. Partitioning on
+     * <p>{@code outcome} has twelve values, not two. Partitioning on
      * "has an accepted webhook" versus "has no webhook row" leaves a quote
      * whose only events were rejected — {@code amount_mismatch},
      * {@code tamper}, {@code expired} — counted by <em>neither</em> gauge:
