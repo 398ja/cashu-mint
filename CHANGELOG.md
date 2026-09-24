@@ -64,6 +64,27 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.6] - 2026-09-24
+
+### Changed
+
+- **The issuance identity header is `X-Mint-Issuer-Identity`, was `X-Dalia-Identity`.** This
+  filter was built for Dalia Phase 9 and the name came with it, but the mint is not a Dalia
+  component: Dalia's SDK sends that header to a Dalia engine, Dalia is not deployed alongside
+  this mint, and no Imani gateway sent it either. No compatibility alias, because keeping one
+  for a caller that does not exist preserves the confusion the rename removes. Anything that
+  needs the old name sets `cashu.mint.issuance.rate-limit.identity-header`.
+
+- **The daily issuance quota is 2000, was 60.** 60 was six minutes of the 10/min burst beside
+  it, so the pair could not describe one intended load. And with no caller sending an identity
+  header the bucket keyed on remote address alone, so those sixty were shared by every merchant
+  behind a gateway: ten stalls selling twenty coupons each need 200 and were refused before
+  lunch. Measured on staging at 48 of 60 consumed by test traffic, with 24 breaches recorded.
+
+  The per-minute burst remains the control doing the real work. This one bounds a runaway that
+  never trips it.
+
+
 ## [0.38.5] - 2026-09-24
 
 ### Fixed
