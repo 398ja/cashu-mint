@@ -64,6 +64,35 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.5] - 2026-09-24
+
+### Fixed
+
+- **A voucher under 10 sat was invoiced for nothing.** The fee is
+  `floor(faceValue * feePercentage / 100)`, so any face value below 10 at the default 10%
+  charged ZERO. The mint created a zero-amount invoice, which settles trivially, and then
+  refused its own webhook with `amount_mismatch` because a payment of 0 cannot match. Nine
+  quotes were stranded this way and the retry loop behind them produced 9,962 refusals
+  overnight, growing to 12,358 by the time this shipped, against 40 accepted.
+
+  `VOUCHER_QUOTE_FEE_MIN_SAT` (default 1) now floors the charge, so an invoice is always
+  payable. A floor ABOVE the face value would charge more than the voucher is worth, which
+  is always a misconfiguration: warned rather than refused, because refusing takes out
+  issuance instead of the bad setting.
+
+- **`invalid_amount` is split from `amount_mismatch`.** A webhook whose amount is structurally
+  impossible is a different fault from one that simply disagrees with the quote, and reporting
+  both as a mismatch sent the investigation the wrong way.
+
+### Changed
+
+- The point at which a voucher quote becomes irreversible is now marked in the code.
+  `createMintQuote` runs BEFORE `persistVoucherQuote`, so a failure between them strands a
+  payable invoice the mint will not honour. The comment names the boundary; the ordering is
+  unchanged in this release.
+
+
+
 ## [0.38.3] - 2026-09-22
 
 ### Fixed
