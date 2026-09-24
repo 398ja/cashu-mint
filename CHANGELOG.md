@@ -64,6 +64,21 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.7] - 2026-09-24
+
+### Fixed
+
+- **An expected answer was counted as a task failure, so healthy issuance fired
+  `CashuMintTaskFailureRate`.** On a staging run where every sale succeeded, `MintQuoteStatusTask`
+  recorded 11 failures against 10 successes with no errors logged anywhere. All 11 were
+  `InvoiceNotPaidException`, which is the correct answer to "has this invoice been paid yet"
+  when the answer is not yet. Every client polls until it flips, so each healthy sale produces
+  several by design and the ratio sits near 50% in normal operation.
+
+  Expected outcomes now go to `cashu_mint_task_expected_outcome_total` instead. Counted rather
+  than discarded, because how often clients poll early is useful; it is simply not a failure.
+
+
 ## [0.38.6] - 2026-09-24
 
 ### Changed
