@@ -226,6 +226,86 @@ class TaskTimingAspectTest {
     }
 
     // Mock task classes for testing
+    @Test
+    void timeTaskExecution_expectedOutcomeIsNotCountedAsFailure() throws Throwable {
+        // "Has this invoice been paid yet" throws before settlement, and every
+        // client polls until it flips, so a healthy sale produces several.
+        // Counted as failures these gave 11 against 10 successes on a staging
+        // run where EVERY SALE SUCCEEDED, holding CashuMintTaskFailureRate
+        // permanently over threshold. cashu-mint#471.
+        Exception notPaid = new InvoiceNotPaidException("quote not settled yet");
+        when(joinPoint.getTarget()).thenReturn(mockMintTask);
+        when(joinPoint.proceed()).thenThrow(notPaid);
+
+        assertThatThrownBy(() -> aspect.timeTaskExecution(joinPoint))
+                .isSameAs(notPaid);
+
+        // NOT a failure.
+        Counter failureCounter = registry.find("cashu_mint_task_failure_total")
+                .tag("task_name", "MockMintTask")
+                .tag("error_type", "InvoiceNotPaidException")
+                .counter();
+        assertThat(failureCounter)
+                .as("an expected answer must not inflate the failure rate")
+                .isNull();
+
+        // But still counted, because how often clients poll early is useful.
+        Counter expectedCounter = registry.find("cashu_mint_task_expected_outcome_total")
+                .tag("task_name", "MockMintTask")
+                .tag("outcome", "InvoiceNotPaidException")
+                .counter();
+        assertThat(expectedCounter).isNotNull();
+        assertThat(expectedCounter.count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void timeTaskExecution_expectedOutcomeStillPropagatesAndTimes() throws Throwable {
+        // The classification must change only the METRIC. The caller still has
+        // to see the exception, or the poll loop it drives would never learn
+        // the invoice is unpaid.
+        Exception notPaid = new InvoiceNotPaidException("quote not settled yet");
+        when(joinPoint.getTarget()).thenReturn(mockMintTask);
+        when(joinPoint.proceed()).thenThrow(notPaid);
+
+        assertThatThrownBy(() -> aspect.timeTaskExecution(joinPoint))
+                .isSameAs(notPaid);
+
+        Timer timer = registry.find("cashu_mint_task_duration_seconds")
+                .tag("task_name", "MockMintTask")
+                .timer();
+        assertThat(timer).isNotNull();
+        assertThat(timer.count())
+                .as("an expected outcome is still an execution and must be timed")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void timeTaskExecution_aRealFailureIsStillAFailure() throws Throwable {
+        // The other direction. Reclassifying one exception must not turn the
+        // failure counter off: a rule that never fires is as useless as one
+        // that always does.
+        Exception real = new IllegalStateException("vault unreachable");
+        when(joinPoint.getTarget()).thenReturn(mockMintTask);
+        when(joinPoint.proceed()).thenThrow(real);
+
+        assertThatThrownBy(() -> aspect.timeTaskExecution(joinPoint))
+                .isSameAs(real);
+
+        Counter failureCounter = registry.find("cashu_mint_task_failure_total")
+                .tag("task_name", "MockMintTask")
+                .tag("error_type", "IllegalStateException")
+                .counter();
+        assertThat(failureCounter).isNotNull();
+        assertThat(failureCounter.count()).isEqualTo(1.0);
+    }
+
+    /** Named to match the real payment-adapter type, which this module cannot import. */
+    private static class InvoiceNotPaidException extends RuntimeException {
+        InvoiceNotPaidException(String message) {
+            super(message);
+        }
+    }
+
     private static class MockSwapTask {
         public Object execute() {
             return "swap result";

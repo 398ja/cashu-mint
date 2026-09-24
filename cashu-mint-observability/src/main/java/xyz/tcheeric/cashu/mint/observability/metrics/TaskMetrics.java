@@ -56,6 +56,7 @@ public class TaskMetrics {
     private final ConcurrentHashMap<String, Timer> taskTimers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Counter> taskSuccessCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Counter> taskFailureCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Counter> taskExpectedOutcomeCounters = new ConcurrentHashMap<>();
 
     /**
      * Creates a new TaskMetrics instance.
@@ -105,6 +106,28 @@ public class TaskMetrics {
         String normalized = normalizeTaskName(taskName);
         getFailureCounter(normalized, errorType).increment();
         log.trace("Task {} failed with error type: {}", normalized, errorType);
+    }
+
+    /**
+     * Records an EXPECTED non-success outcome, which is not a failure.
+     *
+     * <p>Some tasks answer a question whose negative answer is normal. Polling
+     * "has this invoice been paid yet" before settlement throws
+     * {@code InvoiceNotPaidException}, and every client polls until it flips,
+     * so each healthy sale produces several. Counted as failures they gave 11
+     * against 10 successes on a staging run where every sale SUCCEEDED, which
+     * put {@code CashuMintTaskFailureRate} permanently over threshold.
+     *
+     * <p>An alert that fires whenever the system works correctly is one that
+     * gets muted, and a muted alert cannot report the fault it exists for.
+     *
+     * <p>Counted rather than discarded: how often clients poll early is
+     * genuinely useful, it simply is not a failure.
+     */
+    public void recordExpectedOutcome(String taskName, String outcome) {
+        String normalized = normalizeTaskName(taskName);
+        getExpectedOutcomeCounter(normalized, outcome).increment();
+        log.trace("Task {} returned expected outcome: {}", normalized, outcome);
     }
 
     /**
@@ -194,6 +217,16 @@ public class TaskMetrics {
                 Counter.builder(METRIC_PREFIX + "success_total")
                         .description("Successful task executions")
                         .tag("task_name", name)
+                        .register(registry));
+    }
+
+    private Counter getExpectedOutcomeCounter(String taskName, String outcome) {
+        String key = taskName + "_expected_" + outcome;
+        return taskExpectedOutcomeCounters.computeIfAbsent(key, k ->
+                Counter.builder(METRIC_PREFIX + "expected_outcome_total")
+                        .description("Task executions that ended in an expected non-success outcome")
+                        .tag("task_name", taskName)
+                        .tag("outcome", outcome)
                         .register(registry));
     }
 

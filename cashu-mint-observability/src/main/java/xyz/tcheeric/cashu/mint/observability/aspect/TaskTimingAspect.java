@@ -8,6 +8,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 
+import java.util.Set;
+
 /**
  * AOP aspect for timing Cashu Mint task executions.
  *
@@ -42,6 +44,17 @@ import xyz.tcheeric.cashu.mint.observability.metrics.TaskMetrics;
 @Aspect
 @Slf4j
 public class TaskTimingAspect {
+
+    /**
+     * Exception types that are an ANSWER rather than a fault.
+     *
+     * <p>Matched on simple name because these are thrown by other modules
+     * (InvoiceNotPaidException lives in payment-adapter) and this module does
+     * not depend on them. A name is a weaker contract than a type, so the set
+     * is kept small and each entry has to earn its place by being a normal
+     * outcome of a healthy request.
+     */
+    private static final Set<String> EXPECTED_OUTCOMES = Set.of("InvoiceNotPaidException");
 
     private final TaskMetrics taskMetrics;
 
@@ -103,9 +116,33 @@ public class TaskTimingAspect {
 
             return result;
         } catch (Throwable e) {
-            // Record failed execution
             long duration = sample.stop(taskMetrics.getTimer(taskName));
             String errorType = e.getClass().getSimpleName();
+
+            // AN EXPECTED ANSWER IS NOT A FAILURE.
+            //
+            // Some tasks answer a question whose negative answer is normal.
+            // "Has this invoice been paid yet" throws InvoiceNotPaidException
+            // before settlement, and every client polls until it flips, so a
+            // healthy sale produces several by design.
+            //
+            // Measured on staging: 11 failures against 10 successes on a run
+            // where every sale SUCCEEDED, which held CashuMintTaskFailureRate
+            // permanently over threshold. An alert that fires whenever the
+            // system works correctly is one that gets muted, and a muted alert
+            // cannot report the fault it exists for.
+            //
+            // Still counted, under its own metric, because how often clients
+            // poll early is useful. It simply is not a failure.
+            if (EXPECTED_OUTCOMES.contains(errorType)) {
+                taskMetrics.recordExpectedOutcome(taskName, errorType);
+                if (log.isTraceEnabled()) {
+                    log.trace("Task {} returned expected outcome {} after {} ms",
+                            taskName, errorType, duration / 1_000_000);
+                }
+                throw e;
+            }
+
             taskMetrics.recordFailure(taskName, errorType);
 
             if (log.isDebugEnabled()) {
