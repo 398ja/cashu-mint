@@ -61,7 +61,7 @@ class IssuanceRateLimitFilterTest {
     private HttpServletRequest request(String header, String ip) {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/v1/mint/bolt11");
-        when(req.getHeader("X-Dalia-Identity")).thenReturn(header);
+        when(req.getHeader("X-Mint-Issuer-Identity")).thenReturn(header);
         when(req.getRemoteAddr()).thenReturn(ip);
         return req;
     }
@@ -71,7 +71,7 @@ class IssuanceRateLimitFilterTest {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/abc");
         when(req.getMethod()).thenReturn(method);
-        when(req.getHeader("X-Dalia-Identity")).thenReturn(null);
+        when(req.getHeader("X-Mint-Issuer-Identity")).thenReturn(null);
         when(req.getRemoteAddr()).thenReturn(ip);
         return req;
     }
@@ -80,7 +80,7 @@ class IssuanceRateLimitFilterTest {
     private HttpServletRequest forwardedRequest(String peer, String realIp) {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/v1/mint/bolt11");
-        when(req.getHeader("X-Dalia-Identity")).thenReturn(null);
+        when(req.getHeader("X-Mint-Issuer-Identity")).thenReturn(null);
         when(req.getHeader("X-Real-IP")).thenReturn(realIp);
         when(req.getRemoteAddr()).thenReturn(peer);
         return req;

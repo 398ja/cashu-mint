@@ -25,7 +25,7 @@ import static org.mockito.Mockito.mock;
  */
 class IssuanceRateLimitFilterIdentityTest {
 
-    private static final String IDENTITY_HEADER = "X-Dalia-Identity";
+    private static final String IDENTITY_HEADER = "X-Mint-Issuer-Identity";
     private static final int BURST = 3;
 
     private IssuanceRateLimitProperties properties;
@@ -156,5 +156,31 @@ class IssuanceRateLimitFilterIdentityTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, mock(FilterChain.class));
         return response;
+    }
+
+    @Test
+    void defaultsAreCoherentAndTheHeaderIsNotDaliaBranded() {
+        IssuanceRateLimitProperties defaults = new IssuanceRateLimitProperties();
+
+        // The mint is not a Dalia component. Dalia's SDK sends X-Dalia-Identity to a Dalia
+        // ENGINE, Dalia is not deployed in this stack, and no Imani gateway sends it, so the
+        // name identified the wrong owner of the contract. Pinned so it cannot drift back.
+        assertThat(defaults.getIdentityHeader()).isEqualTo("X-Mint-Issuer-Identity");
+
+        // THE PAIR MUST DESCRIBE ONE LOAD. The old 60/day was six minutes of the 10/min burst:
+        // it said the mint accepts 10 a minute, but only for six minutes, then nothing until
+        // tomorrow. Asserted as a RELATIONSHIP rather than as the literal 2000, because the
+        // number may be tuned and the incoherence is the thing that must not come back.
+        int burstPerDay = defaults.getPerMinuteBurst() * 60 * 24;
+        assertThat(defaults.getPerDay())
+                .as("the daily quota must be at least an hour of the %d/min burst",
+                        defaults.getPerMinuteBurst())
+                .isGreaterThanOrEqualTo(defaults.getPerMinuteBurst() * 60);
+
+        // And still a ceiling rather than no limit at all: the burst is the control doing the
+        // real work, and this one exists to stop a runaway that stays under it.
+        assertThat(defaults.getPerDay())
+                .as("the daily quota must still bound a caller that never trips the burst")
+                .isLessThan(burstPerDay);
     }
 }

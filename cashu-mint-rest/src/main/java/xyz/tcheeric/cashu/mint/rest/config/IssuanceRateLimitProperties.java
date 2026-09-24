@@ -26,11 +26,40 @@ public class IssuanceRateLimitProperties {
     /** Max mint requests per identity per minute (burst). Default ~10 (spec §6.4 / O-13). */
     private int perMinuteBurst = 10;
 
-    /** Max mint requests per identity per day. Default ~60 (spec §6.4 / O-13). */
-    private int perDay = 60;
+    /**
+     * Max mint requests per identity per day.
+     *
+     * <p>WAS 60, WHICH WAS SIX MINUTES OF THE BURST. That pair could not describe one intended
+     * load: it said the mint accepts 10 a minute, but only for six minutes, then nothing until
+     * tomorrow. And because no caller in this deployment sends an identity header, the bucket
+     * keys on the gateway's address alone, so the sixty were shared by every merchant behind it.
+     * Ten stalls selling twenty coupons each need 200 and were refused before lunch; staging
+     * burned 48 of 60 on test traffic alone.
+     *
+     * <p>2000 is roughly three hours of sustained burst, which is the honest daily reading of
+     * "10 a minute is acceptable". It is a CEILING ON DAMAGE, not a forecast: the per-minute
+     * burst is the limit doing the real work, bounding any single caller to 10/min whatever else
+     * breaks. This one exists so a runaway that stays under the burst still stops eventually.
+     *
+     * <p>Lower it once identities are per-issuer rather than per-address, because 2000 shared by
+     * a deployment and 2000 per merchant are very different numbers.
+     */
+    private int perDay = 2000;
 
-    /** Header carrying the engine-supplied caller identity; refines the remote-address bucket. */
-    private String identityHeader = "X-Dalia-Identity";
+    /**
+     * Header carrying the caller identity; refines the remote-address bucket.
+     *
+     * <p>RENAMED FROM {@code X-Dalia-Identity}, with no alias, because nothing sends the old name.
+     * This filter was built for Dalia Phase 9 and the header name came with it, but the mint is
+     * not a Dalia component: Dalia's SDK sends that header to a Dalia ENGINE, Dalia is not
+     * deployed in this stack, and no Imani gateway sends it either. Checked before removing.
+     *
+     * <p>A name that misidentifies which system owns a wire contract misleads every later reader,
+     * and this one already did. Keeping a compatibility alias for a caller that does not exist
+     * would preserve exactly that confusion, so the old name is simply gone. If Dalia is ever
+     * pointed at this mint it sets this property; that is what the property is for.
+     */
+    private String identityHeader = "X-Mint-Issuer-Identity";
 
     /**
      * Peers whose {@link #identityHeader} is believed (AppSec finding M-2, issue #425).

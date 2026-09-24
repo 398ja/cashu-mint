@@ -20,8 +20,12 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Dalia Phase 9 — per-identity rate limit on mint issuance ({@code /v1/mint/**}). In-process and
+ * Per-identity rate limit on mint issuance ({@code /v1/mint/**}). In-process and
  * Caffeine-backed (migration to Redis is contained to this class if the mint goes multi-replica).
+ *
+ * <p>Originally written for Dalia Phase 9, which is where the old {@code X-Dalia-Identity} header
+ * name came from. The mint is not a Dalia component and Dalia is not deployed alongside it, so the
+ * header is {@code X-Mint-Issuer-Identity}.
  *
  * <p>Each identity gets a dual token bucket: a per-minute burst and a per-day quota. Identity is the
  * caller's remote address, subdivided by the engine-supplied identity header when that header arrives
