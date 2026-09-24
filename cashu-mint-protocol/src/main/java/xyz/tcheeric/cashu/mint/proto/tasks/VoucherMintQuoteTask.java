@@ -106,6 +106,22 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, unit);
 
+        // IRREVERSIBLE FROM HERE. The invoice exists the moment this returns,
+        // it is immediately payable, and nothing below can withdraw it.
+        //
+        // That matters because `persistVoucherQuote` runs AFTER and can still
+        // fail: `voucher_quote` carries CHECK (charged_amount > 0), so a
+        // non-positive price was rejected here rather than before the invoice
+        // was raised. Observed on staging 2026-09-23: the customer paid, the
+        // mint ACCEPTED the payment, and the request that created it had
+        // already returned 90008 to a client that never came back. Twelve
+        // quotes sat PAID with nothing issued and no process responsible for
+        // them (cashu-mint#469).
+        //
+        // Every precondition that can refuse this quote must therefore be
+        // checked ABOVE this line. The price check is; a future one must be
+        // too. A persist failure below still strands a payable invoice, which
+        // is the residual hazard #469 tracks.
         String quoteId = gateway.createMintQuote((int) voucherPrice, null);
 
         // Spec 003 FR-001/FR-003 — persist the durable voucher quote so the
