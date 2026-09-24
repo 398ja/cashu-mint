@@ -78,14 +78,29 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
     protected PostMintQuoteResponse doExecute() throws CashuErrorException {
         log.info("Creating voucher mint quote: faceValue={}, method={}", faceValue, method);
 
-        // Load fee percentage from configuration
+        // Load fee percentage and floor from configuration
         double feePercentage = VoucherFeeConfig.getFeePercentage();
+        long minimumFee = VoucherFeeConfig.getMinimumFee();
 
-        // Calculate fee-based price
-        long voucherPrice = VoucherFeeCalculator.calculateFee(faceValue, feePercentage);
+        // Calculate the fee-based price, floored so it is actually chargeable.
+        // Without the floor, every face value under `100 / feePercent` rounds
+        // to zero and the gateway is asked for a zero-amount invoice, which
+        // the whole chain accepts and the mint then refuses on the way back.
+        long voucherPrice = VoucherFeeCalculator.calculateChargeableFee(faceValue, feePercentage, minimumFee);
 
-        log.info("Voucher mint quote: faceValue={}, feePercent={}%, chargedPrice={}, method={}",
-            faceValue, feePercentage, voucherPrice, method);
+        log.info("Voucher mint quote: faceValue={}, feePercent={}%, minFee={}, chargedPrice={}, method={}",
+            faceValue, feePercentage, minimumFee, voucherPrice, method);
+
+        // Fail here rather than three services downstream. A zero price can
+        // only arise now from a deliberate 0% fee or a zero face value, and
+        // neither can be invoiced: a zero-amount invoice settles trivially and
+        // is then unbindable to the quote it paid for.
+        if (voucherPrice <= 0) {
+            log.warn("voucher_quote_refused reason=non_positive_price faceValue={} feePercent={}% minFee={}",
+                faceValue, feePercentage, minimumFee);
+            throw new CashuErrorException(
+                    "{\"error\":\"voucher_price_not_chargeable\"}");
+        }
 
         // Create gateway and call createMintQuote with fee price (not face value)
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)

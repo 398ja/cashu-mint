@@ -52,7 +52,13 @@ public final class VoucherFeeCalculator {
                 String.format("Fee percentage cannot be negative: %.2f", feePercentage));
         }
 
-        // Handle zero cases (avoid unnecessary computation)
+        // Handle zero cases (avoid unnecessary computation).
+        //
+        // NOT floored to the minimum: a zero face value or an explicitly
+        // configured 0% fee are deliberate statements that nothing is owed,
+        // and charging a minimum on them would invent a price the operator
+        // did not ask for. The floor exists for the OPPOSITE case, where a
+        // non-zero percentage of a small amount rounds away to nothing.
         if (voucherAmount == 0 || feePercentage == 0.0) {
             log.debug("Calculated voucher fee: amount={}, percentage={}%, fee=0 (zero input)",
                 voucherAmount, feePercentage);
@@ -73,6 +79,48 @@ public final class VoucherFeeCalculator {
 
         log.debug("Calculated voucher fee: amount={}, percentage={}%, fee={}",
             voucherAmount, feePercentage, fee);
+
+        return fee;
+    }
+
+    /**
+     * Calculate the fee and raise it to {@code minimumFee} when rounding took
+     * it to zero.
+     *
+     * <p>This is what callers that go on to CHARGE the fee should use.
+     * {@link #calculateFee(long, double)} remains the pure percentage, and is
+     * still the right call for anything that only reports or models a price.
+     *
+     * <p><strong>Why the floor is needed.</strong> The fee is
+     * {@code floor(amount * percent / 100)}, so every amount below
+     * {@code 100 / percent} rounds to zero: at 10% that is anything under 10
+     * sats. Zero is not a cheap price, it is a zero-amount invoice, and the
+     * payment chain accepts one at every step - the gateway creates it, it
+     * settles trivially, and the mint then refuses its own webhook because a
+     * non-positive amount can never match an authorised quote. Measured on
+     * staging as 9 stranded quotes producing unbounded webhook rejections.
+     *
+     * <p>A zero face value or an explicit 0% fee still return zero: those say
+     * nothing is owed, which is a decision rather than an accident.
+     *
+     * @param voucherAmount the face value of the voucher
+     * @param feePercentage the fee percentage (e.g. 10.0 for 10%)
+     * @param minimumFee    the smallest chargeable fee
+     * @return the fee, never below {@code minimumFee} unless nothing is owed
+     */
+    public static long calculateChargeableFee(long voucherAmount, double feePercentage, long minimumFee) {
+        long fee = calculateFee(voucherAmount, feePercentage);
+
+        // Nothing owed: leave it alone. See the note above.
+        if (voucherAmount == 0 || feePercentage == 0.0) {
+            return 0L;
+        }
+
+        if (fee < minimumFee) {
+            log.info("voucher_fee floored amount={} percentage={}% computed={} charged={}",
+                voucherAmount, feePercentage, fee, minimumFee);
+            return minimumFee;
+        }
 
         return fee;
     }

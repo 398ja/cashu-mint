@@ -181,4 +181,59 @@ public class VoucherFeeCalculatorTest {
         long fee = VoucherFeeCalculator.calculateFee(1000, 1.0);
         assertEquals(10, fee);
     }
+
+    // ---- calculateChargeableFee: the floor that stops zero-amount invoices ----
+
+    @Test
+    public void chargeableFeeIsFlooredWhenRoundingTakesItToZero() {
+        // THE REGRESSION. 1 sat @ 10% = floor(0.1) = 0, which produced a
+        // zero-amount invoice, a payment that settled trivially, and a webhook
+        // the mint then refused. Staging, 2026-09-23: 9 stranded quotes.
+        assertEquals(0, VoucherFeeCalculator.calculateFee(1, 10.0));
+        assertEquals(1, VoucherFeeCalculator.calculateChargeableFee(1, 10.0, 1));
+    }
+
+    @Test
+    public void everyFaceValueBelowTheThresholdIsFloored() {
+        // At 10% the threshold is 100/10 = 10, so 1..9 all round to zero.
+        for (int faceValue = 1; faceValue < 10; faceValue++) {
+            assertEquals(0, VoucherFeeCalculator.calculateFee(faceValue, 10.0),
+                "unfloored fee for " + faceValue);
+            assertEquals(1, VoucherFeeCalculator.calculateChargeableFee(faceValue, 10.0, 1),
+                "chargeable fee for " + faceValue);
+        }
+    }
+
+    @Test
+    public void chargeableFeeLeavesAnAlreadySufficientFeeAlone() {
+        // At and above the threshold the floor must not distort the price.
+        assertEquals(1, VoucherFeeCalculator.calculateChargeableFee(10, 10.0, 1));
+        assertEquals(100, VoucherFeeCalculator.calculateChargeableFee(1000, 10.0, 1));
+        assertEquals(673, VoucherFeeCalculator.calculateChargeableFee(6736, 10.0, 1));
+    }
+
+    @Test
+    public void chargeableFeeRespectsAMinimumAboveOne() {
+        // The floor is configurable, not hardcoded to 1.
+        assertEquals(50, VoucherFeeCalculator.calculateChargeableFee(1, 10.0, 50));
+        assertEquals(100, VoucherFeeCalculator.calculateChargeableFee(1000, 10.0, 50));
+    }
+
+    @Test
+    public void nothingOwedStaysZero() {
+        // A zero face value or an explicit 0% fee are deliberate statements
+        // that nothing is owed. The floor must not invent a price for them,
+        // however high the minimum is set.
+        assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(0, 10.0, 1));
+        assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(1000, 0.0, 1));
+        assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(0, 10.0, 500));
+        assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(1000, 0.0, 500));
+    }
+
+    @Test
+    public void aZeroMinimumRestoresTheOldBehaviour() {
+        // An operator who genuinely wants free small vouchers can have them,
+        // deliberately rather than by rounding.
+        assertEquals(0, VoucherFeeCalculator.calculateChargeableFee(1, 10.0, 0));
+    }
 }

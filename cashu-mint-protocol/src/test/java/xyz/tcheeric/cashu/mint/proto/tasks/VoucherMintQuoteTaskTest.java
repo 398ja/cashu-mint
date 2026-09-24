@@ -78,7 +78,16 @@ public class VoucherMintQuoteTaskTest {
 
     @Test
     public void testExecuteWithVerySmallAmount() throws CashuErrorException {
-        // Test voucher quote with amount resulting in zero fee: 5 sats @ 10% = floor(0.5) = 0 sats
+        // 5 sats @ 10% = floor(0.5) = 0, which is NOT chargeable.
+        //
+        // This test previously asserted `createMintQuote(0, null)` and so
+        // encoded the defect: a zero-amount invoice is created, settles
+        // trivially, and the mint then refuses its own webhook because a
+        // non-positive amount cannot match an authorised quote. Staging,
+        // 2026-09-23: 9 stranded quotes and unbounded webhook rejections.
+        //
+        // The fee is now floored to the configured minimum, so the gateway is
+        // asked for something payable.
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid3");
         when(gateway.getRequest("qid3")).thenReturn("lnbc0n...");
@@ -90,8 +99,8 @@ public class VoucherMintQuoteTaskTest {
         VoucherMintQuoteTask task = new VoucherMintQuoteTask(5, PaymentMethod.MOCK, service);
         PostMintQuoteResponse response = task.execute();
 
-        // Gateway should receive 0 sats (floor of 0.5)
-        verify(gateway).createMintQuote(0, null);
+        // Floored to the minimum fee (1), never zero.
+        verify(gateway).createMintQuote(1, null);
 
         // Face value should still be stored
         assertEquals(5L, VoucherQuoteRegistry.getFaceValue("qid3"));

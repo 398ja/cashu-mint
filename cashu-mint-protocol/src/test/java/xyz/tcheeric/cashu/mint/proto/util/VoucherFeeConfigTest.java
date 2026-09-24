@@ -72,4 +72,24 @@ public class VoucherFeeConfigTest {
 
         assertEquals(firstCall, secondCall, 0.001, "Cached max values should match");
     }
+
+    @Test
+    public void testDefaultMinimumFee() {
+        // One rather than zero: a zero fee is a zero-amount invoice, not a
+        // cheap voucher. See VoucherFeeConfig's class comment.
+        assertEquals(1L, VoucherFeeConfig.getMinimumFee());
+    }
+
+    @Test
+    public void testMinimumFeeCaching() {
+        long first = VoucherFeeConfig.getMinimumFee();
+        long second = VoucherFeeConfig.getMinimumFee();
+        assertEquals(first, second);
+    }
+
+    @Test
+    public void testMinimumFeeIsNotNegative() {
+        assertTrue(VoucherFeeConfig.getMinimumFee() >= 0,
+            "a negative floor would push fees below zero");
+    }
 }
