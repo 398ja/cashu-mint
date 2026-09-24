@@ -134,8 +134,14 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         if (notification.getAmount() == null || notification.getAmount() <= 0) {
             log.warn("webhook_event invalid_amount provider_event_id={} quote_id={} amount={}",
                     notification.getProviderEventId(), notification.getQuoteId(), notification.getAmount());
-            incrementCounter(Outcome.amount_mismatch);
-            return WebhookOutcome.of(Outcome.amount_mismatch);
+            // invalid_amount, NOT amount_mismatch (#469). A non-positive amount
+            // is not a disagreement about size, it is the absence of a charge,
+            // and the two have different owners: a mismatch is a
+            // reconciliation question, this is a bug in whatever invoiced.
+            // Recording it as a mismatch cost a day of diagnosis when nine
+            // zero-amount invoices showed as 9962 mismatch events.
+            incrementCounter(Outcome.invalid_amount);
+            return WebhookOutcome.of(Outcome.invalid_amount);
         }
 
         String provider = resolveProvider();

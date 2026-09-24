@@ -34,7 +34,30 @@ public interface WebhookEvent {
     /** Outcomes recorded per FR-008. Mirror of the {@code outcome} CHECK constraint. */
     enum Outcome {
         accepted,
+
+        /**
+         * A real amount that disagrees with the quote's.
+         *
+         * <p>Money may have moved for the wrong figure, so this is a
+         * reconciliation question rather than a client bug.
+         */
         amount_mismatch,
+
+        /**
+         * No usable amount at all: null, zero or negative (#469).
+         *
+         * <p>Distinct from {@link #amount_mismatch}, which was previously
+         * recorded for both. Nothing could have been charged for a non-positive
+         * amount, so the fault is in whatever raised the invoice rather than in
+         * a disagreement about its size.
+         *
+         * <p>The conflation had a measured cost: nine zero-amount invoices on
+         * 2026-09-23 showed as 9962 {@code amount_mismatch} events, and the
+         * first diagnosis read that as a unit or scale disagreement between the
+         * adapter and the mint. The log line had said {@code invalid_amount}
+         * all along; the metric had not.
+         */
+        invalid_amount,
         unit_mismatch,
         method_mismatch,
         duplicate,

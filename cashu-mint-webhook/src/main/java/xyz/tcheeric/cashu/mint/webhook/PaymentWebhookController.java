@@ -133,6 +133,14 @@ public final class PaymentWebhookController {
                         .body(WebhookResponse.error("Tamper signal recorded"));
                 case amount_mismatch -> ResponseEntity.unprocessableEntity()
                         .body(WebhookResponse.error("Amount does not match quote"));
+                // Distinct message, not just a distinct outcome (#469). The
+                // caller previously read "Amount does not match quote" for a
+                // webhook carrying NO amount, which sends whoever is debugging
+                // it looking for a disagreement between two figures when there
+                // is only one. Nine zero-amount invoices were diagnosed as a
+                // unit or scale mismatch on exactly this wording.
+                case invalid_amount -> ResponseEntity.unprocessableEntity()
+                        .body(WebhookResponse.error("Amount is missing or not positive"));
                 case unit_mismatch -> ResponseEntity.unprocessableEntity()
                         .body(WebhookResponse.error("Unit does not match quote"));
                 case method_mismatch -> ResponseEntity.unprocessableEntity()

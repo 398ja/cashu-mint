@@ -135,6 +135,15 @@ class QuoteStatusUpdaterDurableTest {
                 .isEqualTo("eur");
     }
 
+    /**
+     * A missing amount is {@code invalid_amount}, not {@code amount_mismatch} (#469).
+     *
+     * <p>These asserted {@code amount_mismatch} until the two were split. The
+     * label mattered: nine zero-amount invoices surfaced as 9962
+     * {@code amount_mismatch} events, and the first diagnosis read that as a
+     * unit or scale disagreement between the adapter and the mint rather than
+     * as an amount that was never there.
+     */
     @Test
     void null_amount_is_rejected_before_persisting_any_event() {
         PaymentNotification n = PaymentNotification.builder()
@@ -142,10 +151,13 @@ class QuoteStatusUpdaterDurableTest {
 
         WebhookOutcome outcome = updater.record(n);
 
-        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        assertThat(outcome.outcome()).isEqualTo(Outcome.invalid_amount);
         verify(webhookEventRepository, never()).insert(any());
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
-        assertThat(outcomeCount(Outcome.amount_mismatch)).isEqualTo(1);
+        assertThat(outcomeCount(Outcome.invalid_amount)).isEqualTo(1);
+        assertThat(outcomeCount(Outcome.amount_mismatch))
+                .as("a missing amount must not be counted as a disagreement about its size")
+                .isZero();
     }
 
     @Test
@@ -154,7 +166,10 @@ class QuoteStatusUpdaterDurableTest {
 
         WebhookOutcome outcome = updater.record(n);
 
-        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        // THE REGRESSION SHAPE. A fee that floored to zero invoiced nothing,
+        // the payment settled trivially, and this refusal is what the mint
+        // logged 9962 times overnight on staging.
+        assertThat(outcome.outcome()).isEqualTo(Outcome.invalid_amount);
         verify(webhookEventRepository, never()).insert(any());
         verify(mintQuoteRepository, never()).casLifecycle(anyString(), any(), any());
     }
@@ -165,7 +180,7 @@ class QuoteStatusUpdaterDurableTest {
 
         WebhookOutcome outcome = updater.record(n);
 
-        assertThat(outcome.outcome()).isEqualTo(Outcome.amount_mismatch);
+        assertThat(outcome.outcome()).isEqualTo(Outcome.invalid_amount);
         verify(webhookEventRepository, never()).insert(any());
     }
 
