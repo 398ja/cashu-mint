@@ -2,6 +2,17 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Request latency histogram ceiling raised from 10s to 30s.** The top finite bucket of
+  `cashu_mint_requests_duration_seconds` was 10s while `/v1/checkstate` routinely exceeded it:
+  measured on staging, `le=10.0` held 14 of 24 observations and `+Inf` held all 24, so 10 requests
+  sat above the highest finite bucket. `histogram_quantile` cannot interpolate past that boundary,
+  so p99 read exactly 10.00s and `CashuMintLatencySLOBreach` understated every breach it fired on.
+  Alert and dashboard expressions are unchanged. The new `le="30.0"` bucket series is additive.
+
 ## [0.38.4] - 2026-09-22
 
 ### Security

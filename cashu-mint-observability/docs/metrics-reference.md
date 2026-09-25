@@ -234,7 +234,7 @@ management.prometheus.metrics.export.enabled=true
 
 ```properties
 # Request latency buckets (seconds)
-management.metrics.distribution.slo.cashu_mint_requests_duration_seconds=0.01,0.05,0.1,0.25,0.5,1.0,2.5,5.0,10.0
+management.metrics.distribution.slo.cashu_mint_requests_duration_seconds=0.01,0.05,0.1,0.25,0.5,1.0,2.5,5.0,10.0,30.0
 
 # Task duration buckets (seconds)
 management.metrics.distribution.slo.cashu_mint_task_duration_seconds=0.001,0.005,0.01,0.025,0.05,0.1,0.25,0.5,1.0
