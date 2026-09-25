@@ -102,6 +102,54 @@ cashu-vault#146 and #473 stays open for it.
   sat above the highest finite bucket. `histogram_quantile` cannot interpolate past that boundary,
   so p99 read exactly 10.00s and `CashuMintLatencySLOBreach` understated every breach it fired on.
   Alert and dashboard expressions are unchanged. The new `le="30.0"` bucket series is additive.
+> **Measured as no change on staging.** Both entries below passed their unit tests and neither
+> reduced swap vault cost when deployed. The round trips happen one layer below what these changes
+> control: `DBKeySetVault` issues one HTTP call per key inside a single generation load, so sharing
+> a directory cannot collapse calls that occur inside one load it already counts as one. Tracked as
+> cashu-vault#146. These are kept as correct design changes, not as performance fixes.
+
+- **Keyset loads were collapsed per task, not per request.** 0.38.8 added `KeySetDirectory` so each
+  generation is read at most once per directory, and its unit test showed 5/10/15 loads collapsing
+  to 2. Staging still measured 22.5 keyset loads and 87 vault key GETs per swap over 8 real swaps,
+  because every task that needed keysets built a directory of its own: `SwapTask` for the
+  validation rules, a separate `MintKeySetResolver` behind `VerifyFeesTask` for NUT-02 fee pricing,
+  and the same pair again on the melt path plus one `MintLoadService.keySet(id)` per input for the
+  IOU check, which is itself `keySets(false) + keySets(true)`.
+
+  `SwapTask.doExecute` and `MeltTask.doExecute` now each build one `KeySetDirectory` and pass it
+  explicitly to every task and check that needs keysets, following the `RequestScopedProofLookupCache`
+  pattern that `CrossMintCheckStateMerger.merge` uses. `KeySetDirectory` also implements the NUT-02
+  `KeySetResolver`, so fee arithmetic reads the same snapshot instead of building a second one, and
+  `MintKeySetResolver` is removed as the redundant duplicate it became.
+
+  The lifetime boundary is the `doExecute` stack frame, entered once per HTTP request, with no
+  static field, Spring scope or `ThreadLocal`, so a keyset rotation is invisible for at most one
+  request. Within one request sharing is also what correctness wants: the unit rules, the
+  archived-keyset rule, the IOU check and the fee arithmetic must judge every input and output
+  against one consistent set of keysets.
+
+  Measured in tests with `VerifyFeesTask` left running rather than stubbed: 3 generation loads per
+  swap before, 2 after, independent of swap size. Private key material is deliberately untouched;
+  `DBKeySetVault.load` still performs one HashiCorp read per key, because extending the in-memory
+  lifetime of secrets is a security decision outside the scope of a load-count fix.
+
+- **`POST /v1/swap` resolved the mint's keysets once per input and per output instead of once
+  per request.** `ValidateTransactionTask` asks the keyset directory one question per input and
+  two per output, and every question was a full `MintLoadService` load. A swap of n inputs and
+  n outputs therefore cost 5n loads, reproduced as 5, 10 and 15 loads for n = 1, 2 and 3. Each
+  load is O(keys) HTTP calls to the vault, because `DBKeySetVault` resolves each key's private
+  material individually, which is how one swap reached ~98 vault key GETs with the same keyset
+  refetched 5-8 times and p99 latency of 6.29s that did not track signature count.
+
+  `KeySetDirectory.of(MintLoadService)` now reads the active and archived generations at most
+  once each and answers from memory, so a swap costs at most 2 loads regardless of size. The
+  IOU rejection in `SwapTask` indexes the IOU keyset ids once rather than rescanning the mint's
+  keysets per item. Rejection behaviour is unchanged: IOU inputs and IOU outputs are still
+  refused with `iou_not_swappable`.
+
+  The mechanism was not the originally suspected one. `Mint.getKeySets()` is a plain field
+  accessor and performs no I/O; the repeated loads came from the directory behind
+  `ValidateTransactionTask`.
 
 ## [0.38.4] - 2026-09-22
 
