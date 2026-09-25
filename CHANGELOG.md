@@ -6,6 +6,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **`POST /v1/swap` resolved the mint's keysets once per input and per output instead of once
+  per request.** `ValidateTransactionTask` asks the keyset directory one question per input and
+  two per output, and every question was a full `MintLoadService` load. A swap of n inputs and
+  n outputs therefore cost 5n loads, reproduced as 5, 10 and 15 loads for n = 1, 2 and 3. Each
+  load is O(keys) HTTP calls to the vault, because `DBKeySetVault` resolves each key's private
+  material individually, which is how one swap reached ~98 vault key GETs with the same keyset
+  refetched 5-8 times and p99 latency of 6.29s that did not track signature count.
+
+  `KeySetDirectory.of(MintLoadService)` now reads the active and archived generations at most
+  once each and answers from memory, so a swap costs at most 2 loads regardless of size. The
+  IOU rejection in `SwapTask` indexes the IOU keyset ids once rather than rescanning the mint's
+  keysets per item. Rejection behaviour is unchanged: IOU inputs and IOU outputs are still
+  refused with `iou_not_swappable`.
+
+  The mechanism was not the originally suspected one. `Mint.getKeySets()` is a plain field
+  accessor and performs no I/O; the repeated loads came from the directory behind
+  `ValidateTransactionTask`.
+
 - **Request latency histogram ceiling raised from 10s to 30s.** The top finite bucket of
   `cashu_mint_requests_duration_seconds` was 10s while `/v1/checkstate` routinely exceeded it:
   measured on staging, `le=10.0` held 14 of 24 observations and `+Inf` held all 24, so 10 requests

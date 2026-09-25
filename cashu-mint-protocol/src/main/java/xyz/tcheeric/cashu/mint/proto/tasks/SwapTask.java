@@ -4,6 +4,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
+import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
@@ -27,7 +28,9 @@ import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -224,6 +227,49 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     }
 
     /**
+     * Refuse any swap that touches the zero-value IOU keyset (input proofs or output denominations).
+     *
+     * <p>The mint's keysets are read once here and every input and output judged against that one
+     * set. Re-deriving it per item is what made this scale with the request: see
+     * {@link KeySetDirectory#of(MintLoadService)} for the measured cost.
+     */
+    private void refuseIouSwap(Mint mint, List<Proof<T>> inputs, List<BlindedMessage> outputs)
+            throws CashuErrorException {
+        Set<String> iouKeySetIds = iouKeySetIds(mint);
+        if (iouKeySetIds.isEmpty()) {
+            return;
+        }
+        if (inputs != null) {
+            for (Proof<T> proof : inputs) {
+                if (iouKeySetIds.contains(String.valueOf(proof.getKeySetId()))) {
+                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Zero-value IOU tokens cannot be swapped.");
+                }
+            }
+        }
+        if (outputs != null) {
+            for (BlindedMessage output : outputs) {
+                if (iouKeySetIds.contains(String.valueOf(output.getKeySetId()))) {
+                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Cannot swap into the zero-value IOU keyset.");
+                }
+            }
+        }
+    }
+
+    /** The IOU keyset ids this mint knows, indexed once so the checks above are pure lookups. */
+    private Set<String> iouKeySetIds(Mint mint) {
+        if (mint.getKeySets() == null) {
+            return Set.of();
+        }
+        Set<String> iouKeySetIds = new HashSet<>();
+        for (KeySet keySet : mint.getKeySets()) {
+            if (keySet != null && keySet.getId() != null && IouKeysets.isIouKeyset(keySet)) {
+                iouKeySetIds.add(keySet.getId());
+            }
+        }
+        return iouKeySetIds;
+    }
+
+    /**
      * Validates that the swap request does not mix voucher and regular proofs.
      * Mixing proof types in the same swap operation is not allowed.
      *
@@ -231,36 +277,6 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      * @return true if all proofs are voucher proofs (voucher swap), false otherwise
      * @throws CashuErrorException if mixed proof types are detected
      */
-    /** Refuse any swap that touches the zero-value IOU keyset (input proofs or output denominations). */
-    private void refuseIouSwap(Mint mint, List<Proof<T>> inputs, List<BlindedMessage> outputs)
-            throws CashuErrorException {
-        if (inputs != null) {
-            for (Proof<T> proof : inputs) {
-                if (isIouKeysetId(mint, String.valueOf(proof.getKeySetId()))) {
-                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Zero-value IOU tokens cannot be swapped.");
-                }
-            }
-        }
-        if (outputs != null) {
-            for (BlindedMessage output : outputs) {
-                if (isIouKeysetId(mint, String.valueOf(output.getKeySetId()))) {
-                    throw new CashuErrorException(CashuErrorCode.iou_not_swappable, "Cannot swap into the zero-value IOU keyset.");
-                }
-            }
-        }
-    }
-
-    private boolean isIouKeysetId(Mint mint, String keySetId) {
-        if (keySetId == null || mint.getKeySets() == null) {
-            return false;
-        }
-        return mint.getKeySets().stream()
-                .filter(ks -> keySetId.equals(ks.getId()))
-                .findFirst()
-                .map(IouKeysets::isIouKeyset)
-                .orElse(false);
-    }
-
     private boolean validateNoMixedProofTypes(List<Proof<T>> proofs) throws CashuErrorException {
         if (proofs == null || proofs.isEmpty()) {
             return false;
