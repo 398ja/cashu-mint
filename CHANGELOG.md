@@ -20,6 +20,20 @@ cashu-vault#146 and #473 stays open for it.
 
 ### Fixed
 
+- **`/v1/checkstate` ran two `CheckStateTask`s per mint, not one.** `CrossMintCheckStateMerger`
+  unions `mintLoadService.load(false)` and `load(true)` so that proofs on retired keysets still report
+  a state, but `DBMintVault.load(boolean)` ignores its `archived` argument and answers every mint
+  either way (cashu-vault#145), so the two calls returned the same mints and each was asked twice.
+  `allMints()` now de-duplicates by mint id.
+
+  De-duplicating by id rather than by object is deliberate: the two loads populate the same mint with
+  different keysets, so the instances are not equal and neither is a superset of the other. It is safe
+  only because the merge reads nothing but `mint.getId()`.
+
+  Fixing the vault to honour `archived` would **not** replace this and must not be attempted as
+  stated in cashu-vault#145: staging carries three archived keysets hanging off non-archived mints, so
+  filtering mints by their own flag makes archived keysets unreachable and breaks NUT-02 redemption.
+
 - **`POST /v1/checkstate` read the vault six times per proof for the same key.** The endpoint is
   served by `CrossMintCheckStateMerger`, which runs one `CheckStateTask` per mint the deployment
   serves, and each task looks every requested `Y` up in the vault. The vault lookup behind

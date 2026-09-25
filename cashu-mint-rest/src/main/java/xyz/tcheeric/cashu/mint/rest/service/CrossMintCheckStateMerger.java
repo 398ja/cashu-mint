@@ -17,8 +17,8 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.service.impl.RequestScopedProofLookupCache;
 
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -122,16 +122,40 @@ public class CrossMintCheckStateMerger {
         return respondInRequestOrder(request, statesByY);
     }
 
+    /**
+     * The mints to ask, each one once.
+     *
+     * <p>Both generations are loaded because a proof can belong to a retired keyset and must still
+     * report its state (NUT-07 says nothing about the keyset being current). But
+     * {@code DBMintVault.load(boolean)} ignores its {@code archived} argument and answers every mint
+     * either way, so the two calls return the same mints and the naive union asked each one twice.
+     * That doubled the {@code CheckStateTask} count on every request.
+     *
+     * <p>De-duplicating by id rather than by object is deliberate: the two loads populate the same
+     * mint with <em>different</em> keysets, so the instances are not equal and neither is a superset
+     * of the other. This is safe only because {@link #mergeMintStates} uses nothing but
+     * {@code mint.getId()}: the keysets a mint carries here are never read. A future caller that
+     * needs the keysets must not reuse this list.
+     *
+     * <p>Fixing the vault to honour {@code archived} would not remove the need for this. Staging has
+     * three archived keysets hanging off non-archived mints, so filtering mints by their own flag
+     * makes archived keysets unreachable and breaks NUT-02 redemption. See cashu-vault#145.
+     */
     private List<Mint> allMints() throws CashuErrorException {
-        List<Mint> mints = new ArrayList<>();
-        addAll(mints, mintLoadService.load(false));
-        addAll(mints, mintLoadService.load(true));
-        return mints;
+        Map<String, Mint> mintsById = new LinkedHashMap<>();
+        putAll(mintsById, mintLoadService.load(false));
+        putAll(mintsById, mintLoadService.load(true));
+        return List.copyOf(mintsById.values());
     }
 
-    private static void addAll(List<Mint> target, List<Mint> loaded) {
-        if (loaded != null) {
-            target.addAll(loaded);
+    private static void putAll(Map<String, Mint> target, List<Mint> loaded) {
+        if (loaded == null) {
+            return;
+        }
+        for (Mint mint : loaded) {
+            if (mint != null && mint.getId() != null) {
+                target.putIfAbsent(mint.getId(), mint);
+            }
         }
     }
 

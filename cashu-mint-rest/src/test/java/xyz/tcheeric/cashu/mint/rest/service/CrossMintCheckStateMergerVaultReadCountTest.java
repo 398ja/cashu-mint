@@ -118,15 +118,86 @@ class CrossMintCheckStateMergerVaultReadCountTest {
         verify(vault, times(2)).retrieveProofByY(Y_HELD_BY_THE_VAULT);
     }
 
+    @Test
+    @DisplayName("A mint returned by both generations is asked once, not twice")
+    // DBMintVault.load(boolean) ignores its archived argument and answers every mint either way
+    // (cashu-vault#145), so load(false) and load(true) return the SAME mints. The naive union ran
+    // two CheckStateTasks per mint. This models that real vault behaviour, which the fixture above
+    // does not: it hands the two generations distinct mints and so cannot see the duplication.
+    void aMintReturnedByBothGenerationsIsAskedOnce() throws CashuErrorException {
+        List<Mint> everyMintRegardlessOfGeneration =
+                List.of(new Mint(UUID.randomUUID().toString()), new Mint(UUID.randomUUID().toString()));
+        List<UUID> mintsAsked = new ArrayList<>();
+
+        mergerOverBothGenerations(everyMintRegardlessOfGeneration, mintsAsked)
+                .merge(requestFor(Y_UNKNOWN_TO_THE_VAULT));
+
+        assertThat(mintsAsked).hasSize(2);
+        assertThat(mintsAsked).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("Genuinely distinct mints are all still consulted")
+    // The other direction, because de-duplicating by id could silently drop a mint that should have
+    // been asked. A proof lives in exactly one mint, so losing one loses its state.
+    void genuinelyDistinctMintsAreAllStillConsulted() throws CashuErrorException {
+        List<UUID> mintsAsked = new ArrayList<>();
+
+        mergerOver(vaultHolding(Y_HELD_BY_THE_VAULT), mintsAsked)
+                .merge(requestFor(Y_HELD_BY_THE_VAULT));
+
+        assertThat(mintsAsked).hasSize(MINTS_CONSULTED);
+        assertThat(mintsAsked).doesNotHaveDuplicates();
+    }
+
     /**
      * A merger over {@link #MINTS_CONSULTED} mints that runs the real {@link CheckStateTask}, so the
      * vault read count reflects the production lookup chain rather than a stand-in for it.
      */
     private static CrossMintCheckStateMerger mergerOver(ProofVaultService vault) {
+        return mergerOver(vault, new ArrayList<>());
+    }
+
+    /** As {@link #mergerOver(ProofVaultService)}, recording which mint each task was run for. */
+    private static CrossMintCheckStateMerger mergerOver(ProofVaultService vault, List<UUID> mintsAsked) {
         return new CrossMintCheckStateMerger(mintLoadService(), vault,
-                (mintId, request, lookupCache) -> new CheckStateTask(
-                        mintId, request, mintProtocolService(), lookupCache, Mockito.mock(MintVaultService.class))
-                        .execute());
+                (mintId, request, lookupCache) -> {
+                    mintsAsked.add(mintId);
+                    return new CheckStateTask(
+                            mintId, request, mintProtocolService(), lookupCache,
+                            Mockito.mock(MintVaultService.class))
+                            .execute();
+                });
+    }
+
+    /**
+     * A merger whose load service answers the same mints for both generations, reproducing
+     * {@code DBMintVault.load(boolean)} ignoring its argument.
+     */
+    private static CrossMintCheckStateMerger mergerOverBothGenerations(List<Mint> everyMint,
+                                                                      List<UUID> mintsAsked)
+            throws CashuErrorException {
+        MintLoadService loadService = new MintLoadService() {
+            @Override
+            public Mint load(UUID mintId, boolean archive) {
+                return new Mint(mintId.toString());
+            }
+
+            @Override
+            public List<Mint> load(boolean archive) {
+                return everyMint;
+            }
+        };
+        ProofVaultService vault = Mockito.mock(ProofVaultService.class);
+        when(vault.retrieveProofByY(Y_UNKNOWN_TO_THE_VAULT)).thenReturn(null);
+        return new CrossMintCheckStateMerger(loadService, vault,
+                (mintId, request, lookupCache) -> {
+                    mintsAsked.add(mintId);
+                    return new CheckStateTask(
+                            mintId, request, mintProtocolService(), lookupCache,
+                            Mockito.mock(MintVaultService.class))
+                            .execute();
+                });
     }
 
     private static ProofVaultService vaultHolding(String y) throws CashuErrorException {
