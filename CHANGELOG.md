@@ -4,6 +4,12 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.8] - 2026-09-25
+
+Performance release. Both `/v1/checkstate` and `/v1/swap` were dominated by
+redundant sequential HTTP round trips to the vault, not by cryptography.
+See #473 for the profiling that found this.
+
 ### Fixed
 
 - **`POST /v1/checkstate` read the vault six times per proof for the same key.** The endpoint is
