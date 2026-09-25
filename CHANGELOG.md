@@ -4,6 +4,19 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.12] - 2026-09-25
+
+One keyset snapshot per swap request (#476), plus the melt saga timeline append fix (#478).
+
+The keyset change was held back from 0.38.11 because it had no measured performance gain and the
+per-key round trip in cashu-vault#146 had not landed yet. With 0.13.0 live, the repeat it addresses was
+re-measured and is still there: **117 `GET /vault/keyset/id/...` for 1 distinct keyset id across 6
+swaps, so 19.5 redundant fetches per swap of the same keyset.** Vault 0.13.0 fixed the per-**key**
+fan-out and left the per-**keyset** one untouched; they are different problems.
+
+Still no latency claim. Removing roughly 51 round trips per swap in 0.38.11 moved swap p99 by 3ms, so
+this is a correctness and clarity change that also removes a real repeat.
+
 ### Fixed
 
 - **A concurrent melt saga timeline append could be silently lost.** `recordTransition` derived its
