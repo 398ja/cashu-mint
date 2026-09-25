@@ -2,6 +2,71 @@
 
 All notable changes to the Cashu Mint will be documented in this file.
 
+## [Unreleased]
+
+## [0.38.10] - 2026-09-25
+
+Performance release for `POST /v1/checkstate`, which was dominated by redundant sequential HTTP round
+trips to the vault rather than by cryptography. See #473 for the profiling.
+
+Confirmed on staging after deploy: 1.0 vault GET per proof at n=1, 5, 20 and 50, over 16 consecutive
+measurements with no anomalies.
+
+The swap half of #473 is deliberately NOT in this release. Two attempts at it
+(`KeySetDirectory`, then sharing one directory per request) both passed their unit tests and both
+measured as no change on staging, because the round trips happen one layer below what those changes
+control: `DBKeySetVault` issues one HTTP call per key inside a single generation load. That is
+cashu-vault#146 and #473 stays open for it.
+
+### Fixed
+
+- **`/v1/checkstate` ran two `CheckStateTask`s per mint, not one.** `CrossMintCheckStateMerger`
+  unions `mintLoadService.load(false)` and `load(true)` so that proofs on retired keysets still report
+  a state, but `DBMintVault.load(boolean)` ignores its `archived` argument and answers every mint
+  either way (cashu-vault#145), so the two calls returned the same mints and each was asked twice.
+  `allMints()` now de-duplicates by mint id.
+
+  De-duplicating by id rather than by object is deliberate: the two loads populate the same mint with
+  different keysets, so the instances are not equal and neither is a superset of the other. It is safe
+  only because the merge reads nothing but `mint.getId()`.
+
+  Fixing the vault to honour `archived` would **not** replace this and must not be attempted as
+  stated in cashu-vault#145: staging carries three archived keysets hanging off non-archived mints, so
+  filtering mints by their own flag makes archived keysets unreachable and breaks NUT-02 redemption.
+
+- **`POST /v1/checkstate` read the vault six times per proof for the same key.** The endpoint is
+  served by `CrossMintCheckStateMerger`, which runs one `CheckStateTask` per mint the deployment
+  serves, and each task looks every requested `Y` up in the vault. The vault lookup behind
+  `retrieveProofByY` is keyed on the curve point alone with no mint identifier, so all six mints
+  asked the vault the identical question and received the identical answer. Measured on staging
+  with 20 genuinely distinct proofs: 120 vault GETs over 20 distinct keys, 6.0 GETs per `Y`, at
+  ~4ms per GET and 18-26ms per proof end to end. The round trips were the cost.
+
+  `merge(...)` now wraps the vault service in a `RequestScopedProofLookupCache` for the duration of
+  one request, so each distinct `Y` is read once: a measured 6x reduction, 120 GETs to 20. Misses
+  are cached alongside hits, because the common case is a proof the vault does not hold, where all
+  six lookups returned nothing.
+
+  The cache is deliberately not shared across requests. A proof moves
+  `UNSPENT -> PENDING -> SPENT`, so a cached `UNSPENT` outliving its request would report a spent
+  proof as spendable, turning a latency fix into a double-spend window. Its lifetime is the
+  `merge(...)` stack frame, with no static field, Spring scope, or `ThreadLocal` to leak. The
+  mutating swap and melt paths (`InvalidateProofsTask`, `SwapProofHold`) receive the vault bean
+  directly and cannot reach it, and the wrapper discards its snapshot on any write so it stays
+  substitutable for the service it decorates.
+
+  Lookup de-duplication within a single request falls out of the same change: 20 identical `Ys`
+  now cost one GET rather than 120. The response is still built per requested entry, because
+  NUT-07 requires one state per requested `Y` in request order, so a client sending a `Y` twice
+  still receives two entries.
+
+- **Request latency histogram ceiling raised from 10s to 30s.** The top finite bucket of
+  `cashu_mint_requests_duration_seconds` was 10s while `/v1/checkstate` routinely exceeded it:
+  measured on staging, `le=10.0` held 14 of 24 observations and `+Inf` held all 24, so 10 requests
+  sat above the highest finite bucket. `histogram_quantile` cannot interpolate past that boundary,
+  so p99 read exactly 10.00s and `CashuMintLatencySLOBreach` understated every breach it fired on.
+  Alert and dashboard expressions are unchanged. The new `le="30.0"` bucket series is additive.
+
 ## [0.38.4] - 2026-09-22
 
 ### Security

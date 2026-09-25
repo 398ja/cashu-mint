@@ -9,9 +9,16 @@ import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
+import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.service.impl.RequestScopedProofLookupCache;
 
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,59 +42,129 @@ public class CrossMintCheckStateMerger {
     /**
      * Queries one mint for the state of the requested {@code Ys}. Named so the merge can be
      * tested without a vault behind {@link NUT07}.
+     *
+     * <p>The vault service is a parameter rather than something the query captures, because the
+     * merge hands every mint the same request-scoped lookup cache. See {@link #merge}.
      */
     @FunctionalInterface
     interface MintCheckStateQuery {
 
-        PostCheckStateResponse checkState(UUID mintId, PostCheckStateRequest request) throws CashuErrorException;
+        PostCheckStateResponse checkState(UUID mintId,
+                                          PostCheckStateRequest request,
+                                          ProofVaultService proofVaultService) throws CashuErrorException;
     }
 
     private final MintLoadService mintLoadService;
 
     private final MintCheckStateQuery mintCheckStateQuery;
 
+    private final ProofVaultService proofVaultService;
+
     public CrossMintCheckStateMerger(@NonNull MintLoadService mintLoadService) {
-        this(mintLoadService, NUT07::checkState);
+        this(mintLoadService, new DefaultProofVaultService());
+    }
+
+    public CrossMintCheckStateMerger(@NonNull MintLoadService mintLoadService,
+                                     @NonNull ProofVaultService proofVaultService) {
+        this(mintLoadService, proofVaultService, CrossMintCheckStateMerger::checkStateAtMint);
     }
 
     CrossMintCheckStateMerger(@NonNull MintLoadService mintLoadService,
                               @NonNull MintCheckStateQuery mintCheckStateQuery) {
+        this(mintLoadService, new DefaultProofVaultService(), mintCheckStateQuery);
+    }
+
+    CrossMintCheckStateMerger(@NonNull MintLoadService mintLoadService,
+                              @NonNull ProofVaultService proofVaultService,
+                              @NonNull MintCheckStateQuery mintCheckStateQuery) {
         this.mintLoadService = mintLoadService;
+        this.proofVaultService = proofVaultService;
         this.mintCheckStateQuery = mintCheckStateQuery;
     }
 
     /**
+     * Runs one mint's NUT-07 check against the supplied vault service, so the caller decides what
+     * the task reads through. The remaining collaborators are the process-wide ones {@link NUT07}'s
+     * own convenience overload would have created.
+     */
+    private static PostCheckStateResponse checkStateAtMint(UUID mintId,
+                                                          PostCheckStateRequest request,
+                                                          ProofVaultService proofVaultService)
+            throws CashuErrorException {
+        MintProtocolService mintProtocolService = MintProtocolServiceFactory.getInstance();
+        MintVaultService mintVaultService = new DefaultMintVaultService();
+        return NUT07.checkState(mintId, request, mintProtocolService, proofVaultService, mintVaultService);
+    }
+
+    /**
      * Checks every requested {@code Y} against all mints.
+     *
+     * <p><b>This method is the cache scope boundary.</b> The lookup cache is created here and
+     * referenced only by this stack frame, so it dies when the merge returns, which is once per
+     * {@code /v1/checkstate} request. That matters because a proof moves
+     * {@code UNSPENT -> PENDING -> SPENT}: a cache that survived into the next request could report
+     * a spent proof as spendable, so the fix for redundant reads must not become a double-spend
+     * window. Within one merge the reuse is sound, because the vault lookup is keyed on the curve
+     * point alone with no mint identifier, so the mints below are asking one question repeatedly
+     * and receiving one answer. Measured on staging: 20 distinct proofs cost 120 vault GETs over 20
+     * distinct keys, 6.0 per {@code Y}; this collapses that to 20.
      *
      * @param request the requested {@code Ys}
      * @return one state per requested {@code Y}, in request order
      * @throws CashuErrorException if a mint fails to answer
      */
     public PostCheckStateResponse merge(@NonNull PostCheckStateRequest request) throws CashuErrorException {
+        ProofVaultService lookupCache = new RequestScopedProofLookupCache(proofVaultService);
         Map<String, ProofState> statesByY = new HashMap<>();
         for (Mint mint : allMints()) {
-            mergeMintStates(statesByY, mint, request);
+            mergeMintStates(statesByY, mint, request, lookupCache);
         }
         return respondInRequestOrder(request, statesByY);
     }
 
+    /**
+     * The mints to ask, each one once.
+     *
+     * <p>Both generations are loaded because a proof can belong to a retired keyset and must still
+     * report its state (NUT-07 says nothing about the keyset being current). But
+     * {@code DBMintVault.load(boolean)} ignores its {@code archived} argument and answers every mint
+     * either way, so the two calls return the same mints and the naive union asked each one twice.
+     * That doubled the {@code CheckStateTask} count on every request.
+     *
+     * <p>De-duplicating by id rather than by object is deliberate: the two loads populate the same
+     * mint with <em>different</em> keysets, so the instances are not equal and neither is a superset
+     * of the other. This is safe only because {@link #mergeMintStates} uses nothing but
+     * {@code mint.getId()}: the keysets a mint carries here are never read. A future caller that
+     * needs the keysets must not reuse this list.
+     *
+     * <p>Fixing the vault to honour {@code archived} would not remove the need for this. Staging has
+     * three archived keysets hanging off non-archived mints, so filtering mints by their own flag
+     * makes archived keysets unreachable and breaks NUT-02 redemption. See cashu-vault#145.
+     */
     private List<Mint> allMints() throws CashuErrorException {
-        List<Mint> mints = new ArrayList<>();
-        addAll(mints, mintLoadService.load(false));
-        addAll(mints, mintLoadService.load(true));
-        return mints;
+        Map<String, Mint> mintsById = new LinkedHashMap<>();
+        putAll(mintsById, mintLoadService.load(false));
+        putAll(mintsById, mintLoadService.load(true));
+        return List.copyOf(mintsById.values());
     }
 
-    private static void addAll(List<Mint> target, List<Mint> loaded) {
-        if (loaded != null) {
-            target.addAll(loaded);
+    private static void putAll(Map<String, Mint> target, List<Mint> loaded) {
+        if (loaded == null) {
+            return;
+        }
+        for (Mint mint : loaded) {
+            if (mint != null && mint.getId() != null) {
+                target.putIfAbsent(mint.getId(), mint);
+            }
         }
     }
 
     private void mergeMintStates(Map<String, ProofState> statesByY,
                                  Mint mint,
-                                 PostCheckStateRequest request) throws CashuErrorException {
-        PostCheckStateResponse response = mintCheckStateQuery.checkState(UUID.fromString(mint.getId()), request);
+                                 PostCheckStateRequest request,
+                                 ProofVaultService lookupCache) throws CashuErrorException {
+        PostCheckStateResponse response =
+                mintCheckStateQuery.checkState(UUID.fromString(mint.getId()), request, lookupCache);
         if (response == null || response.getStates() == null) {
             return;
         }
