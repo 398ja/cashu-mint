@@ -6,6 +6,32 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Fixed
 
+- **`POST /v1/checkstate` read the vault six times per proof for the same key.** The endpoint is
+  served by `CrossMintCheckStateMerger`, which runs one `CheckStateTask` per mint the deployment
+  serves, and each task looks every requested `Y` up in the vault. The vault lookup behind
+  `retrieveProofByY` is keyed on the curve point alone with no mint identifier, so all six mints
+  asked the vault the identical question and received the identical answer. Measured on staging
+  with 20 genuinely distinct proofs: 120 vault GETs over 20 distinct keys, 6.0 GETs per `Y`, at
+  ~4ms per GET and 18-26ms per proof end to end. The round trips were the cost.
+
+  `merge(...)` now wraps the vault service in a `RequestScopedProofLookupCache` for the duration of
+  one request, so each distinct `Y` is read once: a measured 6x reduction, 120 GETs to 20. Misses
+  are cached alongside hits, because the common case is a proof the vault does not hold, where all
+  six lookups returned nothing.
+
+  The cache is deliberately not shared across requests. A proof moves
+  `UNSPENT -> PENDING -> SPENT`, so a cached `UNSPENT` outliving its request would report a spent
+  proof as spendable, turning a latency fix into a double-spend window. Its lifetime is the
+  `merge(...)` stack frame, with no static field, Spring scope, or `ThreadLocal` to leak. The
+  mutating swap and melt paths (`InvalidateProofsTask`, `SwapProofHold`) receive the vault bean
+  directly and cannot reach it, and the wrapper discards its snapshot on any write so it stays
+  substitutable for the service it decorates.
+
+  Lookup de-duplication within a single request falls out of the same change: 20 identical `Ys`
+  now cost one GET rather than 120. The response is still built per requested entry, because
+  NUT-07 requires one state per requested `Y` in request order, so a client sending a `Y` twice
+  still receives two entries.
+
 - **Request latency histogram ceiling raised from 10s to 30s.** The top finite bucket of
   `cashu_mint_requests_duration_seconds` was 10s while `/v1/checkstate` routinely exceeded it:
   measured on staging, `le=10.0` held 14 of 24 observations and `+Inf` held all 24, so 10 requests

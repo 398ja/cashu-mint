@@ -108,11 +108,24 @@ public class CashuController<T extends Secret> implements org.springframework.co
                            xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService) {
         this.nut06 = nut06;
         this.mintLoadService = mintLoadService;
-        this.checkStateMerger = new CrossMintCheckStateMerger(mintLoadService);
+        this.checkStateMerger = checkStateMergerOver(mintLoadService, proofVaultService);
         this.signatureVaultService = signatureVaultService;
         this.eventPublisher = eventPublisher;
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
+    }
+
+    /**
+     * Builds the NUT-07 merger, falling back to the merger's own vault service when no bean was
+     * supplied. Tests that exercise unrelated endpoints construct this controller with a null vault,
+     * so the checkstate collaborator must not be what makes them fail.
+     */
+    private static CrossMintCheckStateMerger checkStateMergerOver(
+            MintLoadService mintLoadService,
+            @Nullable xyz.tcheeric.cashu.mint.proto.service.ProofVaultService proofVaultService) {
+        return proofVaultService == null
+                ? new CrossMintCheckStateMerger(mintLoadService)
+                : new CrossMintCheckStateMerger(mintLoadService, proofVaultService);
     }
 
     // Keyset generation is an administrative operation and not part of the public spec.
