@@ -46,7 +46,15 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
      */
     private static final Duration MINIMUM_EXPECTED_DURATION = Duration.ofMillis(1);
 
-    private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(10);
+    /**
+     * The ceiling is 30s because a 10s ceiling made the real tail unmeasurable. Measured on
+     * staging for {@code /v1/checkstate}: {@code le=10.0} held 14 of 24 observations while
+     * {@code +Inf} held all 24, so 10 requests landed above the top finite bucket and
+     * {@code histogram_quantile} could only ever answer 10.00s for p99. Anything above the top
+     * finite bucket is interpolated against {@code +Inf}, so the latency SLO alert understated
+     * every breach it fired on.
+     */
+    private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(30);
 
     // Patterns for normalizing variable path segments
     // Pattern to match keyset endpoints: /v1/keys/{keyset_id} or /v1/keys/keyset/{keyset_id}
