@@ -199,15 +199,38 @@ class MeltSagaReconcilerIT extends AbstractMintDurableIT {
         // What the sweep must guarantee is that PROOFS_HELD -> FAILED happened
         // and that the sweep is the actor who did it. That is true regardless
         // of what else lands on the timeline, so this states it directly.
-        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-stale-held"));
-        assertThat(timeline)
-                .as("the TTL sweep must record its own PROOFS_HELD -> FAILED transition; "
-                        + "timeline=%s", describe(timeline))
-                .anySatisfy(entry -> {
-                    assertThat(entry.getActor()).isEqualTo("sweep");
-                    assertThat(entry.getFromState()).isEqualTo(MeltSagaState.PROOFS_HELD);
-                    assertThat(entry.getToState()).isEqualTo(MeltSagaState.FAILED);
+        // Awaited, not read once.
+        //
+        // sweepStaleProofsHeld is not transactional, so casState and recordTransition commit
+        // separately. This test therefore has a real window where the saga already reads FAILED (the
+        // assertion above) and the sweep's transition row is not yet visible to this connection. A
+        // single read lands inside that window under suite load, which is why the failure only ever
+        // appeared in a full-suite run and never in isolation.
+        //
+        // Four structural explanations were tried and disproved before this one: the duplicate-key
+        // race (#478, a real bug but not this), disabling the scheduler (made it worse), per-method
+        // saga ids, and cleaning up other tests' leaked PROOFS_HELD sagas. None changed the rate,
+        // which is what pointed at visibility rather than logic. See #480.
+        //
+        // The sibling test above already awaits for the same reason.
+        Awaitility.await().atMost(5, TimeUnit.SECONDS)
+                .pollInterval(100, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> {
+                    List<MeltSagaTransitionEntity> timeline =
+                            transitions.findTimeline(sagaId("saga-stale-held"));
+                    assertThat(timeline)
+                            .as("the TTL sweep must record its own PROOFS_HELD -> FAILED transition; "
+                                    + "timeline=%s", describe(timeline))
+                            .anySatisfy(entry -> {
+                                assertThat(entry.getActor()).isEqualTo("sweep");
+                                assertThat(entry.getFromState()).isEqualTo(MeltSagaState.PROOFS_HELD);
+                                assertThat(entry.getToState()).isEqualTo(MeltSagaState.FAILED);
+                            });
                 });
+
+        // Re-read after awaiting, so the terminal-state assertion below sees the same settled timeline
+        // the await just confirmed rather than a snapshot taken before it.
+        List<MeltSagaTransitionEntity> timeline = transitions.findTimeline(sagaId("saga-stale-held"));
 
         // And nothing may move it back out of FAILED afterwards: FAILED is
         // terminal, so a later transition away from it would mean the sweep's
