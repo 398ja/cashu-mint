@@ -74,7 +74,7 @@ class CrossMintCheckStateMergerTest {
     // The most authoritative state wins, so a proof spent anywhere is never reported as merely pending.
     void prefersSpentOverPendingOverUnspent() throws CashuErrorException {
         MintLoadService mintLoadService = mintLoadService(List.of(new Mint(activeMintId)), List.of(new Mint(archivedMintId)));
-        CrossMintCheckStateMerger merger = new CrossMintCheckStateMerger(mintLoadService, (mintId, request) ->
+        CrossMintCheckStateMerger merger = new CrossMintCheckStateMerger(mintLoadService, (mintId, request, vault) ->
                 responseOf(request, activeMintId.equals(mintId.toString())
                         ? Map.of(Y_SPENT_AT_ARCHIVED_MINT, state(NUT07.PENDING, null))
                         : Map.of(Y_SPENT_AT_ARCHIVED_MINT, state(NUT07.SPENT, "witness"))));
@@ -88,7 +88,7 @@ class CrossMintCheckStateMergerTest {
     private CrossMintCheckStateMerger merger() {
         MintLoadService mintLoadService =
                 mintLoadService(List.of(new Mint(activeMintId)), List.of(new Mint(archivedMintId)));
-        return new CrossMintCheckStateMerger(mintLoadService, (mintId, request) -> {
+        return new CrossMintCheckStateMerger(mintLoadService, (mintId, request, vault) -> {
             Map<String, PostCheckStateResponse.ResponseState> known = new LinkedHashMap<>();
             if (activeMintId.equals(mintId.toString())) {
                 known.put(Y_UNSPENT_AT_ACTIVE_MINT, state(NUT07.UNSPENT, null));
