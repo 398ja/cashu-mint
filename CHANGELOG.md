@@ -4,6 +4,10 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.9] - 2026-09-25
+
+Follow-up to 0.38.8, which fixed the keyset multiplier per task rather than per request. See #473.
+
 ### Fixed
 
 - **Keyset loads were collapsed per task, not per request.** 0.38.8 added `KeySetDirectory` so each
