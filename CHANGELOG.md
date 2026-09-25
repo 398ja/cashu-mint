@@ -23,6 +23,22 @@ All notable changes to the Cashu Mint will be documented in this file.
   re-derives the sequence. Retrying is safe because the timeline is append-only and the row carries no
   identity of its own. An append that never wins throws rather than reporting success, so a caller
   about to move money is never told a record exists when it does not. See #478.
+## [0.38.11] - 2026-09-25
+
+Picks up the fix for the swap half of #473, which lives in `cashu-vault` rather than here.
+
+`imani-bom` 0.1.98 -> 0.1.111, bringing `cashu-vault` 0.12.5 -> 0.13.0. Loading a keyset now costs one
+call rather than one per key: the batch endpoint carries the derived public key, so `DBKeySetVault`
+no longer fetches a private key per key only to derive the public one and discard it
+(cashu-vault#146).
+
+**This is the release that should finally move swap cost, and that is not yet proven.** Two attempts
+from this side (0.38.8 and 0.38.9) both passed their unit tests and measured as no change on staging,
+because the round trips were never in this repo. #473 stays open until a re-measure with the anchored
+harness says otherwise, and no performance number is claimed here.
+
+Operationally: `cashu-vault` 0.13.0 carries a schema migration (`V12`), so this is a coordinated
+deploy with the vault service rather than a drop-in mint upgrade.
 
 ## [0.38.10] - 2026-09-25
 
