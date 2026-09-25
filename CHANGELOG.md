@@ -102,6 +102,23 @@ cashu-vault#146 and #473 stays open for it.
   sat above the highest finite bucket. `histogram_quantile` cannot interpolate past that boundary,
   so p99 read exactly 10.00s and `CashuMintLatencySLOBreach` understated every breach it fired on.
   Alert and dashboard expressions are unchanged. The new `le="30.0"` bucket series is additive.
+- **`POST /v1/swap` resolved the mint's keysets once per input and per output instead of once
+  per request.** `ValidateTransactionTask` asks the keyset directory one question per input and
+  two per output, and every question was a full `MintLoadService` load. A swap of n inputs and
+  n outputs therefore cost 5n loads, reproduced as 5, 10 and 15 loads for n = 1, 2 and 3. Each
+  load is O(keys) HTTP calls to the vault, because `DBKeySetVault` resolves each key's private
+  material individually, which is how one swap reached ~98 vault key GETs with the same keyset
+  refetched 5-8 times and p99 latency of 6.29s that did not track signature count.
+
+  `KeySetDirectory.of(MintLoadService)` now reads the active and archived generations at most
+  once each and answers from memory, so a swap costs at most 2 loads regardless of size. The
+  IOU rejection in `SwapTask` indexes the IOU keyset ids once rather than rescanning the mint's
+  keysets per item. Rejection behaviour is unchanged: IOU inputs and IOU outputs are still
+  refused with `iou_not_swappable`.
+
+  The mechanism was not the originally suspected one. `Mint.getKeySets()` is a plain field
+  accessor and performs no I/O; the repeated loads came from the directory behind
+  `ValidateTransactionTask`.
 
 ## [0.38.4] - 2026-09-22
 
