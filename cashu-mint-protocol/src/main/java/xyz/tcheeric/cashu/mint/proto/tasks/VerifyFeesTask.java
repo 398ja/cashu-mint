@@ -8,8 +8,6 @@ import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
-import xyz.tcheeric.cashu.mint.proto.nut.MintKeySetResolver;
-import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 
 /**
  * The single NUT-02 balance equation: {@code sum(inputs) - fees == sum(outputs)}.
@@ -23,7 +21,14 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 public class VerifyFeesTask<T extends Secret> extends InstrumentedTask<Void> {
 
     private final PostSwapRequest<T> request;
-    private final MintLoadService mintLoadService;
+
+    /**
+     * The request's keyset snapshot, supplied by the caller rather than built here.
+     *
+     * <p>Building one per task is what made a swap read the keyset generations once for the
+     * validation rules and again for the fee arithmetic.
+     */
+    private final KeySetDirectory keySets;
 
     @Override
     protected Void doExecute() throws CashuErrorException {
@@ -35,7 +40,7 @@ public class VerifyFeesTask<T extends Secret> extends InstrumentedTask<Void> {
         // NUT-02 keeps inactive keysets spendable, so a swap may mix inputs from several keysets.
         // Pricing them all from the first input's keyset mischarges every input issued under any
         // other keyset, in either direction.
-        var fees = request.getFees(new MintKeySetResolver(mintLoadService));
+        var fees = request.getFees(keySets);
 
         // Summed as long, not int. Amounts are ints and a swap may carry up to MAX_PROOFS inputs
         // and MAX_BLINDED_MESSAGES outputs, so an int accumulator can wrap: an attacker choosing

@@ -132,6 +132,22 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
 
             MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
+            // This is the keyset snapshot scope boundary for a swap. It is created once here and
+            // handed to every task below that needs keysets, so one HTTP request reads each
+            // generation at most once. The alternative, each task calling
+            // KeySetDirectory.of(mintLoadService) for itself, is what left staging at a measured
+            // 22.5 keyset loads and 87 vault key GETs per swap after the per-task directory
+            // landed: correct in isolation, still repeated per task.
+            //
+            // The reference dies with this stack frame, which is entered once per POST /v1/swap,
+            // so a keyset rotation is invisible for at most one request. That is safe because it
+            // is also required: the unit rules, the archived-keyset rule and the fee arithmetic
+            // must judge every input and output of this swap against one set of keysets, and a
+            // rotation landing mid-swap would otherwise let them disagree. Nothing static, no
+            // ThreadLocal and no Spring scope, so a pooled handler thread carries nothing into
+            // the next request.
+            KeySetDirectory keySets = KeySetDirectory.of(mintLoadService);
+
             // Validate no mixed voucher/regular proofs before verification
             boolean isVoucherSwap = validateNoMixedProofTypes(proofsToSwap);
 
@@ -141,7 +157,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             }
 
             new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
-                    KeySetDirectory.of(mintLoadService), signatureVaultService).execute();
+                    keySets, signatureVaultService).execute();
 
             new VerifyProofsTask<>(mint, request, service).execute();
 
@@ -149,7 +165,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             // leaves no blind signature behind for NUT-09 restore to hand back. Voucher
             // swaps carry no fees and were balanced above.
             if (!isVoucherSwap) {
-                new VerifyFeesTask<>(request, mintLoadService).execute();
+                new VerifyFeesTask<>(request, keySets).execute();
             }
 
             return signAgainstHeldInputs(mint, proofsToSwap, service);

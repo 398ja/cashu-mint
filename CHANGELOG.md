@@ -4,6 +4,33 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Keyset loads were collapsed per task, not per request.** 0.38.8 added `KeySetDirectory` so each
+  generation is read at most once per directory, and its unit test showed 5/10/15 loads collapsing
+  to 2. Staging still measured 22.5 keyset loads and 87 vault key GETs per swap over 8 real swaps,
+  because every task that needed keysets built a directory of its own: `SwapTask` for the
+  validation rules, a separate `MintKeySetResolver` behind `VerifyFeesTask` for NUT-02 fee pricing,
+  and the same pair again on the melt path plus one `MintLoadService.keySet(id)` per input for the
+  IOU check, which is itself `keySets(false) + keySets(true)`.
+
+  `SwapTask.doExecute` and `MeltTask.doExecute` now each build one `KeySetDirectory` and pass it
+  explicitly to every task and check that needs keysets, following the `RequestScopedProofLookupCache`
+  pattern that `CrossMintCheckStateMerger.merge` uses. `KeySetDirectory` also implements the NUT-02
+  `KeySetResolver`, so fee arithmetic reads the same snapshot instead of building a second one, and
+  `MintKeySetResolver` is removed as the redundant duplicate it became.
+
+  The lifetime boundary is the `doExecute` stack frame, entered once per HTTP request, with no
+  static field, Spring scope or `ThreadLocal`, so a keyset rotation is invisible for at most one
+  request. Within one request sharing is also what correctness wants: the unit rules, the
+  archived-keyset rule, the IOU check and the fee arithmetic must judge every input and output
+  against one consistent set of keysets.
+
+  Measured in tests with `VerifyFeesTask` left running rather than stubbed: 3 generation loads per
+  swap before, 2 after, independent of swap size. Private key material is deliberately untouched;
+  `DBKeySetVault.load` still performs one HashiCorp read per key, because extending the in-memory
+  lifetime of secrets is a security decision outside the scope of a load-count fix.
+
 ## [0.38.8] - 2026-09-25
 
 Performance release. Both `/v1/checkstate` and `/v1/swap` were dominated by

@@ -29,7 +29,6 @@ import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
-import xyz.tcheeric.cashu.mint.proto.nut.MintKeySetResolver;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -189,11 +188,27 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
+            // This is the keyset snapshot scope boundary for a melt, matching SwapTask. One
+            // directory is created here and passed to everything below that needs keysets: the
+            // shared protocol validation, the per-proof IOU check, and the NUT-02 fee reserve.
+            // Each of those used to read the generations for itself, and the IOU check did so
+            // once per input, because MintLoadService.keySet(id) is keySets(false) + keySets(true)
+            // behind the scenes. That is the per-task repetition that kept staging at a measured
+            // 22.5 keyset loads per request after the per-task directory landed.
+            //
+            // The reference dies with this stack frame, entered once per POST /v1/melt, so a
+            // keyset rotation is invisible for at most one request. That is also what correctness
+            // wants: every input of one melt must be priced and judged against one set of
+            // keysets, and a rotation landing mid-melt would otherwise let the fee arithmetic and
+            // the IOU check disagree about the same proof. No static field, no ThreadLocal, no
+            // Spring scope, so nothing survives into the next request on a pooled thread.
+            KeySetDirectory keySets = KeySetDirectory.of(mintLoadService);
+
             // NUT-03/05 protocol validation, shared with swap and mint, before anything is
             // signed or the invoice is paid. The NUT-08 change outputs are validated with the
             // inputs so a mixed-unit or replayed change set cannot reach the signing step.
             new ValidateTransactionTask<>(proofsToMelt, postMeltRequest.getOutputs(),
-                    KeySetDirectory.of(mintLoadService), signatureVaultService).execute();
+                    keySets, signatureVaultService).execute();
 
             // NUT-11 SIG_ALL signs one message over the whole melt, and that message ends with the
             // quote id. Binding the signature to the quote it pays is what stops a witness
@@ -217,7 +232,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
 
                 // Dalia Phase 9: zero-value IOU proofs cannot be melted (cashed out). Checked per
                 // proof, so a mixed IOU+value melt cannot slip an IOU proof past a first-proof check.
-                var proofKeySet = mintLoadService.keySet(proof.getKeySetId());
+                var proofKeySet = keySets.find(proof.getKeySetId());
                 if (IouKeysets.isIouKeyset(proofKeySet)) {
                     throw new CashuErrorException(CashuErrorCode.iou_not_meltable, "Zero-value IOU tokens cannot be melted.");
                 }
@@ -244,7 +259,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             var request = gateway.getRequest(quoteId);
             ExactFeeReserveResolver.Resolved feeReserve =
                     ExactFeeReserveResolver.resolve(gateway, quoteId, postMeltRequest,
-                            new MintKeySetResolver(mintLoadService));
+                            keySets);
             long proofSum = proofsToMelt.stream()
                     .mapToLong(Proof::getAmount)
                     .sum();
