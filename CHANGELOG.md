@@ -8,14 +8,23 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 One keyset snapshot per swap request (#476), plus the melt saga timeline append fix (#478).
 
-The keyset change was held back from 0.38.11 because it had no measured performance gain and the
-per-key round trip in cashu-vault#146 had not landed yet. With 0.13.0 live, the repeat it addresses was
-re-measured and is still there: **117 `GET /vault/keyset/id/...` for 1 distinct keyset id across 6
-swaps, so 19.5 redundant fetches per swap of the same keyset.** Vault 0.13.0 fixed the per-**key**
-fan-out and left the per-**keyset** one untouched; they are different problems.
+**The keyset change removes no measured round trips, and this entry originally claimed otherwise.**
+It was held back from 0.38.11 for having no measured gain. Before merging, the repeat it targets was
+re-measured on 0.38.11 at 19.5 redundant fetches per swap of the same keyset, which read as
+justification. Measured again after deploying 0.38.12: **21.5, 21.5, 19.5 per swap across three
+isolated runs, indistinguishable from the 19.5 baseline.**
 
-Still no latency claim. Removing roughly 51 round trips per swap in 0.38.11 moved swap p99 by 3ms, so
-this is a correctness and clarity change that also removes a real repeat.
+So the fan-out is real and is somewhere this change does not reach, exactly as happened twice before
+in #473. `KeySetDirectory` shares a snapshot across the tasks of a request; the repeated
+`GET /vault/keyset/id/...` evidently originates below that, inside a single directory load.
+
+What this release does deliver is the design change on its own terms: keysets resolved once per swap
+rather than once per input and twice per output, one snapshot shared across the tasks of a request so
+fee pricing cannot read a second one, and `MintKeySetResolver` deleted as the duplicate it became. The
+snapshot lifetime is the `doExecute` stack frame, so a keyset rotation is invisible for at most one
+request.
+
+No latency claim either. Removing roughly 51 round trips per swap in 0.38.11 moved swap p99 by 3ms.
 
 ### Fixed
 
