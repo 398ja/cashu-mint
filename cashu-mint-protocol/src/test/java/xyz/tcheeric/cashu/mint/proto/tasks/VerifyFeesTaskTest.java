@@ -45,6 +45,14 @@ public class VerifyFeesTaskTest {
     }
 
     /**
+     * The keyset snapshot the task is now handed, built over a stubbed load service so the task
+     * is exercised through the same directory its caller shares with the other tasks.
+     */
+    private KeySetDirectory keySetsOf(MintLoadService mintLoadService) {
+        return KeySetDirectory.of(mintLoadService);
+    }
+
+    /**
      * Checks that the balance equation passes when inputs, fees and requested outputs align.
      * The equation is read from the request, because it is checked before anything is signed.
      */
@@ -61,9 +69,12 @@ public class VerifyFeesTaskTest {
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(output));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
+        // The directory reads generations, not the flattened list, so stub what it calls.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(keySet));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
-        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, mintLoadService);
+        VerifyFeesTask<RandomStringSecret> task =
+                new VerifyFeesTask<>(request, keySetsOf(mintLoadService));
         assertDoesNotThrow(task::execute);
     }
 
@@ -83,9 +94,12 @@ public class VerifyFeesTaskTest {
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(output));
 
         KeySet keySet = KeySet.builder().id("ks1").unit("sat").partPerThousand(0).build();
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
+        // The directory reads generations, not the flattened list, so stub what it calls.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(keySet));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
-        VerifyFeesTask<RandomStringSecret> task = new VerifyFeesTask<>(request, mintLoadService);
+        VerifyFeesTask<RandomStringSecret> task =
+                new VerifyFeesTask<>(request, keySetsOf(mintLoadService));
         assertThrows(CashuErrorException.class, task::execute);
     }
 }

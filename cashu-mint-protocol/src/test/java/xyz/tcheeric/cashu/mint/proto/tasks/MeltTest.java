@@ -123,8 +123,10 @@ public class MeltTest {
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
-        Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        // The melt now reads its keysets through one KeySetDirectory, which asks for the active and
+        // archived generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -185,8 +187,10 @@ public class MeltTest {
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         Mockito.when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
-        Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
+        // The melt now reads its keysets through one KeySetDirectory, which asks for the active and
+        // archived generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
         MeltTask task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -234,10 +238,11 @@ public class MeltTest {
         Mint mint = new Mint(UUID.randomUUID().toString());
         mint.addKeySet(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
         Mockito.when(mintLoadService.load(Mockito.any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
-        Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
-        // Input fees are priced per input from its own keyset, so the resolver reads the list.
-        Mockito.when(mintLoadService.keySets()).thenReturn(java.util.List.of(
+        // Input fees are priced per input from its own keyset, and the shared KeySetDirectory reads
+        // the two generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(java.util.List.of(
                 KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(java.util.List.of());
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -280,10 +285,11 @@ public class MeltTest {
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
-        Mockito.when(mintLoadService.keySet(anyString())).thenReturn(KeySet.builder().id("004cf8cba2f93266").unit("sat").build());
-        // Input fees are priced per input from its own keyset, so the resolver reads the list.
-        Mockito.when(mintLoadService.keySets()).thenReturn(java.util.List.of(
+        // Input fees are priced per input from its own keyset, and the shared KeySetDirectory reads
+        // the two generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(java.util.List.of(
                 KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(java.util.List.of());
 
         MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
 
@@ -361,9 +367,10 @@ public class MeltTest {
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
-        Mockito.when(mintLoadService.keySet(Mockito.anyString())).thenReturn(keySet);
-        // Input fees are priced per input from its own keyset, so the resolver reads the list.
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
+        // Input fees are priced per input from its own keyset, and the shared KeySetDirectory reads
+        // the two generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(keySet));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
         Mint mint = new Mint(UUID.randomUUID().toString());
         mint.addKeySet(keySet);
@@ -493,9 +500,10 @@ public class MeltTest {
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
-        Mockito.when(mintLoadService.keySet(Mockito.anyString())).thenReturn(keySet);
-        // Input fees are priced per input from its own keyset, so the resolver reads the list.
-        Mockito.when(mintLoadService.keySets()).thenReturn(List.of(keySet));
+        // Input fees are priced per input from its own keyset, and the shared KeySetDirectory reads
+        // the two generations rather than the flattened keySets() convenience view.
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(List.of(keySet));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(List.of());
 
         Mint mint = new Mint(UUID.randomUUID().toString());
         mint.addKeySet(keySet);
