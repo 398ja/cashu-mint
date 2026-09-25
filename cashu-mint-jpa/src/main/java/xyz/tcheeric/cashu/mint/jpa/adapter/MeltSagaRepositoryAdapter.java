@@ -1,8 +1,10 @@
 package xyz.tcheeric.cashu.mint.jpa.adapter;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.MeltSagaTransitionEntity;
@@ -22,11 +24,45 @@ import java.util.Optional;
  */
 @Component
 @ConditionalOnProperty(prefix = "cashu.mint.jpa", name = "enabled", havingValue = "true")
-@RequiredArgsConstructor
 public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
 
     private final MeltSagaJpaRepository sagas;
     private final MeltSagaTransitionJpaRepository transitions;
+
+    /**
+     * This adapter through its own Spring proxy, so {@code REQUIRES_NEW} on
+     * {@link #appendAtNextSequence} is honoured.
+     *
+     * <p>Calling it as {@code this.appendAtNextSequence(...)} would bypass the proxy entirely and the
+     * propagation would be silently ignored: every retry would then run in the caller's transaction,
+     * which a constraint violation has already marked rollback-only, so the retry could not commit and
+     * the fix would look right while doing nothing.
+     *
+     * <p>{@code @Lazy} because the reference is to the bean being constructed.
+     */
+    private final MeltSagaRepositoryAdapter self;
+
+    public MeltSagaRepositoryAdapter(MeltSagaJpaRepository sagas,
+                                     MeltSagaTransitionJpaRepository transitions,
+                                     @Lazy MeltSagaRepositoryAdapter self) {
+        this.sagas = sagas;
+        this.transitions = transitions;
+        this.self = self;
+    }
+
+    /**
+     * How many times to re-derive the sequence before giving up.
+     *
+     * <p>Each conflict means a competing writer committed, so an attempt only fails after the timeline
+     * genuinely moved forward. The bound therefore has to cover the number of writers that can contend
+     * at once, not just "a couple of retries": with 8 simultaneous appends, 3 attempts was measured to
+     * exhaust itself and throw, because a loser can lose repeatedly while the others drain.
+     *
+     * <p>16 covers the contention that exists here (one request thread and one scheduled tick per
+     * saga, plus the admin endpoint) with a wide margin, and stays bounded so that a pathologically
+     * hot saga cannot hold a connection indefinitely.
+     */
+    private static final int SEQUENCE_CONFLICT_ATTEMPTS = 16;
 
     @Override
     public Optional<MeltSaga> findById(String meltSagaId) {
@@ -61,13 +97,62 @@ public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
         return sagas.casState(meltSagaId, expected, target);
     }
 
+    /**
+     * Appends a transition, retrying when another writer claims the same sequence number.
+     *
+     * <p>The sequence is derived with a read (`MAX(seq)`) followed by a write, and
+     * {@code (melt_saga_id, seq)} is the composite primary key, so two writers that read the same
+     * maximum build the same key and one of them loses its row. That is reachable in production
+     * rather than only under test: a melt in flight writes transitions from the request thread while
+     * {@code MeltSagaReconciler} writes them from its scheduled tick.
+     *
+     * <p>Losing one is worse than it sounds. {@code sweepStaleProofsHeld} deliberately records the
+     * transition <em>before</em> refunding, because a refund with no audit row cannot be reconstructed
+     * (#464). A silently dropped append defeats exactly that ordering.
+     *
+     * <p>Retrying is safe here specifically because the timeline is append-only and the row carries no
+     * identity of its own: re-reading the maximum and inserting again produces the intended record at
+     * the next free sequence. A caller cannot observe the difference, because the returned entity is
+     * the one that committed.
+     *
+     * <p>Each attempt runs in its own transaction. A constraint violation marks a transaction
+     * rollback-only, so retrying inside the failed one would fail again on commit no matter what the
+     * insert did.
+     */
     @Override
-    @Transactional("mintTransactionManager")
     public MeltSagaTransition recordTransition(String meltSagaId,
                                                MeltSagaState fromState,
                                                MeltSagaState toState,
                                                String reason,
                                                String actor) {
+        DataIntegrityViolationException lastConflict = null;
+        for (int attempt = 1; attempt <= SEQUENCE_CONFLICT_ATTEMPTS; attempt++) {
+            try {
+                return self.appendAtNextSequence(meltSagaId, fromState, toState, reason, actor);
+            } catch (DataIntegrityViolationException conflict) {
+                lastConflict = conflict;
+            }
+        }
+        // Surfaced rather than swallowed. A caller that is about to move money on the strength of
+        // this record must not be told the record exists when it does not.
+        throw new IllegalStateException(
+                "could not append a melt saga transition for " + meltSagaId + " after "
+                        + SEQUENCE_CONFLICT_ATTEMPTS + " attempts: the timeline sequence stayed "
+                        + "contended", lastConflict);
+    }
+
+    /**
+     * One attempt: read the current maximum sequence and insert at the next one.
+     *
+     * <p>{@code REQUIRES_NEW} so a failed attempt's rollback-only marking dies with its own
+     * transaction instead of poisoning the retry or the caller.
+     */
+    @Transactional(value = "mintTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public MeltSagaTransition appendAtNextSequence(String meltSagaId,
+                                                   MeltSagaState fromState,
+                                                   MeltSagaState toState,
+                                                   String reason,
+                                                   String actor) {
         int nextSeq = transitions.maxSeq(meltSagaId) + 1;
         MeltSagaTransitionEntity entry = new MeltSagaTransitionEntity();
         entry.setMeltSagaId(meltSagaId);
@@ -76,7 +161,9 @@ public class MeltSagaRepositoryAdapter implements MeltSagaRepository {
         entry.setToState(toState);
         entry.setReason(reason);
         entry.setActor(actor == null ? "system" : actor);
-        return transitions.save(entry);
+        // saveAndFlush, not save: save can defer the INSERT to commit, which raises the conflict
+        // outside this method where the retry cannot see it.
+        return transitions.saveAndFlush(entry);
     }
 
     @Override

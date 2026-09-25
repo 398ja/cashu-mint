@@ -4,6 +4,26 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A concurrent melt saga timeline append could be silently lost.** `recordTransition` derived its
+  sequence number with a read of `MAX(seq)` followed by an insert, and `(melt_saga_id, seq)` is the
+  composite primary key, so two writers that read the same maximum built the same key and one insert
+  was rejected. Reachable in production rather than only under test: a melt in flight appends from the
+  request thread while `MeltSagaReconciler` appends from its scheduled tick, and 16 call sites write
+  transitions.
+
+  The consequence is worse than a missing log line. `sweepStaleProofsHeld` deliberately records the
+  transition **before** refunding, because a refund with no audit row cannot be reconstructed (#464).
+  A dropped append defeats exactly that ordering, leaving proofs returned to a wallet with nothing
+  saying why.
+
+  Each attempt now runs in its own transaction (`REQUIRES_NEW` through the bean's own proxy, since a
+  constraint violation marks a transaction rollback-only and an in-place retry could never commit) and
+  re-derives the sequence. Retrying is safe because the timeline is append-only and the row carries no
+  identity of its own. An append that never wins throws rather than reporting success, so a caller
+  about to move money is never told a record exists when it does not. See #478.
+
 ## [0.38.10] - 2026-09-25
 
 Performance release for `POST /v1/checkstate`, which was dominated by redundant sequential HTTP round
