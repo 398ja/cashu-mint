@@ -4,6 +4,20 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.10] - 2026-09-25
+
+Performance release for `POST /v1/checkstate`, which was dominated by redundant sequential HTTP round
+trips to the vault rather than by cryptography. See #473 for the profiling.
+
+Confirmed on staging after deploy: 1.0 vault GET per proof at n=1, 5, 20 and 50, over 16 consecutive
+measurements with no anomalies.
+
+The swap half of #473 is deliberately NOT in this release. Two attempts at it
+(`KeySetDirectory`, then sharing one directory per request) both passed their unit tests and both
+measured as no change on staging, because the round trips happen one layer below what those changes
+control: `DBKeySetVault` issues one HTTP call per key inside a single generation load. That is
+cashu-vault#146 and #473 stays open for it.
+
 ### Fixed
 
 - **`POST /v1/checkstate` read the vault six times per proof for the same key.** The endpoint is
