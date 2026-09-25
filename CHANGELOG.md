@@ -4,6 +4,29 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.38.13] - 2026-09-25
+
+### Changed
+
+- **`imani-bom` 0.1.111 -> 0.1.112, picking up `cashu-vault` 0.14.0: swap median drops from 1304ms
+  to 484ms.** The vault's `ProofEntity.mint` was `@ManyToOne(cascade = CascadeType.ALL)` and
+  `MintEntity.proofs` cascaded back, so binding proofs to a hold loaded every proof the mint had ever
+  issued, once per inserted proof. `insertOrClaim` went from **863ms to 34ms median**, measured on
+  staging at 12,845 proof rows with the jar hash verified inside the running container.
+
+  **This is the change that closes cashu-mint#473's swap half.** That work cut swap key lookups from
+  74.4 to 23.2 per swap and moved swap p99 by 3ms, because ~51 round trips at ~3ms each were being
+  removed from a ~900ms fixed cost they were never part of. The checkstate half was real and remains
+  verified at 1.0 GET/proof.
+
+  Two correctness faults came from the same cascade and are also gone: it bumped `MintEntity`'s
+  `@Version` on every proof write, so concurrent swaps raced the parent row and the vault returned
+  409s (**52 optimistic-locking failures in 24h**), and `CascadeType.ALL` on `KeySetEntity.mint`
+  included `REMOVE`, so storing a key set could attempt to delete its mint (**16 foreign key
+  violations on `t_mint`**).
+
+  No schema migration. See cashu-vault#150.
+
 ## [0.38.12] - 2026-09-25
 
 One keyset snapshot per swap request (#476), plus the melt saga timeline append fix (#478).
