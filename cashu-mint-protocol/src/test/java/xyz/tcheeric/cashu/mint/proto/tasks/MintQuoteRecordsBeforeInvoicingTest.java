@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
+import xyz.tcheeric.cashu.mint.proto.ports.MintQuote.LifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
@@ -19,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -121,5 +123,66 @@ class MintQuoteRecordsBeforeInvoicingTest {
         ArgumentCaptor<MintQuote> saved = ArgumentCaptor.forClass(MintQuote.class);
         verify(repository, Mockito.times(2)).save(saved.capture());
         assertThat(saved.getAllValues().get(1).quoteId()).isEqualTo("gateway-id");
+    }
+
+    // The fallback leaves the row written under the mint's id behind; it is marked FAILED so it
+    // does not read as an open quote, and the gateway's row is left alone.
+    @Test
+    void theFallbackAbandonsTheRowWrittenUnderTheMintsId() throws CashuErrorException {
+        when(gateway.createMintQuote(anyString(), anyInt(), isNull()))
+                .thenThrow(new UnsupportedOperationException("cannot take a caller-supplied id"));
+        when(gateway.createMintQuote(anyInt(), isNull())).thenReturn("gateway-id");
+
+        quote();
+
+        ArgumentCaptor<MintQuote> saved = ArgumentCaptor.forClass(MintQuote.class);
+        verify(repository, Mockito.times(2)).save(saved.capture());
+        String mintsId = saved.getAllValues().get(0).quoteId();
+        verify(repository).casLifecycle(mintsId, LifecycleState.UNPAID, LifecycleState.FAILED);
+        verify(repository, never()).casLifecycle(eq("gateway-id"), any(), any());
+    }
+
+    // An invoice that fails leaves a row nobody can pay; it is marked FAILED and the gateway's
+    // error still reaches the caller.
+    @Test
+    void aFailedInvoiceAbandonsItsRow() {
+        when(gateway.createMintQuote(anyString(), anyInt(), isNull()))
+                .thenThrow(new IllegalStateException("phoenixd unreachable"));
+
+        assertThatThrownBy(this::quote).isInstanceOf(IllegalStateException.class);
+
+        ArgumentCaptor<MintQuote> saved = ArgumentCaptor.forClass(MintQuote.class);
+        verify(repository).save(saved.capture());
+        verify(repository).casLifecycle(saved.getValue().quoteId(), LifecycleState.UNPAID, LifecycleState.FAILED);
+    }
+
+    // A gateway that changes the id leaves the recorded row naming no invoice; it is marked FAILED.
+    @Test
+    void aChangedIdAbandonsTheRecordedRow() {
+        when(gateway.createMintQuote(anyString(), anyInt(), isNull())).thenReturn("gateway-chosen");
+
+        assertThatThrownBy(this::quote).isInstanceOf(CashuErrorException.class);
+
+        verify(repository).casLifecycle(anyString(), eq(LifecycleState.UNPAID), eq(LifecycleState.FAILED));
+    }
+
+    // Abandoning is best effort: if marking the row fails, the caller still sees the original
+    // gateway error, not the repository's.
+    @Test
+    void aFailedAbandonDoesNotMaskTheInvoiceError() {
+        when(gateway.createMintQuote(anyString(), anyInt(), isNull()))
+                .thenThrow(new IllegalStateException("phoenixd unreachable"));
+        when(repository.casLifecycle(anyString(), any(), any()))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        assertThatThrownBy(this::quote).hasMessage("phoenixd unreachable");
+    }
+
+    // A quote that succeeds is never abandoned.
+    @Test
+    void aSuccessfulQuoteIsNotAbandoned() throws CashuErrorException {
+        quote();
+
+        verify(repository, never()).casLifecycle(anyString(), any(), any());
     }
 }

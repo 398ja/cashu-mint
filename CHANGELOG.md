@@ -82,10 +82,11 @@ pending vouchers never read as paid.
   could match to no quote: the payer charged, nothing ever mintable. With the durable repository
   wired, the mint now chooses the quote id, writes the `UNPAID` row, then raises the invoice under
   that id (payment-adapter 0.17.0's `createMintQuote(quoteId, ...)`). A failed write refuses the
-  quote while nothing is payable; a failed invoice leaves an `UNPAID` row whose id no client ever
-  sees. A gateway that raises the invoice under a different id is refused. A gateway that cannot
-  take a caller-chosen id at all (payment-adapter's default refuses before raising anything; only
-  Phoenixd honours one) falls back to the old invoice-then-record order with a WARN naming it,
+  quote while nothing is payable; a failed invoice leaves a row whose id no client ever sees,
+  marked `FAILED` so it does not read as an open quote. A gateway that raises the invoice under a
+  different id is refused. A gateway that cannot take a caller-chosen id at all (payment-adapter's
+  default refuses before raising anything; only Phoenixd honours one) falls back to the old
+  invoice-then-record order with a WARN naming it, marking the row it wrote first `FAILED`,
   rather than refusing every quote: the Nutshell interop suite, on `DummyGateway`, caught that.
   Without the repository the gateway still chooses the id, as before.
 - **NUT-17 `bolt11_mint_quote` notifications answer as the bolt11 status route does (#500).**

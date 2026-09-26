@@ -163,8 +163,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
      * could ever be minted. Now each failure lands on the safe side:
      * <ul>
      *   <li>the write fails: refused, and nothing is payable yet;</li>
-     *   <li>the invoice fails: an {@code UNPAID} row no client ever learns the id of, which
-     *       nothing can pay or mint against.</li>
+     *   <li>the invoice fails: a row no client ever learns the id of, which nothing can pay or
+     *       mint against, marked {@code FAILED} so it does not read as an open quote.</li>
      * </ul>
      *
      * <p>The mint chooses the id so the row and the invoice can share it. A gateway that raises
@@ -177,7 +177,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
      * refuse every regular quote on it. For those the gateway chooses the id and the row is
      * written after the invoice, the order this task always used, and a WARN names the gateway so
      * the residual risk is visible. The probe raises nothing: the refusal comes before any invoice.
-     * The pre-written row is then left {@code UNPAID} under an id no client sees, inert.
+     * The pre-written row is then marked {@code FAILED}: its id is never invoiced or shown.
      *
      * <p>Without the repository (legacy unit-test contexts) nothing is recorded, and the gateway
      * keeps choosing its own id as before.
@@ -197,15 +197,34 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         try {
             invoicedId = gateway.createMintQuote(quoteId, (int) amount, null);
         } catch (UnsupportedOperationException cannotTakeOurId) {
+            abandon(quoteId);
             return raiseInvoiceUnderTheGatewaysId(gateway, resolvedUnit);
+        } catch (RuntimeException invoiceFailed) {
+            abandon(quoteId);
+            throw invoiceFailed;
         }
         if (!quoteId.equals(invoicedId)) {
             log.error("mint_quote gateway_changed_quote_id recorded={} invoiced={} gateway={}",
                     quoteId, invoicedId, gateway.getClass().getSimpleName());
+            abandon(quoteId);
             throw new CashuErrorException(CashuErrorCode.internal_error,
                     "Payment gateway raised the invoice under a different quote id");
         }
         return quoteId;
+    }
+
+    /**
+     * Marks a pre-written row whose invoice was never raised under its id as {@code FAILED}, so it
+     * does not sit as an open {@code UNPAID} quote. Best effort: the row is inert either way (no
+     * client has its id and no invoice carries it), so a failure here must not mask the outcome
+     * the caller is reporting.
+     */
+    private void abandon(String quoteId) {
+        try {
+            mintQuoteRepository.casLifecycle(quoteId, LifecycleState.UNPAID, LifecycleState.FAILED);
+        } catch (RuntimeException e) {
+            log.warn("mint_quote abandon_failed quote_id={} reason={}", quoteId, e.toString());
+        }
     }
 
     /**
