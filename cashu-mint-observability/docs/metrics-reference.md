@@ -130,6 +130,7 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_issuance_idempotent_replay_total` | counter | — | NUT-19 idempotent replays served from the issuance record |
 | `cashu_mint_issuance_quote_expired_total` | counter | — | Mint requests refused because the quote had expired |
 | `cashu_mint_issuance_rate_limit_breach_total` | counter | — | Requests rejected by the issuance rate limit |
+| `cashu_mint_issued_amount_total` | counter | `keyset` | Total face value the mint has signed per keyset, summed from the durable blind_signature record (see BlindSignatureJpaRepository#sumIssuedAmountByKeyset) |
 | `cashu_mint_melt_insufficient_input_total` | counter | — | Melt requests rejected because the inputs did not cover invoice + exact fee reserve |
 | `cashu_mint_melt_payment_sent_burn_failed` | gauge | — | Melt sagas whose payment settled but whose proofs were never burned (see MeltSagaJpaRepository#countPaymentSentBurnFailed) |
 | `cashu_mint_melt_proofs_not_bound_total` | counter | — | Melt requests failed closed because proofs could not be bound exclusively to the saga |

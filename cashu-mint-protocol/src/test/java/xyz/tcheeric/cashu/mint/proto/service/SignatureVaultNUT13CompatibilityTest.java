@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -81,7 +82,7 @@ class SignatureVaultNUT13CompatibilityTest {
                 .build();
 
         // Store the signature
-        vaultService.store(originalBlindedMessage, signature);
+        vaultService.store(originalBlindedMessage, signature, SignatureSource.MINT);
 
         // Act: Simulate wallet recovery - recreate the "same" blinded message
         // In real NUT-13 scenario, this would be derived from the same:
@@ -144,9 +145,9 @@ class SignatureVaultNUT13CompatibilityTest {
                 keysetId, 32);
 
         // Store all signatures
-        vaultService.store(msg0, sig0);
-        vaultService.store(msg1, sig1);
-        vaultService.store(msg2, sig2);
+        vaultService.store(msg0, sig0, SignatureSource.MINT);
+        vaultService.store(msg1, sig1, SignatureSource.MINT);
+        vaultService.store(msg2, sig2, SignatureSource.MINT);
 
         // Act & Assert: Retrieve each signature using "recovered" blinded messages
         BlindSignature retrieved0 = vaultService.retrieve(createBlindedMessage(
@@ -220,8 +221,8 @@ class SignatureVaultNUT13CompatibilityTest {
                 keyset2, 8);
 
         // Store both
-        vaultService.store(msg1, sig1);
-        vaultService.store(msg2, sig2);
+        vaultService.store(msg1, sig1, SignatureSource.MINT);
+        vaultService.store(msg2, sig2, SignatureSource.MINT);
 
         // Act & Assert: Retrieve both independently
         BlindSignature retrieved1 = vaultService.retrieve(msg1);
@@ -258,7 +259,7 @@ class SignatureVaultNUT13CompatibilityTest {
                 keysetId, 8);
 
         // Store
-        vaultService.store(blindedMessage, signature);
+        vaultService.store(blindedMessage, signature, SignatureSource.MINT);
 
         // Retrieve using ANY blinded message with the same hex value
         // This simulates recovery: same secret + same blinding factor = same blinded message
@@ -307,7 +308,7 @@ class SignatureVaultNUT13CompatibilityTest {
                 "03c724d7e195ba762e2e3a9d294e5fd3f0f4b1f7e2c5d8a9b3c6e1f4a7d2e5c8b4",
                 keysetId, 8);
 
-        vaultService.store(msg1, sig);
+        vaultService.store(msg1, sig, SignatureSource.MINT);
         BlindSignature retrieved = vaultService.retrieve(msg2);
 
         assertNotNull(retrieved,

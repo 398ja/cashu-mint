@@ -213,25 +213,5 @@ class SubscriptionManagerReportsTrueProofStateTest {
         public ProofEntity retrieveProof(UUID mintId, String secret) {
             return proofsByY.get(SecretUtil.toYFromString(secret));
         }
-
-        @Override
-        public void store(ProofEntity proofEntity) {
-            throw new UnsupportedOperationException("a subscription only reads");
-        }
-
-        @Override
-        public void invalidate(ProofEntity proofEntity) {
-            throw new UnsupportedOperationException("a subscription only reads");
-        }
-
-        @Override
-        public void archive(ProofEntity proofEntity) {
-            throw new UnsupportedOperationException("a subscription only reads");
-        }
-
-        @Override
-        public void storePending(ProofEntity proofEntity) {
-            throw new UnsupportedOperationException("a subscription only reads");
-        }
     }
 }

@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import xyz.tcheeric.cashu.mint.jpa.repository.BlindSignatureJpaRepository;
+import xyz.tcheeric.cashu.mint.jpa.repository.BlindSignatureJpaRepository.KeysetIssuedAmount;
 import xyz.tcheeric.cashu.mint.jpa.repository.MeltSagaJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.VoucherIssuanceJpaRepository;
@@ -15,6 +17,8 @@ import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -59,6 +63,11 @@ import java.util.concurrent.atomic.AtomicLong;
  *       the client's blinded outputs, so nothing can resolve these without the
  *       client returning. The gauge is the whole mechanism, not a check on
  *       one.</li>
+ *   <li>{@code cashu_mint_issued_amount_total{keyset}}: total face value
+ *       signed per keyset
+ *       ({@link BlindSignatureJpaRepository#sumIssuedAmountByKeyset()}), the
+ *       "issued" side of the issued-versus-backed reconciliation (issue #491).
+ *       One series per keyset, bound the first time a poll sees the keyset.</li>
  *   <li>{@code cashu_mint_invariant_poll_failures_total} — polls that threw.
  *       Without it a failing query would park the gauge on a stale zero and
  *       silently disarm the alert; the companion alert rule watches this
@@ -80,6 +89,7 @@ public class InvariantGaugePoller {
     private final VoucherIssuanceJpaRepository voucherIssuances;
     private final VoucherQuoteJpaRepository voucherQuotes;
     private final MintQuoteJpaRepository mintQuotes;
+    private final BlindSignatureJpaRepository blindSignatures;
     private final Duration paymentUnknownTtl;
     private final Duration paidUnissuedTtl;
     private final InvariantMetricsRecorder recorder;
@@ -94,6 +104,7 @@ public class InvariantGaugePoller {
     private final AtomicLong unfundedRejectedOnly = new AtomicLong();
     private final AtomicLong terminalUnsettled = new AtomicLong();
     private final AtomicLong paidUnissued = new AtomicLong();
+    private final Map<String, AtomicLong> issuedAmountByKeyset = new ConcurrentHashMap<>();
 
     /**
      * The recorder is injected rather than read off {@link MetricRecorders}
@@ -107,6 +118,7 @@ public class InvariantGaugePoller {
                                 VoucherIssuanceJpaRepository voucherIssuances,
                                 VoucherQuoteJpaRepository voucherQuotes,
                                 MintQuoteJpaRepository mintQuotes,
+                                BlindSignatureJpaRepository blindSignatures,
                                 ObjectProvider<InvariantMetricsRecorder> recorderProvider,
                                 @Value("${cashu.mint.melt.payment-unknown-ttl:PT1H}") Duration paymentUnknownTtl,
                                 @Value("${cashu.mint.quote.paid-unissued-ttl:PT1H}") Duration paidUnissuedTtl) {
@@ -114,6 +126,7 @@ public class InvariantGaugePoller {
         this.voucherIssuances = voucherIssuances;
         this.voucherQuotes = voucherQuotes;
         this.mintQuotes = mintQuotes;
+        this.blindSignatures = blindSignatures;
         this.paymentUnknownTtl = paymentUnknownTtl;
         this.paidUnissuedTtl = paidUnissuedTtl;
         this.recorder = recorderProvider.getIfAvailable(MetricRecorders::invariant);
@@ -147,6 +160,33 @@ public class InvariantGaugePoller {
                         Instant.now().minus(SETTLE_GRACE)));
         poll("paid_unissued", paidUnissued,
                 () -> mintQuotes.countPaidUnissued(Instant.now().minus(paidUnissuedTtl)));
+        pollIssuedAmounts();
+    }
+
+    /**
+     * Refreshes the issued amount of every keyset that has signed anything.
+     *
+     * <p>A keyset's series is bound the first time it appears, since keysets are created at
+     * runtime and cannot be bound up front like the other gauges. A failed query keeps every
+     * last value, for the same reason {@link #poll} does.
+     */
+    private void pollIssuedAmounts() {
+        try {
+            for (KeysetIssuedAmount issued : blindSignatures.sumIssuedAmountByKeyset()) {
+                issuedAmountGauge(issued.getKeysetId()).set(issued.getIssuedAmount());
+            }
+        } catch (RuntimeException e) {
+            recorder.pollFailed();
+            log.warn("invariant_poll issued_amount_failed cause={}", e.getMessage());
+        }
+    }
+
+    private AtomicLong issuedAmountGauge(String keysetId) {
+        return issuedAmountByKeyset.computeIfAbsent(keysetId, id -> {
+            AtomicLong gauge = new AtomicLong();
+            recorder.bindIssuedAmount(id, gauge::get);
+            return gauge;
+        });
     }
 
     /**

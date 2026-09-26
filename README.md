@@ -135,6 +135,8 @@ The protocol stores every blind signature produced during minting and swapping i
 
 When using the REST API this is handled automatically — Spring injects a single `SignatureVaultService` bean into every controller. If you call protocol helpers like `NUT04.mint`, `NUT03.swap`, or `NUT09.restore` directly, you must pass the **same** `SignatureVaultService` instance to all of them so that signatures stored during minting can be retrieved during recovery.
 
+With `cashu.mint.jpa.enabled=true` the vault is `JpaSignatureVaultService`, which records every signature in the `blind_signature` table. Records survive restarts and are shared by every mint instance on the database, and a blinded message already signed is refused with `outputs_already_signed`. The in-memory fallback is for `local` and `test` profiles only: any other profile refuses to boot with it. See [Why the signature vault is durable](docs/explanations/durable-signature-vault.md).
+
 ## Security
 
 The mint implements security controls aligned with the [Oracle Java Secure Coding Guidelines](https://www.oracle.com/java/technologies/javase/seccodeguide.html):

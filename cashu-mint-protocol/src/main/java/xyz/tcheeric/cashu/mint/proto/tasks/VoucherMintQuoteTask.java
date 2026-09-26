@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
@@ -172,16 +173,17 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         // charged fee — the invoice/request still charges only `voucherPrice`.
         // Emitting the fee here would make wallets size outputs to the fee and the
         // subsequent mint would fail with mint_amount_mismatch. A fresh quote is
-        // always UNPAID. Expiry (a relative TTL) is passed through; the client
-        // normalizes relative-vs-absolute itself. faceValue is already an int, so
-        // no narrowing cast is needed.
+        // always UNPAID. The gateway's relative TTL is converted to the absolute Unix
+        // timestamp NUT-04 requires (#494). faceValue is already an int, so no
+        // narrowing cast is needed.
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
                 .request(request)
                 .amount(faceValue)
                 .unit(unit != null && !unit.isBlank() ? unit : "sat")
                 .state("UNPAID")
-                .expiry(expiry)
+                .updatedAt(Instant.now().getEpochSecond())
+                .expiry(QuoteExpiry.absolute(expiry, null))
                 .build();
     }
 

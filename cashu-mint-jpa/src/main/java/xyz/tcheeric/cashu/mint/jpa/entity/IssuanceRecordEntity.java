@@ -40,7 +40,7 @@ public class IssuanceRecordEntity implements IssuanceRecord {
     @Column(name = "signatures_json", nullable = false, updatable = false, columnDefinition = "jsonb")
     private String signaturesJson;
 
-    @Column(name = "keyset_id", length = 64, nullable = false, updatable = false)
+    @Column(name = "keyset_id", length = 66, nullable = false, updatable = false)
     private String keysetId;
 
     @Column(name = "total_amount", nullable = false, updatable = false)

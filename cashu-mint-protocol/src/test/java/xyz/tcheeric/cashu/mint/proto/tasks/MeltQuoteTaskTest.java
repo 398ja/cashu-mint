@@ -9,7 +9,10 @@ import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 public class MeltQuoteTaskTest {
@@ -29,11 +32,14 @@ public class MeltQuoteTaskTest {
         when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
 
         MeltQuoteTask task = new MeltQuoteTask(request, PaymentMethod.MOCK, service);
+        long before = Instant.now().getEpochSecond();
         PostMeltQuoteResponse resp = task.execute();
+        long after = Instant.now().getEpochSecond();
 
         assertEquals("qid", resp.getQuoteId());
         assertEquals(2, resp.getFeeReserve());
-        assertEquals(2L, resp.getExpiry());
+        // NUT-05: the 2 s TTL becomes an absolute timestamp counted from now (#494).
+        assertTrue(resp.getExpiry() >= before + 2 && resp.getExpiry() <= after + 2);
         assertEquals(3, resp.getAmount());
     }
 }

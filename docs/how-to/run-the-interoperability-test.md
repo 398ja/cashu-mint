@@ -72,8 +72,9 @@ exists to settle.
 Getting here took three fixes in sequence: the NUT-04 denomination rule was
 relaxed to what the spec actually requires (#394), the `hash_to_curve` secret
 encoding was corrected so Nutshell's proofs verify for us (#395/#396), and the
-swap was made to invalidate its inputs through the injected vault services
-rather than a vault client the task built for itself (#397).
+swap was made to spend its inputs through the injected vault services
+rather than a vault client the task built for itself (#397). Both swap and melt
+now spend their inputs by committing a vault hold (#492).
 
 ## Build the test classes from a clean state
 

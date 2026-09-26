@@ -100,6 +100,12 @@ class MeltConcurrentSameQuoteIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
+        // The melt reads keysets through one KeySetDirectory, which asks for the active and
+        // archived generations, not the flattened view above. Stubbing only keySets() left
+        // every melt input "keyset_not_known" (404), unnoticed while these ITs ran a stale
+        // published protocol jar instead of the reactor's.
+        when(mintLoadService.keySets(false)).thenReturn(List.copyOf(mint.getKeySets()));
+        when(mintLoadService.keySets(true)).thenReturn(List.of());
         // deleteAllInBatch: a row written by the reconciler from its own
         // transaction is invisible to deleteAll()'s entity load and survives
         // the delete. See MeltSagaReconcilerIT.clean().

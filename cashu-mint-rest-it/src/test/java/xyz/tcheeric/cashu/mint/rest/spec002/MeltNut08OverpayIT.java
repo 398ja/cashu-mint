@@ -90,6 +90,9 @@ class MeltNut08OverpayIT extends AbstractMintDurableIT {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /** Inputs bound per hold, so the commit stub spends exactly what the bind held. */
+    private final java.util.Map<String, Integer> heldInputs = new java.util.concurrent.ConcurrentHashMap<>();
+
     @TestConfiguration
     static class MockConfig {
         @Bean
@@ -136,6 +139,12 @@ class MeltNut08OverpayIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
+        // The melt reads keysets through one KeySetDirectory, which asks for the active and
+        // archived generations, not the flattened view above. Stubbing only keySets() left
+        // every melt input "keyset_not_known" (404), unnoticed while these ITs ran a stale
+        // published protocol jar instead of the reactor's.
+        when(mintLoadService.keySets(false)).thenReturn(List.copyOf(mint.getKeySets()));
+        when(mintLoadService.keySets(true)).thenReturn(List.of());
         xyz.tcheeric.cashu.vault.db.model.MintEntity me =
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
         me.setId(UUID.fromString(mint.getId()));
@@ -146,8 +155,12 @@ class MeltNut08OverpayIT extends AbstractMintDurableIT {
         when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(inv -> {
                     java.util.List<?> rows = inv.getArgument(0);
+                    heldInputs.put(inv.getArgument(1, String.class), rows.size());
                     return rows.size();
                 });
+        // cashu-mint#492: the burn is the hold commit, so it spends what the bind held.
+        when(proofVaultService.commitSpentForHold(anyString()))
+                .thenAnswer(inv -> heldInputs.getOrDefault(inv.getArgument(0, String.class), 0));
         // deleteAllInBatch: a row written by the reconciler from its own
         // transaction is invisible to deleteAll()'s entity load, survives the
         // delete, and then blocks the saga delete on the FK. See

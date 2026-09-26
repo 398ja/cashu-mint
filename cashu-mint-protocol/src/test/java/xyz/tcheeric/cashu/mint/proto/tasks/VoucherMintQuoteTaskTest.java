@@ -10,6 +10,8 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -59,14 +61,17 @@ public class VoucherMintQuoteTaskTest {
     public void testExecuteWithDefaultPercentage() throws CashuErrorException {
         Gateway gateway = echoingGateway("lnbc100n...", 3600);
 
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response =
                 new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, serviceFor(gateway)).execute();
+        long after = Instant.now().getEpochSecond();
 
         // Gateway receives 100 sats (10% of 1000), not 1000 sats
         verify(gateway).createMintQuote(eq(response.getQuoteId()), eq(100), Mockito.isNull());
 
         assertEquals("lnbc100n...", response.getRequest());
-        assertEquals(3600, response.getExpiry());
+        // NUT-04: the 3600 s TTL is reported as an absolute timestamp (#494)
+        assertTrue(response.getExpiry() >= before + 3600 && response.getExpiry() <= after + 3600);
 
         // Face value is stored against the quote the client was given
         assertEquals(1000L, VoucherQuoteRegistry.getFaceValue(response.getQuoteId()));
@@ -152,14 +157,17 @@ public class VoucherMintQuoteTaskTest {
     public void testResponseStructure() throws CashuErrorException {
         Gateway gateway = echoingGateway("test-request", 7200);
 
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response =
                 new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, serviceFor(gateway)).execute();
+        long after = Instant.now().getEpochSecond();
 
         assertNotNull(response);
         assertNotNull(response.getQuoteId());
         assertFalse(response.getQuoteId().isBlank());
         assertEquals("test-request", response.getRequest());
-        assertEquals(7200, response.getExpiry());
+        // NUT-04: the 7200 s TTL is reported as an absolute timestamp (#494)
+        assertTrue(response.getExpiry() >= before + 7200 && response.getExpiry() <= after + 7200);
         // The mintable amount is the face value, not the 100 sat fee the invoice charges.
         assertEquals(1000, response.getAmount());
         assertEquals("UNPAID", response.getState());

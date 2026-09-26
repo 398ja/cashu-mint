@@ -10,8 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -26,6 +26,21 @@ jobs:
         # previous attempt". A CI run starting seconds before imani-bom finished publishing
         # then stays red all day regardless of re-runs, which happened today.
         run: ./mvnw -q -B -U clean verify
+      - name: Assert cashu-mint.version matches the project version
+        # These must agree. cashu-mint.version sat at 0.38.4 while the project reached 0.39.0,
+        # and dependencyManagement rewrote rest-it's transitive cashu-mint-protocol edge to the
+        # stale value, so rest-it tested the published 0.38.4 jar instead of the branch
+        # (cashu-mint#492). The property is now ${project.version}; this catches anyone who
+        # writes a literal back in.
+        run: |
+          project=$(./mvnw -q -B -Dexpression=project.version -DforceStdout help:evaluate)
+          managed=$(./mvnw -q -B -Dexpression=cashu-mint.version -DforceStdout help:evaluate)
+          echo "project.version=$project cashu-mint.version=$managed"
+          if [ "$project" != "$managed" ]; then
+            echo "::error::cashu-mint.version ($managed) does not match the project version ($project)."
+            echo "::error::Update the <cashu-mint.version> property in pom.xml when bumping the release."
+            exit 1
+          fi
       - name: Run tests with VT pinning detection
         run: |
           ./mvnw -q test -pl cashu-mint-protocol \
@@ -59,7 +74,7 @@ jobs:
           path: '**/target/jacoco.exec'
           if-no-files-found: ignore
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: '**/target/site/jacoco/jacoco.xml'
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -86,8 +101,8 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: 'temurin'

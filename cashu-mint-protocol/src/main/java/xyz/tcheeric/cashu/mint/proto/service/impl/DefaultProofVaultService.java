@@ -13,29 +13,9 @@ import java.util.UUID;
 @Service
 @Slf4j
 public class DefaultProofVaultService implements ProofVaultService {
-    @Override
-    public void store(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault();
-        vault.store(proofEntity);
-    }
 
-    @Override
-    public void invalidate(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault();
-        vault.invalidate(proofEntity.getId().toString());
-    }
 
-    @Override
-    public void archive(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault();
-        vault.archive(proofEntity.getId().toString());
-    }
 
-    @Override
-    public void storePending(ProofEntity proofEntity) throws CashuErrorException {
-        DBProofVault vault = new DBProofVault();
-        vault.storePending(proofEntity);
-    }
 
     @Override
     public ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException {

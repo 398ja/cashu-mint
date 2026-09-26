@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.common.Signature;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import xyz.tcheeric.cashu.mint.proto.service.DLEQProofGenerator;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
@@ -33,6 +34,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
     private final BlindedMessage blindedMessage;
     private final MintProtocolService mintProtocolService;
     private final SignatureVaultService signatureVaultService;
+    private final SignatureSource signatureSource;
     private final DLEQProofGenerator dleqProofGenerator;
     private final boolean voucherMode;
     private final String voucherMasterSecret;
@@ -40,16 +42,20 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
-                                  @NonNull SignatureVaultService signatureVaultService) {
-        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator(), false, null);
+                                  @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull SignatureSource signatureSource) {
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, signatureSource,
+                new DefaultDLEQProofGenerator(), false, null);
     }
 
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull SignatureSource signatureSource,
                                   @NonNull DLEQProofGenerator dleqProofGenerator) {
-        this(mint, blindedMessage, mintProtocolService, signatureVaultService, dleqProofGenerator, false, null);
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, signatureSource,
+                dleqProofGenerator, false, null);
     }
 
     /**
@@ -59,6 +65,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
      * @param blindedMessage the blinded message to sign
      * @param mintProtocolService protocol service for key lookup
      * @param signatureVaultService vault service for storing signatures
+     * @param signatureSource the operation the signature is issued for, recorded with it
      * @param voucherMode if true, derive keys dynamically for arbitrary amounts
      * @param voucherMasterSecret the master secret for voucher key derivation (required if voucherMode is true)
      */
@@ -66,15 +73,18 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull SignatureSource signatureSource,
                                   boolean voucherMode,
                                   String voucherMasterSecret) {
-        this(mint, blindedMessage, mintProtocolService, signatureVaultService, new DefaultDLEQProofGenerator(), voucherMode, voucherMasterSecret);
+        this(mint, blindedMessage, mintProtocolService, signatureVaultService, signatureSource,
+                new DefaultDLEQProofGenerator(), voucherMode, voucherMasterSecret);
     }
 
     public SignBlindedMessageTask(@NonNull Mint mint,
                                   @NonNull BlindedMessage blindedMessage,
                                   @NonNull MintProtocolService mintProtocolService,
                                   @NonNull SignatureVaultService signatureVaultService,
+                                  @NonNull SignatureSource signatureSource,
                                   @NonNull DLEQProofGenerator dleqProofGenerator,
                                   boolean voucherMode,
                                   String voucherMasterSecret) {
@@ -82,6 +92,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
         this.blindedMessage = blindedMessage;
         this.mintProtocolService = mintProtocolService;
         this.signatureVaultService = signatureVaultService;
+        this.signatureSource = signatureSource;
         this.dleqProofGenerator = dleqProofGenerator;
         this.voucherMode = voucherMode;
         this.voucherMasterSecret = voucherMasterSecret;
@@ -186,7 +197,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
                 sigObj,
                 dleqProof
         );
-        signatureVaultService.store(blindedMessage, blindSignature);
+        signatureVaultService.store(blindedMessage, blindSignature, signatureSource);
         if (log.isDebugEnabled()) {
             log.debug("Stored blind signature for amount={} keySetId={}",
                     blindedMessage.getAmount(), blindedMessage.getKeySetId());

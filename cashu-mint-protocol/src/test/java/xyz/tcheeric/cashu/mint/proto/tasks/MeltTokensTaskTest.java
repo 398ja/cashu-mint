@@ -76,6 +76,10 @@ import static org.mockito.Mockito.when;
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        // The melt spends its one input through a hold: the vault claims it, then the commit
+        // spends it.
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class))).thenReturn(1);
+        when(proofVaultService.commitSpentForHold(anyString())).thenReturn(1);
 
         MeltTokensTask<RandomStringSecret> task = new MeltTokensTask<>(UUID.randomUUID(), request, PaymentMethod.MOCK,
                 protocolService, loadService, mintVaultService, proofVaultService);

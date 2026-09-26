@@ -148,21 +148,6 @@ class ProofLookupIsMintScopedTest {
     @DisplayName("the interface default accepts a mint and returns the issuance key")
     void interfaceDefaultAcceptsAMint() throws CashuErrorException {
         ProofVaultService bare = new ProofVaultService() {
-            @Override
-            public void store(ProofEntity proofEntity) {
-            }
-
-            @Override
-            public void invalidate(ProofEntity proofEntity) {
-            }
-
-            @Override
-            public void archive(ProofEntity proofEntity) {
-            }
-
-            @Override
-            public void storePending(ProofEntity proofEntity) {
-            }
 
             @Override
             public ProofEntity retrieveProof(UUID mintId, String secret) {

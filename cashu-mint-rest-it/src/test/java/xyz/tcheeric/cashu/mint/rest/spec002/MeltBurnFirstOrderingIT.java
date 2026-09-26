@@ -55,9 +55,9 @@ import static org.mockito.Mockito.when;
  * {@link PaymentOutcome} branches.
  *
  * <p>The fixture sidesteps the proof-vault dependency by replacing the
- * {@code ProofVaultService} bean with a Mockito mock that is a no-op
- * for {@code storePending} and {@code invalidate}. The saga state +
- * transitions land in Postgres as designed.
+ * {@code ProofVaultService} bean with a Mockito mock that binds and
+ * commits every submitted proof. The saga state + transitions land in
+ * Postgres as designed.
  */
 @Import(MeltBurnFirstOrderingIT.MockConfig.class)
 class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
@@ -86,6 +86,9 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
     MeltSagaTransitionJpaRepository transitions;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    /** Inputs bound per hold, so the commit stub spends exactly what the bind held. */
+    private final java.util.Map<String, Integer> heldInputs = new java.util.concurrent.ConcurrentHashMap<>();
 
     @TestConfiguration
     static class MockConfig {
@@ -127,21 +130,30 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
+        // The melt reads keysets through one KeySetDirectory, which asks for the active and
+        // archived generations, not the flattened view above. Stubbing only keySets() left
+        // every melt input "keyset_not_known" (404), unnoticed while these ITs ran a stale
+        // published protocol jar instead of the reactor's.
+        when(mintLoadService.keySets(false)).thenReturn(List.copyOf(mint.getKeySets()));
+        when(mintLoadService.keySets(true)).thenReturn(List.of());
         // Mocked vault entities so persistPendingProofs is a no-op.
         xyz.tcheeric.cashu.vault.db.model.MintEntity me =
                 new xyz.tcheeric.cashu.vault.db.model.MintEntity();
         me.setId(java.util.UUID.fromString(mint.getId()));
         when(mintVaultService.retrieveMint(anyString())).thenReturn(me);
-        // proofVaultService is a Mockito mock — storePending / invalidate
-        // default to no-op behavior. Spec 005 — opt-in stub for the new
+        // proofVaultService is a Mockito mock. Spec 005 — opt-in stub for the new
         // atomic bind so every submitted proof is reported "claimed";
         // without this stub the default 0 trips the fail-closed
         // proofs_not_bound path and the saga lifecycle stops.
         when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(inv -> {
                     java.util.List<?> rows = inv.getArgument(0);
+                    heldInputs.put(inv.getArgument(1, String.class), rows.size());
                     return rows.size();
                 });
+        // cashu-mint#492: the burn is the hold commit, so it spends what the bind held.
+        when(proofVaultService.commitSpentForHold(anyString()))
+                .thenAnswer(inv -> heldInputs.getOrDefault(inv.getArgument(0, String.class), 0));
         // deleteAllInBatch: a row written by the reconciler from its own
         // transaction is invisible to deleteAll()'s entity load, survives the
         // delete, and then blocks the saga delete on the FK. See
@@ -153,7 +165,7 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
 
     @Test
     void happy_path_drives_proofs_held_payment_sent_completed_T200() {
-        // Burn-first ordering check: storePending MUST run before pay().
+        // Burn-first ordering check: the hold MUST be taken before pay().
         // We verify via the saga transitions ledger — seq=1 is
         // null → PROOFS_HELD, seq=2 is PROOFS_HELD → PAYMENT_SENT, seq=3
         // is PAYMENT_SENT → COMPLETED. The proof-vault mock is a no-op,
@@ -212,15 +224,14 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
 
     @Test
     void burn_failure_after_payment_lands_saga_in_PAYMENT_SENT_BURN_FAILED_T202() throws Exception {
-        // The proof-invalidate call AFTER pay() succeeds must fail to drive
-        // the saga into PAYMENT_SENT_BURN_FAILED with the proofs held in
-        // PENDING. We inject the invalidate failure on the ProofVaultService
-        // mock so MeltTask's createInvalidateProofsTask raises an exception
-        // when the saga is in PAYMENT_SENT.
+        // The burn AFTER pay() succeeds must fail to drive the saga into
+        // PAYMENT_SENT_BURN_FAILED with the proofs held in PENDING. The burn
+        // is the hold commit (cashu-mint#492), so the failure is injected
+        // there.
         ((MockLightningPaymentPort) paymentPort).enqueuePay(
                 new PaymentOutcome.Success("preimage-burn-fail", 100L, 0L, "evt-burn-fail"));
-        Mockito.doThrow(new RuntimeException("vault_unreachable_for_invalidate"))
-                .when(proofVaultService).invalidate(any());
+        when(proofVaultService.commitSpentForHold(anyString()))
+                .thenThrow(new RuntimeException("vault_unreachable_for_commit"));
 
         ResponseEntity<String> response = postMelt("quote-burn-fail", overFundedProofs());
 

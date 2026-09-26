@@ -5,10 +5,10 @@
     <parent>
         <groupId>xyz.tcheeric</groupId>
         <artifactId>cashu-mint</artifactId>
-        <version>0.39.1</version>
+        <version>0.39.0</version>
     </parent>
     <artifactId>cashu-mint-rest-it</artifactId>
-    <version>0.39.1</version>
+    <version>0.39.0</version>
     <name>cashu-mint-rest-it</name>
     <description>Integration tests for cashu-mint-rest</description>
 
@@ -147,6 +147,43 @@
                 <configuration>
                     <skipITs>true</skipITs>
                 </configuration>
+            </plugin>
+
+            <!--
+              The real cashu-vault server, for SpentProofCannotBeRevivedIT (cashu-mint#492).
+
+              Every other IT mocks ProofVaultService, so none of them can observe what the vault
+              itself allows. That IT has to run the vault the mint actually talks to, at the
+              version the BOM resolves for the client, so it is copied from the same coordinates
+              as the executable jar and started as a separate process. It is copied rather than
+              put on the test classpath because the vault is a Spring Boot application of its own
+              and would collide with the mint's context.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-cashu-vault-server</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integration-tests}</skip>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>xyz.tcheeric</groupId>
+                                    <artifactId>cashu-vault-jpa</artifactId>
+                                    <classifier>exec</classifier>
+                                    <destFileName>cashu-vault-server.jar</destFileName>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <overWrite>true</overWrite>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

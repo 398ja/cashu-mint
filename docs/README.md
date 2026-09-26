@@ -58,6 +58,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Why `/v1/info` is derived from the wiring](explanations/mint-info-advertisement.md) - Why the advertised NUT-06 capabilities are generated from the code rather than written down, and what that costs.
 - [Why the mint fails closed on DLEQ](explanations/dleq-fail-closed.md) - Why a NUT-12 proof failure fails the request, and why the nonce is deterministic.
 - [Why validation runs before signing](explanations/validation-before-signing.md) - Why a rejected transaction must leave no blind signature in the vault, and how the checks are ordered to guarantee it.
+- [Why the signature vault is durable](explanations/durable-signature-vault.md) - How issued blind signatures are recorded in the database, how a second signature on the same output is refused, and why retries, restarts and replicas stay safe.
 - [Why a swap holds its inputs before it signs](explanations/swap-holds-inputs-before-signing.md) - Why a swap claims its inputs before signing, so a failure after signing can never leave redeemable outputs beside spendable inputs.
 - [Virtual thread adoption](explanations/virtual-thread-adoption.md) - Why virtual threads were adopted, audit results, pilot findings, and current status.
 - [Voucher data record](explanations/voucher-data-record.md) - What the mint stores about a customer, in customer-facing language. Kept in step with the schema by a CI check.
@@ -68,6 +69,7 @@ This directory contains documentation organized using the [Diataxis framework](h
 - [Virtual thread issues](runbooks/virtual-thread-issues.md) - Troubleshooting lock contention, pinning, and memory issues with Virtual Threads.
 - [Voucher data minimisation](runbooks/voucher-data-minimisation.md) - Identity salt, backfill, retention purge, forensic lookup, and the salt-rotation procedure.
 - [Melt saga states](runbooks/melt-saga-states.md) - The melt state machine, the reconciler, and the two states (PAYMENT_SENT_BURN_FAILED, PAYMENT_UNKNOWN) that require operator action.
+- [Stranded ISSUING mint quotes](runbooks/stranded-issuing-mint-quotes.md) - Finding paid mint quotes that signed but never reached ISSUED, and resolving them without issuing twice.
 
 ## Archive
 
