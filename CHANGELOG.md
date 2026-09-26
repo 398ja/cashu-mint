@@ -4,6 +4,52 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-09-26
+
+Minor rather than patch: `ProofVaultService.retrieveProof` and `storageKeyFor` now require the mint.
+Any out-of-tree implementation or caller must be updated.
+
+### Fixed
+
+- **Proof lookups by secret are now scoped to the mint, ending a full table scan per lookup.**
+  `t_proof` has no standalone index on `secret`: the only index covering it is
+  `uk_proof_mint_secret (mint_id, secret)`, and a B-tree cannot serve a predicate on its second
+  column. So every unscoped lookup read the entire table.
+
+  Measured on staging at 13,011 rows: **754 buffers and 2.4ms unscoped, against 5 buffers and
+  0.076ms scoped**. Bracketing a market-day load run showed **4.67 full table scans per proof
+  written** and 60,764 tuples read per proof, with lifetime counters at 469,697 sequential scans
+  having read 5.42 billion tuples. The unscoped cost is linear in table size (1.70ms at 12.9k rows,
+  16.3ms at 100k, 174ms at 1M) while the scoped form is flat, so this was a growing tax rather than
+  a fixed one. See cashu-vault#153.
+
+  Both endpoints and both `DBProofVault` overloads already existed. Production called the unscoped
+  one 273 times in 15 minutes and the scoped one never, and the callers already held the mint:
+  `SwapProofHold` resolves `mintEntity` 24 lines above the call that discarded it.
+
+- **A secret lookup could return a different mint's proof.** `secret` is only unique per mint, so
+  the unscoped query was wrong as well as slow. This is the correctness half of the same change,
+  specified independently in `specs/001-vault-append-only-scoped-lookup` User Story 2.
+
+- **NUT-17 proof-state subscriptions reported UNSPENT for every proof.**
+  `SubscriptionManager.fetchProofState` passed a hash-to-curve point Y to `retrieveProof`, which
+  hashes its input again, so every lookup missed. A miss maps to `UNSPENT`, so a subscriber watching
+  its own proofs was told none had been spent. Now uses `retrieveProofByY`, as `CheckStateTask`
+  already did for the identical input. Found while auditing the call sites for the scoping change;
+  filed as #485.
+
+- **The 409-conflict recovery in `InvalidateProofsTask` had the same double-hash bug.**
+  `proofEntity.getSecret()` is already the Y the row was stored under, so re-hashing it missed, and
+  the miss took the "proof not found after 409" branch that returns as idempotent success **without
+  invalidating the row**. Now looks up by Y.
+
+- **An uninitialised spending condition now refuses to verify instead of skipping the double-spend
+  check.** `VoucherSpendingCondition` and `RSSSpendingCondition` resolve the mint id before the
+  `try`, because the `catch (Exception)` around the vault call deliberately treats failures as
+  "no proof found" so verification can proceed. A missing mint reaching that catch would have been
+  absorbed by it, silently disabling the double-spend check on a path whose only job is to prevent
+  double spending. A test with an unstubbed mint mock is what surfaced this.
+
 ## [0.38.13] - 2026-09-25
 
 ### Changed

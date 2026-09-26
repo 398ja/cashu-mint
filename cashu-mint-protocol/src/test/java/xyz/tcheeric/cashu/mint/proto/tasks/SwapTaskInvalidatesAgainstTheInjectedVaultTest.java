@@ -55,7 +55,7 @@ public class SwapTaskInvalidatesAgainstTheInjectedVaultTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        Mockito.when(proofVaultService.storageKeyFor(anyString())).thenReturn("stored-key");
+        Mockito.when(proofVaultService.storageKeyFor(any(), anyString())).thenReturn("stored-key");
         SignatureVaultService signatureVaultService = Mockito.mock(SignatureVaultService.class);
 
         MintProtocolService protocolService = Mockito.mock(MintProtocolService.class);

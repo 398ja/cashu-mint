@@ -44,6 +44,10 @@ class VoucherSpendingConditionTest {
     @BeforeEach
     void setUp() {
         mockMint = Mockito.mock(Mint.class);
+        // The double-spend check is scoped per mint, so the condition needs a real mint id.
+        // An unstubbed mock returns null here, and the condition refuses to verify rather than
+        // performing an unscoped lookup or skipping the check (cashu-vault#153).
+        Mockito.when(mockMint.getId()).thenReturn("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
         mockMintProtocolService = Mockito.mock(MintProtocolService.class);
         mockProofVaultService = Mockito.mock(ProofVaultService.class);
         condition = new VoucherSpendingCondition<>(mockMint, mockMintProtocolService, mockProofVaultService);
@@ -102,7 +106,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         // Mock: keyset key lookup returns a valid key
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -197,7 +201,7 @@ class VoucherSpendingConditionTest {
         // Mock: proof in terminal STATE_SPENT
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(mockProofVaultService.retrieveProof(anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
                 .thenReturn(spent);
 
         // Act & Assert
@@ -221,7 +225,7 @@ class VoucherSpendingConditionTest {
 
         ProofEntity pending = new ProofEntity();
         pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(mockProofVaultService.retrieveProof(anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
                 .thenReturn(pending);
 
         // The spending condition may still fail later for an unrelated reason
@@ -246,7 +250,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         // Mock: keyset key lookup returns a valid key
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -273,7 +277,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(8, null); // null keyset ID
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         // Act & Assert
         assertThrows(CashuErrorException.class, () -> condition.verify(proof));
@@ -288,7 +292,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(8, ""); // empty keyset ID
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         // Act & Assert
         assertThrows(CashuErrorException.class, () -> condition.verify(proof));
@@ -305,7 +309,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         // Mock: keyset key lookup returns null (key not found)
         Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))

@@ -123,7 +123,7 @@ public class InvalidateProofTest {
         ProofEntity existingProof = new ProofEntity();
         existingProof.setSecret("0123456789abcdef0123456789abcdef");
         existingProof.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(Mockito.any())).thenReturn(existingProof);
+        Mockito.when(proofVaultService.retrieveProofByY(Mockito.any())).thenReturn(existingProof);
 
         try (MockedStatic<ProofEntity> proofEntityMock = Mockito.mockStatic(ProofEntity.class)) {
             ProofEntity mockEntity = new ProofEntity();
@@ -166,7 +166,7 @@ public class InvalidateProofTest {
         ProofEntity existingProof = new ProofEntity();
         existingProof.setSecret("0123456789abcdef0123456789abcdef");
         existingProof.setState("PENDING");
-        Mockito.when(proofVaultService.retrieveProof(Mockito.any())).thenReturn(existingProof);
+        Mockito.when(proofVaultService.retrieveProofByY(Mockito.any())).thenReturn(existingProof);
         Mockito.doNothing().when(proofVaultService).invalidate(Mockito.any());
 
         try (MockedStatic<ProofEntity> proofEntityMock = Mockito.mockStatic(ProofEntity.class)) {
@@ -207,7 +207,7 @@ public class InvalidateProofTest {
                 .when(proofVaultService).store(Mockito.any());
 
         // retrieveProof returns null (race condition scenario)
-        Mockito.when(proofVaultService.retrieveProof(Mockito.any())).thenReturn(null);
+        Mockito.when(proofVaultService.retrieveProofByY(Mockito.any())).thenReturn(null);
 
         try (MockedStatic<ProofEntity> proofEntityMock = Mockito.mockStatic(ProofEntity.class)) {
             ProofEntity mockEntity = new ProofEntity();

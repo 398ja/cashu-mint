@@ -20,6 +20,8 @@ import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
+import java.util.UUID;
+
 /**
  * Spending condition for voucher proofs.
  *
@@ -107,8 +109,13 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         //    and ignores the state machine that the storage path already
         //    encodes (see InvalidateProofsTask.storeAndInvalidateIdempotent).
         ProofEntity proofEntity;
+        // Resolved before the try: the catch below deliberately treats a vault failure as
+        // "no proof found" so verification can proceed, and a missing mint must not be absorbed
+        // by that. Without a mint there is no double-spend check at all, and silently continuing
+        // would let a spent proof verify.
+        UUID mintId = requireMintId();
         try {
-            proofEntity = proofVaultService.retrieveProof(secret.toString());
+            proofEntity = proofVaultService.retrieveProof(mintId, secret.toString());
         } catch (Exception e) {
             log.warn("Failed to retrieve proof for secret {}: {}", secret, e.getMessage(), e);
             proofEntity = null;
@@ -168,5 +175,25 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         }
         log.debug("Getting private key for voucher proof amount={}", proof.getAmount());
         return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
+    }
+
+    /**
+     * The mint whose proof table the double-spend check must consult.
+     *
+     * <p>Fails rather than returning null. The deprecated no-argument constructor leaves
+     * {@code mint} null, and a proof lookup without a mint cannot answer "has this been spent
+     * here": an unscoped lookup could read another mint's row, and skipping the lookup entirely
+     * would let an already-spent proof verify. Neither is an acceptable default on the path that
+     * prevents double spending, so an uninitialised condition refuses to verify at all.
+     */
+    private UUID requireMintId() throws CashuErrorException {
+        if (mint == null || mint.getId() == null) {
+            log.error("verify_proof_no_mint_error voucher_proof: cannot check for a double spend "
+                    + "without a mint, refusing to verify");
+            throw new CashuErrorException(
+                    "Cannot verify a voucher proof without a mint: the double-spend check is "
+                            + "scoped per mint and cannot be skipped");
+        }
+        return UUID.fromString(mint.getId());
     }
 }

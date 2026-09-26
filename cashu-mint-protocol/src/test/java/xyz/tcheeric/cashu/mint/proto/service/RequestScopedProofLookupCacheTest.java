@@ -21,6 +21,10 @@ import static org.mockito.Mockito.when;
  */
 class RequestScopedProofLookupCacheTest {
 
+    /** Proof lookups are scoped per mint (cashu-vault#153). */
+    private static final java.util.UUID MINT_ID =
+            java.util.UUID.fromString("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
+
     private static final String Y =
             "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee";
 
@@ -127,13 +131,13 @@ class RequestScopedProofLookupCacheTest {
     // swap and melt paths, so caching it would put a snapshot where state is changing.
     void secretKeyedLookupsArePassedStraightThrough() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProof("secret")).thenReturn(null);
+        when(vault.retrieveProof(MINT_ID, "secret")).thenReturn(null);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
 
-        cache.retrieveProof("secret");
-        cache.retrieveProof("secret");
+        cache.retrieveProof(MINT_ID, "secret");
+        cache.retrieveProof(MINT_ID, "secret");
 
-        verify(vault, times(2)).retrieveProof("secret");
+        verify(vault, times(2)).retrieveProof(MINT_ID, "secret");
         verify(vault, never()).retrieveProofByY(anyString());
     }
 

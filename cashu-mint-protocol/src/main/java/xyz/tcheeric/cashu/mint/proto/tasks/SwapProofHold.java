@@ -214,6 +214,7 @@ class SwapProofHold {
         if (proof.getSecret() == null) {
             return;
         }
-        row.setSecret(proofVaultService.storageKeyFor(proof.getSecret().toString()));
+        row.setSecret(proofVaultService.storageKeyFor(row.getMint().getId(),
+                proof.getSecret().toString()));
     }
 }

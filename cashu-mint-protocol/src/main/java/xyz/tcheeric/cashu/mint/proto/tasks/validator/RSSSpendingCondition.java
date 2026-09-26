@@ -18,6 +18,8 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.UUID;
+
 @AllArgsConstructor
 @Slf4j
 public class RSSSpendingCondition implements SpendingCondition<RandomStringSecret> {
@@ -42,8 +44,12 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // InvalidateProofsTask handles idempotent recovery downstream.
         Secret secret = proof.getSecret();
         ProofEntity proofEntity;
+        // Resolved before the try: the catch below deliberately treats a vault failure as
+        // "no proof found" so verification can proceed, and a missing mint must not be absorbed
+        // by that. Without a mint there is no double-spend check at all.
+        UUID mintId = requireMintId();
         try {
-            proofEntity = proofVaultService.retrieveProof(secret.toString());
+            proofEntity = proofVaultService.retrieveProof(mintId, secret.toString());
         } catch (Exception e) {
             // If the vault lookup fails (network/remote error), log and treat as not found so verification can proceed
             log.warn("Failed to retrieve proof for secret {}: {}", secret, e.getMessage(), e);
@@ -88,4 +94,21 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
     }
 
+    /**
+     * The mint whose proof table the double-spend check must consult.
+     *
+     * <p>Fails rather than returning null: a proof lookup without a mint cannot answer "has this
+     * been spent here", because an unscoped lookup could read another mint's row and skipping the
+     * lookup would let an already-spent proof verify.
+     */
+    private UUID requireMintId() throws CashuErrorException {
+        if (mint == null || mint.getId() == null) {
+            log.error("verify_proof_no_mint_error rss_proof: cannot check for a double spend "
+                    + "without a mint, refusing to verify");
+            throw new CashuErrorException(
+                    "Cannot verify a proof without a mint: the double-spend check is scoped per "
+                            + "mint and cannot be skipped");
+        }
+        return UUID.fromString(mint.getId());
+    }
 }

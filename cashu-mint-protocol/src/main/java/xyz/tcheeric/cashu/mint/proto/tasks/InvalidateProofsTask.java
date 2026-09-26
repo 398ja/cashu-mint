@@ -70,7 +70,8 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
         if (proof.getSecret() == null) {
             return;
         }
-        proofEntity.setSecret(proofVaultService.storageKeyFor(proof.getSecret().toString()));
+        proofEntity.setSecret(proofVaultService.storageKeyFor(proofEntity.getMint().getId(),
+                proof.getSecret().toString()));
     }
 
     /**
@@ -91,8 +92,11 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
             log.info("invalidate_proofs_task proof_already_exists checking_state secret_id={}",
                     sanitizeSecretForLog(proofEntity.getSecret()));
 
-            // Use the same secret that was used for storage (proofEntity.getSecret() is already the Y point)
-            ProofEntity existingProof = proofVaultService.retrieveProof(proofEntity.getSecret());
+            // proofEntity.getSecret() is already the Y point this row was stored under, so look it
+            // up by Y. retrieveProof(mintId, secret) would hash it a second time and miss, and the
+            // miss reads as "proof not found after 409" below, which returns as idempotent success
+            // without ever invalidating the row.
+            ProofEntity existingProof = proofVaultService.retrieveProofByY(proofEntity.getSecret());
 
             if (existingProof == null) {
                 // 409 conflict but can't find proof - likely a race condition or different lookup key

@@ -53,7 +53,7 @@ public class RSSSpendingConditionTest {
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class);
              MockedConstruction<DBProofVault> vault = Mockito.mockConstruction(DBProofVault.class,
-                     (mock, context) -> Mockito.when(mock.retrieveProof(anyString())).thenReturn(mock))) {
+                     (mock, context) -> Mockito.when(mock.retrieveProof(any(), anyString())).thenReturn(mock))) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
                     .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
             bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
@@ -73,7 +73,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(null);
+        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -99,7 +99,7 @@ public class RSSSpendingConditionTest {
 
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(spent);
+        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(spent);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -128,7 +128,7 @@ public class RSSSpendingConditionTest {
 
         ProofEntity pending = new ProofEntity();
         pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(proofVaultService.retrieveProof(anyString())).thenReturn(pending);
+        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(pending);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))

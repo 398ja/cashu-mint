@@ -312,7 +312,11 @@ public final class SubscriptionManager {
 
     private ProofStateResult fetchProofState(String y) {
         try {
-            ProofEntity proofEntity = proofVaultService.retrieveProof(y);
+            // NUT-17 delivers the hash-to-curve point Y, exactly as NUT-07 does.
+            // retrieveProof(mintId, secret) would hash it again and miss every entry, and a miss
+            // is indistinguishable from UNSPENT here, so a subscriber would be told every proof
+            // it watches is unspent. See #485.
+            ProofEntity proofEntity = proofVaultService.retrieveProofByY(y);
             String state;
             String witness = null;
             if (proofEntity == null) {

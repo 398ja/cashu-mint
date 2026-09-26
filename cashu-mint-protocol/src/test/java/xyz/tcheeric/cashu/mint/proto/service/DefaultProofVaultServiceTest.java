@@ -27,6 +27,10 @@ import static org.mockito.ArgumentMatchers.eq;
  */
 public class DefaultProofVaultServiceTest {
 
+    /** Proof lookups are scoped per mint (cashu-vault#153). */
+    private static final java.util.UUID MINT_ID =
+            java.util.UUID.fromString("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
+
     /**
      * Pre-condition: confirm {@link SecretUtil#toYFromString(String)} is NOT
      * idempotent — i.e. hashing a Y point produces a different Y'. If this
@@ -47,6 +51,10 @@ public class DefaultProofVaultServiceTest {
     /**
      * {@code retrieveProofByY} forwards its input directly to
      * {@link DBProofVault#retrieveProof(String)} without hashing.
+     *
+     * <p>This lookup stays unscoped: a Y is globally unique by construction (it is a curve point
+     * derived from the secret), so unlike the secret lookup it does not need a mint to be correct.
+     * NUT-07 and NUT-17 both receive a bare list of Y values with no mint attached.
      */
     @Test
     public void retrieveProofByYDoesNotHashInput() throws CashuErrorException {
@@ -76,13 +84,13 @@ public class DefaultProofVaultServiceTest {
         ProofEntity expected = new ProofEntity();
 
         try (MockedStatic<DBProofVault> mocked = Mockito.mockStatic(DBProofVault.class)) {
-            mocked.when(() -> DBProofVault.retrieveProof(eq(expectedY))).thenReturn(expected);
+            mocked.when(() -> DBProofVault.retrieveProof(eq(MINT_ID.toString()), eq(expectedY))).thenReturn(expected);
 
             DefaultProofVaultService svc = new DefaultProofVaultService();
-            ProofEntity actual = svc.retrieveProof(rawSecret);
+            ProofEntity actual = svc.retrieveProof(MINT_ID, rawSecret);
 
             assertSame(expected, actual);
-            mocked.verify(() -> DBProofVault.retrieveProof(eq(expectedY)));
+            mocked.verify(() -> DBProofVault.retrieveProof(eq(MINT_ID.toString()), eq(expectedY)));
         }
     }
 }
