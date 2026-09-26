@@ -63,7 +63,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *       the client's blinded outputs, so nothing can resolve these without the
  *       client returning. The gauge is the whole mechanism, not a check on
  *       one.</li>
- *   <li>{@code cashu_mint_issued_amount_total{keyset}} — total face value
+ *   <li>{@code cashu_mint_issued_amount_total{keyset}}: total face value
  *       signed per keyset
  *       ({@link BlindSignatureJpaRepository#sumIssuedAmountByKeyset()}), the
  *       "issued" side of the issued-versus-backed reconciliation (issue #491).
