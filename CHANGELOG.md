@@ -4,6 +4,55 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+**Breaking for out-of-tree `ProofVaultService` implementations:** `store`, `invalidate`, `archive`
+and `storePending` are removed. **Coordinated deploy:** requires cashu-vault 0.15.0 (imani-bom
+0.1.113), and cashu-vault 0.15.0 requires this, because the vault now refuses the whole-row
+overwrite the old melt burn depended on.
+
+### Security
+
+- **Melt no longer marks its inputs spent by overwriting their vault rows (#492).** After a paid
+  melt, `InvalidateProofsTask` stored each input and then re-posted the row with its state set to
+  SPENT. That only worked while the vault's store endpoint would overwrite an existing row, and a
+  row that can be overwritten is a row whose SPENT state can be undone: cashu-vault#154 shows any
+  holder of the vault token could turn a spent proof back into a spendable one, and the mint, which
+  has no spent table of its own, would accept it again. The vault could not close that without
+  breaking melt, so the mint moves first.
+
+  The inputs are already claimed under the saga's hold before the payment, so the burn is now just
+  `commitSpentForHold`, the same transition the swap uses. A commit that spends fewer inputs than
+  were held is a burn failure (`PAYMENT_SENT_BURN_FAILED`), not a paid melt. The legacy JPA-off
+  path spends through a one-off hold the same way. `InvalidateProofsTask` is deleted, and
+  `ProofVaultService` no longer has any method that writes a whole proof row.
+- **A melt's hold rows are keyed where the vault already records each proof.** A proof recorded
+  under the legacy NUT-00 point was claimed under the spec point, which inserted a fresh row and
+  let the melt pay; the old burn re-keyed the row only after the payment had gone. The claim now
+  uses `storageKeyFor`, as the swap already did, so such a proof is refused before paying.
+
+### Fixed
+
+- **`cashu-mint-rest-it` tested a stale published protocol jar, not the branch.** `cashu-mint-rest-it`
+  takes `cashu-mint-protocol` transitively, and `dependencyManagement` rewrote that edge to
+  `<cashu-mint.version>0.38.4</cashu-mint.version>`, so every rest-it IT exercised the published
+  0.38.4 protocol. The property is now `${project.version}` and cannot drift. Exposed by this
+  change's own IT, which could not see the change. Running on the real code revealed six melt ITs
+  that stubbed only `MintLoadService.keySets()` while the melt reads the two keyset generations,
+  so every melt input was `keyset_not_known`; they are fixed. Supersedes the property half of #489.
+
+### Added
+
+- **`SpentProofCannotBeRevivedIT`**, the cross-repo double-spend test from #492. It starts the
+  real cashu-vault server (the `exec` jar at the BOM's version, copied by
+  `maven-dependency-plugin`) on its own PostgreSQL, melts a proof, then uses the mint's own vault
+  token to delete the row and re-post it as UNSPENT. Both must be refused and the row stay SPENT;
+  presented again the proof is rejected by swap as already spent (`11001`) and by melt before any
+  payment. Pointed at cashu-vault 0.14.0 with `-Dcashu.vault.server.jar=...` it fails at the
+  delete, which is the attack it exists to catch.
+
+### Changed
+
+- imani-bom 0.1.112 -> 0.1.113, for cashu-vault 0.15.0.
+
 ## [0.39.0] - 2026-09-26
 
 Minor rather than patch: `ProofVaultService.retrieveProof` and `storageKeyFor` now require the mint.

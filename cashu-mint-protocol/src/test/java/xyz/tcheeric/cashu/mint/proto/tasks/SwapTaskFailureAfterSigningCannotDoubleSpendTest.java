@@ -258,26 +258,6 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public void store(ProofEntity proofEntity) {
-            // The hold claims and settles inputs; the swap never stores them directly.
-        }
-
-        @Override
-        public void invalidate(ProofEntity proofEntity) {
-            // Superseded by commitSpentForHold, which settles the whole hold at once.
-        }
-
-        @Override
-        public void archive(ProofEntity proofEntity) {
-            // Not reached by a swap.
-        }
-
-        @Override
-        public void storePending(ProofEntity proofEntity) {
-            // Superseded by insertOrClaimForHold, which holds the whole input list at once.
-        }
-
-        @Override
         public ProofEntity retrieveProof(java.util.UUID mintId, String secret) {
             return null;
         }
