@@ -29,8 +29,11 @@ pending vouchers never read as paid.
   learns nothing about payment state. An id neither table knows is now not found, instead of
   `UNPAID` with amount 0.
 - **Quote status reports what was paid (#494).** Both status routes now carry NUT-04's
-  `amount_paid`, `amount_issued` and `updated_at`. On the voucher route `amount_paid` is the
-  charged fee, not the face value, so a verifier can compare the two.
+  `amount_paid`, `amount_issued` and `updated_at`, describing what the quote entitles the payer to
+  mint. The voucher route adds `charged_amount`, what its invoice charged (the fee), so a verifier
+  compares a payment with a price without reading NUT-04's accounting as a price. An earlier
+  revision put the fee in `amount_paid`, which reported an issued voucher as 100 paid and 1000
+  issued, breaking NUT-04's `amount_issued <= amount_paid` and its mintable amount (#499).
 - **Melt no longer marks its inputs spent by overwriting their vault rows (#492).** After a paid
   melt, `InvalidateProofsTask` stored each input and then re-posted the row with its state set to
   SPENT. That only worked while the vault's store endpoint would overwrite an existing row, and a

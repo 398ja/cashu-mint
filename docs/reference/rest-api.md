@@ -99,7 +99,7 @@ The response carries the NUT-04 fields:
 |---|---|
 | `amount` | What may be minted against the quote. |
 | `state` | `UNPAID`, `PAID` or `ISSUED`. A quote whose issuance ledger row exists reads `ISSUED` even while its lifecycle row still says `ISSUING`. |
-| `amount_paid` | What the payer has paid: `amount` once `PAID` or `ISSUED`, else `0`. |
+| `amount_paid` | What the payment entitles the payer to mint: `amount` once `PAID` or `ISSUED`, else `0`. |
 | `amount_issued` | What has been minted: `amount` once `ISSUED`, else `0`. |
 | `updated_at` | Unix seconds of the quote's last state change. |
 | `expiry` | Absolute Unix timestamp until which the request can be paid, or `0` for none. |
@@ -109,8 +109,16 @@ Create a voucher mint quote that charges a percentage fee (see `voucher.quote.fe
 `amount` in the response is the face value; the invoice in `request` charges only the fee.
 
 ### `GET /v1/mint/quote/voucher/{method}/{quote_id}`
-Check voucher mint quote status. Same fields as the regular route, with one difference that
-matters: `amount` is the face value, and `amount_paid` is what the invoice charged, i.e. the fee.
+Check voucher mint quote status. Same fields as the regular route, all describing the face value,
+plus one:
+
+| Field | Meaning |
+|---|---|
+| `charged_amount` | What the quote's invoice charges: the voucher fee, not its face value. Present in every state. |
+
+`amount_paid` is the face value once the quote is paid, not the fee, because NUT-04 requires
+`amount_issued` never to exceed `amount_paid` and mints `amount_paid - amount_issued`
+(cashu-mint#499). Wallets that do not know `charged_amount` ignore it.
 A regular quote id returns `404` with code `90018` (`voucher_quote_not_found`).
 
 ### Voucher quotes have their own status route
@@ -120,7 +128,7 @@ route, `state=ISSUED, amount=1000` would be indistinguishable from a regular quo
 paid 1000, so anything using that route to confirm a payment could be satisfied by paying a tenth
 of it (cashu-mint#494). Neither route answers for the other's quotes. Clients that create voucher
 quotes must poll `GET /v1/mint/quote/voucher/{method}/{quote_id}`, and should compare
-`amount_paid` with what they expected to be charged.
+`charged_amount`, never `amount_paid`, with what they expected to be charged.
 
 ## Mint tokens
 

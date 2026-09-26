@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.MintQuoteStatusTask.Kind;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
@@ -195,22 +196,26 @@ class MintQuoteStatusTaskTest {
                 .isEqualTo(CashuErrorCode.quote_not_found);
     }
 
-    // #494: the voucher route reports the face value as amount and what the invoice charged as
-    // amount_paid, so a client can compare what was paid with what may be minted.
+    // #499: a paid voucher reports its face value as amount_paid, so the NUT-04 mintable amount
+    // (amount_paid - amount_issued) is the face value a wallet sizes its outputs to. What the
+    // invoice charged travels separately, as charged_amount.
     @Test
-    void voucherRoute_reportsFaceValueAndChargedAmountPaid() throws CashuErrorException {
+    void voucherRoute_paidReportsFaceValueAsPaidAndFeeAsCharged() throws CashuErrorException {
         installRegular("vqid", null);
         installVoucher("vqid", voucherQuote(1000L, 100L, VoucherLifecycleState.FUNDED));
 
         PostMintQuoteResponse response = status("vqid", Kind.VOUCHER, service(gateway("vqid", true)));
 
         assertThat(response.getAmount()).isEqualTo(1000);
-        assertThat(response.getAmountPaid()).isEqualTo(100L);
+        assertThat(response.getAmountPaid()).isEqualTo(1000L);
         assertThat(response.getAmountIssued()).isZero();
         assertThat(response.getState()).isEqualTo("PAID");
+        assertThat(response).isInstanceOfSatisfying(VoucherMintQuoteResponse.class,
+                voucher -> assertThat(voucher.getChargedAmount()).isEqualTo(100L));
     }
 
-    // An issued voucher quote reports its face value as issued, and still only the fee as paid.
+    // #499: NUT-04 requires amount_issued <= amount_paid. An issued voucher used to report 100
+    // paid and 1000 issued; it now reports the face value for both, and the fee as charged.
     @Test
     void voucherRoute_issuedReportsFaceValueIssued() throws CashuErrorException {
         installRegular("vqid", null);
@@ -219,8 +224,36 @@ class MintQuoteStatusTaskTest {
         PostMintQuoteResponse response = status("vqid", Kind.VOUCHER, service(gateway("vqid", true)));
 
         assertThat(response.getState()).isEqualTo("ISSUED");
-        assertThat(response.getAmountPaid()).isEqualTo(100L);
+        assertThat(response.getAmountPaid()).isEqualTo(1000L);
         assertThat(response.getAmountIssued()).isEqualTo(1000L);
+        assertThat(response.getAmountIssued()).isLessThanOrEqualTo(response.getAmountPaid());
+        assertThat(((VoucherMintQuoteResponse) response).getChargedAmount()).isEqualTo(100L);
+    }
+
+    // An unpaid voucher has paid and issued nothing, but its price is already known, so a client
+    // can show what the invoice will charge before it is paid.
+    @Test
+    void voucherRoute_unpaidReportsChargeButNothingPaid() throws CashuErrorException {
+        installRegular("vqid", null);
+        installVoucher("vqid", voucherQuote(1000L, 100L, VoucherLifecycleState.UNFUNDED));
+
+        PostMintQuoteResponse response = status("vqid", Kind.VOUCHER, service(gateway("vqid", false)));
+
+        assertThat(response.getState()).isEqualTo("UNPAID");
+        assertThat(response.getAmountPaid()).isZero();
+        assertThat(response.getAmountIssued()).isZero();
+        assertThat(((VoucherMintQuoteResponse) response).getChargedAmount()).isEqualTo(100L);
+    }
+
+    // charged_amount is a voucher-route field only; the regular route answers with the plain
+    // NUT-04 response, whose invoice charges its amount.
+    @Test
+    void regularRoute_answersWithThePlainNut04Response() throws CashuErrorException {
+        installRegular("qid", regularQuote(64L, LifecycleState.PAID));
+
+        PostMintQuoteResponse response = status("qid", Kind.REGULAR, service(gateway("qid", true)));
+
+        assertThat(response).isNotInstanceOf(VoucherMintQuoteResponse.class);
     }
 
     // NUT-04: amount_paid and amount_issued follow the lifecycle. An unpaid quote has paid and

@@ -133,8 +133,9 @@ public final class NUT04 {
      *
      * <p>Answers only for voucher quotes: a regular quote id is refused with
      * {@code voucher_quote_not_found}, just as the regular route refuses a voucher quote id
-     * (cashu-mint#494). {@code amount} is the face value and {@code amount_paid} what the
-     * invoice charged.
+     * (cashu-mint#494). {@code amount} and, once paid, {@code amount_paid} are the face value, as
+     * NUT-04's accounting requires; {@code charged_amount} is what the invoice charged
+     * (cashu-mint#499).
      *
      * @param quoteId the quote identifier
      * @param method  the payment method
