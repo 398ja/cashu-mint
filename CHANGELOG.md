@@ -12,8 +12,25 @@ overwrite the old melt burn depended on.
 #491 also changes `SignatureVaultService.store` (takes a `SignatureSource`, refuses duplicates)
 and makes production refuse to boot without the durable signature vault.
 
+**Breaking for clients polling voucher quotes on the regular status route (#494):** deploy
+imani-gateway-customer 0.14.7 (wallet-lib 0.4.0 `voucherQuotePaid`) **before** this mint, or its
+pending vouchers never read as paid.
+
 ### Security
 
+- **The regular mint-quote status route no longer answers for voucher quotes (#494).**
+  `GET /v1/mint/quote/bolt11/{id}` looked the id up in the voucher table too, and reported a voucher
+  quote with its face value as `amount`. A voucher's invoice charges only a fee (10% by default), so
+  `state=ISSUED, amount=1000` there was indistinguishable from a regular quote whose payer paid
+  1000. imani-gateway-core#92 confirms client mints against exactly that route, so a payer could
+  satisfy a 1000-sat confirmation by paying 100. The regular route now answers `quote_not_found`
+  (90007) for a voucher id and the voucher route answers `voucher_quote_not_found` (90018) for a
+  regular id. The id is classified before the payment gateway is asked, so a wrong-route probe
+  learns nothing about payment state. An id neither table knows is now not found, instead of
+  `UNPAID` with amount 0.
+- **Quote status reports what was paid (#494).** Both status routes now carry NUT-04's
+  `amount_paid`, `amount_issued` and `updated_at`. On the voucher route `amount_paid` is the
+  charged fee, not the face value, so a verifier can compare the two.
 - **Melt no longer marks its inputs spent by overwriting their vault rows (#492).** After a paid
   melt, `InvalidateProofsTask` stored each input and then re-posted the row with its state set to
   SPENT. That only worked while the vault's store endpoint would overwrite an existing row, and a
@@ -46,6 +63,25 @@ and makes production refuse to boot without the durable signature vault.
 
 ### Fixed
 
+- **Regular mints stranded in `ISSUING` on a v2 keyset (#494).** `issuance_record.keyset_id` was
+  `VARCHAR(64)` and a NUT-02 v2 keyset id is 66 characters, so once the mint rotated onto a v2
+  keyset every regular mint signed its outputs and then failed to write the ledger row. The wallet
+  got a 500, its retry got `20005 issuance_in_progress`, and the quote sat in `ISSUING` with the
+  payment taken. Staging recorded no regular issuance from 2026-08-31, with four quotes stranded.
+  Migration `V20260926_002` widens the column; every other keyset id column was already 66. See the
+  new [stranded ISSUING runbook](docs/runbooks/stranded-issuing-mint-quotes.md) for quotes stranded
+  before the upgrade.
+- **An `ISSUING` quote whose ledger row exists reads `ISSUED` (#494).** Its signatures were
+  produced and recorded, and only the final lifecycle write is missing, so the status route no
+  longer tells the wallet it is still `PAID`.
+- **Quote `expiry` is an absolute Unix timestamp (#494).** NUT-04, NUT-05 and NUT-23 define it as
+  one, and every gateway returns a relative TTL that the mint passed through. cashu-ts 4.x read
+  phoenixd's `60` as 1970 and refused every quote as expired. Mint and melt quote creation, both
+  status routes and NUT-17 notifications now report the gateway's creation time plus the TTL, or
+  now plus the TTL where the gateway does not track creation. A value that is already a timestamp
+  is passed through.
+- **NUT-17 enrichment after a voucher mint uses the voucher status route**, since the regular one
+  now refuses voucher ids (#494).
 - **`cashu-mint-rest-it` tested a stale published protocol jar, not the branch.** `cashu-mint-rest-it`
   takes `cashu-mint-protocol` transitively, and `dependencyManagement` rewrote that edge to
   `<cashu-mint.version>0.38.4</cashu-mint.version>`, so every rest-it IT exercised the published

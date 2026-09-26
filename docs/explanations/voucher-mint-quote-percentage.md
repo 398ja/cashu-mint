@@ -37,7 +37,7 @@ This document describes the planned change to calculate voucher mint quotes as a
 ## Flow impact (NUT-04)
 - **Request:** `POST /v1/mint/quote/{method}` continues to accept the voucher face value in the `amount` field.
 - **Quote creation:** Before calling `Gateway.createMintQuote`, compute `voucher_price` using the configured percentage and pass that value to the gateway so the invoice/request reflects the fee-based price.
-- **Quote status:** `GET /v1/mint/quote/{method}/{quote_id}` remains the same; it should expose the paid status of the fee-based invoice.
+- **Quote status:** `GET /v1/mint/quote/voucher/{method}/{quote_id}` exposes the paid status of the fee-based invoice, with `amount_paid` set to the fee. The regular `GET /v1/mint/quote/{method}/{quote_id}` refuses voucher quote ids, because its `amount` would be the face value of an invoice that charged only the fee (cashu-mint#494).
 - **Minting:** `POST /v1/mint/{method}` still mints proofs totaling the face value (`amount` in the original quote). Ensure downstream validation uses the quote’s face value, not the charged fee, so wallets receive the full voucher amount once the fee invoice is paid.
 - **Non-voucher mints:** Apply the percentage model only to voucher mint quotes; leave other payment methods or asset types unchanged unless explicitly configured to share the fee model.
 
@@ -55,7 +55,7 @@ This document describes the planned change to calculate voucher mint quotes as a
 
 ## Testing checklist
 - Unit: percentage computation (0%, 1%, 10%, 100%), rounding behavior, overflow guard, and config parsing/validation for env/system properties.
-- Integration: `POST /v1/mint/quote/{method}` returns an invoice whose amount matches the computed fee; `GET /v1/mint/quote/{method}/{quote_id}` reflects paid status of that invoice; `POST /v1/mint/{method}` mints the full face value after paying only the fee.
+- Integration: `POST /v1/mint/quote/{method}` returns an invoice whose amount matches the computed fee; `GET /v1/mint/quote/voucher/{method}/{quote_id}` reflects paid status of that invoice; `POST /v1/mint/{method}` mints the full face value after paying only the fee.
 - Edge: extremely small amounts (ensure zero/low fees behave as expected), very large amounts, invalid percentages, and non-voucher mint paths unaffected.
 
 ## See Also

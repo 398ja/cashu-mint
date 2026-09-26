@@ -89,11 +89,38 @@ Check mint quote status.
 - `method` (path) – payment method.
 - `quote_id` (path) – quote identifier returned from the POST.
 
+Answers for regular quotes only. A voucher quote id returns `404` with code `90007`
+(`quote_not_found`), as does an id the mint does not know: see
+[voucher quotes have their own status route](#voucher-quotes-have-their-own-status-route).
+
+The response carries the NUT-04 fields:
+
+| Field | Meaning |
+|---|---|
+| `amount` | What may be minted against the quote. |
+| `state` | `UNPAID`, `PAID` or `ISSUED`. A quote whose issuance ledger row exists reads `ISSUED` even while its lifecycle row still says `ISSUING`. |
+| `amount_paid` | What the payer has paid: `amount` once `PAID` or `ISSUED`, else `0`. |
+| `amount_issued` | What has been minted: `amount` once `ISSUED`, else `0`. |
+| `updated_at` | Unix seconds of the quote's last state change. |
+| `expiry` | Absolute Unix timestamp until which the request can be paid, or `0` for none. |
+
 ### `POST /v1/mint/quote/voucher/{method}`
 Create a voucher mint quote that charges a percentage fee (see `voucher.quote.fee-percent`).
+`amount` in the response is the face value; the invoice in `request` charges only the fee.
 
 ### `GET /v1/mint/quote/voucher/{method}/{quote_id}`
-Check voucher mint quote status.
+Check voucher mint quote status. Same fields as the regular route, with one difference that
+matters: `amount` is the face value, and `amount_paid` is what the invoice charged, i.e. the fee.
+A regular quote id returns `404` with code `90018` (`voucher_quote_not_found`).
+
+### Voucher quotes have their own status route
+
+A voucher quote's invoice charges a fee while its `amount` is the face value. On the regular
+route, `state=ISSUED, amount=1000` would be indistinguishable from a regular quote whose payer
+paid 1000, so anything using that route to confirm a payment could be satisfied by paying a tenth
+of it (cashu-mint#494). Neither route answers for the other's quotes. Clients that create voucher
+quotes must poll `GET /v1/mint/quote/voucher/{method}/{quote_id}`, and should compare
+`amount_paid` with what they expected to be charged.
 
 ## Mint tokens
 
