@@ -89,6 +89,12 @@ import java.util.UUID;
  */
 @Slf4j
 public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltResponse> {
+    /**
+     * Prefix of the one-off hold a legacy melt spends its inputs under. Not {@code swap-}, so
+     * {@code HoldKind.forHoldId} records it as a melt hold.
+     */
+    private static final String LEGACY_HOLD_PREFIX = "melt-legacy-";
+
     private final PostMeltRequest<T> postMeltRequest;
     private final PaymentMethod method;
     private final String unit;
@@ -432,17 +438,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         }
 
         try {
-            createInvalidateProofsTask(proofsToMelt).execute();
-            // Spec 002 T011 — commit the saga binding to SPENT atomically
-            // and clear hold_id. The legacy invalidate already
-            // flipped state=SPENT; this call is a no-op on state but
-            // clears the binding for SC-002 reconciliation
-            // (COMPLETED saga must have 0 held proofs).
-            int spent = proofVaultService.commitSpentForHold(sagaId);
-            if (log.isDebugEnabled()) {
-                log.debug("[melt-saga] saga_binding_committed saga_id={} spent={}",
-                        sagaId, spent);
-            }
+            spendHeldInputs(sagaId, proofsToMelt.size());
         } catch (CashuErrorException | RuntimeException invalidateError) {
             // FR-011 — operator-visible alert: payment is gone but the burn
             // commit failed. Saga lands in PAYMENT_SENT_BURN_FAILED and
@@ -482,6 +478,31 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
 
         cacheTerminalResponse(sagaId, response);
         return response;
+    }
+
+    /**
+     * Spends the inputs this melt holds by committing its hold, and fails unless every one of
+     * them is spent.
+     *
+     * <p>This is the whole burn. It used to run {@code InvalidateProofsTask} first, which
+     * re-posted each proof row to the vault's store endpoint with its state set to SPENT. That
+     * relied on store overwriting an existing row, which is the capability cashu-vault#154
+     * removes because it is also how a SPENT row could be turned back into a spendable one
+     * (cashu-mint#492). The inputs are already bound to this hold, so committing the hold is
+     * sufficient, and it is the same transition the swap uses.
+     *
+     * <p>A shortfall is a failure, not a success with a smaller number. Accepting it would let a
+     * melt whose inputs are still spendable report the invoice as paid, which is the double spend
+     * the burn exists to prevent. The caller turns it into {@code PAYMENT_SENT_BURN_FAILED}, where
+     * the inputs stay held until an operator resolves them.
+     */
+    private void spendHeldInputs(String holdId, int heldCount) throws CashuErrorException {
+        int spent = proofVaultService.commitSpentForHold(holdId);
+        if (spent < heldCount) {
+            throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error,
+                    "melt held " + heldCount + " inputs but only " + spent + " were spent");
+        }
+        log.debug("[melt-saga] inputs_spent hold_id={} spent={}", holdId, spent);
     }
 
     /**
@@ -673,14 +694,39 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         if (!gateway.checkPaymentStatus(quoteId)) {
             throw new CashuErrorException(CashuErrorCode.melt_invoice_not_paid_error);
         }
+        spendInputsAfterLegacyPayment(proofsToMelt, quoteId);
+        return meltResponse(quoteId, gateway.getPaymentPreimage(quoteId), gateway);
+    }
+
+    /**
+     * Records the inputs of a legacy melt as spent, through the same hold the saga path uses.
+     *
+     * <p>The legacy path used to insert each input as PENDING and then overwrite the row as
+     * SPENT through {@code InvalidateProofsTask}. The overwrite is gone from the vault
+     * (cashu-vault#154), so the inputs are claimed under a one-off hold and the hold is
+     * committed, which spends them in one transition without ever re-posting a row.
+     *
+     * <p>The payment has already gone by now, which is this path's known defect and the reason
+     * production refuses to run it (see {@code DurablePersistenceStartupValidator}). A claim that
+     * binds fewer inputs than were melted fails the melt rather than reporting it paid, as the
+     * previous insert did when it met an existing row.
+     */
+    private void spendInputsAfterLegacyPayment(List<Proof<T>> proofsToMelt, String quoteId)
+            throws CashuErrorException {
+        String holdId = LEGACY_HOLD_PREFIX + UUID.randomUUID();
         try {
-            persistPendingProofs(proofsToMelt);
+            int bound = proofVaultService.insertOrClaimForHold(
+                    buildNormalizedProofEntities(proofsToMelt), holdId, UUID.fromString(mint.getId()));
+            if (bound < proofsToMelt.size()) {
+                proofVaultService.refundForHold(holdId);
+                throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error,
+                        "melt bound " + bound + " of " + proofsToMelt.size() + " inputs");
+            }
+            spendHeldInputs(holdId, bound);
         } catch (CashuErrorException | RuntimeException e) {
-            log.error("Failed to mark proofs as pending for melt quote {}", quoteId, e);
+            log.error("Failed to spend the inputs of legacy melt quote {}", quoteId, e);
             throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error);
         }
-        createInvalidateProofsTask(proofsToMelt).execute();
-        return meltResponse(quoteId, gateway.getPaymentPreimage(quoteId), gateway);
     }
 
 
@@ -796,22 +842,6 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     }
 
     /**
-     * Spec 005 — legacy unit-test entry. The spec-002 saga path no longer
-     * uses this; {@link #buildNormalizedProofEntities} feeds the atomic
-     * {@code insertOrClaimForHold} call instead. Kept for the legacy
-     * pay-before-burn path used when the saga repository is unwired
-     * ({@link #executeLegacy}). The Y-coordinate normalization prevents
-     * the raw-secret/Y duplicate-row regression even on the legacy path.
-     */
-    private void persistPendingProofs(List<Proof<T>> proofsToMelt) throws CashuErrorException {
-        MintEntity mintEntity = mintVaultService.retrieveMint(mint.getId());
-        for (ProofEntity proofEntity : buildNormalizedProofEntities(proofsToMelt, mintEntity)) {
-            proofEntity.setState(ProofEntity.STATE_PENDING);
-            proofVaultService.storePending(proofEntity);
-        }
-    }
-
-    /**
      * Spec 005 — builds vault rows for the melt-saga atomic insert-or-claim
      * call with Y-coordinate normalization, matching the canonical identity
      * used by {@link xyz.tcheeric.cashu.mint.proto.util.MintProtocolUtil#toProofEntity}.
@@ -824,12 +854,33 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         return buildNormalizedProofEntities(proofsToMelt, mintEntity);
     }
 
-    private List<ProofEntity> buildNormalizedProofEntities(List<Proof<T>> proofsToMelt, MintEntity mintEntity) {
+    private List<ProofEntity> buildNormalizedProofEntities(List<Proof<T>> proofsToMelt, MintEntity mintEntity)
+            throws CashuErrorException {
         java.util.List<ProofEntity> rows = new java.util.ArrayList<>(proofsToMelt.size());
         for (Proof<T> proof : proofsToMelt) {
-            rows.add(ProofEntity.fromProof(proof, mintEntity));
+            ProofEntity row = ProofEntity.fromProof(proof, mintEntity);
+            keyUnderTheEncodingTheProofWasRecordedUnder(proof, row);
+            rows.add(row);
         }
         return rows;
+    }
+
+    /**
+     * Keys the hold row onto the curve point this proof is already recorded under, if any.
+     *
+     * <p>A proof spent before the NUT-00 secret encoding was corrected is recorded under the
+     * legacy point. Claiming it under the spec point would insert a second, fresh row, and the
+     * melt would pay against a proof that is already spent. {@code InvalidateProofsTask} used to
+     * re-key the row, but only after the payment had gone; keying the claim instead refuses the
+     * melt before it pays, as {@code SwapProofHold} already does for swaps.
+     */
+    private void keyUnderTheEncodingTheProofWasRecordedUnder(Proof<T> proof, ProofEntity row)
+            throws CashuErrorException {
+        if (proof.getSecret() == null) {
+            return;
+        }
+        row.setSecret(proofVaultService.storageKeyFor(UUID.fromString(mint.getId()),
+                proof.getSecret().toString()));
     }
 
     /**
@@ -873,10 +924,6 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     quoteId, sagaId, e.getMessage());
         }
         cacheTerminalError(sagaId, ErrorResponse.of(CashuErrorCode.proofs_not_bound));
-    }
-
-    protected InvalidateProofsTask<T> createInvalidateProofsTask(List<Proof<T>> proofs) {
-        return new InvalidateProofsTask<>(mint, proofs, mintVaultService, proofVaultService);
     }
 
     /**

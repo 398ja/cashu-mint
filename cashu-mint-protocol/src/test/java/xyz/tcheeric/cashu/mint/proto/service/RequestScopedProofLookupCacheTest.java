@@ -118,7 +118,7 @@ class RequestScopedProofLookupCacheTest {
         assertThat(cache.retrieveProofByY(Y)).isNull();
 
         ProofEntity spent = spentProof();
-        cache.invalidate(spent);
+        cache.commitSpentForHold("hold");
         when(vault.retrieveProofByY(Y)).thenReturn(spent);
 
         assertThat(cache.retrieveProofByY(Y)).isSameAs(spent);

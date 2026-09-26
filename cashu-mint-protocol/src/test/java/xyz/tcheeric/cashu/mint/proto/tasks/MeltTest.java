@@ -116,7 +116,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = proofVaultBindingEveryInput();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
@@ -134,14 +134,16 @@ public class MeltTest {
 
         assertTrue(postMeltResponse.isPaid());
 
-        ArgumentCaptor<ProofEntity> pendingCaptor = ArgumentCaptor.forClass(ProofEntity.class);
-        Mockito.verify(proofVaultService, Mockito.times(2)).storePending(pendingCaptor.capture());
-        pendingCaptor.getAllValues().forEach(entity -> assertEquals(ProofEntity.STATE_PENDING, entity.getState()));
-
+        // The legacy path spends its inputs through a hold like the saga path does: both inputs
+        // are claimed under one hold and the hold is committed. No proof row is ever re-posted.
+        ArgumentCaptor<List<ProofEntity>> held = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> holdId = ArgumentCaptor.forClass(String.class);
         InOrder inOrder = Mockito.inOrder(mockGateway, proofVaultService);
         inOrder.verify(mockGateway).pay(postMeltRequest.getQuoteId());
         inOrder.verify(mockGateway).checkPaymentStatus(postMeltRequest.getQuoteId());
-        inOrder.verify(proofVaultService, Mockito.times(2)).storePending(Mockito.any());
+        inOrder.verify(proofVaultService).insertOrClaimForHold(held.capture(), holdId.capture(), any(UUID.class));
+        inOrder.verify(proofVaultService).commitSpentForHold(holdId.getValue());
+        assertEquals(2, held.getValue().size());
     }
 
     /**
@@ -201,7 +203,7 @@ public class MeltTest {
         // `insufficient_input` code carried by BurnAmountValidator; the
         // legacy `melt_proof_amount_error` code is retired.
         assertEquals("insufficient_input", errorCode.name());
-        Mockito.verify(proofVaultService, Mockito.never()).storePending(Mockito.any());
+        Mockito.verifyNoInteractions(proofVaultService);
         Mockito.verify(mockGateway, Mockito.never()).pay(anyString());
     }
 
@@ -253,7 +255,8 @@ public class MeltTest {
     }
 
     /**
-     * Ensures the melt flow aborts before payment when persisting pending proofs fails.
+     * Ensures a legacy melt whose inputs cannot be claimed after payment reports the pending-proof
+     * error rather than success, and never commits a hold it does not have.
      */
     @Test
     public void mockMeltPendingUpdateFails() throws CashuErrorException, JsonProcessingException {
@@ -280,7 +283,8 @@ public class MeltTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        Mockito.doThrow(new IllegalStateException("fail")).when(proofVaultService).storePending(Mockito.any());
+        Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
+                .thenThrow(new IllegalStateException("fail"));
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
@@ -296,9 +300,55 @@ public class MeltTest {
         CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
         CashuErrorCode errorCode = exception.getErrorCode();
         assertEquals("melt_proof_pending_error", errorCode.name());
-        Mockito.verify(proofVaultService).storePending(Mockito.any());
+        Mockito.verify(proofVaultService).insertOrClaimForHold(any(), anyString(), any(UUID.class));
+        Mockito.verify(proofVaultService, Mockito.never()).commitSpentForHold(anyString());
         Mockito.verify(mockGateway).pay(postMeltRequest.getQuoteId());
         Mockito.verify(mockGateway).checkPaymentStatus(postMeltRequest.getQuoteId());
+    }
+
+    /**
+     * A legacy melt whose input the vault will not bind, because it is already spent or held, is
+     * refused and its partial hold released: it neither commits nor reports the invoice paid.
+     */
+    @Test
+    public void legacyMeltRefusesWhenAnInputCannotBeBound() throws CashuErrorException {
+        Proof<RandomStringSecret> proof = new RSSProof();
+        proof.setUnblindedSignature(Signature.fromString("03603b00ab28374d5e50936ad0b4c606b17d435671f65973e8b04f28d5987f8703"));
+        proof.setSecret(RandomStringSecret.fromString("3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518"));
+        proof.setAmount(16);
+        proof.setKeySetId("004cf8cba2f93266");
+
+        PostMeltRequest<RandomStringSecret> postMeltRequest = new PostMeltRequest();
+        postMeltRequest.setQuoteId("0x1234567890");
+        postMeltRequest.setInputs(List.of(proof));
+
+        Gateway mockGateway = Mockito.mock(Gateway.class);
+        when(mockGateway.getAmount(anyString())).thenReturn(16);
+        when(mockGateway.getFeeReserve(anyString())).thenReturn(0);
+        when(mockGateway.checkPaymentStatus(anyString())).thenReturn(true);
+
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(mockGateway);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any())).thenReturn(
+                PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class))).thenReturn(0);
+
+        MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
+        Mint mint = new Mint(UUID.randomUUID().toString());
+        Mockito.when(mintLoadService.keySets(false)).thenReturn(java.util.List.of(
+                KeySet.builder().id("004cf8cba2f93266").unit("sat").build()));
+        Mockito.when(mintLoadService.keySets(true)).thenReturn(java.util.List.of());
+
+        MeltTask<RandomStringSecret> task = new MeltTask(postMeltRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService);
+
+        CashuErrorException exception = assertThrows(CashuErrorException.class, task::execute);
+        assertEquals("melt_proof_pending_error", exception.getErrorCode().name());
+        Mockito.verify(proofVaultService).refundForHold(anyString());
+        Mockito.verify(proofVaultService, Mockito.never()).commitSpentForHold(anyString());
     }
 
     /**
@@ -363,7 +413,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(Mockito.anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = proofVaultBindingEveryInput();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
@@ -380,36 +430,12 @@ public class MeltTest {
             public boolean verify(@NonNull Proof proof) {
                 return true;
             }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected InvalidateProofsTask<RandomStringSecret> createInvalidateProofsTask(List proofs) {
-                List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
-                return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
-                    @Override
-                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
-                        return typedProofs;
-                    }
-                };
-            }
         };
 
         MeltTask<RandomStringSecret> secondTask = new MeltTask(secondRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService) {
             @Override
             public boolean verify(@NonNull Proof proof) {
                 return true;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected InvalidateProofsTask<RandomStringSecret> createInvalidateProofsTask(List proofs) {
-                List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
-                return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
-                    @Override
-                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
-                        return typedProofs;
-                    }
-                };
             }
         };
 
@@ -496,7 +522,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(Mockito.anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = proofVaultBindingEveryInput();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         KeySet keySet = KeySet.builder().id(VALID_KEYSET_ID).unit("sat").build();
@@ -513,36 +539,12 @@ public class MeltTest {
             public boolean verify(@NonNull Proof proof) {
                 return true;
             }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected InvalidateProofsTask<RandomStringSecret> createInvalidateProofsTask(List proofs) {
-                List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
-                return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
-                    @Override
-                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
-                        return typedProofs;
-                    }
-                };
-            }
         };
 
         MeltTask<RandomStringSecret> secondTask = new MeltTask(secondRequest, PaymentMethod.MOCK, mint, service, mintLoadService, mintVaultService, proofVaultService) {
             @Override
             public boolean verify(@NonNull Proof proof) {
                 return true;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected InvalidateProofsTask<RandomStringSecret> createInvalidateProofsTask(List proofs) {
-                List<Proof<RandomStringSecret>> typedProofs = (List<Proof<RandomStringSecret>>) proofs;
-                return new InvalidateProofsTask<>(mint, typedProofs, mintVaultService, proofVaultService) {
-                    @Override
-                    protected List<Proof<RandomStringSecret>> doExecute() throws CashuErrorException {
-                        return typedProofs;
-                    }
-                };
             }
         };
 
@@ -597,4 +599,24 @@ public class MeltTest {
         assertTrue(result);
     }
 
+
+    /**
+     * A proof vault that claims every input it is offered and spends exactly what it holds, the
+     * way the real vault answers a melt whose inputs are all fresh.
+     */
+    private static ProofVaultService proofVaultBindingEveryInput() throws CashuErrorException {
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        java.util.Map<String, Integer> heldByHold = new java.util.concurrent.ConcurrentHashMap<>();
+        Mockito.when(proofVaultService.storageKeyFor(any(UUID.class), anyString()))
+                .thenAnswer(call -> "y-" + call.getArgument(1, String.class));
+        Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
+                .thenAnswer(call -> {
+                    int bound = call.getArgument(0, List.class).size();
+                    heldByHold.put(call.getArgument(1, String.class), bound);
+                    return bound;
+                });
+        Mockito.when(proofVaultService.commitSpentForHold(anyString()))
+                .thenAnswer(call -> heldByHold.getOrDefault(call.getArgument(0, String.class), 0));
+        return proofVaultService;
+    }
 }

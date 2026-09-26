@@ -21,6 +21,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.time.Duration;
@@ -209,9 +210,8 @@ class MeltSagaStateMachineTest {
         ArgumentCaptor<MeltSagaState> to = ArgumentCaptor.forClass(MeltSagaState.class);
         verify(f.sagaRepo, times(2)).recordTransition(anyString(), any(), to.capture(), any(), anyString());
         assertThat(to.getAllValues()).containsExactly(MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
-        // The test stub of InvalidateProofsTask increments the flag; on the
-        // failure branch the task short-circuits before invalidate runs.
-        assertThat(f.invalidateCalled).as("invalidate must not run on FAILED").isFalse();
+        // A failed payment releases the inputs; it never spends them.
+        verify(f.proofVaultService, never()).commitSpentForHold(anyString());
     }
 
     @Test
@@ -278,9 +278,9 @@ class MeltSagaStateMachineTest {
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
         f.bindAllSubmittedProofs();
-        // Inject the failure on the final invalidate step: the test stub of
-        // InvalidateProofsTask runs the Fixture's onInvalidate callback.
-        f.onInvalidate = () -> { throw new RuntimeException("vault_unreachable"); };
+        // The burn is the hold commit, so a vault failure there is the burn failure.
+        when(f.proofVaultService.commitSpentForHold(anyString()))
+                .thenThrow(new RuntimeException("vault_unreachable"));
 
         MeltTask task = f.task(/*proofSum*/ 105L);
         assertThatThrownBy(task::execute)
@@ -288,6 +288,70 @@ class MeltSagaStateMachineTest {
 
         verify(f.sagaRepo).casState(anyString(),
                 eq(MeltSagaState.PAYMENT_SENT), eq(MeltSagaState.PAYMENT_SENT_BURN_FAILED));
+    }
+
+    // cashu-mint#492: a paid melt spends its inputs by committing the hold they were claimed
+    // under, and nothing else writes proof rows. The vault no longer lets a row be re-posted, so
+    // the old store-then-overwrite burn would fail against it.
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void paid_melt_spends_its_inputs_by_committing_the_saga_hold() throws CashuErrorException {
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
+        f.bindAllSubmittedProofs();
+
+        f.task(/*proofSum*/ 105L).execute();
+
+        ArgumentCaptor<String> claimedUnder = ArgumentCaptor.forClass(String.class);
+        verify(f.proofVaultService).insertOrClaimForHold(any(), claimedUnder.capture(), any(UUID.class));
+        verify(f.proofVaultService).commitSpentForHold(claimedUnder.getValue());
+        org.mockito.InOrder order = Mockito.inOrder(f.paymentPort, f.proofVaultService);
+        order.verify(f.paymentPort).pay(anyString(), any(Duration.class));
+        order.verify(f.proofVaultService).commitSpentForHold(anyString());
+    }
+
+    // cashu-mint#492: a commit that spends fewer inputs than the melt held is a burn failure,
+    // not a success. Reporting the invoice paid while an input stays spendable is a double spend.
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void short_commit_after_payment_lands_in_PAYMENT_SENT_BURN_FAILED() throws CashuErrorException {
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
+        f.bindAllSubmittedProofs();
+        when(f.proofVaultService.commitSpentForHold(anyString())).thenReturn(1);
+
+        MeltTask task = f.task(/*proofSum*/ 105L);
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .hasMessageContaining("only 1 were spent");
+
+        verify(f.sagaRepo).casState(anyString(),
+                eq(MeltSagaState.PAYMENT_SENT), eq(MeltSagaState.PAYMENT_SENT_BURN_FAILED));
+        verify(f.sagaRepo, never()).casState(anyString(),
+                eq(MeltSagaState.PAYMENT_SENT), eq(MeltSagaState.COMPLETED));
+    }
+
+    // cashu-mint#492: the hold rows are keyed where the vault already records each proof, so a
+    // proof recorded under the legacy NUT-00 point is claimed under that point. Claiming it under
+    // the spec point would insert a fresh row and pay against a proof that is already spent.
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void hold_rows_are_keyed_where_the_vault_already_records_the_proof() throws CashuErrorException {
+        Fixture f = new Fixture();
+        f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
+        f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
+        f.bindAllSubmittedProofs();
+        when(f.proofVaultService.storageKeyFor(any(UUID.class), anyString())).thenReturn("legacy-point");
+
+        f.task(/*proofSum*/ 105L).execute();
+
+        ArgumentCaptor<List<ProofEntity>> rows = ArgumentCaptor.forClass(List.class);
+        verify(f.proofVaultService).insertOrClaimForHold(rows.capture(), anyString(), any(UUID.class));
+        assertThat(rows.getValue())
+                .extracting(ProofEntity::getSecret)
+                .containsOnly("legacy-point");
     }
 
     private static String errorCode(CashuErrorException ex) {
@@ -305,6 +369,7 @@ class MeltSagaStateMachineTest {
         final ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         final Mint mint = new Mint(UUID.randomUUID().toString());
         final KeySet keyset = KeySet.builder().id("ks-1").unit("sat").build();
+        int heldInputs;
 
         Fixture() {
             when(sagaRepo.casState(anyString(), any(), any())).thenReturn(1);
@@ -361,8 +426,12 @@ class MeltSagaStateMachineTest {
                 when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                         .thenAnswer(inv -> {
                             java.util.List<?> rows = inv.getArgument(0);
+                            heldInputs = rows.size();
                             return rows.size();
                         });
+                // Committing spends exactly what was held, as the vault does.
+                when(proofVaultService.commitSpentForHold(anyString()))
+                        .thenAnswer(inv -> heldInputs);
             } catch (CashuErrorException impossible) {
                 throw new RuntimeException(impossible);
             }
@@ -378,9 +447,8 @@ class MeltSagaStateMachineTest {
             when(request.getInputs()).thenReturn(List.of(p1, p2));
             when(request.getFees(any(KeySetResolver.class))).thenReturn(0);
 
-            // Test subclass that bypasses BDHKE verification + uses a
-            // no-op InvalidateProofsTask — these tests target the saga
-            // state-machine, not signature crypto or vault writes.
+            // Test subclass that bypasses BDHKE verification: these tests
+            // target the saga state machine, not signature crypto.
             return new MeltTask(request, PaymentMethod.MOCK, "sat", mint, protocolService,
                     loadService, vaultService, proofVaultService,
                     sagaRepo, paymentPort, Duration.ofSeconds(1)) {
@@ -389,27 +457,7 @@ class MeltSagaStateMachineTest {
                     return true;
                 }
 
-                @Override
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                protected InvalidateProofsTask createInvalidateProofsTask(List proofs) {
-                    return new InvalidateProofsTask(mint, proofs, vaultService, proofVaultService) {
-                        @Override
-                        protected List doExecute() {
-                            invalidateInvoked();
-                            return java.util.Collections.emptyList();
-                        }
-                    };
-                }
             };
-        }
-
-        // Hook so tests can verify invalidate was reached without depending
-        // on the real implementation.
-        boolean invalidateCalled;
-        Runnable onInvalidate;
-        void invalidateInvoked() {
-            invalidateCalled = true;
-            if (onInvalidate != null) onInvalidate.run();
         }
 
         private static Proof stubProof(int amount) {
