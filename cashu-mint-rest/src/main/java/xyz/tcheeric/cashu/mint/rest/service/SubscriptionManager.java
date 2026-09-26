@@ -112,8 +112,8 @@ public final class SubscriptionManager {
         sessions.putIfAbsent(sessionId, session);
 
         // Create subscription
-        Set<String> safeIds = ids != null ? new HashSet<>(ids) : new HashSet<>();
-        Subscription subscription = Subscription.of(subId, sessionId, kind, safeIds);
+        Subscription subscription = Subscription.of(subId, sessionId, kind, ids != null ? ids : List.of());
+        Set<String> safeIds = subscription.ids();
         subscriptionById.put(subId, subscription);
 
         // Add to session subscriptions atomically to avoid race with removeSession
@@ -159,14 +159,7 @@ public final class SubscriptionManager {
 
         // Remove from index
         for (String id : subscription.ids()) {
-            String indexKey = indexKey(subscription.kind(), id);
-            Set<String> subIds = subscriptionIndex.get(indexKey);
-            if (subIds != null) {
-                subIds.remove(subId);
-                if (subIds.isEmpty()) {
-                    subscriptionIndex.remove(indexKey);
-                }
-            }
+            unindex(subscription.kind(), id, subId);
         }
 
         log.debug("subscription_removed sub_id={} session_id={}", subId, sessionId);
@@ -189,18 +182,29 @@ public final class SubscriptionManager {
         for (Subscription sub : subs) {
             subscriptionById.remove(sub.subId());
             for (String id : sub.ids()) {
-                String indexKey = indexKey(sub.kind(), id);
-                Set<String> subIds = subscriptionIndex.get(indexKey);
-                if (subIds != null) {
-                    subIds.remove(sub.subId());
-                    if (subIds.isEmpty()) {
-                        subscriptionIndex.remove(indexKey);
-                    }
-                }
+                unindex(sub.kind(), id, sub.subId());
             }
         }
 
         log.info("session_removed session_id={} subscription_count={}", sessionId, subs.size());
+    }
+
+    /**
+     * Drops one subscription from one index entry, removing the entry once it is empty. Atomic per
+     * key: a separate emptiness check and remove could drop a subscription another thread indexed
+     * under the same key in between, and that subscriber would silently stop receiving updates.
+     */
+    private void unindex(SubscriptionKind kind, String id, String subId) {
+        subscriptionIndex.computeIfPresent(indexKey(kind, id), (key, subIds) -> {
+            subIds.remove(subId);
+            return subIds.isEmpty() ? null : subIds;
+        });
+    }
+
+    /** How many subscriptions are indexed under this target. Package-private for tests. */
+    int indexedSubscriberCount(SubscriptionKind kind, String id) {
+        Set<String> subIds = subscriptionIndex.get(indexKey(kind, id));
+        return subIds == null ? 0 : subIds.size();
     }
 
     /**
@@ -534,13 +538,19 @@ public final class SubscriptionManager {
             Set<String> ids,
             Map<String, String> spellingByTarget
     ) {
-        static Subscription of(String subId, String sessionId, SubscriptionKind kind, Set<String> ids) {
+        /**
+         * Builds a subscription with one id per target: the same Y written in two cases is one
+         * proof, so it keeps the first spelling and yields one initial state, not two.
+         */
+        static Subscription of(String subId, String sessionId, SubscriptionKind kind, List<String> ids) {
             // Not Map.copyOf: a subscriber can send a null id, and the index tolerates one.
-            Map<String, String> spellingByTarget = new HashMap<>();
+            Map<String, String> spellingByTarget = new LinkedHashMap<>();
             for (String id : ids) {
-                spellingByTarget.put(normalisedId(kind, id), id);
+                spellingByTarget.putIfAbsent(normalisedId(kind, id), id);
             }
-            return new Subscription(subId, sessionId, kind, ids, Collections.unmodifiableMap(spellingByTarget));
+            Set<String> distinctIds = new LinkedHashSet<>(spellingByTarget.values());
+            return new Subscription(subId, sessionId, kind, Collections.unmodifiableSet(distinctIds),
+                    Collections.unmodifiableMap(spellingByTarget));
         }
 
         /**
