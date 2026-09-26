@@ -68,8 +68,14 @@
              images included. -->
         <cashu-vault.version>0.12.1</cashu-vault.version>
         <payment-adapter.version>0.14.2</payment-adapter.version>
-        <!-- Own modules; keep in step with <version> above on every release. -->
-        <cashu-mint.version>0.38.4</cashu-mint.version>
+        <!-- Own modules; keep in step with <version> above on every release.
+             Latent while the reactor builds all these modules together, because a reactor
+             module wins over dependencyManagement: a `dependency:list` on cashu-mint-rest
+             resolves 0.39.0 regardless of what this says. It bites an out-of-reactor
+             consumer that imports this pom's dependencyManagement, which would silently
+             get whatever release this names. It had drifted to 0.38.4 across nine
+             releases, so the comment above was not enough on its own. -->
+        <cashu-mint.version>0.39.0</cashu-mint.version>
         <cashu-client.version>1.2.8</cashu-client.version>
         <!-- Spring Boot (imported as BOM) -->
         <!-- Kept only because submodules write ${spring-boot.version} on
