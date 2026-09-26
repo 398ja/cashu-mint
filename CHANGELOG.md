@@ -37,10 +37,13 @@ pending vouchers never read as paid.
   subscriptions, the 409 recovery in proof invalidation). The two now take distinct types:
   `retrieveProof(UUID, ProofSecret)` hashes a secret, `retrieveProof(StorageKey)` looks a Y up as
   is, and `storageKeyFor` returns a `StorageKey`. `StorageKey` refuses anything that is not a
-  compressed curve point where it is built and lowercases hex, so a malformed NUT-17 filter id is
-  given no state rather than `UNSPENT`. `ProofSecret` prints as a hashed id, never the secret.
-  **Breaking** for out-of-tree `ProofVaultService` implementations: `retrieveProofByY(String)` is
-  now `retrieveProof(StorageKey)`, and the secret overloads take `ProofSecret`.
+  compressed curve point (null included) where it is built and lowercases hex for the vault
+  lookup, so a malformed or null NUT-17 filter id is given no state rather than `UNSPENT`.
+  `ProofSecret` prints as a hashed id, so `DefaultProofVaultService`'s lookup-failure warning no
+  longer logs the raw secret. **Breaking** for out-of-tree users of cashu-mint-protocol:
+  `retrieveProofByY(String)` is now `retrieveProof(StorageKey)`, the secret overloads take
+  `ProofSecret`, `SpentProofKey.lookupKeys`/`issuanceKey` take `ProofSecret` and return
+  `StorageKey`, and the unused `SpentProofKey.isCurvePoint` is removed.
 - **The regular mint-quote status route no longer answers for voucher quotes (#494).**
   `GET /v1/mint/quote/bolt11/{id}` looked the id up in the voucher table too, and reported a voucher
   quote with its face value as `amount`. A voucher's invoice charges only a fee (10% by default), so

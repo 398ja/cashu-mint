@@ -38,8 +38,12 @@ public record StorageKey(String hex) {
         }
     }
 
-    /** The key a client supplied as {@code Y}, for example in NUT-17 {@code proof_state} filters. */
-    public static StorageKey of(@NonNull String hex) {
+    /**
+     * The key a client supplied as {@code Y}, for example in NUT-17 {@code proof_state} filters.
+     * Client input can be null; it is refused with the same {@link IllegalArgumentException} as
+     * any other value that is not a point, so callers handle one failure, not two.
+     */
+    public static StorageKey of(String hex) {
         return new StorageKey(hex);
     }
 

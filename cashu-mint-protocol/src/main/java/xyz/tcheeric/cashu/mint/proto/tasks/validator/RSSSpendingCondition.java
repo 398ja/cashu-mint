@@ -18,7 +18,6 @@ import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.vault.db.log.SecretLogId;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
@@ -60,14 +59,14 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // "no proof found" so verification can proceed, and a missing mint must not be absorbed
         // by that. Without a mint there is no double-spend check at all.
         UUID mintId = requireMintId();
+        ProofSecret proofSecret = ProofSecret.of(secret);
         try {
-            proofEntity = proofVaultService.retrieveProof(mintId, ProofSecret.of(secret));
+            proofEntity = proofVaultService.retrieveProof(mintId, proofSecret);
         } catch (CashuErrorException | RestClientException vaultUnavailable) {
             // Only a vault outage is absorbed, so that an outage does not block verification.
             // Anything else is a programming error on the one path where hiding it is least
             // acceptable: an NPE caught here once disabled the double-spend check (#486, #488).
-            log.warn("rss_proof_lookup_failed secret={} reason={}",
-                    SecretLogId.of(secret.toString()), vaultUnavailable.toString());
+            log.warn("rss_proof_lookup_failed secret={} reason={}", proofSecret, vaultUnavailable.toString());
             proofEntity = null;
         }
         log.debug("Proof entity {}...", proofEntity);

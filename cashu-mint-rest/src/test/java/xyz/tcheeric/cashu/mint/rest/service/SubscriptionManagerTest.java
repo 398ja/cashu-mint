@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -246,13 +247,40 @@ class SubscriptionManagerTest {
     }
 
     // A subscribed id that is not a curve point cannot name a proof. It gets no state at all rather
-    // than UNSPENT, which would falsely tell the subscriber the proof is spendable (#487).
+    // than UNSPENT, which would falsely tell the subscriber the proof is spendable (#487). A valid id
+    // in the same subscription still gets its state, so the one message sent proves the session was
+    // live and the malformed id was skipped, not silenced.
     @Test
     void sendCurrentState_ProofState_MalformedYGetsNoState() throws Exception {
-        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
+        when(session1.isOpen()).thenReturn(true);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(null);
+        String subId = subscriptionManager.subscribe(
+                session1, SubscriptionKind.proof_state, List.of("proof-y-1", REAL_Y));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
 
-        verify(session1, never()).sendMessage(any(TextMessage.class));
-        verifyNoInteractions(proofVaultService);
+        ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session1, times(1)).sendMessage(messageCaptor.capture());
+        assertFalse(messageCaptor.getValue().getPayload().contains("proof-y-1"),
+                "The malformed id must not be reported, least of all as UNSPENT");
+        verify(proofVaultService, times(1)).retrieveProof(any(StorageKey.class));
+    }
+
+    // A null id is client input too. It gets no state, and must not escape as an exception that
+    // would close the subscriber's session and drop its other subscriptions with it.
+    @Test
+    void sendCurrentState_ProofState_NullYGetsNoStateAndDoesNotThrow() throws Exception {
+        when(session1.isOpen()).thenReturn(true);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(null);
+        List<String> ids = new ArrayList<>();
+        ids.add(null);
+        ids.add(REAL_Y);
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, ids);
+
+        assertDoesNotThrow(() -> subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state));
+
+        ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session1, times(1)).sendMessage(messageCaptor.capture());
+        assertTrue(messageCaptor.getValue().getPayload().contains(REAL_Y),
+                "The valid id alongside the null one must still get its state");
     }
 }

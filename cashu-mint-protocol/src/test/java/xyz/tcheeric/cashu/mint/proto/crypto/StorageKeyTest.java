@@ -45,6 +45,7 @@ class StorageKeyTest {
         assertThatThrownBy(() -> StorageKey.of(Y + "00")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> StorageKey.of(Y.substring(0, 65) + "g")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> StorageKey.of("proof-y-1")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> StorageKey.of((String) null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new StorageKey(null)).isInstanceOf(IllegalArgumentException.class);
     }
 
