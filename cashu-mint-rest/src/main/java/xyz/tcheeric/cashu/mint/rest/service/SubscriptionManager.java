@@ -112,8 +112,8 @@ public final class SubscriptionManager {
         sessions.putIfAbsent(sessionId, session);
 
         // Create subscription
-        Set<String> safeIds = ids != null ? new HashSet<>(ids) : new HashSet<>();
-        Subscription subscription = new Subscription(subId, sessionId, kind, safeIds);
+        Subscription subscription = Subscription.of(subId, sessionId, kind, ids != null ? ids : List.of());
+        Set<String> safeIds = subscription.ids();
         subscriptionById.put(subId, subscription);
 
         // Add to session subscriptions atomically to avoid race with removeSession
@@ -159,14 +159,7 @@ public final class SubscriptionManager {
 
         // Remove from index
         for (String id : subscription.ids()) {
-            String indexKey = indexKey(subscription.kind(), id);
-            Set<String> subIds = subscriptionIndex.get(indexKey);
-            if (subIds != null) {
-                subIds.remove(subId);
-                if (subIds.isEmpty()) {
-                    subscriptionIndex.remove(indexKey);
-                }
-            }
+            unindex(subscription.kind(), id, subId);
         }
 
         log.debug("subscription_removed sub_id={} session_id={}", subId, sessionId);
@@ -189,18 +182,29 @@ public final class SubscriptionManager {
         for (Subscription sub : subs) {
             subscriptionById.remove(sub.subId());
             for (String id : sub.ids()) {
-                String indexKey = indexKey(sub.kind(), id);
-                Set<String> subIds = subscriptionIndex.get(indexKey);
-                if (subIds != null) {
-                    subIds.remove(sub.subId());
-                    if (subIds.isEmpty()) {
-                        subscriptionIndex.remove(indexKey);
-                    }
-                }
+                unindex(sub.kind(), id, sub.subId());
             }
         }
 
         log.info("session_removed session_id={} subscription_count={}", sessionId, subs.size());
+    }
+
+    /**
+     * Drops one subscription from one index entry, removing the entry once it is empty. Atomic per
+     * key: a separate emptiness check and remove could drop a subscription another thread indexed
+     * under the same key in between, and that subscriber would silently stop receiving updates.
+     */
+    private void unindex(SubscriptionKind kind, String id, String subId) {
+        subscriptionIndex.computeIfPresent(indexKey(kind, id), (key, subIds) -> {
+            subIds.remove(subId);
+            return subIds.isEmpty() ? null : subIds;
+        });
+    }
+
+    /** How many subscriptions are indexed under this target. Package-private for tests. */
+    int indexedSubscriberCount(SubscriptionKind kind, String id) {
+        Set<String> subIds = subscriptionIndex.get(indexKey(kind, id));
+        return subIds == null ? 0 : subIds.size();
     }
 
     /**
@@ -224,7 +228,8 @@ public final class SubscriptionManager {
             WebSocketSession session = sessions.get(sub.sessionId());
             if (session == null || !session.isOpen()) continue;
 
-            JsonRpcNotification notification = NUT17.proofStateNotification(subId, y, state, witness);
+            JsonRpcNotification notification =
+                    NUT17.proofStateNotification(subId, sub.spellingOf(y), state, witness);
             sendNotification(session, notification);
         }
 
@@ -496,8 +501,20 @@ public final class SubscriptionManager {
         return subscriptionById.size();
     }
 
-    private String indexKey(SubscriptionKind kind, String id) {
-        return kind.name() + ":" + id;
+    /**
+     * The key a subscription target is indexed under.
+     *
+     * <p>A proof-state target is a hex point, and hex is case-insensitive: the mint publishes
+     * lowercase Ys, so a wallet that subscribed with uppercase used to get its initial state (the
+     * vault lookup normalises) and then never a single update (cashu-mint#511). Quote ids are
+     * opaque and matched exactly.
+     */
+    private static String indexKey(SubscriptionKind kind, String id) {
+        return kind.name() + ":" + normalisedId(kind, id);
+    }
+
+    private static String normalisedId(SubscriptionKind kind, String id) {
+        return kind == SubscriptionKind.proof_state && id != null ? id.toLowerCase(Locale.ROOT) : id;
     }
 
     private void sendNotification(WebSocketSession session, JsonRpcNotification notification) {
@@ -518,6 +535,31 @@ public final class SubscriptionManager {
             String subId,
             String sessionId,
             SubscriptionKind kind,
-            Set<String> ids
-    ) {}
+            Set<String> ids,
+            Map<String, String> spellingByTarget
+    ) {
+        /**
+         * Builds a subscription with one id per target: the same Y written in two cases is one
+         * proof, so it keeps the first spelling and yields one initial state, not two.
+         */
+        static Subscription of(String subId, String sessionId, SubscriptionKind kind, List<String> ids) {
+            // Not Map.copyOf: a subscriber can send a null id, and the index tolerates one.
+            Map<String, String> spellingByTarget = new LinkedHashMap<>();
+            for (String id : ids) {
+                spellingByTarget.putIfAbsent(normalisedId(kind, id), id);
+            }
+            Set<String> distinctIds = new LinkedHashSet<>(spellingByTarget.values());
+            return new Subscription(subId, sessionId, kind, Collections.unmodifiableSet(distinctIds),
+                    Collections.unmodifiableMap(spellingByTarget));
+        }
+
+        /**
+         * The target as this subscriber wrote it. A notification echoes the subscriber's own
+         * spelling, so a wallet that matches payloads against the Ys it sent still recognises one
+         * published in the mint's lowercase form.
+         */
+        String spellingOf(String id) {
+            return spellingByTarget.getOrDefault(normalisedId(kind, id), id);
+        }
+    }
 }
