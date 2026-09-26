@@ -14,11 +14,19 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Tests for VoucherMintQuoteTask.
+ *
+ * <p>The mint now chooses the quote id and hands it to the gateway, rather than taking whatever id
+ * the gateway generates, so the quote can be recorded before its invoice is raised (#469). These
+ * tests therefore use a gateway that echoes back the id it is given, and read the id from the
+ * response instead of predicting a literal one. Asserting on a gateway-chosen literal would now be
+ * asserting on a value the gateway no longer chooses.
  */
 public class VoucherMintQuoteTaskTest {
 
@@ -28,148 +36,114 @@ public class VoucherMintQuoteTaskTest {
         VoucherQuoteRegistry.clear();
     }
 
-    @Test
-    public void testExecuteWithDefaultPercentage() throws CashuErrorException {
-        // Test voucher quote creation with default 10% fee
-        // Given: 1000 sat voucher face value
+    /**
+     * A gateway that raises every invoice under the id the task supplies, as a correct gateway
+     * does, and answers the follow-up lookups for any id.
+     */
+    private static Gateway echoingGateway(String request, int expiry) {
         Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid");
-        when(gateway.getRequest("qid")).thenReturn("lnbc100n...");
-        when(gateway.getPaymentExpiry("qid")).thenReturn(3600);
+        when(gateway.createMintQuote(anyString(), anyInt(), Mockito.isNull()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(gateway.getRequest(anyString())).thenReturn(request);
+        when(gateway.getPaymentExpiry(anyString())).thenReturn(expiry);
+        return gateway;
+    }
 
+    private static MintProtocolService serviceFor(Gateway gateway) {
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        return service;
+    }
 
-        // When: Execute voucher mint quote task
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
+    // A 1000 sat voucher at the default 10% fee invoices 100 sats, not the face value, and the
+    // face value is what the registry keeps against the quote.
+    @Test
+    public void testExecuteWithDefaultPercentage() throws CashuErrorException {
+        Gateway gateway = echoingGateway("lnbc100n...", 3600);
+
         long before = Instant.now().getEpochSecond();
-        PostMintQuoteResponse response = task.execute();
+        PostMintQuoteResponse response =
+                new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, serviceFor(gateway)).execute();
         long after = Instant.now().getEpochSecond();
 
-        // Then: Gateway receives 100 sats (10% of 1000), not 1000 sats
-        verify(gateway).createMintQuote(100, null);
+        // Gateway receives 100 sats (10% of 1000), not 1000 sats
+        verify(gateway).createMintQuote(eq(response.getQuoteId()), eq(100), Mockito.isNull());
 
-        // And: Response is correct
-        assertEquals("qid", response.getQuoteId());
         assertEquals("lnbc100n...", response.getRequest());
         // NUT-04: the 3600 s TTL is reported as an absolute timestamp (#494)
         assertTrue(response.getExpiry() >= before + 3600 && response.getExpiry() <= after + 3600);
 
-        // And: Face value is stored in registry
-        assertEquals(1000L, VoucherQuoteRegistry.getFaceValue("qid"));
-        assertTrue(VoucherQuoteRegistry.isVoucherQuote("qid"));
+        // Face value is stored against the quote the client was given
+        assertEquals(1000L, VoucherQuoteRegistry.getFaceValue(response.getQuoteId()));
+        assertTrue(VoucherQuoteRegistry.isVoucherQuote(response.getQuoteId()));
     }
 
+    // 10 sats at 10% is 1 sat, the smallest chargeable fee.
     @Test
     public void testExecuteWithSmallAmount() throws CashuErrorException {
-        // Test voucher quote with small amount: 10 sats @ 10% = 1 sat
-        Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid2");
-        when(gateway.getRequest("qid2")).thenReturn("lnbc1n...");
-        when(gateway.getPaymentExpiry("qid2")).thenReturn(3600);
+        Gateway gateway = echoingGateway("lnbc1n...", 3600);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        PostMintQuoteResponse response =
+                new VoucherMintQuoteTask(10, PaymentMethod.MOCK, serviceFor(gateway)).execute();
 
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(10, PaymentMethod.MOCK, service);
-        PostMintQuoteResponse response = task.execute();
-
-        // Gateway should receive 1 sat (10% of 10)
-        verify(gateway).createMintQuote(1, null);
-
-        // Face value should be stored
-        assertEquals(10L, VoucherQuoteRegistry.getFaceValue("qid2"));
+        verify(gateway).createMintQuote(eq(response.getQuoteId()), eq(1), Mockito.isNull());
+        assertEquals(10L, VoucherQuoteRegistry.getFaceValue(response.getQuoteId()));
     }
 
+    // 5 sats at 10% = floor(0.5) = 0, which is NOT chargeable.
+    //
+    // This test previously asserted `createMintQuote(0, null)` and so encoded the defect: a
+    // zero-amount invoice is created, settles trivially, and the mint then refuses its own webhook
+    // because a non-positive amount cannot match an authorised quote. Staging, 2026-09-23: 9
+    // stranded quotes and unbounded webhook rejections. The fee is now floored to the configured
+    // minimum, so the gateway is asked for something payable.
     @Test
     public void testExecuteWithVerySmallAmount() throws CashuErrorException {
-        // 5 sats @ 10% = floor(0.5) = 0, which is NOT chargeable.
-        //
-        // This test previously asserted `createMintQuote(0, null)` and so
-        // encoded the defect: a zero-amount invoice is created, settles
-        // trivially, and the mint then refuses its own webhook because a
-        // non-positive amount cannot match an authorised quote. Staging,
-        // 2026-09-23: 9 stranded quotes and unbounded webhook rejections.
-        //
-        // The fee is now floored to the configured minimum, so the gateway is
-        // asked for something payable.
-        Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid3");
-        when(gateway.getRequest("qid3")).thenReturn("lnbc0n...");
-        when(gateway.getPaymentExpiry("qid3")).thenReturn(3600);
+        Gateway gateway = echoingGateway("lnbc0n...", 3600);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
-
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(5, PaymentMethod.MOCK, service);
-        PostMintQuoteResponse response = task.execute();
+        PostMintQuoteResponse response =
+                new VoucherMintQuoteTask(5, PaymentMethod.MOCK, serviceFor(gateway)).execute();
 
         // Floored to the minimum fee (1), never zero.
-        verify(gateway).createMintQuote(1, null);
-
-        // Face value should still be stored
-        assertEquals(5L, VoucherQuoteRegistry.getFaceValue("qid3"));
+        verify(gateway).createMintQuote(eq(response.getQuoteId()), eq(1), Mockito.isNull());
+        assertEquals(5L, VoucherQuoteRegistry.getFaceValue(response.getQuoteId()));
     }
 
+    // 1,000,000 sats at 10% invoices 100,000 sats.
     @Test
     public void testExecuteWithLargeAmount() throws CashuErrorException {
-        // Test voucher quote with large amount: 1,000,000 sats @ 10% = 100,000 sats
-        Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("qid4");
-        when(gateway.getRequest("qid4")).thenReturn("lnbc100000n...");
-        when(gateway.getPaymentExpiry("qid4")).thenReturn(3600);
+        Gateway gateway = echoingGateway("lnbc100000n...", 3600);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        PostMintQuoteResponse response =
+                new VoucherMintQuoteTask(1_000_000, PaymentMethod.MOCK, serviceFor(gateway)).execute();
 
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(1_000_000, PaymentMethod.MOCK, service);
-        PostMintQuoteResponse response = task.execute();
-
-        // Gateway should receive 100,000 sats (10% of 1,000,000)
-        verify(gateway).createMintQuote(100_000, null);
-
-        // Face value should be stored
-        assertEquals(1_000_000L, VoucherQuoteRegistry.getFaceValue("qid4"));
+        verify(gateway).createMintQuote(eq(response.getQuoteId()), eq(100_000), Mockito.isNull());
+        assertEquals(1_000_000L, VoucherQuoteRegistry.getFaceValue(response.getQuoteId()));
     }
 
+    // Two quotes are kept separately, each under its own id with its own face value.
     @Test
     public void testMultipleVoucherQuotes() throws CashuErrorException {
-        // Test creating multiple voucher quotes
-        Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull()))
-            .thenReturn("qid5")
-            .thenReturn("qid6");
-        when(gateway.getRequest(Mockito.anyString())).thenReturn("req");
-        when(gateway.getPaymentExpiry(Mockito.anyString())).thenReturn(3600);
+        Gateway gateway = echoingGateway("req", 3600);
+        MintProtocolService service = serviceFor(gateway);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        String first = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service).execute().getQuoteId();
+        String second = new VoucherMintQuoteTask(2000, PaymentMethod.MOCK, service).execute().getQuoteId();
 
-        // Create first voucher quote: 1000 sats
-        VoucherMintQuoteTask task1 = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
-        task1.execute();
-
-        // Create second voucher quote: 2000 sats
-        VoucherMintQuoteTask task2 = new VoucherMintQuoteTask(2000, PaymentMethod.MOCK, service);
-        task2.execute();
-
-        // Both face values should be stored
-        assertEquals(1000L, VoucherQuoteRegistry.getFaceValue("qid5"));
-        assertEquals(2000L, VoucherQuoteRegistry.getFaceValue("qid6"));
+        assertNotEquals(first, second, "each quote must get its own id");
+        assertEquals(1000L, VoucherQuoteRegistry.getFaceValue(first));
+        assertEquals(2000L, VoucherQuoteRegistry.getFaceValue(second));
         assertEquals(2, VoucherQuoteRegistry.size());
     }
 
+    // A gateway failure propagates, and leaves no registry entry for a quote that was never made.
     @Test
     public void testGatewayErrorPropagates() {
-        // Test that gateway errors propagate correctly
         Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull()))
+        when(gateway.createMintQuote(anyString(), anyInt(), Mockito.isNull()))
             .thenThrow(new RuntimeException("Gateway error"));
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
-
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
+        VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, serviceFor(gateway));
 
         // Should propagate the exception
         assertThrows(RuntimeException.class, task::execute);
@@ -178,26 +152,24 @@ public class VoucherMintQuoteTaskTest {
         assertEquals(0, VoucherQuoteRegistry.size());
     }
 
+    // Every field of the NUT-04 response is populated, with the amount set to the face value.
     @Test
     public void testResponseStructure() throws CashuErrorException {
-        // Test that the response structure matches PostMintQuoteResponse
-        Gateway gateway = Mockito.mock(Gateway.class);
-        when(gateway.createMintQuote(anyInt(), Mockito.isNull())).thenReturn("test-qid");
-        when(gateway.getRequest("test-qid")).thenReturn("test-request");
-        when(gateway.getPaymentExpiry("test-qid")).thenReturn(7200);
+        Gateway gateway = echoingGateway("test-request", 7200);
 
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
-
-        VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
         long before = Instant.now().getEpochSecond();
-        PostMintQuoteResponse response = task.execute();
+        PostMintQuoteResponse response =
+                new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, serviceFor(gateway)).execute();
         long after = Instant.now().getEpochSecond();
 
-        // Verify all fields are populated
         assertNotNull(response);
-        assertEquals("test-qid", response.getQuoteId());
+        assertNotNull(response.getQuoteId());
+        assertFalse(response.getQuoteId().isBlank());
         assertEquals("test-request", response.getRequest());
+        // NUT-04: the 7200 s TTL is reported as an absolute timestamp (#494)
         assertTrue(response.getExpiry() >= before + 7200 && response.getExpiry() <= after + 7200);
+        // The mintable amount is the face value, not the 100 sat fee the invoice charges.
+        assertEquals(1000, response.getAmount());
+        assertEquals("UNPAID", response.getState());
     }
 }
