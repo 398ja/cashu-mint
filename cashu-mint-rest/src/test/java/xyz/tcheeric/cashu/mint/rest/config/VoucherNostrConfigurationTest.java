@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.rest.config;
 
 import nostr.id.Identity;
+import nostr.base.PrivateKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -44,7 +45,10 @@ class VoucherNostrConfigurationTest {
         StandardEnvironment env = new StandardEnvironment();
         MutablePropertySources sources = env.getPropertySources();
         sources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
-        sources.addFirst(new SystemEnvironmentPropertySource("test-environment", environment));
+        // Named as Spring Boot names the real one: only that source gets environment-variable
+        // name mapping (VOUCHER_NOSTR_RELAYS_0 to voucher.nostr.relays[0]).
+        sources.addFirst(new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, environment));
         for (PropertySource<?> yaml : new YamlPropertySourceLoader()
                 .load("application-voucher.yml", new ClassPathResource("application-voucher.yml"))) {
             sources.addLast(yaml);
@@ -56,7 +60,7 @@ class VoucherNostrConfigurationTest {
     private static VoucherProperties withIssuerKeys(VoucherProperties properties) {
         properties.getMint().setIssuerPrivateKey(PRIVKEY);
         properties.getMint().setIssuerPublicKey(
-                Identity.create(new nostr.base.PrivateKey(PRIVKEY)).getPublicKey().toString());
+                Identity.create(new PrivateKey(PRIVKEY)).getPublicKey().toString());
         return properties;
     }
 
@@ -75,8 +79,7 @@ class VoucherNostrConfigurationTest {
     }
 
     private static NostrClientAdapter adapterFor(VoucherProperties properties) {
-        VoucherConfiguration configuration = new VoucherConfiguration(properties);
-        return configuration.nostrClientAdapter(configuration.nostrRelayConfig());
+        return new VoucherConfiguration(properties).nostrClientAdapter();
     }
 
     // With nothing set, the shipped file yields the documented defaults, including both public
@@ -118,6 +121,26 @@ class VoucherNostrConfigurationTest {
                 .containsExactly("wss://relay.damus.io", "wss://relay.cashu.xyz");
     }
 
+    // A trailing or doubled comma is a typo, not a relay: blank entries are skipped instead of
+    // failing startup.
+    @Test
+    void blankEntriesInTheRelayVariableAreSkipped() throws Exception {
+        NostrClientAdapter adapter = adapterFor(bindShippedYaml(
+                Map.of("MINT_VOUCHER_NOSTR_RELAYS", "wss://a.example,,wss://b.example,")));
+
+        assertThat(relaysOf(adapter)).containsExactly("wss://a.example", "wss://b.example");
+    }
+
+    // A deployment that already overrode the relays with the indexed form still replaces the list:
+    // the shipped default is now a scalar, so the indexed entry is the only one.
+    @Test
+    void theIndexedOverrideStillReplacesTheList() throws Exception {
+        NostrClientAdapter adapter = adapterFor(bindShippedYaml(
+                Map.of("VOUCHER_NOSTR_RELAYS_0", "ws://relay.internal:7000")));
+
+        assertThat(relaysOf(adapter)).containsExactly("ws://relay.internal:7000");
+    }
+
     // A relay that is not a ws:// or wss:// URL is refused at startup rather than failing on the
     // first voucher, which is when an unreachable relay would otherwise surface.
     @Test
@@ -142,6 +165,53 @@ class VoucherNostrConfigurationTest {
                 .hasMessageContaining("at least 2");
     }
 
+    // Switching the minimum off still needs one relay: a ledger with nowhere to publish is refused.
+    @Test
+    void atLeastOneRelayIsRequiredEvenWithTheMinimumSwitchedOff() throws IOException {
+        VoucherProperties properties = bindShippedYaml(Map.of("MINT_VOUCHER_NOSTR_RELAYS", ","));
+        properties.getNostr().setRequireMinimumRelays(false);
+        properties.getNostr().setMinimumRelays(0);
+
+        assertThatThrownBy(() -> adapterFor(properties))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("has 0 relay(s)");
+    }
+
+    // A relay URL without a host, such as the opaque "wss:relay.example", is refused at startup; so
+    // is an unparseable one. The scheme is case-insensitive, so an uppercase one is accepted.
+    @Test
+    void aRelayMustNameAHostAndItsSchemeIsCaseInsensitive() throws Exception {
+        assertThatThrownBy(() -> adapterFor(bindShippedYaml(Map.of("MINT_VOUCHER_NOSTR_RELAYS", "wss:relay.example"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("with a host");
+        assertThatThrownBy(() -> adapterFor(bindShippedYaml(Map.of("MINT_VOUCHER_NOSTR_RELAYS", "wss://"))))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(relaysOf(adapterFor(bindShippedYaml(Map.of("MINT_VOUCHER_NOSTR_RELAYS", "WSS://relay.example")))))
+                .containsExactly("WSS://relay.example");
+    }
+
+    // A non-positive timeout is refused at startup, as the library's own validation used to do.
+    @Test
+    void aNonPositiveTimeoutIsRefusedAtStartup() throws IOException {
+        VoucherProperties properties = withIssuerKeys(bindShippedYaml(
+                Map.of("MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS", "0")));
+
+        assertThatThrownBy(() -> new VoucherConfiguration(properties).voucherLedgerPort(mock(NostrClientAdapter.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("queryTimeoutMs must be positive");
+    }
+
+    // Keys that were removed because nothing read them still bind harmlessly, so a deployment that
+    // sets one keeps starting.
+    @Test
+    void aRemovedKeyStillBinds() throws Exception {
+        VoucherProperties properties = bindShippedYaml(
+                Map.of("VOUCHER_NOSTR_BATCHSIZE", "5", "VOUCHER_NOSTR_HEALTHCHECKENABLED", "false"));
+
+        assertThat(relaysOf(adapterFor(properties))).hasSize(2);
+    }
+
     // The configured publish and query timeouts reach the ledger repository instead of being
     // replaced by the 5000ms its shorter constructors hardcode.
     @Test
@@ -150,8 +220,7 @@ class VoucherNostrConfigurationTest {
                 "MINT_VOUCHER_NOSTR_PUBLISH_TIMEOUT_MS", "7777",
                 "MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS", "8888"))));
 
-        Object ledger = configuration.voucherLedgerPort(
-                mock(NostrClientAdapter.class), configuration.nostrRelayConfig());
+        Object ledger = configuration.voucherLedgerPort(mock(NostrClientAdapter.class));
 
         assertThat(longField(ledger, "publishTimeoutMs")).isEqualTo(7777L);
         assertThat(longField(ledger, "queryTimeoutMs")).isEqualTo(8888L);
@@ -164,8 +233,7 @@ class VoucherNostrConfigurationTest {
                 "MINT_VOUCHER_NOSTR_PUBLISH_TIMEOUT_MS", "7777",
                 "MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS", "8888")));
 
-        Object backup = configuration.voucherBackupPort(
-                mock(NostrClientAdapter.class), configuration.nostrRelayConfig());
+        Object backup = configuration.voucherBackupPort(mock(NostrClientAdapter.class));
 
         assertThat(longField(backup, "publishTimeoutMs")).isEqualTo(7777L);
         assertThat(longField(backup, "queryTimeoutMs")).isEqualTo(8888L);
@@ -177,8 +245,7 @@ class VoucherNostrConfigurationTest {
     void theShippedQueryTimeoutIsTheOneUsed() throws Exception {
         VoucherConfiguration configuration = new VoucherConfiguration(withIssuerKeys(bindShippedYaml(Map.of())));
 
-        Object ledger = configuration.voucherLedgerPort(
-                mock(NostrClientAdapter.class), configuration.nostrRelayConfig());
+        Object ledger = configuration.voucherLedgerPort(mock(NostrClientAdapter.class));
 
         assertThat(longField(ledger, "queryTimeoutMs")).isEqualTo(10000L);
     }
