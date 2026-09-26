@@ -96,14 +96,14 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
 
     /** {@inheritDoc} */
     @Override
-    public ProofEntity retrieveProof(String secret) throws CashuErrorException {
-        return vault.retrieveProof(secret);
+    public ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException {
+        return vault.retrieveProof(mintId, secret);
     }
 
     /** {@inheritDoc} */
     @Override
-    public String storageKeyFor(String secret) throws CashuErrorException {
-        return vault.storageKeyFor(secret);
+    public String storageKeyFor(UUID mintId, String secret) throws CashuErrorException {
+        return vault.storageKeyFor(mintId, secret);
     }
 
     /** {@inheritDoc} */

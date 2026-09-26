@@ -278,7 +278,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public ProofEntity retrieveProof(String secret) {
+        public ProofEntity retrieveProof(java.util.UUID mintId, String secret) {
             return null;
         }
 
@@ -288,7 +288,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public String storageKeyFor(String secret) {
+        public String storageKeyFor(java.util.UUID mintId, String secret) {
             return secret;
         }
     }

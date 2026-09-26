@@ -192,7 +192,7 @@ class SubscriptionManagerTest {
     @Test
     void sendCurrentState_ProofState_UnspentWhenNotInVault() throws Exception {
         when(session1.isOpen()).thenReturn(true);
-        when(proofVaultService.retrieveProof("proof-y-1")).thenReturn(null);
+        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(null);
 
         String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
@@ -210,7 +210,7 @@ class SubscriptionManagerTest {
         when(session1.isOpen()).thenReturn(true);
         xyz.tcheeric.cashu.vault.db.model.ProofEntity proofEntity = new xyz.tcheeric.cashu.vault.db.model.ProofEntity();
         proofEntity.setState(xyz.tcheeric.cashu.vault.db.model.ProofEntity.STATE_SPENT);
-        when(proofVaultService.retrieveProof("proof-y-1")).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(proofEntity);
 
         String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
@@ -228,7 +228,7 @@ class SubscriptionManagerTest {
         when(session1.isOpen()).thenReturn(true);
         xyz.tcheeric.cashu.vault.db.model.ProofEntity proofEntity = new xyz.tcheeric.cashu.vault.db.model.ProofEntity();
         proofEntity.setState(xyz.tcheeric.cashu.vault.db.model.ProofEntity.STATE_PENDING);
-        when(proofVaultService.retrieveProof("proof-y-1")).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(proofEntity);
 
         String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);

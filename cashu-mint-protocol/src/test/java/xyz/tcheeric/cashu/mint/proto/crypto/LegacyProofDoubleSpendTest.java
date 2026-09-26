@@ -17,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.UUID;
+
 /**
  * The double-spend guard across the NUT-00 secret encoding migration.
  *
@@ -32,6 +34,9 @@ public class LegacyProofDoubleSpendTest {
     /** A 64-char hex secret: the shape that hex-decodes, so the two encodings genuinely differ. */
     private static final String LEGACY_HEX_SECRET =
             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+
+    /** The mint that issued these proofs: lookups are scoped per mint (cashu-vault#153). */
+    private static final UUID MINT_ID = UUID.fromString("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
 
     private static String yUnder(SecretEncoding encoding) {
         return PublicKey.fromBytes(BDHKEUtils.hashToCurve(LEGACY_HEX_SECRET, encoding)).toString();
@@ -65,10 +70,10 @@ public class LegacyProofDoubleSpendTest {
 
         try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
             // The vault as it stands after the upgrade: the row exists ONLY under the legacy point.
-            vault.when(() -> DBProofVault.retrieveProof(specY)).thenReturn(null);
-            vault.when(() -> DBProofVault.retrieveProof(legacyY)).thenReturn(spentLegacyRow);
+            vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY)).thenReturn(null);
+            vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyY)).thenReturn(spentLegacyRow);
 
-            ProofEntity found = new DefaultProofVaultService().retrieveProof(LEGACY_HEX_SECRET);
+            ProofEntity found = new DefaultProofVaultService().retrieveProof(MINT_ID, LEGACY_HEX_SECRET);
 
             assertNotNull(found,
                     "An already-spent legacy proof looked up after the upgrade must still be found. "
@@ -89,12 +94,12 @@ public class LegacyProofDoubleSpendTest {
         specRow.setState(ProofEntity.STATE_SPENT);
 
         try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
-            vault.when(() -> DBProofVault.retrieveProof(specY)).thenReturn(specRow);
+            vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY)).thenReturn(specRow);
 
-            assertSame(specRow, new DefaultProofVaultService().retrieveProof(LEGACY_HEX_SECRET));
+            assertSame(specRow, new DefaultProofVaultService().retrieveProof(MINT_ID, LEGACY_HEX_SECRET));
 
-            vault.verify(() -> DBProofVault.retrieveProof(specY));
-            vault.verify(() -> DBProofVault.retrieveProof(yUnder(SecretEncoding.LEGACY_HEX)),
+            vault.verify(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY));
+            vault.verify(() -> DBProofVault.retrieveProof(MINT_ID.toString(), yUnder(SecretEncoding.LEGACY_HEX)),
                     Mockito.never());
         }
     }
@@ -106,10 +111,10 @@ public class LegacyProofDoubleSpendTest {
     @Test
     public void anUnseenProofIsRecordedUnderTheSpecKey() throws CashuErrorException {
         try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
-            vault.when(() -> DBProofVault.retrieveProof(Mockito.anyString())).thenReturn(null);
+            vault.when(() -> DBProofVault.retrieveProof(Mockito.anyString(), Mockito.anyString())).thenReturn(null);
 
             assertEquals(yUnder(SecretEncoding.SPEC),
-                    new DefaultProofVaultService().storageKeyFor(LEGACY_HEX_SECRET),
+                    new DefaultProofVaultService().storageKeyFor(MINT_ID, LEGACY_HEX_SECRET),
                     "A proof with no prior record must be stored under the spec encoding.");
         }
     }
@@ -124,11 +129,11 @@ public class LegacyProofDoubleSpendTest {
         String legacyY = yUnder(SecretEncoding.LEGACY_HEX);
 
         try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
-            vault.when(() -> DBProofVault.retrieveProof(yUnder(SecretEncoding.SPEC))).thenReturn(null);
-            vault.when(() -> DBProofVault.retrieveProof(legacyY)).thenReturn(new ProofEntity());
+            vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), yUnder(SecretEncoding.SPEC))).thenReturn(null);
+            vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyY)).thenReturn(new ProofEntity());
 
             assertEquals(legacyY,
-                    new DefaultProofVaultService().storageKeyFor(LEGACY_HEX_SECRET),
+                    new DefaultProofVaultService().storageKeyFor(MINT_ID, LEGACY_HEX_SECRET),
                     "Writing the spend under the spec key would leave the legacy row untouched, "
                             + "and the proof would still look unspent to a legacy-keyed lookup.");
         }

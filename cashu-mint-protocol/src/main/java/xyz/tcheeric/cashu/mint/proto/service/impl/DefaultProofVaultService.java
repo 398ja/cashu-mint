@@ -8,6 +8,8 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.UUID;
+
 @Service
 @Slf4j
 public class DefaultProofVaultService implements ProofVaultService {
@@ -36,9 +38,9 @@ public class DefaultProofVaultService implements ProofVaultService {
     }
 
     @Override
-    public ProofEntity retrieveProof(String secret) throws CashuErrorException {
+    public ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException {
         try {
-            return firstStoredUnderAnyKey(secret);
+            return firstStoredUnderAnyKey(mintId, secret);
         } catch (CashuErrorException e) {
             // Log and return null so callers can treat missing/errored lookups as no-proof-found
             log.warn("DefaultProofVaultService: failed to retrieve proof for secret {}: {}", secret, e.getMessage());
@@ -47,15 +49,15 @@ public class DefaultProofVaultService implements ProofVaultService {
     }
 
     /**
-     * Looks the proof up under every key it could have been recorded under.
+     * Looks the proof up under every key it could have been recorded under, within this mint.
      *
      * <p>A proof spent before the NUT-00 secret encoding was corrected is recorded under the
      * legacy curve point. Checking only the spec point would report such a proof unspent and let
      * it be spent a second time, so both points are queried before concluding it is unspent.
      */
-    private ProofEntity firstStoredUnderAnyKey(String secret) throws CashuErrorException {
+    private ProofEntity firstStoredUnderAnyKey(UUID mintId, String secret) throws CashuErrorException {
         for (String key : SpentProofKey.lookupKeys(secret)) {
-            ProofEntity stored = DBProofVault.retrieveProof(key);
+            ProofEntity stored = DBProofVault.retrieveProof(mintId.toString(), key);
             if (stored != null) {
                 return stored;
             }
@@ -69,9 +71,9 @@ public class DefaultProofVaultService implements ProofVaultService {
      * NUT-00 encoding migration.
      */
     @Override
-    public String storageKeyFor(String secret) throws CashuErrorException {
+    public String storageKeyFor(UUID mintId, String secret) throws CashuErrorException {
         for (String key : SpentProofKey.lookupKeys(secret)) {
-            if (DBProofVault.retrieveProof(key) != null) {
+            if (DBProofVault.retrieveProof(mintId.toString(), key) != null) {
                 return key;
             }
         }
