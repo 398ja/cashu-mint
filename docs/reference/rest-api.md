@@ -102,7 +102,7 @@ The response carries the NUT-04 fields:
 | `amount_paid` | What the payment entitles the payer to mint: `amount` once `PAID` or `ISSUED`, else `0`. |
 | `amount_issued` | What has been minted: `amount` once `ISSUED`, else `0`. |
 | `updated_at` | Unix seconds of the quote's last change in `amount_paid` or `amount_issued`. For a quote reported `ISSUED` from its issuance ledger row, the time that row was written. Never decreases. |
-| `expiry` | Absolute Unix timestamp until which the request can be paid, or `0` for none. |
+| `expiry` | Absolute Unix timestamp until which the request can be paid, or `0` when the payment gateway sets no deadline. An expired quote reports a timestamp in the past, never `0`. |
 
 ### `POST /v1/mint/quote/voucher/{method}`
 Create a voucher mint quote that charges a percentage fee (see `voucher.quote.fee-percent`).

@@ -5,69 +5,100 @@ import org.mockito.Mockito;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * NUT-04 {@code expiry} is an absolute Unix timestamp; the gateways return a relative TTL
- * (cashu-mint#494).
+ * NUT-04 {@code expiry} is an absolute Unix timestamp; the gateways return a relative figure,
+ * either a TTL from creation or the seconds remaining (cashu-mint#494, #503).
  */
 class QuoteExpiryTest {
 
     private static final Instant CREATED = Instant.parse("2026-09-26T14:00:00Z");
 
-    // A relative TTL is counted from the quote's creation.
-    @Test
-    void relativeTtlBecomesCreationPlusTtl() {
-        assertThat(QuoteExpiry.absolute(60, CREATED)).isEqualTo((int) CREATED.getEpochSecond() + 60);
+    private static Gateway gateway(Integer figure, Instant createdAt) {
+        Gateway gateway = Mockito.mock(Gateway.class);
+        when(gateway.getPaymentExpiry("q")).thenReturn(figure);
+        when(gateway.getCreatedAt("q")).thenReturn(createdAt);
+        return gateway;
     }
 
-    // With no creation time the quote is taken to be created now, which is right for a response
-    // to the request that created it.
+    // A TTL gateway (phoenixd) tracks creation, so its deadline is creation plus the TTL.
     @Test
-    void relativeTtlWithoutCreationCountsFromNow() {
+    void aTtlIsCountedFromCreation() {
+        assertThat(QuoteExpiry.ofQuote(gateway(60, CREATED), "q"))
+                .isEqualTo((int) CREATED.getEpochSecond() + 60);
+    }
+
+    // A remaining-seconds gateway (cash, Stripe) tracks no creation, so its figure counts from
+    // now.
+    @Test
+    void secondsRemainingAreCountedFromNow() {
         long before = Instant.now().getEpochSecond();
-        int expiry = QuoteExpiry.absolute(60, null);
+        int expiry = QuoteExpiry.ofQuote(gateway(300, null), "q");
+        long after = Instant.now().getEpochSecond();
+
+        assertThat((long) expiry).isBetween(before + 300, after + 300);
+    }
+
+    // #503: a remaining-seconds gateway reports 0 once its quote has lapsed. That is a deadline
+    // now, not "never expires", which clients read 0 as, so an expired cash quote is no longer
+    // offered as payable forever.
+    @Test
+    void zeroSecondsRemainingIsExpiredNotNeverExpiring() {
+        long before = Instant.now().getEpochSecond();
+        int expiry = QuoteExpiry.ofQuote(gateway(0, null), "q");
+        long after = Instant.now().getEpochSecond();
+
+        assertThat(expiry).isNotEqualTo(QuoteExpiry.NO_EXPIRY);
+        assertThat((long) expiry).isBetween(before, after);
+    }
+
+    // A negative figure is a deadline already passed and reads the same as zero, never as none.
+    @Test
+    void aNegativeFigureIsExpired() {
+        assertThat(QuoteExpiry.absolute(-5, Optional.of(CREATED))).isEqualTo((int) CREATED.getEpochSecond());
+    }
+
+    // Only a gateway that reports no figure at all has a quote without a deadline.
+    @Test
+    void noFigureMeansNoDeadline() {
+        assertThat(QuoteExpiry.ofQuote(gateway(null, CREATED), "q")).isEqualTo(QuoteExpiry.NO_EXPIRY);
+        assertThat(QuoteExpiry.ofNewQuote(null)).isEqualTo(QuoteExpiry.NO_EXPIRY);
+    }
+
+    // A new quote's figure counts from now, whichever kind the gateway returns.
+    @Test
+    void aNewQuoteCountsFromNow() {
+        long before = Instant.now().getEpochSecond();
+        int expiry = QuoteExpiry.ofNewQuote(60);
         long after = Instant.now().getEpochSecond();
 
         assertThat((long) expiry).isBetween(before + 60, after + 60);
     }
 
-    // A value that is already a timestamp is passed through, so a gateway that starts returning
+    // A figure that is already a timestamp is passed through, so a gateway that starts returning
     // one keeps working.
     @Test
-    void absoluteTimestampPassesThrough() {
+    void anAbsoluteTimestampPassesThrough() {
         int absolute = (int) CREATED.plusSeconds(900).getEpochSecond();
-        assertThat(QuoteExpiry.absolute(absolute, CREATED)).isEqualTo(absolute);
+        assertThat(QuoteExpiry.ofQuote(gateway(absolute, CREATED), "q")).isEqualTo(absolute);
     }
 
-    // Null, zero and negative all mean "no expiry", reported as 0.
+    // A gateway whose creation lookup fails still yields a deadline (counted from now) rather
+    // than failing the status response.
     @Test
-    void missingOrNonPositiveMeansNoExpiry() {
-        assertThat(QuoteExpiry.absolute(null, CREATED)).isZero();
-        assertThat(QuoteExpiry.absolute(0, CREATED)).isZero();
-        assertThat(QuoteExpiry.absolute(-5, CREATED)).isZero();
-    }
-
-    // Whatever the TTL, the result is never a timestamp in the past that a wallet would refuse,
-    // and it is always read as absolute by clients that guess (value > now / 2).
-    @Test
-    void resultIsAlwaysAFutureAbsoluteTimestampForAFreshQuote() {
-        long before = Instant.now().getEpochSecond();
-        int expiry = QuoteExpiry.absolute(1, null);
-
-        assertThat((long) expiry).isGreaterThan(before);
-        assertThat((long) expiry).isGreaterThan(before / 2);
-    }
-
-    // A gateway that cannot say when the quote was created yields null rather than failing the
-    // status response.
-    @Test
-    void createdAtToleratesAGatewayThatThrows() {
+    void aFailingCreationLookupCountsFromNow() {
         Gateway gateway = Mockito.mock(Gateway.class);
+        when(gateway.getPaymentExpiry("q")).thenReturn(60);
         when(gateway.getCreatedAt("q")).thenThrow(new IllegalStateException("lookup failed"));
 
-        assertThat(QuoteExpiry.createdAt(gateway, "q")).isNull();
+        long before = Instant.now().getEpochSecond();
+        int expiry = QuoteExpiry.ofQuote(gateway, "q");
+
+        assertThat((long) expiry).isGreaterThanOrEqualTo(before + 60);
+        assertThat(QuoteExpiry.createdAt(gateway, "q")).isEmpty();
     }
 }
