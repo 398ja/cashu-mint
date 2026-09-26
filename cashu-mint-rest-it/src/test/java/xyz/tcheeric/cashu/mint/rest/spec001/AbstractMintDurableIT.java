@@ -7,6 +7,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import xyz.tcheeric.cashu.mint.jpa.repository.BlindSignatureJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.IssuanceRecordJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.MintQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.WebhookEventJpaRepository;
@@ -25,8 +26,11 @@ import xyz.tcheeric.cashu.mint.rest.CashuMintRestApplication;
  *       {@code cashu.mint.jpa.enabled=true} so the spec-001 autoconfig
  *       activates.</li>
  *   <li>Runs Flyway migrations on first boot via {@code MintJpaAutoConfiguration}.</li>
- *   <li>Wipes the three durable tables in {@link #cleanDurableTables} before
- *       every test so cases are independent.</li>
+ *   <li>Wipes the durable quote, issuance, webhook and blind-signature tables
+ *       in {@link #cleanDurableTables} before every test so cases are
+ *       independent. The blind-signature wipe matters most: the durable vault
+ *       refuses a {@code B_} it has already signed (issue #491), and many ITs
+ *       sign the same fixed blinded messages.</li>
  * </ul>
  *
  * <p>Subclasses inject the spec-001 repositories directly (and any other
@@ -107,8 +111,12 @@ public abstract class AbstractMintDurableIT {
     @Autowired
     protected WebhookEventJpaRepository webhookEventJpaRepository;
 
+    @Autowired
+    protected BlindSignatureJpaRepository blindSignatureJpaRepository;
+
     @BeforeEach
     void cleanDurableTables() {
+        blindSignatureJpaRepository.deleteAllInBatch();
         webhookEventJpaRepository.deleteAll();
         issuanceRecordJpaRepository.deleteAll();
         mintQuoteJpaRepository.deleteAll();
