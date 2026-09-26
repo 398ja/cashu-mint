@@ -95,7 +95,7 @@ class VoucherNostrConfigurationTest {
 
     // The headline of #407: one environment variable replaces the whole relay list, so a private
     // or test deployment connects to its own relay and to no public one. Checked on the client
-    // adapter itself, because NostrRelayConfig's builder silently drops any relay list it is given.
+    // adapter itself, the object that actually connects, rather than on any intermediate config.
     @Test
     void oneEnvironmentVariableReplacesTheWholeRelayList() throws Exception {
         NostrClientAdapter adapter = adapterFor(bindShippedYaml(

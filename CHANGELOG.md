@@ -92,6 +92,11 @@ pending vouchers never read as paid.
 
 ### Changed
 
+- **imani-bom 0.1.113 -> 0.1.118.** The only resolved change is cashu-voucher 0.14.4 -> 0.14.6,
+  whose `NostrRelayConfig` builder now keeps the relays it is given (cashu-voucher#44). The mint
+  already builds its `NostrClientAdapter` straight from `VoucherProperties` (#407) and keeps doing
+  so, so relay selection is unchanged; the explanatory comments now describe the library bug in the
+  past tense.
 - **The voucher profile refuses to start on Nostr settings that cannot work (#407).** Each relay
   must be a `ws://` or `wss://` URL naming a host, there must be at least `minimumRelays` of them
   (and never zero), and the connection, publish and query timeouts must be positive. These were

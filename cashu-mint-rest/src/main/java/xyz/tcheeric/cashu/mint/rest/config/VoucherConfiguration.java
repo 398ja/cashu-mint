@@ -85,10 +85,11 @@ public class VoucherConfiguration {
      * Creates the Nostr client adapter for relay communication.
      *
      * <p>Built straight from {@link VoucherProperties}, not through cashu-voucher's
-     * {@code NostrRelayConfig}: in 0.14.x that builder's {@code relayUrls(...)} writes a field
-     * Lombok's {@code @Builder.Default} never reads, so every list given to it is replaced by the
-     * two public default relays (cashu-voucher#44). That, not the missing placeholder alone, is
-     * why a deployment could not choose its relays (#407). The settings are checked here instead.
+     * {@code NostrRelayConfig}: before cashu-voucher 0.14.6 that builder's {@code relayUrls(...)}
+     * wrote a field Lombok's {@code @Builder.Default} never read, so every list given to it was
+     * replaced by the two public default relays (cashu-voucher#44). That, not the missing
+     * placeholder alone, is why a deployment could not choose its relays (#407). The mint keeps
+     * its own path so the relay list it validates is exactly the one the adapter receives.
      *
      * @return NostrClientAdapter instance
      */
