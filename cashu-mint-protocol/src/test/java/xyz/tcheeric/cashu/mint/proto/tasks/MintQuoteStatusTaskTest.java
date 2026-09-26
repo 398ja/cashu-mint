@@ -295,6 +295,41 @@ class MintQuoteStatusTaskTest {
         assertThat(response.getAmountIssued()).isEqualTo(64L);
     }
 
+    private static void installIssuing(MintQuote quote, Instant issuedAt) {
+        MintQuoteRepository repo = Mockito.mock(MintQuoteRepository.class);
+        when(repo.findById("qid")).thenReturn(Optional.of(quote));
+        IssuanceRecord ledgerRow = Mockito.mock(IssuanceRecord.class);
+        when(ledgerRow.issuedAt()).thenReturn(issuedAt);
+        IssuanceRecordRepository issuance = Mockito.mock(IssuanceRecordRepository.class);
+        when(issuance.findById("qid")).thenReturn(Optional.of(ledgerRow));
+        MintIntegrityContext.install(repo, issuance, null);
+    }
+
+    // #501: an ISSUING quote reported ISSUED had its amount_issued change when the ledger row was
+    // written, after the quote row was last stamped. NUT-04 requires updated_at to move whenever
+    // amount_issued changes, so it reports the ledger's issued_at.
+    @Test
+    void regularRoute_issuingReportedIssuedTakesUpdatedAtFromTheLedger() throws CashuErrorException {
+        Instant issuedAt = UPDATED.plusSeconds(3);
+        installIssuing(regularQuote(64L, LifecycleState.ISSUING), issuedAt);
+
+        PostMintQuoteResponse response = status("qid", Kind.REGULAR, service(gateway("qid", true)));
+
+        assertThat(response.getState()).isEqualTo("ISSUED");
+        assertThat(response.getUpdatedAt()).isEqualTo(issuedAt.getEpochSecond());
+    }
+
+    // updated_at never goes backwards: a quote row stamped after its ledger row (the normal
+    // ISSUING -> ISSUED close happens just after the ledger insert) keeps the later row time.
+    @Test
+    void regularRoute_updatedAtNeverFallsBehindTheQuoteRow() throws CashuErrorException {
+        installIssuing(regularQuote(64L, LifecycleState.ISSUED), UPDATED.minusSeconds(1));
+
+        PostMintQuoteResponse response = status("qid", Kind.REGULAR, service(gateway("qid", true)));
+
+        assertThat(response.getUpdatedAt()).isEqualTo(UPDATED.getEpochSecond());
+    }
+
     // Without the ledger row an ISSUING quote has issued nothing the mint has recorded, so it
     // stays PAID.
     @Test

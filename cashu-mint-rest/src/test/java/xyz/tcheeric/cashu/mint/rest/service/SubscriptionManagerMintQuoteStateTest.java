@@ -88,9 +88,13 @@ class SubscriptionManagerMintQuoteStateTest {
     }
 
     private static MintQuote regularQuote(LifecycleState state) {
+        return regularQuote(state, "sat");
+    }
+
+    private static MintQuote regularQuote(LifecycleState state, String unit) {
         MintQuote quote = Mockito.mock(MintQuote.class);
         when(quote.amount()).thenReturn(64L);
-        when(quote.unit()).thenReturn("sat");
+        when(quote.unit()).thenReturn(unit);
         when(quote.lifecycleState()).thenReturn(state);
         when(quote.updatedAt()).thenReturn(UPDATED);
         return quote;
@@ -154,6 +158,18 @@ class SubscriptionManagerMintQuoteStateTest {
         subscriptionManager.sendCurrentState(session, subId, SubscriptionKind.bolt11_mint_quote);
 
         verify(session, never()).sendMessage(any());
+    }
+
+    // The WebSocket answer must equal the HTTP one. The HTTP route passes no unit, so the quote's
+    // own unit is reported; passing the configured default here reported a usd quote as sat.
+    @Test
+    void aNonDefaultUnitQuoteIsReportedInItsOwnUnit() throws IOException {
+        installQuotes(regularQuote(LifecycleState.PAID, "usd"), null, "q-usd");
+
+        String subId = subscriptionManager.subscribe(session, SubscriptionKind.bolt11_mint_quote, List.of("q-usd"));
+        subscriptionManager.sendCurrentState(session, subId, SubscriptionKind.bolt11_mint_quote);
+
+        assertThat(onlyNotificationPayload().path("unit").asText()).isEqualTo("usd");
     }
 
     // A state change published after a mint reaches bolt11 subscribers as the full NUT-04
