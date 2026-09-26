@@ -76,6 +76,18 @@ pending vouchers never read as paid.
   #500 passed the configured default unit to the status lookup where the HTTP route passes none,
   so a quote in another unit was reported in the default one. Both channels now make the same
   call.
+- **A regular mint quote is now recorded before its invoice is raised (#502).** #469 fixed this
+  ordering for voucher quotes only. `MintQuoteTask` still raised the gateway invoice first and
+  wrote `mint_quote` second, so a failed write left a payable invoice whose payment the webhook
+  could match to no quote: the payer charged, nothing ever mintable. With the durable repository
+  wired, the mint now chooses the quote id, writes the `UNPAID` row, then raises the invoice under
+  that id (payment-adapter 0.17.0's `createMintQuote(quoteId, ...)`). A failed write refuses the
+  quote while nothing is payable; a failed invoice leaves an `UNPAID` row whose id no client ever
+  sees. A gateway that raises the invoice under a different id is refused. A gateway that cannot
+  take a caller-chosen id at all (payment-adapter's default refuses before raising anything; only
+  Phoenixd honours one) falls back to the old invoice-then-record order with a WARN naming it,
+  rather than refusing every quote: the Nutshell interop suite, on `DummyGateway`, caught that.
+  Without the repository the gateway still chooses the id, as before.
 - **NUT-17 `bolt11_mint_quote` notifications answer as the bolt11 status route does (#500).**
   `SubscriptionManager` built the mint-quote payload from the payment gateway alone, so a
   WebSocket subscription to a voucher quote id was answered `PAID`, the same leak #494 closed on

@@ -24,6 +24,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Properties;
+import java.util.UUID;
 
 /**
  * NUT-04 mint-quote creation: asks the gateway for a payment request and
@@ -130,32 +131,9 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         AmountLimitContext.policy().requireWithinMintLimits(amount, resolvedUnit);
         Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, requestedUnit);
-        // Boundary cast: payment-adapter Gateway#createMintQuote still takes Integer.
-        // Tracked cross-repo per spec 001 research R6 (Gateway interface migration).
-        String quoteId = gateway.createMintQuote((int) amount, null);
+        String quoteId = raiseInvoice(gateway, resolvedUnit);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
-
-        if (mintQuoteRepository != null) {
-            String resolvedMintUrl = mintUrl != null ? mintUrl : "";
-            try {
-                mintQuoteRepository.save(new NewQuote(
-                        quoteId,
-                        amount,
-                        resolvedUnit,
-                        resolvedMintUrl,
-                        method.name(),
-                        quoteId,
-                        LifecycleState.UNPAID,
-                        requestHash(amount, resolvedUnit, method),
-                        Instant.now(),
-                        pubkey));
-            } catch (RuntimeException e) {
-                log.error("mint_quote_persist_failed quote_id={} amount={} unit={}",
-                        quoteId, amount, resolvedUnit, e);
-                throw new CashuErrorException(CashuErrorCode.internal_error, "Mint quote could not be persisted");
-            }
-        }
 
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
@@ -172,6 +150,100 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                 .updatedAt(Instant.now().getEpochSecond())
                 .expiry(QuoteExpiry.absolute(expiry, null))
                 .build();
+    }
+
+    /**
+     * Raises the payment request and returns the quote id it is filed under.
+     *
+     * <p>With the durable repository wired, the quote row is written <b>before</b> the invoice
+     * exists (cashu-mint#502, the regular-quote half of #469). Raising an invoice is irreversible:
+     * it is payable the moment the gateway returns, and no gateway here can withdraw it. This task
+     * used to raise it first and write the row second, so a failed write left a payable invoice
+     * whose payment the webhook could not match to any quote: the payer was charged and nothing
+     * could ever be minted. Now each failure lands on the safe side:
+     * <ul>
+     *   <li>the write fails: refused, and nothing is payable yet;</li>
+     *   <li>the invoice fails: an {@code UNPAID} row no client ever learns the id of, which
+     *       nothing can pay or mint against.</li>
+     * </ul>
+     *
+     * <p>The mint chooses the id so the row and the invoice can share it. A gateway that raises
+     * the invoice under a different id is refused: the row would name an invoice that does not
+     * exist, stranding the payment one step later. The check runs after the invoice exists, so it
+     * reports the breach rather than preventing it; prevention is the gateway's contract.
+     *
+     * <p>A gateway that cannot take a caller-chosen id (payment-adapter's default refuses with
+     * {@link UnsupportedOperationException}; only Phoenixd honours one today) is not a reason to
+     * refuse every regular quote on it. For those the gateway chooses the id and the row is
+     * written after the invoice, the order this task always used, and a WARN names the gateway so
+     * the residual risk is visible. The probe raises nothing: the refusal comes before any invoice.
+     * The pre-written row is then left {@code UNPAID} under an id no client sees, inert.
+     *
+     * <p>Without the repository (legacy unit-test contexts) nothing is recorded, and the gateway
+     * keeps choosing its own id as before.
+     */
+    private String raiseInvoice(Gateway gateway, String resolvedUnit) throws CashuErrorException {
+        if (mintQuoteRepository == null) {
+            // Boundary cast: payment-adapter Gateway#createMintQuote takes Integer. The amount is
+            // bounded to Integer.MAX_VALUE above.
+            return gateway.createMintQuote((int) amount, null);
+        }
+        String quoteId = UUID.randomUUID().toString();
+        recordQuote(quoteId, resolvedUnit);
+
+        // IRREVERSIBLE FROM HERE. Every precondition that can refuse this quote, including the
+        // write above, must stay above this line.
+        String invoicedId;
+        try {
+            invoicedId = gateway.createMintQuote(quoteId, (int) amount, null);
+        } catch (UnsupportedOperationException cannotTakeOurId) {
+            return raiseInvoiceUnderTheGatewaysId(gateway, resolvedUnit);
+        }
+        if (!quoteId.equals(invoicedId)) {
+            log.error("mint_quote gateway_changed_quote_id recorded={} invoiced={} gateway={}",
+                    quoteId, invoicedId, gateway.getClass().getSimpleName());
+            throw new CashuErrorException(CashuErrorCode.internal_error,
+                    "Payment gateway raised the invoice under a different quote id");
+        }
+        return quoteId;
+    }
+
+    /**
+     * The pre-#502 order, for a gateway that chooses its own ids: raise the invoice, then record
+     * the quote under the id the gateway returned. A failed write here strands a payable invoice,
+     * which is why the WARN names the gateway and why the caller-chosen path is preferred.
+     */
+    private String raiseInvoiceUnderTheGatewaysId(Gateway gateway, String resolvedUnit)
+            throws CashuErrorException {
+        log.warn("mint_quote gateway_cannot_take_quote_id gateway={} order=invoice_then_record",
+                gateway.getClass().getSimpleName());
+        String quoteId = gateway.createMintQuote((int) amount, null);
+        recordQuote(quoteId, resolvedUnit);
+        return quoteId;
+    }
+
+    /** Writes the {@code UNPAID} quote row, refusing the quote when the write fails. */
+    private void recordQuote(String quoteId, String resolvedUnit) throws CashuErrorException {
+        String resolvedMintUrl = mintUrl != null ? mintUrl : "";
+        try {
+            mintQuoteRepository.save(new NewQuote(
+                    quoteId,
+                    amount,
+                    resolvedUnit,
+                    resolvedMintUrl,
+                    method.name(),
+                    quoteId,
+                    LifecycleState.UNPAID,
+                    requestHash(amount, resolvedUnit, method),
+                    Instant.now(),
+                    pubkey));
+        } catch (RuntimeException e) {
+            // Fail closed, and before the invoice exists: the client is refused a quote it was
+            // never charged for.
+            log.error("mint_quote_persist_failed quote_id={} amount={} unit={}",
+                    quoteId, amount, resolvedUnit, e);
+            throw new CashuErrorException(CashuErrorCode.internal_error, "Mint quote could not be persisted");
+        }
     }
 
     /**
