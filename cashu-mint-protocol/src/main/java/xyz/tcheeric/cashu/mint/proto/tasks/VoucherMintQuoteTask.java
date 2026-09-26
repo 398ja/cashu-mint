@@ -19,6 +19,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Task for creating a voucher mint quote with percentage-based fee.
@@ -106,29 +107,55 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         Gateway gateway = unit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, unit);
 
-        // IRREVERSIBLE FROM HERE. The invoice exists the moment this returns,
-        // it is immediately payable, and nothing below can withdraw it.
+        // Record the quote BEFORE the invoice exists (cashu-mint#469).
         //
-        // That matters because `persistVoucherQuote` runs AFTER and can still
-        // fail: `voucher_quote` carries CHECK (charged_amount > 0), so a
-        // non-positive price was rejected here rather than before the invoice
-        // was raised. Observed on staging 2026-09-23: the customer paid, the
-        // mint ACCEPTED the payment, and the request that created it had
-        // already returned 90008 to a client that never came back. Twelve
-        // quotes sat PAID with nothing issued and no process responsible for
-        // them (cashu-mint#469).
+        // Raising the invoice is irreversible: it is payable the moment the
+        // gateway returns, and no gateway here can withdraw it. This task
+        // used to raise it first and record the quote second, so any failure
+        // of the write left a payable invoice with no record behind it. On
+        // staging the customer paid, the mint ACCEPTED the payment, and the
+        // request that created the quote had already returned 90008 to a
+        // client that never came back. Twelve quotes sat PAID with nothing
+        // issued and no process responsible for them.
         //
-        // Every precondition that can refuse this quote must therefore be
-        // checked ABOVE this line. The price check is; a future one must be
-        // too. A persist failure below still strands a payable invoice, which
-        // is the residual hazard #469 tracks.
-        String quoteId = gateway.createMintQuote((int) voucherPrice, null);
-
-        // Spec 003 FR-001/FR-003 — persist the durable voucher quote so the
-        // classification and face value survive a restart. The in-memory
-        // registry becomes a read-through cache (still populated for the
-        // legacy fast path).
+        // Fixing the one trigger (a zero price rejected by the CHECK
+        // constraint) did not fix the ordering: a transient database error, or
+        // any future constraint, stranded a payable invoice the same way.
+        //
+        // So the mint chooses the id, writes the row, and only then raises the
+        // invoice under that same id. Each failure now lands on the safe side:
+        //   - write fails     -> refused, and nothing is yet payable
+        //   - invoice fails   -> an UNFUNDED row with no invoice, which nothing
+        //                        can pay against or mint from: inert
+        // The old order failed the other way round, and that way took money.
+        //
+        // The orphan in the second case is also unreachable: the exception
+        // propagates before the response is built, so its id is a random UUID
+        // no client ever sees, and nothing can poll or mint against it. It is
+        // not reclaimed: VoucherIdentityRetentionPurgeService only nulls
+        // identity columns on terminal rows (ISSUED/EXPIRED/FAILED) and never
+        // deletes, so an orphan stays. That costs ~621 bytes per failed
+        // invoice and needs no owner, where the failure it replaces cost the
+        // customer's payment. Staging held zero UNFUNDED rows when this landed.
+        String quoteId = UUID.randomUUID().toString();
         persistVoucherQuote(quoteId, voucherPrice);
+
+        // IRREVERSIBLE FROM HERE. Every precondition that can refuse this
+        // quote, including the write above, must stay above this line.
+        String invoicedId = gateway.createMintQuote(quoteId, (int) voucherPrice, null);
+
+        // The row above names quoteId. If the gateway raised the invoice under
+        // any other id, the payment would arrive for a quote the mint has no
+        // record of, which is #469 again one step later. The contract says it
+        // cannot happen; this makes a gateway that breaks it loud rather than
+        // silently stranding a payment. It fires after the invoice exists, so
+        // it reports the breach rather than preventing it: the prevention is
+        // the gateway's own contract, pinned by PhoenixdGatewayTest.
+        if (!quoteId.equals(invoicedId)) {
+            log.error("voucher_quote gateway_changed_quote_id recorded={} invoiced={} gateway={}",
+                    quoteId, invoicedId, gateway.getClass().getSimpleName());
+            throw new CashuErrorException("{\"error\":\"voucher_quote_id_mismatch\"}");
+        }
 
         VoucherQuoteRegistry.storeFaceValue(quoteId, faceValue);
 
@@ -186,12 +213,11 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
             log.info("voucher_quote persisted quote_id={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
                     quoteId, faceValue, chargedAmount, fee);
         } catch (RuntimeException e) {
-            // Spec 003 review fix — when the durable repo is wired and
-            // save fails, the client MUST NOT receive a quote_id that
-            // can't be redeemed. A failure here typically means a
-            // transient DB error; fail closed so the client retries
-            // rather than paying the gateway invoice and discovering
-            // voucher_quote_not_found later.
+            // Fail closed. This runs before the invoice is raised (#469), so a
+            // failure here refuses the quote while nothing is yet payable: the
+            // client retries a quote it was never charged for. Before the
+            // reorder the same failure arrived after a payable invoice already
+            // existed, which is how twelve paid quotes were stranded.
             log.error("voucher_quote persist_failed quote_id={}", quoteId, e);
             throw new CashuErrorException(
                     "{\"error\":\"voucher_quote_persist_failed\"}");

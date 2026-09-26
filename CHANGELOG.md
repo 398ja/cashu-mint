@@ -4,6 +4,67 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-09-26
+
+### Fixed
+
+- **A voucher quote is now recorded before its invoice is raised, so a failed write can no longer
+  take a customer's money (#469).** `VoucherMintQuoteTask` raised the gateway invoice first and
+  wrote `voucher_quote` second. Raising an invoice is irreversible: it is payable the moment the
+  gateway returns and no gateway here can withdraw it. So any failure of the write left a payable
+  invoice with no record behind it.
+
+  On staging the customer paid, the mint **accepted** the payment, and the request that created the
+  quote had already returned 90008 to a client that never came back. Twelve quotes sat `PAID` with
+  nothing issued and no process responsible for them, and `cashu_mint_quote_paid_unissued` rose
+  every day for three days without once falling.
+
+  The earlier fee floor (`12da540f`) removed the one trigger seen on staging, a zero price rejected
+  by `CHECK (charged_amount > 0)`, and `ebdb8c2e` marked the irreversible line. Neither fixed the
+  ordering: a transient database error, or any future constraint, stranded a payable invoice the
+  same way, which is the residual hazard #469 kept open.
+
+  The mint now chooses the quote id, writes the row, and only then raises the invoice under that
+  same id. Both failure modes land on the safe side:
+
+  | failure | before | after |
+  |---|---|---|
+  | the write fails | invoice already payable, customer can be charged | refused, nothing payable yet |
+  | the invoice fails | (could not happen in this order) | an UNFUNDED row, unreachable and inert |
+
+  The orphan row in the second case is unreachable because the exception propagates before the
+  response is built, so its id is a random UUID no client ever sees. It is not reclaimed:
+  `VoucherIdentityRetentionPurgeService` only nulls identity columns on terminal rows and never
+  deletes. That costs about 621 bytes per failed invoice, against a failure that cost the customer's
+  payment. Staging held zero UNFUNDED rows when this landed.
+
+  A gateway that raises the invoice under a different id than it was given is refused with
+  `voucher_quote_id_mismatch` rather than trusted, since a record and invoice that disagree would
+  strand the payment one step later.
+
+  **Why not return the quote id on failure, as #469 suggested.** It looked like the way to give the
+  money an owner, and it would not have. With the `voucher_quote` row missing, `MintTask` classifies
+  the quote as a regular one and binds issuance to the `mint_quote` amount, which is the invoiced fee
+  rather than the face value. A returning client could mint only the fee's worth, never the voucher
+  they bought; and minting the face value instead would skip the funding row FR-002 requires.
+
+### Changed
+
+- **`payment-adapter` 0.14.2 -> 0.17.0**, for `Gateway.createMintQuote(quoteId, amount, description)`.
+  The intervening releases change the adapter service's own tables and migrations (V7 to V12), which
+  the mint never runs: its Flyway scans only `db/migration/spec001`. The embedded library surface the
+  mint calls is unchanged apart from the added method.
+
+### Tests
+
+- `VoucherMintQuoteRecordsBeforeInvoicingTest` (6 tests) pins the ordering with a wired repository.
+  Teeth-checked by restoring the old order: `theRowIsSavedBeforeTheInvoice` and
+  `aFailedWriteRaisesNoInvoice` fail, the rest pass as they should.
+
+  **The 7 existing `VoucherMintQuoteTaskTest` tests all pass against the #469 ordering.** They never
+  wire a repository, so the write is a silent no-op and the order is invisible to them. That is why
+  the defect survived. They are updated for the mint-chosen id and kept, since they pin the pricing.
+
 ## [0.39.0] - 2026-09-26
 
 Minor rather than patch: `ProofVaultService.retrieveProof` and `storageKeyFor` now require the mint.
