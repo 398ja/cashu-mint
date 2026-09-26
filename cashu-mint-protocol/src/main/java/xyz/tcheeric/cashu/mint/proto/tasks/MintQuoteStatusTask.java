@@ -6,6 +6,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
@@ -37,9 +38,12 @@ import java.time.Instant;
  *       regular quote id with {@code voucher_quote_not_found}.</li>
  * </ul>
  *
- * <p>Both report the NUT-04 accounting fields. For a voucher quote {@code amount_paid} is what the
- * invoice charged, not the face value, so a verifier can compare what was paid with what may be
- * minted.
+ * <p>Both report the NUT-04 accounting fields, and on both they describe the entitlement: once
+ * paid, {@code amount_paid} is what may be minted, so {@code amount_paid - amount_issued} is the
+ * mintable amount NUT-04 defines. For a voucher that is the face value, although its invoice
+ * charged only the fee. The voucher route therefore answers with a
+ * {@link VoucherMintQuoteResponse}, whose {@code charged_amount} carries the price; a verifier
+ * comparing a payment with a price reads that, never {@code amount_paid} (cashu-mint#499).
  *
  * <p>When no durable repository is wired (legacy unit-test contexts) the task answers from the
  * payment gateway alone, as it always has, except that the regular route still refuses an id the
@@ -103,7 +107,7 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
                 : (resolved.unit() != null && !resolved.unit().isBlank() ? resolved.unit() : DEFAULT_UNIT);
         String state = resolved.state(paid);
 
-        return PostMintQuoteResponse.builder()
+        PostMintQuoteResponse response = PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
                 .request(gateway.getRequest(quoteId))
                 .amount(clampToInt(resolved.amount()))
@@ -119,6 +123,7 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
                 .expiry(QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
                         QuoteExpiry.createdAt(gateway, quoteId)))
                 .build();
+        return kind == Kind.VOUCHER ? new VoucherMintQuoteResponse(response, resolved.charged()) : response;
     }
 
     private ResolvedQuote resolveQuote() throws CashuErrorException {
@@ -167,7 +172,8 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
      *
      * @param amount     what may be minted: the quote amount, or a voucher's face value
      * @param charged    what the invoice charges: equal to {@code amount} for a regular quote,
-     *                   the fee for a voucher quote
+     *                   the fee for a voucher quote. Reported as {@code charged_amount} on the
+     *                   voucher route only; never as a NUT-04 accounting field
      * @param lifecycle  the durable lifecycle mapped to a wire state, or null when unknown
      */
     private record ResolvedQuote(long amount, long charged, String unit, String lifecycle,
@@ -196,9 +202,14 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
             return paid ? LifecycleState.PAID.name() : LifecycleState.UNPAID.name();
         }
 
-        /** NUT-04 {@code amount_paid}: what the payer has paid, in the quote's unit. */
+        /**
+         * NUT-04 {@code amount_paid}: the value the payment entitles the payer to mint, in the
+         * quote's unit. For a voucher that is the face value, not the fee its invoice charged:
+         * NUT-04 requires {@code amount_issued <= amount_paid} and mints
+         * {@code amount_paid - amount_issued}, and reporting the fee broke both (cashu-mint#499).
+         */
         long amountPaid(String state) {
-            return isPaidOrIssued(state) ? Math.max(0L, charged) : 0L;
+            return isPaidOrIssued(state) ? Math.max(0L, amount) : 0L;
         }
 
         /** NUT-04 {@code amount_issued}: what has been minted against the quote. */
