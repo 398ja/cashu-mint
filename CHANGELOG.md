@@ -50,6 +50,36 @@ Any out-of-tree implementation or caller must be updated.
   absorbed by it, silently disabling the double-spend check on a path whose only job is to prevent
   double spending. A test with an unstubbed mint mock is what surfaced this.
 
+### Added
+
+- **Regression tests for all four bugs above, each teeth-checked by reverting its fix.**
+  16 new tests across `SubscriptionManagerReportsTrueProofStateTest` (5), `InvalidateProofTest` (1
+  plus a `VaultKeyedOnY` fake), `VoucherSpendingConditionTest` (6) and `RSSSpendingConditionTest`
+  (4), plus `ProofLookupIsMintScopedTest` (6) for the scoping itself.
+
+  The existing tests on three of these paths passed **while the bugs were live**, because they
+  stubbed the lookup with `Mockito.any()` or asserted which method was called rather than what the
+  caller observed. The new tests assert the outcome: a fake vault keyed on the true `Y` hashes in
+  `retrieveProof` and not in `retrieveProofByY`, so a double-hashed lookup misses and the assertion
+  fails naming the wrong state. Re-pointing the old stubs at the buggy call confirms they could not
+  have caught it.
+
+  Teeth-check results, each mutation hitting only its intended group: reverting the NUT-17 fix fails
+  3 of 5; reverting the 409 fix fails 1 of 7 (and none of the three pre-existing tests); moving
+  `requireMintId()` back inside the `try` fails 4; neutralising the `STATE_SPENT` comparison fails 4;
+  making the vault catch rethrow fails 4.
+
+### Changed
+
+- `SwapProofHold` and `InvalidateProofsTask` read the mint id from their own `@NonNull` field rather
+  than from `ProofEntity.getMint().getId()`, which is nullable (`ProofEntity.fromProof` defends
+  against it when computing the fingerprint). Same value on every current path, but it cannot NPE.
+
+Two follow-ups were filed rather than folded in, both from reviewing this change: #487 (the two
+lookups are interchangeable to the compiler, which is how the same silent mistake happened three
+times) and #488 (the dead no-arg constructor is the only way to reach the state the new guard
+catches, and the blanket `catch (Exception)` is what hid it).
+
 ## [0.38.13] - 2026-09-25
 
 ### Changed

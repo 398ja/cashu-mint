@@ -214,7 +214,9 @@ class SwapProofHold {
         if (proof.getSecret() == null) {
             return;
         }
-        row.setSecret(proofVaultService.storageKeyFor(row.getMint().getId(),
-                proof.getSecret().toString()));
+        // The hold's own mintId, not row.getMint().getId(): this field is @NonNull by constructor
+        // contract, whereas the entity's mint id is nullable (ProofEntity.fromProof defends against
+        // it when computing the fingerprint). Reading it from the field cannot NPE.
+        row.setSecret(proofVaultService.storageKeyFor(mintId, proof.getSecret().toString()));
     }
 }

@@ -19,6 +19,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<List<Proof<T>>> {
@@ -70,7 +71,10 @@ public class InvalidateProofsTask<T extends Secret> extends InstrumentedTask<Lis
         if (proof.getSecret() == null) {
             return;
         }
-        proofEntity.setSecret(proofVaultService.storageKeyFor(proofEntity.getMint().getId(),
+        // The task's own mint, not proofEntity.getMint().getId(): the constructor declares mint
+        // @NonNull, whereas the entity's mint id is nullable (ProofEntity.fromProof defends against
+        // it when computing the fingerprint). Reading it from the field cannot NPE.
+        proofEntity.setSecret(proofVaultService.storageKeyFor(UUID.fromString(mint.getId()),
                 proof.getSecret().toString()));
     }
 
