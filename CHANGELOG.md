@@ -92,6 +92,11 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **A NUT-17 `proof_state` subscriber that writes its Y in uppercase now receives updates (#511).**
+  Subscriptions were indexed under the id exactly as sent, while the mint publishes lowercase Ys,
+  so such a subscriber got the correct initial state and then never a state change. Proof-state
+  ids are now matched case-insensitively, and each notification echoes the Y in the subscriber's
+  own spelling. Quote ids remain case-sensitive.
 - **An `ISSUING` quote reported `ISSUED` carries the moment it was issued as `updated_at` (#501).**
   The status route reports a quote whose issuance ledger row exists as `ISSUED`, with
   `amount_issued` equal to its amount, but took `updated_at` from the quote row, last stamped on

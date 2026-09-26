@@ -19,6 +19,7 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -143,6 +144,49 @@ class SubscriptionManagerTest {
         subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
 
         subscriptionManager.publishProofState("proof-y-OTHER", "SPENT", null);
+
+        verify(session1, never()).sendMessage(any());
+    }
+
+    // #511: hex is case-insensitive and the mint publishes lowercase Ys, so a wallet that
+    // subscribed with an uppercase Y must still receive the update, echoed in its own spelling.
+    @Test
+    void publishProofState_ReachesASubscriberWhoWroteTheYInUppercase() throws IOException {
+        when(session1.isOpen()).thenReturn(true);
+        String uppercaseY = REAL_Y.toUpperCase(Locale.ROOT);
+        subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of(uppercaseY));
+
+        subscriptionManager.publishProofState(REAL_Y, "SPENT", null);
+
+        ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session1).sendMessage(messageCaptor.capture());
+        assertTrue(messageCaptor.getValue().getPayload().contains(uppercaseY),
+                "The notification should carry the Y as the subscriber wrote it");
+    }
+
+    // #511: unsubscribing an uppercase subscription removes it from the case-insensitive index, so
+    // a later publish reaches nobody.
+    @Test
+    void unsubscribe_RemovesAnUppercaseSubscriptionFromTheIndex() throws IOException {
+        lenient().when(session1.isOpen()).thenReturn(true);
+        String subId = subscriptionManager.subscribe(
+                session1, SubscriptionKind.proof_state, List.of(REAL_Y.toUpperCase(Locale.ROOT)));
+
+        subscriptionManager.unsubscribe(session1.getId(), subId);
+        subscriptionManager.publishProofState(REAL_Y, "SPENT", null);
+
+        verify(session1, never()).sendMessage(any());
+    }
+
+    // Quote ids are opaque, not hex: they stay case-sensitive, so a differently cased id is a
+    // different quote and gets no notification.
+    @Test
+    void publishQuoteState_StaysCaseSensitive() throws IOException {
+        lenient().when(session1.isOpen()).thenReturn(true);
+        subscriptionManager.subscribe(session1, SubscriptionKind.bolt11_melt_quote, List.of("Quote-A"));
+
+        subscriptionManager.publishQuoteState(SubscriptionKind.bolt11_melt_quote, "quote-a",
+                new QuoteStatePayload());
 
         verify(session1, never()).sendMessage(any());
     }

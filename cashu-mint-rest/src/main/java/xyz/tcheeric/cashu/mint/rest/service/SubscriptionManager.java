@@ -113,7 +113,7 @@ public final class SubscriptionManager {
 
         // Create subscription
         Set<String> safeIds = ids != null ? new HashSet<>(ids) : new HashSet<>();
-        Subscription subscription = new Subscription(subId, sessionId, kind, safeIds);
+        Subscription subscription = Subscription.of(subId, sessionId, kind, safeIds);
         subscriptionById.put(subId, subscription);
 
         // Add to session subscriptions atomically to avoid race with removeSession
@@ -224,7 +224,8 @@ public final class SubscriptionManager {
             WebSocketSession session = sessions.get(sub.sessionId());
             if (session == null || !session.isOpen()) continue;
 
-            JsonRpcNotification notification = NUT17.proofStateNotification(subId, y, state, witness);
+            JsonRpcNotification notification =
+                    NUT17.proofStateNotification(subId, sub.spellingOf(y), state, witness);
             sendNotification(session, notification);
         }
 
@@ -496,8 +497,20 @@ public final class SubscriptionManager {
         return subscriptionById.size();
     }
 
-    private String indexKey(SubscriptionKind kind, String id) {
-        return kind.name() + ":" + id;
+    /**
+     * The key a subscription target is indexed under.
+     *
+     * <p>A proof-state target is a hex point, and hex is case-insensitive: the mint publishes
+     * lowercase Ys, so a wallet that subscribed with uppercase used to get its initial state (the
+     * vault lookup normalises) and then never a single update (cashu-mint#511). Quote ids are
+     * opaque and matched exactly.
+     */
+    private static String indexKey(SubscriptionKind kind, String id) {
+        return kind.name() + ":" + normalisedId(kind, id);
+    }
+
+    private static String normalisedId(SubscriptionKind kind, String id) {
+        return kind == SubscriptionKind.proof_state && id != null ? id.toLowerCase(Locale.ROOT) : id;
     }
 
     private void sendNotification(WebSocketSession session, JsonRpcNotification notification) {
@@ -518,6 +531,25 @@ public final class SubscriptionManager {
             String subId,
             String sessionId,
             SubscriptionKind kind,
-            Set<String> ids
-    ) {}
+            Set<String> ids,
+            Map<String, String> spellingByTarget
+    ) {
+        static Subscription of(String subId, String sessionId, SubscriptionKind kind, Set<String> ids) {
+            // Not Map.copyOf: a subscriber can send a null id, and the index tolerates one.
+            Map<String, String> spellingByTarget = new HashMap<>();
+            for (String id : ids) {
+                spellingByTarget.put(normalisedId(kind, id), id);
+            }
+            return new Subscription(subId, sessionId, kind, ids, Collections.unmodifiableMap(spellingByTarget));
+        }
+
+        /**
+         * The target as this subscriber wrote it. A notification echoes the subscriber's own
+         * spelling, so a wallet that matches payloads against the Ys it sent still recognises one
+         * published in the mint's lowercase form.
+         */
+        String spellingOf(String id) {
+            return spellingByTarget.getOrDefault(normalisedId(kind, id), id);
+        }
+    }
 }

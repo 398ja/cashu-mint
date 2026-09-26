@@ -218,7 +218,9 @@ Sample response:
 JSON-RPC 2.0 WebSocket endpoint for real-time state change notifications.
 
 **Supported subscription kinds:**
-- `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT.
+- `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT. Filter ids
+  are the Ys as hex and match in either case; each notification carries the Y as the subscriber
+  wrote it. An id that is not a curve point gets no notification.
 - `bolt11_mint_quote`: notifies when mint quotes change state (UNPAID -> PAID -> ISSUED). The
   payload is exactly what `GET /v1/mint/quote/bolt11/{quote_id}` returns, NUT-04 accounting fields
   included. A voucher quote id or an unknown id gets no notification, just as that route refuses
