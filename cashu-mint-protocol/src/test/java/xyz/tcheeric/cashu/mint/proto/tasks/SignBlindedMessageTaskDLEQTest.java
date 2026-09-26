@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.util.encoders.Hex;
@@ -58,6 +59,7 @@ class SignBlindedMessageTaskDLEQTest {
                 blindedMessageOnGenerator(),
                 mintProtocolService,
                 signatureVaultService,
+                SignatureSource.MINT,
                 dleqProofGenerator
         );
 
@@ -83,6 +85,7 @@ class SignBlindedMessageTaskDLEQTest {
                 blindedMessageOnGenerator(),
                 mintProtocolService,
                 signatureVaultService,
+                SignatureSource.MINT,
                 dleqProofGenerator
         );
 

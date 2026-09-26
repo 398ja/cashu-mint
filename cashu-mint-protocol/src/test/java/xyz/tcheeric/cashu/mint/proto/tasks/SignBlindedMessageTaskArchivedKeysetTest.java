@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,14 +55,14 @@ class SignBlindedMessageTaskArchivedKeysetTest {
 
     final SignBlindedMessageTask task =
         new SignBlindedMessageTask(
-            mint, blindedMessage(), mintProtocolService, signatureVaultService);
+            mint, blindedMessage(), mintProtocolService, signatureVaultService, SignatureSource.MINT);
 
     assertThatThrownBy(task::execute)
         .isInstanceOf(CashuErrorException.class)
         .extracting(t -> ((CashuErrorException) t).getErrorCode().name()).isEqualTo("keyset_inactive");
 
     // Nothing is stored when the keyset is refused.
-    verify(signatureVaultService, never()).store(any(), any());
+    verify(signatureVaultService, never()).store(any(), any(), any());
   }
 
   @Test
@@ -74,7 +75,7 @@ class SignBlindedMessageTaskArchivedKeysetTest {
 
     final SignBlindedMessageTask task =
         new SignBlindedMessageTask(
-            mint, blindedMessage(), mintProtocolService, signatureVaultService);
+            mint, blindedMessage(), mintProtocolService, signatureVaultService, SignatureSource.MINT);
 
     assertThat(task.execute()).isNotNull();
 

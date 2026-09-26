@@ -135,6 +135,12 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));
         when(mintLoadService.keySet(anyString())).thenReturn(mint.getKeySets().iterator().next());
         when(mintLoadService.keySets()).thenReturn(List.copyOf(mint.getKeySets()));
+        // The melt reads keysets through one KeySetDirectory, which asks for the active and
+        // archived generations, not the flattened view above. Stubbing only keySets() left
+        // every melt input "keyset_not_known" (404), unnoticed while these ITs ran a stale
+        // published protocol jar instead of the reactor's.
+        when(mintLoadService.keySets(false)).thenReturn(List.copyOf(mint.getKeySets()));
+        when(mintLoadService.keySets(true)).thenReturn(List.of());
         // Provide a managed mint entity so MeltTask.buildNormalisedProofEntities
         // can Y-normalise without NPEing on the mocked vault service.
         xyz.tcheeric.cashu.vault.db.model.MintEntity me =
@@ -241,6 +247,8 @@ class MeltSagaProofsNotBoundIT extends AbstractMintDurableIT {
                     List<?> rows = inv.getArgument(0);
                     return rows.size();
                 });
+        // The burn commits the hold and must report every held input spent.
+        when(proofVaultService.commitSpentForHold(anyString())).thenReturn(overFundedProofs().size());
         ((MockLightningPaymentPort) paymentPort).enqueuePay(
                 new PaymentOutcome.Success("preimage-happy-005", 100L, 0L, "evt-happy-005"));
 

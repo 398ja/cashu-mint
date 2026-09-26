@@ -94,10 +94,14 @@ public static ProofLock lockSecrets(List<String> secrets) {
 try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
         proofs.stream().map(p -> p.getSecret().toString()).toList())) {
     verifyProofsTask.execute();  // Validates proofs aren't spent
-    invalidateProofsTask.execute();  // Marks as spent
-    signBlindedMessagesTask.execute();  // Issues new tokens
+    hold.claim(proofs);              // Durable exclusive hold on the inputs
+    signOutputs();                   // Issues new tokens
+    hold.commit();                   // Held inputs move to SPENT in one transition
 }
 ```
+
+The lock is per process. The durable guarantee is the vault hold, described in
+[Spent proofs are only ever moved forward](#spent-proofs-are-only-ever-moved-forward).
 
 ---
 
@@ -360,19 +364,17 @@ public void configureWebSocketTransport(WebSocketTransportRegistration registrat
 
 ### Secure Logging
 
-**File:** `cashu-mint-protocol/.../tasks/InvalidateProofsTask.java`
+**File:** `cashu-vault-api/.../db/log/SecretLogId.java` (used by the mint's vault client)
 
 Proof secrets are never logged in plaintext. Instead, they're hashed for correlation:
 
 ```java
-private String sanitizeSecretForLog(String secret) {
-    MessageDigest digest = MessageDigest.getInstance("SHA-256");
-    byte[] hash = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
-    return HexFormat.of().formatHex(hash).substring(0, 8);  // First 8 hex chars
-}
+// SecretLogId.of: a truncated SHA-256, never the value itself
+byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(UTF_8));
+return "sha256:" + hex(digest, 16);  // first 16 hex chars
 
 // Usage
-log.debug("Processing proof secret_hash={}", sanitizeSecretForLog(secret));
+log.debug("Retrieving ProofEntity by secret {}", SecretLogId.of(secret));
 ```
 
 **Benefits:**
@@ -408,29 +410,41 @@ public ResponseEntity<PostSwapResponse> swap(@RequestBody PostSwapRequest reques
 - Correlate security incidents
 - Debug duplicate/replay attempts
 
-### Idempotent Proof Invalidation
+### Spent proofs are only ever moved forward
 
-**File:** `cashu-mint-protocol/.../tasks/InvalidateProofsTask.java`
+**Files:** `cashu-mint-protocol/.../tasks/SwapProofHold.java`, `MeltTask.java`,
+`service/ProofVaultService.java`
 
-Retried operations handle already-spent proofs gracefully:
+cashu-vault is the mint's only record of spent proofs, so the one property that
+must hold is that a `SPENT` row never becomes spendable again (cashu-mint#492,
+cashu-vault#154).
 
-```java
-private void storeAndInvalidateIdempotent(Proof proof, ProofEntity entity) {
-    try {
-        proofVaultService.store(entity);
-    } catch (HttpClientErrorException.Conflict e) {
-        // 409 = proof already exists
-        ProofEntity existing = proofVaultService.retrieveProof(entity.getSecret());
+Both value-moving flows spend their inputs through a **hold**:
 
-        if (ProofEntity.STATE_SPENT.equals(existing.getState())) {
-            // Already spent - idempotent success (safe retry)
-            return;
-        }
-        // Not yet spent - invalidate now
-        proofVaultService.invalidate(existing);
-    }
-}
-```
+1. `insertOrClaimForHold` claims every input as `PENDING` under one hold id. An
+   input that is already `SPENT`, or held by another flow, is not claimed, and the
+   flow fails closed before it signs (swap) or pays (melt).
+2. `commitSpentForHold` moves exactly the held rows to `SPENT`. A commit that
+   reports fewer rows spent than were held is a failure, not a smaller success:
+   the swap strands the hold for the operator, and the melt lands in
+   `PAYMENT_SENT_BURN_FAILED`.
+
+`ProofVaultService` deliberately has no method that writes a whole proof row.
+The melt used to burn its inputs by storing each row and re-posting it with its
+state changed, which only worked while the vault would overwrite an existing
+row, and a row that can be overwritten is a row whose `SPENT` state can be
+undone. The vault now refuses both the overwrite and the delete, and in
+PostgreSQL a trigger refuses to undo a spend underneath the API.
+
+Hold rows are keyed where the vault already records each proof
+(`storageKeyFor`), so a proof recorded under the legacy NUT-00 point is claimed
+under that point and cannot slip in as a fresh row. See
+[Spending a proof exactly once across the secret encoding change](spent-proof-key-encoding.md).
+
+`SpentProofCannotBeRevivedIT` runs this end to end against the real vault
+server: it spends a proof, tries to delete and overwrite the row with the mint's
+own token, and presents the proof again. Pointed at cashu-vault 0.14.0 it fails
+at the delete, which is the attack it exists to catch.
 
 ---
 

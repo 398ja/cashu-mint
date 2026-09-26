@@ -4,6 +4,121 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+**Breaking for out-of-tree `ProofVaultService` implementations:** `store`, `invalidate`, `archive`
+and `storePending` are removed. **Coordinated deploy:** requires cashu-vault 0.15.0 (imani-bom
+0.1.113), and cashu-vault 0.15.0 requires this, because the vault now refuses the whole-row
+overwrite the old melt burn depended on.
+
+#491 also changes `SignatureVaultService.store` (takes a `SignatureSource`, refuses duplicates)
+and makes production refuse to boot without the durable signature vault.
+
+**Breaking for clients polling voucher quotes on the regular status route (#494):** deploy
+imani-gateway-customer 0.14.7 (wallet-lib 0.4.0 `voucherQuotePaid`) **before** this mint, or its
+pending vouchers never read as paid.
+
+### Security
+
+- **The regular mint-quote status route no longer answers for voucher quotes (#494).**
+  `GET /v1/mint/quote/bolt11/{id}` looked the id up in the voucher table too, and reported a voucher
+  quote with its face value as `amount`. A voucher's invoice charges only a fee (10% by default), so
+  `state=ISSUED, amount=1000` there was indistinguishable from a regular quote whose payer paid
+  1000. imani-gateway-core#92 confirms client mints against exactly that route, so a payer could
+  satisfy a 1000-sat confirmation by paying 100. The regular route now answers `quote_not_found`
+  (90007) for a voucher id and the voucher route answers `voucher_quote_not_found` (90018) for a
+  regular id. The id is classified before the payment gateway is asked, so a wrong-route probe
+  learns nothing about payment state. An id neither table knows is now not found, instead of
+  `UNPAID` with amount 0.
+- **Quote status reports what was paid (#494).** Both status routes now carry NUT-04's
+  `amount_paid`, `amount_issued` and `updated_at`. On the voucher route `amount_paid` is the
+  charged fee, not the face value, so a verifier can compare the two.
+- **Melt no longer marks its inputs spent by overwriting their vault rows (#492).** After a paid
+  melt, `InvalidateProofsTask` stored each input and then re-posted the row with its state set to
+  SPENT. That only worked while the vault's store endpoint would overwrite an existing row, and a
+  row that can be overwritten is a row whose SPENT state can be undone: cashu-vault#154 shows any
+  holder of the vault token could turn a spent proof back into a spendable one, and the mint, which
+  has no spent table of its own, would accept it again. The vault could not close that without
+  breaking melt, so the mint moves first.
+
+  The inputs are already claimed under the saga's hold before the payment, so the burn is now just
+  `commitSpentForHold`, the same transition the swap uses. A commit that spends fewer inputs than
+  were held is a burn failure (`PAYMENT_SENT_BURN_FAILED`), not a paid melt. The legacy JPA-off
+  path spends through a one-off hold the same way. `InvalidateProofsTask` is deleted, and
+  `ProofVaultService` no longer has any method that writes a whole proof row.
+- **A melt's hold rows are keyed where the vault already records each proof.** A proof recorded
+  under the legacy NUT-00 point was claimed under the spec point, which inserted a fresh row and
+  let the melt pay; the old burn re-keyed the row only after the payment had gone. The claim now
+  uses `storageKeyFor`, as the swap already did, so such a proof is refused before paying.
+- **Signed outputs are recorded durably, so the mint no longer forgets them on restart or
+  across replicas (#491).** The signature vault behind duplicate-output refusal and NUT-09
+  restore was in-memory only. After a restart a client could get a second signature on a `B_`
+  the mint had already signed, NUT-09 restore returned nothing for earlier outputs, and each
+  replica kept its own record. With `cashu.mint.jpa.enabled=true` the new
+  `JpaSignatureVaultService` records every signature in a `blind_signature` table (Flyway
+  `V20260926_001`), keyed by `b_`, with keyset, amount, `C_`, DLEQ proof and source
+  (`MINT`, `SWAP`, `MELT_CHANGE`). A second signature on the same `B_` is refused with
+  `outputs_already_signed` by the primary key, including between two instances.
+- **Production refuses to boot on the in-memory signature vault (#491).**
+  `SignatureVaultStartupValidator` fails startup outside `local`, `test` and `websocket-test`
+  when the vault is not durable. `cashu.mint.jpa.require-in-production=false` does not waive it.
+
+### Fixed
+
+- **Regular mints stranded in `ISSUING` on a v2 keyset (#494).** `issuance_record.keyset_id` was
+  `VARCHAR(64)` and a NUT-02 v2 keyset id is 66 characters, so once the mint rotated onto a v2
+  keyset every regular mint signed its outputs and then failed to write the ledger row. The wallet
+  got a 500, its retry got `20005 issuance_in_progress`, and the quote sat in `ISSUING` with the
+  payment taken. Staging recorded no regular issuance from 2026-08-31, with four quotes stranded.
+  Migration `V20260926_002` widens the column; every other keyset id column was already 66. See the
+  new [stranded ISSUING runbook](docs/runbooks/stranded-issuing-mint-quotes.md) for quotes stranded
+  before the upgrade.
+- **An `ISSUING` quote whose ledger row exists reads `ISSUED` (#494).** Its signatures were
+  produced and recorded, and only the final lifecycle write is missing, so the status route no
+  longer tells the wallet it is still `PAID`.
+- **Quote `expiry` is an absolute Unix timestamp (#494).** NUT-04, NUT-05 and NUT-23 define it as
+  one, and every gateway returns a relative TTL that the mint passed through. cashu-ts 4.x read
+  phoenixd's `60` as 1970 and refused every quote as expired. Mint and melt quote creation, both
+  status routes and NUT-17 notifications now report the gateway's creation time plus the TTL, or
+  now plus the TTL where the gateway does not track creation. A value that is already a timestamp
+  is passed through.
+- **NUT-17 enrichment after a voucher mint uses the voucher status route**, since the regular one
+  now refuses voucher ids (#494).
+- **`cashu-mint-rest-it` tested a stale published protocol jar, not the branch.** `cashu-mint-rest-it`
+  takes `cashu-mint-protocol` transitively, and `dependencyManagement` rewrote that edge to
+  `<cashu-mint.version>0.38.4</cashu-mint.version>`, so every rest-it IT exercised the published
+  0.38.4 protocol. The property is now `${project.version}` and cannot drift. Exposed by this
+  change's own IT, which could not see the change. Running on the real code revealed six melt ITs
+  that stubbed only `MintLoadService.keySets()` while the melt reads the two keyset generations,
+  so every melt input was `keyset_not_known`; they are fixed. Supersedes the property half of #489.
+
+### Added
+
+- **`SpentProofCannotBeRevivedIT`**, the cross-repo double-spend test from #492. It starts the
+  real cashu-vault server (the `exec` jar at the BOM's version, copied by
+  `maven-dependency-plugin`) on its own PostgreSQL, melts a proof, then uses the mint's own vault
+  token to delete the row and re-post it as UNSPENT. Both must be refused and the row stay SPENT;
+  presented again the proof is rejected by swap as already spent (`11001`) and by melt before any
+  payment. Pointed at cashu-vault 0.14.0 with `-Dcashu.vault.server.jar=...` it fails at the
+  delete, which is the attack it exists to catch.
+- `cashu_mint_issued_amount_total{keyset}`: total face value signed per keyset, summed from
+  `blind_signature` by the invariant poller. The issued side of an issued-versus-backed
+  reconciliation (#491).
+
+### Changed
+
+- imani-bom 0.1.112 -> 0.1.113, for cashu-vault 0.15.0.
+- **`SignatureVaultService.store` takes a `SignatureSource` and refuses duplicates (#491).**
+  It used to log a duplicate and keep the first signature; it now throws
+  `outputs_already_signed`. The port also gains `isDurable()`. Out-of-tree implementations
+  and callers must be updated.
+- `DefaultSignatureVaultService` is no longer a component-scanned `@Service`. It is supplied by
+  `SignatureVaultFallbackAutoConfiguration` only when no other vault is defined, so the durable
+  vault never races it for the bean.
+- A mint request whose outputs were already signed is refused while its quote is still `PAID`
+  (or `FUNDED`), so the refusal cannot strand a paid quote in `ISSUING`.
+- A swap refused after some of its outputs were recorded now spends its held inputs instead of
+  releasing them, because those outputs are already recoverable through NUT-09 restore.
+
+
 ## [0.39.0] - 2026-09-26
 
 Minor rather than patch: `ProofVaultService.retrieveProof` and `storageKeyFor` now require the mint.

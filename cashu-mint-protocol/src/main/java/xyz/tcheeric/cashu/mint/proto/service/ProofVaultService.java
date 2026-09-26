@@ -6,11 +6,17 @@ import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
 
+/**
+ * The mint's access to the vault's record of spent proofs.
+ *
+ * <p>Proofs change state only through holds: {@link #insertOrClaimForHold} takes one, and
+ * {@link #commitSpentForHold} or {@link #refundForHold} resolves it. There is deliberately no way
+ * to write a whole proof row. The mint used to mark proofs spent by storing a row and then
+ * re-posting it with its state changed, which only worked while the vault would overwrite an
+ * existing row, and an overwritable row is one whose SPENT state can be undone
+ * (cashu-vault#154, cashu-mint#492).
+ */
 public interface ProofVaultService {
-    void store(ProofEntity proofEntity) throws CashuErrorException;
-    void invalidate(ProofEntity proofEntity) throws CashuErrorException;
-    void archive(ProofEntity proofEntity) throws CashuErrorException;
-    void storePending(ProofEntity proofEntity) throws CashuErrorException;
 
     /**
      * Spec 005 — atomic insert-or-claim. Replaces the prior two-step

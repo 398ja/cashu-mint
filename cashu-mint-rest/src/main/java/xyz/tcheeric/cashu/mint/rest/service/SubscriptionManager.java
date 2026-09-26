@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
@@ -379,7 +380,9 @@ public final class SubscriptionManager {
         try {
             boolean paid = gateway.checkPaymentStatus(quoteId);
             String request = gateway.getRequest(quoteId);
-            int expiry = gateway.getPaymentExpiry(quoteId);
+            // NUT-17 carries the quote response, whose expiry is an absolute Unix timestamp.
+            int expiry = QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
+                    QuoteExpiry.createdAt(gateway, quoteId));
 
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(quoteId);
@@ -435,7 +438,8 @@ public final class SubscriptionManager {
     private QuoteStateResult fetchMeltQuoteState(Gateway gateway, String quoteId) {
         try {
             boolean paid = gateway.checkPaymentStatus(quoteId);
-            int expiry = gateway.getPaymentExpiry(quoteId);
+            int expiry = QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
+                    QuoteExpiry.createdAt(gateway, quoteId));
 
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(quoteId);

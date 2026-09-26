@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.service;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 
 /**
  * Service for storing and retrieving blind signatures for wallet recovery (NUT-09).
@@ -41,10 +42,19 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 public interface SignatureVaultService {
 
     /**
-     * Stores a blind signature for later retrieval during wallet recovery.
+     * Records a blind signature the mint has just issued.
      *
      * <p>The signature is stored using the blinded message as the key. This allows
      * wallets to retrieve the signature later by presenting the same blinded message.
+     *
+     * <p>A blinded message is signed at most once. Storing a second signature under a
+     * blinded message the vault already holds fails with
+     * {@link xyz.tcheeric.cashu.common.nut00.CashuErrorCode#outputs_already_signed}
+     * and leaves the first record untouched. This is the backstop behind the
+     * pre-signing check in {@code ValidateTransactionTask}: two requests racing with
+     * the same output both pass that check, and only one of them may record a
+     * signature. Idempotent retries never reach this method; NUT-19 mint replays are
+     * answered from the issuance record without re-signing.
      *
      * <p><b>NUT-13 Note:</b> When wallets use deterministic secrets (NUT-13), the
      * same mnemonic + derivation path will produce the same blinded message, enabling
@@ -52,9 +62,12 @@ public interface SignatureVaultService {
      *
      * @param message   the blinded message to use as storage key
      * @param signature the blind signature to store
-     * @throws CashuErrorException if storage fails
+     * @param source    the operation that issued the signature
+     * @throws CashuErrorException {@code outputs_already_signed} when the blinded message
+     *                             was signed before, or another code if storage fails
      */
-    void store(BlindedMessage message, BlindSignature signature) throws CashuErrorException;
+    void store(BlindedMessage message, BlindSignature signature, SignatureSource source)
+            throws CashuErrorException;
 
     /**
      * Retrieves a previously stored blind signature for wallet recovery.
@@ -72,4 +85,16 @@ public interface SignatureVaultService {
      * @throws CashuErrorException if retrieval fails
      */
     BlindSignature retrieve(BlindedMessage message) throws CashuErrorException;
+
+    /**
+     * Whether the record survives a restart and is shared by every mint instance on
+     * the same database.
+     *
+     * <p>A vault that answers {@code false} forgets every signed output when the
+     * process stops, which re-opens double signing and makes NUT-09 restore return
+     * nothing. Production profiles refuse to boot with one.
+     *
+     * @return {@code true} only for a persistent, shared store
+     */
+    boolean isDurable();
 }

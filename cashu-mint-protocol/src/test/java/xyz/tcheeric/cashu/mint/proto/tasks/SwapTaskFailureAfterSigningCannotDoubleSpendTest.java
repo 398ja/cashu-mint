@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -177,7 +178,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
                              BlindSignature signature = new BlindSignature(output.getAmount(),
                                      KeysetId.fromString(KEYSET_ID),
                                      SignatureTestData.sampleSignature(), null);
-                             signatureVault.store(output, signature);
+                             signatureVault.store(output, signature, SignatureSource.SWAP);
                              return signature;
                          }).when(mock).execute();
                      })) {
@@ -255,26 +256,6 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         public int refundForHold(String holdId) {
             refundedHoldIds.add(holdId);
             return heldSecrets.size();
-        }
-
-        @Override
-        public void store(ProofEntity proofEntity) {
-            // The hold claims and settles inputs; the swap never stores them directly.
-        }
-
-        @Override
-        public void invalidate(ProofEntity proofEntity) {
-            // Superseded by commitSpentForHold, which settles the whole hold at once.
-        }
-
-        @Override
-        public void archive(ProofEntity proofEntity) {
-            // Not reached by a swap.
-        }
-
-        @Override
-        public void storePending(ProofEntity proofEntity) {
-            // Superseded by insertOrClaimForHold, which holds the whole input list at once.
         }
 
         @Override

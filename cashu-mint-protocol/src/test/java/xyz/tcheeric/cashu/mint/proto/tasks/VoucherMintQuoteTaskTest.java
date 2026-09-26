@@ -10,6 +10,8 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
@@ -40,7 +42,9 @@ public class VoucherMintQuoteTaskTest {
 
         // When: Execute voucher mint quote task
         VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response = task.execute();
+        long after = Instant.now().getEpochSecond();
 
         // Then: Gateway receives 100 sats (10% of 1000), not 1000 sats
         verify(gateway).createMintQuote(100, null);
@@ -48,7 +52,8 @@ public class VoucherMintQuoteTaskTest {
         // And: Response is correct
         assertEquals("qid", response.getQuoteId());
         assertEquals("lnbc100n...", response.getRequest());
-        assertEquals(3600, response.getExpiry());
+        // NUT-04: the 3600 s TTL is reported as an absolute timestamp (#494)
+        assertTrue(response.getExpiry() >= before + 3600 && response.getExpiry() <= after + 3600);
 
         // And: Face value is stored in registry
         assertEquals(1000L, VoucherQuoteRegistry.getFaceValue("qid"));
@@ -185,12 +190,14 @@ public class VoucherMintQuoteTaskTest {
         when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
 
         VoucherMintQuoteTask task = new VoucherMintQuoteTask(1000, PaymentMethod.MOCK, service);
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response = task.execute();
+        long after = Instant.now().getEpochSecond();
 
         // Verify all fields are populated
         assertNotNull(response);
         assertEquals("test-qid", response.getQuoteId());
         assertEquals("test-request", response.getRequest());
-        assertEquals(7200, response.getExpiry());
+        assertTrue(response.getExpiry() >= before + 7200 && response.getExpiry() <= after + 7200);
     }
 }

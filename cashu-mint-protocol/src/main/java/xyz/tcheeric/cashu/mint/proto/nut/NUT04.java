@@ -71,11 +71,12 @@ public final class NUT04 {
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {
-        return new MintQuoteStatusTask(quoteId, method).execute();
+        return new MintQuoteStatusTask(quoteId, method, MintQuoteStatusTask.Kind.REGULAR).execute();
     }
 
     public static PostMintQuoteResponse quotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
-        return new MintQuoteStatusTask(quoteId, method, unit, MintProtocolServiceFactory.getInstance()).execute();
+        return new MintQuoteStatusTask(quoteId, method, unit, MintQuoteStatusTask.Kind.REGULAR,
+                MintProtocolServiceFactory.getInstance()).execute();
     }
 
     public static <T extends Secret> PostMintResponse mint(@NonNull UUID mintId,
@@ -130,14 +131,17 @@ public final class NUT04 {
     /**
      * Check payment status for a voucher mint quote.
      *
-     * <p>Uses the same status check as regular mint quotes.
+     * <p>Answers only for voucher quotes: a regular quote id is refused with
+     * {@code voucher_quote_not_found}, just as the regular route refuses a voucher quote id
+     * (cashu-mint#494). {@code amount} is the face value and {@code amount_paid} what the
+     * invoice charged.
      *
      * @param quoteId the quote identifier
      * @param method  the payment method
      * @return the quote status response
      */
     public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method) throws CashuErrorException {
-        return new MintQuoteStatusTask(quoteId, method).execute();
+        return new MintQuoteStatusTask(quoteId, method, MintQuoteStatusTask.Kind.VOUCHER).execute();
     }
 
     /**
@@ -149,7 +153,8 @@ public final class NUT04 {
      * @return the quote status response
      */
     public static PostMintQuoteResponse voucherQuotePaymentStatus(@NonNull String quoteId, @NonNull PaymentMethod method, String unit) throws CashuErrorException {
-        return new MintQuoteStatusTask(quoteId, method, unit, MintProtocolServiceFactory.getInstance()).execute();
+        return new MintQuoteStatusTask(quoteId, method, unit, MintQuoteStatusTask.Kind.VOUCHER,
+                MintProtocolServiceFactory.getInstance()).execute();
     }
 
 }

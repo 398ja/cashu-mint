@@ -30,6 +30,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.OutputsHash;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
@@ -406,6 +407,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 // preserved over output-shape errors).
                 if (durableQuote.lifecycleState() == LifecycleState.PAID) {
                     validateOutputs(blindedMessages, mint);
+                    refuseOutputsSignedBefore(blindedMessages);
                 }
 
                 outputsHash = OutputsHash.compute(blindedMessages);
@@ -451,6 +453,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // check above) consume the voucher quote FUNDED → ISSUING. Done here
             // rather than inside resolveVoucherFunding so a malformed output set
             // can never strand the quote in ISSUING.
+            if (durableQuote == null) {
+                refuseOutputsSignedBefore(blindedMessages);
+            }
             if (voucherCtx != null) {
                 advanceVoucherToIssuing(quoteId, voucherCtx.quote);
             }
@@ -501,7 +506,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // Use standard keyset keys for both vouchers and regular tokens
             for (BlindedMessage bm : blindedMessages) {
                 SignBlindedMessageTask signBlindedMessageTask = new SignBlindedMessageTask(
-                        mint, bm, mintProtocolService, signatureVaultService);
+                        mint, bm, mintProtocolService, signatureVaultService, SignatureSource.MINT);
                 BlindSignature bSignature = signBlindedMessageTask.execute();
                 result.addBlindSignature(bSignature);
                 if (log.isDebugEnabled()) {
@@ -893,6 +898,19 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private void validateOutputs(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {
         new ValidateTransactionTask<T>(null, blindedMessages, KeySetDirectory.of(mint), null).execute();
         validateDenominations(blindedMessages, mint);
+    }
+
+    /**
+     * Refuses an output the mint has already signed, before the quote is consumed.
+     *
+     * <p>The signature vault refuses to record a second signature on the same blinded message
+     * (issue #491). Reaching that refusal only at signing time would leave the quote already
+     * moved to {@code ISSUING} with nothing issued, so the check runs first, while the quote is
+     * still {@code PAID} or {@code FUNDED}. It is gated exactly like {@link #validateOutputs}:
+     * a NUT-19 replay against an issued quote never reaches it, and keeps replaying.
+     */
+    private void refuseOutputsSignedBefore(List<BlindedMessage> blindedMessages) throws CashuErrorException {
+        new ValidateTransactionTask<T>(null, blindedMessages, null, signatureVaultService).execute();
     }
 
     private void validateDenominations(List<BlindedMessage> blindedMessages, Mint mint) throws CashuErrorException {

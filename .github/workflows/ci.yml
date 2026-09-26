@@ -27,12 +27,11 @@ jobs:
         # then stays red all day regardless of re-runs, which happened today.
         run: ./mvnw -q -B -U clean verify
       - name: Assert cashu-mint.version matches the project version
-        # These must agree, and the comment in pom.xml asking a human to keep them in step
-        # was not enough: cashu-mint.version sat at 0.38.4 while the project reached 0.39.0,
-        # nine releases of drift. It is latent inside the reactor, where a reactor module
-        # beats dependencyManagement, so nothing failed. It bites an out-of-reactor consumer
-        # that imports this pom's dependencyManagement and silently resolves whatever stale
-        # release the property names.
+        # These must agree. cashu-mint.version sat at 0.38.4 while the project reached 0.39.0,
+        # and dependencyManagement rewrote rest-it's transitive cashu-mint-protocol edge to the
+        # stale value, so rest-it tested the published 0.38.4 jar instead of the branch
+        # (cashu-mint#492). The property is now ${project.version}; this catches anyone who
+        # writes a literal back in.
         run: |
           project=$(./mvnw -q -B -Dexpression=project.version -DforceStdout help:evaluate)
           managed=$(./mvnw -q -B -Dexpression=cashu-mint.version -DforceStdout help:evaluate)

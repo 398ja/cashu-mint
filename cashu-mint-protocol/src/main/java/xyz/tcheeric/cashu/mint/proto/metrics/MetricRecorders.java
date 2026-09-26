@@ -112,6 +112,10 @@ public final class MetricRecorders {
         }
 
         @Override
+        public void bindIssuedAmount(String keysetId, java.util.function.Supplier<Number> value) {
+        }
+
+        @Override
         public void pollFailed() {
         }
     };

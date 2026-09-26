@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
@@ -162,12 +163,14 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                 .request(request)
                 // NUT-04 v1 — modern wallets (cashu-ts >= 4.x) require amount/unit/state
                 // on every mint-quote response; a fresh quote is always UNPAID. The
-                // gateway's expiry (a relative TTL) is passed through unchanged — the
-                // client normalizes relative-vs-absolute itself.
+                // gateway's expiry is a relative TTL and NUT-04 requires an absolute Unix
+                // timestamp; passing the TTL through made cashu-ts read "60" as 1970 and
+                // refuse the quote as expired (#494).
                 .amount((int) amount)
                 .unit(resolvedUnit)
                 .state(LifecycleState.UNPAID.name())
-                .expiry(expiry)
+                .updatedAt(Instant.now().getEpochSecond())
+                .expiry(QuoteExpiry.absolute(expiry, null))
                 .build();
     }
 

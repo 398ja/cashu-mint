@@ -106,33 +106,9 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
         return vault.storageKeyFor(mintId, secret);
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public void store(ProofEntity proofEntity) throws CashuErrorException {
-        forgetCachedStates();
-        vault.store(proofEntity);
-    }
 
-    /** {@inheritDoc} */
-    @Override
-    public void invalidate(ProofEntity proofEntity) throws CashuErrorException {
-        forgetCachedStates();
-        vault.invalidate(proofEntity);
-    }
 
-    /** {@inheritDoc} */
-    @Override
-    public void archive(ProofEntity proofEntity) throws CashuErrorException {
-        forgetCachedStates();
-        vault.archive(proofEntity);
-    }
 
-    /** {@inheritDoc} */
-    @Override
-    public void storePending(ProofEntity proofEntity) throws CashuErrorException {
-        forgetCachedStates();
-        vault.storePending(proofEntity);
-    }
 
     /** {@inheritDoc} */
     @Override
