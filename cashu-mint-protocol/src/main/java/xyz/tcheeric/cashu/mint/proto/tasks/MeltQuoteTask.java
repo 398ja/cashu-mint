@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
 import xyz.tcheeric.cashu.mint.proto.util.FeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.MintCapabilityProperties;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 /**
@@ -100,7 +101,8 @@ public class MeltQuoteTask extends InstrumentedTask<PostMeltQuoteResponse> {
                 .request(request.getRequest())
                 .unit(resolveUnit())
                 .feeReserve(feeReserve)
-                .expiry(expiry)
+                // NUT-05/23: an absolute Unix timestamp, not the gateway's relative TTL (#494).
+                .expiry(QuoteExpiry.absolute(expiry, null))
                 .amount(amount)
                 .build();
     }

@@ -6,6 +6,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 /**
@@ -45,7 +46,10 @@ public class MeltQuoteStatusTask extends InstrumentedTask<PostMeltQuoteResponse>
                 : mintProtocolService.createGateway(method, unit);
         return PostMeltQuoteResponse.builder()
                 .quoteId(quoteId)
-                .expiry(gateway.getPaymentExpiry(quoteId))
+                // NUT-05/23: an absolute Unix timestamp, counted from when the quote was
+                // created, not the gateway's relative TTL (#494).
+                .expiry(QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
+                        QuoteExpiry.createdAt(gateway, quoteId)))
                 .paid(gateway.checkPaymentStatus(quoteId))
                 .build();
     }
