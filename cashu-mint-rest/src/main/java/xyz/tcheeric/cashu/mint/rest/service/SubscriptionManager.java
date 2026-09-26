@@ -454,8 +454,7 @@ public final class SubscriptionManager {
     private QuoteStateResult fetchMeltQuoteState(Gateway gateway, String quoteId) {
         try {
             boolean paid = gateway.checkPaymentStatus(quoteId);
-            int expiry = QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
-                    QuoteExpiry.createdAt(gateway, quoteId));
+            int expiry = QuoteExpiry.ofQuote(gateway, quoteId);
 
             QuoteStatePayload payload = new QuoteStatePayload();
             payload.setQuoteId(quoteId);

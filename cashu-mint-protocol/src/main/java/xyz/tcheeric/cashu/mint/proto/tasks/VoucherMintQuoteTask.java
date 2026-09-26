@@ -183,7 +183,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                 .unit(unit != null && !unit.isBlank() ? unit : "sat")
                 .state("UNPAID")
                 .updatedAt(Instant.now().getEpochSecond())
-                .expiry(QuoteExpiry.absolute(expiry, null))
+                .expiry(QuoteExpiry.ofNewQuote(expiry))
                 .build();
     }
 

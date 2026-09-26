@@ -48,8 +48,7 @@ public class MeltQuoteStatusTask extends InstrumentedTask<PostMeltQuoteResponse>
                 .quoteId(quoteId)
                 // NUT-05/23: an absolute Unix timestamp, counted from when the quote was
                 // created, not the gateway's relative TTL (#494).
-                .expiry(QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
-                        QuoteExpiry.createdAt(gateway, quoteId)))
+                .expiry(QuoteExpiry.ofQuote(gateway, quoteId))
                 .paid(gateway.checkPaymentStatus(quoteId))
                 .build();
     }

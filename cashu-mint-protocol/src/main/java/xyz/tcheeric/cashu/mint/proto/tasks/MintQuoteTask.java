@@ -148,7 +148,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                 .unit(resolvedUnit)
                 .state(LifecycleState.UNPAID.name())
                 .updatedAt(Instant.now().getEpochSecond())
-                .expiry(QuoteExpiry.absolute(expiry, null))
+                .expiry(QuoteExpiry.ofNewQuote(expiry))
                 .build();
     }
 

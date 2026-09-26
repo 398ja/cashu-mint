@@ -89,6 +89,14 @@ pending vouchers never read as paid.
   invoice-then-record order with a WARN naming it, marking the row it wrote first `FAILED`,
   rather than refusing every quote: the Nutshell interop suite, on `DummyGateway`, caught that.
   Without the repository the gateway still chooses the id, as before.
+- **An expired quote no longer reports `expiry: 0`, which means "never expires" (#503).** The cash
+  and Stripe gateways return the seconds remaining, clamped at zero, not a TTL, so an expired
+  quote came back as 0 and `QuoteExpiry` reported "no expiry": wallets would go on offering a
+  request that can no longer be paid. Only a gateway reporting no figure at all now yields `0`; a
+  zero or negative figure is a deadline already passed. The gateway's creation time tells the two
+  kinds of figure apart (a TTL is counted from it, seconds remaining from now), and a failing
+  creation lookup is now logged at WARN instead of silently moving the deadline forward on every
+  poll. `QuoteExpiry` no longer returns or takes `null`.
 - **NUT-17 `bolt11_mint_quote` notifications answer as the bolt11 status route does (#500).**
   `SubscriptionManager` built the mint-quote payload from the payment gateway alone, so a
   WebSocket subscription to a voucher quote id was answered `PAID`, the same leak #494 closed on

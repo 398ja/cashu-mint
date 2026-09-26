@@ -102,7 +102,7 @@ public class MeltQuoteTask extends InstrumentedTask<PostMeltQuoteResponse> {
                 .unit(resolveUnit())
                 .feeReserve(feeReserve)
                 // NUT-05/23: an absolute Unix timestamp, not the gateway's relative TTL (#494).
-                .expiry(QuoteExpiry.absolute(expiry, null))
+                .expiry(QuoteExpiry.ofNewQuote(expiry))
                 .amount(amount)
                 .build();
     }

@@ -122,8 +122,7 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
                 // Counted from the gateway's own creation time, the same base MintTask enforces
                 // expiry against. Not the row's: a gateway without one (cash) returns the
                 // seconds remaining, which only "now" turns into the right instant.
-                .expiry(QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
-                        QuoteExpiry.createdAt(gateway, quoteId)))
+                .expiry(QuoteExpiry.ofQuote(gateway, quoteId))
                 .build();
         return kind == Kind.VOUCHER ? new VoucherMintQuoteResponse(response, resolved.charged()) : response;
     }
