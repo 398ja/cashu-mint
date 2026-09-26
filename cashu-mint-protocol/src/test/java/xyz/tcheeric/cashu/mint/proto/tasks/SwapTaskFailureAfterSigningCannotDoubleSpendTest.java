@@ -17,6 +17,9 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -259,18 +262,18 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
         }
 
         @Override
-        public ProofEntity retrieveProof(java.util.UUID mintId, String secret) {
+        public ProofEntity retrieveProof(UUID mintId, ProofSecret secret) {
             return null;
         }
 
         @Override
-        public ProofEntity retrieveProofByY(String yHex) {
+        public ProofEntity retrieveProof(StorageKey key) {
             return null;
         }
 
         @Override
-        public String storageKeyFor(java.util.UUID mintId, String secret) {
-            return secret;
+        public StorageKey storageKeyFor(UUID mintId, ProofSecret secret) {
+            return SpentProofKey.issuanceKey(secret);
         }
     }
 

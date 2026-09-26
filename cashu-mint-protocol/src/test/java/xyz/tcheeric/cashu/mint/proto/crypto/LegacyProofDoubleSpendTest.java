@@ -73,7 +73,7 @@ public class LegacyProofDoubleSpendTest {
             vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY)).thenReturn(null);
             vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyY)).thenReturn(spentLegacyRow);
 
-            ProofEntity found = new DefaultProofVaultService().retrieveProof(MINT_ID, LEGACY_HEX_SECRET);
+            ProofEntity found = new DefaultProofVaultService().retrieveProof(MINT_ID, new ProofSecret(LEGACY_HEX_SECRET));
 
             assertNotNull(found,
                     "An already-spent legacy proof looked up after the upgrade must still be found. "
@@ -96,7 +96,7 @@ public class LegacyProofDoubleSpendTest {
         try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
             vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY)).thenReturn(specRow);
 
-            assertSame(specRow, new DefaultProofVaultService().retrieveProof(MINT_ID, LEGACY_HEX_SECRET));
+            assertSame(specRow, new DefaultProofVaultService().retrieveProof(MINT_ID, new ProofSecret(LEGACY_HEX_SECRET)));
 
             vault.verify(() -> DBProofVault.retrieveProof(MINT_ID.toString(), specY));
             vault.verify(() -> DBProofVault.retrieveProof(MINT_ID.toString(), yUnder(SecretEncoding.LEGACY_HEX)),
@@ -114,7 +114,7 @@ public class LegacyProofDoubleSpendTest {
             vault.when(() -> DBProofVault.retrieveProof(Mockito.anyString(), Mockito.anyString())).thenReturn(null);
 
             assertEquals(yUnder(SecretEncoding.SPEC),
-                    new DefaultProofVaultService().storageKeyFor(MINT_ID, LEGACY_HEX_SECRET),
+                    new DefaultProofVaultService().storageKeyFor(MINT_ID, new ProofSecret(LEGACY_HEX_SECRET)).hex(),
                     "A proof with no prior record must be stored under the spec encoding.");
         }
     }
@@ -133,7 +133,7 @@ public class LegacyProofDoubleSpendTest {
             vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyY)).thenReturn(new ProofEntity());
 
             assertEquals(legacyY,
-                    new DefaultProofVaultService().storageKeyFor(MINT_ID, LEGACY_HEX_SECRET),
+                    new DefaultProofVaultService().storageKeyFor(MINT_ID, new ProofSecret(LEGACY_HEX_SECRET)).hex(),
                     "Writing the spend under the spec key would leave the legacy row untouched, "
                             + "and the proof would still look unspent to a legacy-keyed lookup.");
         }
@@ -145,8 +145,8 @@ public class LegacyProofDoubleSpendTest {
      */
     @Test
     public void aWellKnownSecretHasOnlyOneKey() {
-        String wellKnown = "[\"P2PK\",{\"nonce\":\"abc\",\"data\":\"0249098aa8b9d2fbe4"
-                + "6618c9f1df270cd08f4f2c3b0e1a3b0b3a3e3d3c3b3a39\"}]";
+        ProofSecret wellKnown = new ProofSecret("[\"P2PK\",{\"nonce\":\"abc\",\"data\":\"0249098aa8b9d2fbe4"
+                + "6618c9f1df270cd08f4f2c3b0e1a3b0b3a3e3d3c3b3a39\"}]");
         assertEquals(1, SpentProofKey.lookupKeys(wellKnown).size(),
                 "Both encodings UTF-8 encode a well-known secret, so there is only one point to check.");
     }
@@ -157,7 +157,7 @@ public class LegacyProofDoubleSpendTest {
      */
     @Test
     public void aNonHexPlainSecretHasOnlyTheSpecKey() {
-        String nonHex = "not-a-hex-secret";
+        ProofSecret nonHex = new ProofSecret("not-a-hex-secret");
         assertEquals(1, SpentProofKey.lookupKeys(nonHex).size());
         assertTrue(SpentProofKey.lookupKeys(nonHex).contains(SpentProofKey.issuanceKey(nonHex)));
     }

@@ -22,6 +22,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultServiceMocks;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
@@ -108,7 +109,7 @@ class SwapTaskPartialSigningTest {
     }
 
     private static ProofVaultService proofVaultSpendingEverything() throws CashuErrorException {
-        ProofVaultService proofVault = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVault = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         Mockito.when(proofVault.insertOrClaimForHold(any(), anyString(), any()))
                 .thenAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         Mockito.when(proofVault.commitSpentForHold(anyString())).thenReturn(1);

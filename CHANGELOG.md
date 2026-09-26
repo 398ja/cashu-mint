@@ -30,6 +30,20 @@ pending vouchers never read as paid.
   both conditions' all-arguments constructors now reject a null mint, protocol service or vault.
   The in-verify mint guard stays as defence in depth. **Breaking** for any out-of-tree caller of
   the no-argument constructor.
+- **A hashed Y can no longer be passed where a raw secret is expected, or the reverse (#487).**
+  `ProofVaultService` had two proof lookups that both took a `String`, one hashing its input with
+  hash_to_curve and one not. Choosing wrong compiled, threw nothing and returned no proof, which
+  every caller reads as `UNSPENT`; it happened three times (NUT-07 checkstate, NUT-17 proof-state
+  subscriptions, the 409 recovery in proof invalidation). The two now take distinct types:
+  `retrieveProof(UUID, ProofSecret)` hashes a secret, `retrieveProof(StorageKey)` looks a Y up as
+  is, and `storageKeyFor` returns a `StorageKey`. `StorageKey` refuses anything that is not a
+  compressed curve point (null included) where it is built and lowercases hex for the vault
+  lookup, so a malformed or null NUT-17 filter id is given no state rather than `UNSPENT`.
+  `ProofSecret` prints as a hashed id, so `DefaultProofVaultService`'s lookup-failure warning no
+  longer logs the raw secret. **Breaking** for out-of-tree users of cashu-mint-protocol:
+  `retrieveProofByY(String)` is now `retrieveProof(StorageKey)`, the secret overloads take
+  `ProofSecret`, `SpentProofKey.lookupKeys`/`issuanceKey` take `ProofSecret` and return
+  `StorageKey`, and the unused `SpentProofKey.isCurvePoint` is removed.
 - **The regular mint-quote status route no longer answers for voucher quotes (#494).**
   `GET /v1/mint/quote/bolt11/{id}` looked the id up in the voucher table too, and reported a voucher
   quote with its face value as `amount`. A voucher's invoice charges only a fee (10% by default), so

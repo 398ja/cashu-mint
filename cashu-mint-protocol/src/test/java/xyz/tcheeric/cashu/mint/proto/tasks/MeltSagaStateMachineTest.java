@@ -12,6 +12,8 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.domain.MeltSagaState;
 import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
@@ -21,6 +23,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultServiceMocks;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
@@ -343,7 +346,9 @@ class MeltSagaStateMachineTest {
         f.gatewayReturns(invoice -> 100, /*feeReserve*/ 5);
         f.paymentReturns(new PaymentOutcome.Success("preimage-x", 100L, 0L, "preimage-x"));
         f.bindAllSubmittedProofs();
-        when(f.proofVaultService.storageKeyFor(any(UUID.class), anyString())).thenReturn("legacy-point");
+        StorageKey legacyPoint =
+                StorageKey.of("0244eccfc7a348274458bb38044c7f3c389b3c2086c7ec18b5812d2877ab937787");
+        when(f.proofVaultService.storageKeyFor(any(UUID.class), any(ProofSecret.class))).thenReturn(legacyPoint);
 
         f.task(/*proofSum*/ 105L).execute();
 
@@ -351,7 +356,7 @@ class MeltSagaStateMachineTest {
         verify(f.proofVaultService).insertOrClaimForHold(rows.capture(), anyString(), any(UUID.class));
         assertThat(rows.getValue())
                 .extracting(ProofEntity::getSecret)
-                .containsOnly("legacy-point");
+                .containsOnly(legacyPoint.hex());
     }
 
     private static String errorCode(CashuErrorException ex) {
@@ -366,7 +371,7 @@ class MeltSagaStateMachineTest {
         final MintProtocolService protocolService = Mockito.mock(MintProtocolService.class);
         final MintLoadService loadService = Mockito.mock(MintLoadService.class);
         final MintVaultService vaultService = Mockito.mock(MintVaultService.class);
-        final ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        final ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         final Mint mint = new Mint(UUID.randomUUID().toString());
         final KeySet keyset = KeySet.builder().id("ks-1").unit("sat").build();
         int heldInputs;

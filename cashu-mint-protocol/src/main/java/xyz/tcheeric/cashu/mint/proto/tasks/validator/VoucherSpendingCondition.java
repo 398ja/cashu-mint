@@ -14,10 +14,10 @@ import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
-import xyz.tcheeric.cashu.vault.db.log.SecretLogId;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
@@ -112,14 +112,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         // by that. Without a mint there is no double-spend check at all, and silently continuing
         // would let a spent proof verify.
         UUID mintId = requireMintId();
+        ProofSecret proofSecret = ProofSecret.of(secret);
         try {
-            proofEntity = proofVaultService.retrieveProof(mintId, secret.toString());
+            proofEntity = proofVaultService.retrieveProof(mintId, proofSecret);
         } catch (CashuErrorException | RestClientException vaultUnavailable) {
             // Only a vault outage is absorbed, so that an outage does not block verification.
             // Anything else is a programming error on the one path where hiding it is least
             // acceptable: an NPE caught here once disabled the double-spend check (#486, #488).
-            log.warn("voucher_proof_lookup_failed secret={} reason={}",
-                    SecretLogId.of(secret.toString()), vaultUnavailable.toString());
+            log.warn("voucher_proof_lookup_failed secret={} reason={}", proofSecret, vaultUnavailable.toString());
             proofEntity = null;
         }
 

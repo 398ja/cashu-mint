@@ -1,7 +1,9 @@
 package xyz.tcheeric.cashu.mint.proto.service;
 
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
@@ -15,6 +17,11 @@ import java.util.UUID;
  * re-posting it with its state changed, which only worked while the vault would overwrite an
  * existing row, and an overwritable row is one whose SPENT state can be undone
  * (cashu-vault#154, cashu-mint#492).
+ *
+ * <p>Lookups take a {@link ProofSecret} or a {@link StorageKey}, never a bare string. Both used to
+ * be {@code String}, one lookup hashed its input and the other did not, and choosing wrong
+ * compiled, raised nothing and answered "unspent". That happened three times before the two were
+ * given separate types (cashu-mint#487).
  */
 public interface ProofVaultService {
 
@@ -80,9 +87,9 @@ public interface ProofVaultService {
     }
 
     /**
-     * Look up a proof by its raw secret string (e.g. a 64-char hex random secret
-     * or a serialised WellKnownSecret JSON), within the mint that issued it. The
-     * implementation hashes the input with hash_to_curve to derive the storage key Y.
+     * Look up a proof by its raw secret (e.g. a 64-char hex random secret or a serialised
+     * WellKnownSecret JSON), within the mint that issued it. The implementation hashes the secret
+     * with hash_to_curve to derive the storage keys it may be recorded under.
      *
      * <p>The mint is required rather than optional. A secret is only unique per mint: the
      * uniqueness constraint is {@code (mint_id, secret)}, so a global lookup can return another
@@ -95,15 +102,14 @@ public interface ProofVaultService {
      * is linear in table size (16.3ms at 100k rows, 174ms at 1M) while the scoped form is flat.
      * See cashu-vault#153.
      */
-    ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException;
+    ProofEntity retrieveProof(UUID mintId, ProofSecret secret) throws CashuErrorException;
 
     /**
-     * Look up a proof when the caller already has the hash-to-curve point Y
-     * (e.g. NUT-07 /v1/checkstate, which receives a list of Y values directly).
-     * Skips the hash_to_curve step that {@link #retrieveProof(UUID, String)} applies,
-     * so passing an already-hashed Y does NOT double-hash and silently miss.
+     * Look up a proof when the caller already has the hash-to-curve point Y (NUT-07
+     * {@code /v1/checkstate} and NUT-17 {@code proof_state}, which receive Y directly). No hashing
+     * is applied: the key is the stored key.
      */
-    ProofEntity retrieveProofByY(String yHex) throws CashuErrorException;
+    ProofEntity retrieveProof(StorageKey key) throws CashuErrorException;
 
     /**
      * The key under which a proof with this secret must be recorded for this mint.
@@ -115,13 +121,13 @@ public interface ProofVaultService {
      * returns the key an existing record already uses, and otherwise the spec key.
      *
      * <p>Scoped to the mint for the same reasons as
-     * {@link #retrieveProof(UUID, String)}: looking for the existing record across all
+     * {@link #retrieveProof(UUID, ProofSecret)}: looking for the existing record across all
      * mints could adopt another mint's key, and it costs a full table scan.
      *
      * <p>The default implementation returns the spec key, which is correct for any deployment
      * that never issued a legacy proof.
      */
-    default String storageKeyFor(UUID mintId, String secret) throws CashuErrorException {
+    default StorageKey storageKeyFor(UUID mintId, ProofSecret secret) throws CashuErrorException {
         return SpentProofKey.issuanceKey(secret);
     }
 }

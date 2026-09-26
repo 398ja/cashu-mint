@@ -2,6 +2,8 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 
 import lombok.NonNull;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -17,7 +19,7 @@ import java.util.UUID;
  * <p><b>Why this exists.</b> {@code /v1/checkstate} is served by
  * {@code CrossMintCheckStateMerger}, which runs one {@code CheckStateTask} per mint it serves, and
  * each task looks every requested {@code Y} up in the vault. The vault lookup behind
- * {@code retrieveProofByY} is {@code GET /proofs/{Y}}, keyed on the curve point <em>alone</em> with
+ * {@code retrieveProof(StorageKey)} is {@code GET /proofs/{Y}}, keyed on the curve point <em>alone</em> with
  * no mint identifier, so every mint asks the vault the identical question and receives the
  * identical answer. Measured on staging with 20 genuinely distinct proofs: 120 vault GETs over 20
  * distinct keys, 6.0 GETs per {@code Y}, at roughly 4ms each and 18-26ms per proof end to end. The
@@ -55,7 +57,7 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
      * Proof found per requested {@code Y}, with a {@code null} value recording a {@code Y} the vault
      * does not hold. Membership is tested with {@code containsKey} so that a cached miss is a hit.
      */
-    private final Map<String, ProofEntity> proofsByY = new HashMap<>();
+    private final Map<StorageKey, ProofEntity> proofsByY = new HashMap<>();
 
     /**
      * Wraps the vault service whose {@code Y} lookups should be read once per request.
@@ -67,20 +69,20 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
     }
 
     /**
-     * Returns the proof recorded under {@code yHex}, consulting the vault only the first time each
-     * distinct {@code yHex} is asked for within this request.
+     * Returns the proof recorded under {@code key}, consulting the vault only the first time each
+     * distinct key is asked for within this request.
      *
-     * @param yHex the hash-to-curve point supplied by the client
+     * @param key the hash-to-curve point supplied by the client
      * @return the stored proof, or {@code null} when no proof is recorded under that point
      * @throws CashuErrorException if the vault lookup fails
      */
     @Override
-    public ProofEntity retrieveProofByY(String yHex) throws CashuErrorException {
-        if (proofsByY.containsKey(yHex)) {
-            return proofsByY.get(yHex);
+    public ProofEntity retrieveProof(StorageKey key) throws CashuErrorException {
+        if (proofsByY.containsKey(key)) {
+            return proofsByY.get(key);
         }
-        ProofEntity found = vault.retrieveProofByY(yHex);
-        proofsByY.put(yHex, found);
+        ProofEntity found = vault.retrieveProof(key);
+        proofsByY.put(key, found);
         return found;
     }
 
@@ -96,19 +98,15 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
 
     /** {@inheritDoc} */
     @Override
-    public ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException {
+    public ProofEntity retrieveProof(UUID mintId, ProofSecret secret) throws CashuErrorException {
         return vault.retrieveProof(mintId, secret);
     }
 
     /** {@inheritDoc} */
     @Override
-    public String storageKeyFor(UUID mintId, String secret) throws CashuErrorException {
+    public StorageKey storageKeyFor(UUID mintId, ProofSecret secret) throws CashuErrorException {
         return vault.storageKeyFor(mintId, secret);
     }
-
-
-
-
 
     /** {@inheritDoc} */
     @Override

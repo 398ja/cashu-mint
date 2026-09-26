@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultServiceMocks;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
@@ -75,7 +76,7 @@ import static org.mockito.Mockito.when;
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         // The melt spends its one input through a hold: the vault claims it, then the commit
         // spends it.
         when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class))).thenReturn(1);

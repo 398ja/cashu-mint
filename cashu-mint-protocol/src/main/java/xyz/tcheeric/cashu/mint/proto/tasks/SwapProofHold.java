@@ -6,6 +6,7 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -217,6 +218,8 @@ class SwapProofHold {
         // The hold's own mintId, not row.getMint().getId(): this field is @NonNull by constructor
         // contract, whereas the entity's mint id is nullable (ProofEntity.fromProof defends against
         // it when computing the fingerprint). Reading it from the field cannot NPE.
-        row.setSecret(proofVaultService.storageKeyFor(mintId, proof.getSecret().toString()));
+        // The row's `secret` column holds the storage key Y, not the secret: that is what the
+        // vault's (mint_id, secret) uniqueness is over.
+        row.setSecret(proofVaultService.storageKeyFor(mintId, ProofSecret.of(proof.getSecret())).hex());
     }
 }

@@ -7,6 +7,7 @@ import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -62,11 +63,8 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
         for (HashToCurveSecret hash : request.getHashToCurveSecrets()) {
             PostCheckStateResponse.ResponseState state = new PostCheckStateResponse.ResponseState();
             state.setHashToCurveSecret(hash);
-            ProofEntity proofEntity;
-            // NUT-07: `hash` is already the hash-to-curve point Y supplied by the
-            // client. retrieveProof(...) hashes its input again, which silently
-            // misses every entry; use retrieveProofByY to look up the raw Y.
-            proofEntity = proofVaultService.retrieveProofByY(hash.toString());
+            // NUT-07 supplies Y itself, which is the storage key: nothing is hashed.
+            ProofEntity proofEntity = proofVaultService.retrieveProof(StorageKey.of(hash));
             if (proofEntity == null) {
                 state.setState(NUT07.UNSPENT);
             } else {

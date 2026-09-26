@@ -3,7 +3,9 @@ package xyz.tcheeric.cashu.mint.proto.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -14,11 +16,8 @@ import java.util.UUID;
 @Slf4j
 public class DefaultProofVaultService implements ProofVaultService {
 
-
-
-
     @Override
-    public ProofEntity retrieveProof(UUID mintId, String secret) throws CashuErrorException {
+    public ProofEntity retrieveProof(UUID mintId, ProofSecret secret) throws CashuErrorException {
         try {
             return firstStoredUnderAnyKey(mintId, secret);
         } catch (CashuErrorException e) {
@@ -35,9 +34,9 @@ public class DefaultProofVaultService implements ProofVaultService {
      * legacy curve point. Checking only the spec point would report such a proof unspent and let
      * it be spent a second time, so both points are queried before concluding it is unspent.
      */
-    private ProofEntity firstStoredUnderAnyKey(UUID mintId, String secret) throws CashuErrorException {
-        for (String key : SpentProofKey.lookupKeys(secret)) {
-            ProofEntity stored = DBProofVault.retrieveProof(mintId.toString(), key);
+    private ProofEntity firstStoredUnderAnyKey(UUID mintId, ProofSecret secret) throws CashuErrorException {
+        for (StorageKey key : SpentProofKey.lookupKeys(secret)) {
+            ProofEntity stored = DBProofVault.retrieveProof(mintId.toString(), key.hex());
             if (stored != null) {
                 return stored;
             }
@@ -51,9 +50,9 @@ public class DefaultProofVaultService implements ProofVaultService {
      * NUT-00 encoding migration.
      */
     @Override
-    public String storageKeyFor(UUID mintId, String secret) throws CashuErrorException {
-        for (String key : SpentProofKey.lookupKeys(secret)) {
-            if (DBProofVault.retrieveProof(mintId.toString(), key) != null) {
+    public StorageKey storageKeyFor(UUID mintId, ProofSecret secret) throws CashuErrorException {
+        for (StorageKey key : SpentProofKey.lookupKeys(secret)) {
+            if (DBProofVault.retrieveProof(mintId.toString(), key.hex()) != null) {
                 return key;
             }
         }
@@ -61,14 +60,12 @@ public class DefaultProofVaultService implements ProofVaultService {
     }
 
     @Override
-    public ProofEntity retrieveProofByY(String yHex) throws CashuErrorException {
+    public ProofEntity retrieveProof(StorageKey key) throws CashuErrorException {
         try {
-            // NUT-07 receives the hash-to-curve point Y directly from the client.
-            // Passing it through retrieveProof() would re-run hash_to_curve and
-            // silently miss every lookup, so DBProofVault is queried directly.
-            return DBProofVault.retrieveProof(yHex);
+            // The key is already the stored point, so the vault is queried with it as-is.
+            return DBProofVault.retrieveProof(key.hex());
         } catch (CashuErrorException e) {
-            log.warn("DefaultProofVaultService: failed to retrieve proof by Y {}: {}", yHex, e.getMessage());
+            log.warn("DefaultProofVaultService: failed to retrieve proof by Y {}: {}", key, e.getMessage());
             return null;
         }
     }
