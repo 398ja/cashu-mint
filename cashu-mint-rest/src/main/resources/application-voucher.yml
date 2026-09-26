@@ -34,59 +34,30 @@ voucher:
     issuerPublicKey: ${MINT_VOUCHER_ISSUER_PUBKEY:}
 
   # Nostr relay configuration
+  #
+  # Every key below is honoured. Settings the voucher library never read (health checks,
+  # backoff, batch size, auto-reconnect) are gone rather than left looking configurable (#407).
   nostr:
-    # List of Nostr relay URLs for voucher ledger (NIP-33) and backup (NIP-17)
-    # Default: Cashu-specific relays
-    relays:
-      - wss://relay.damus.io
-      - wss://relay.cashu.xyz
+    # Nostr relay URLs for the voucher ledger (NIP-33) and backups (NIP-17), comma-separated.
+    # Set MINT_VOUCHER_NOSTR_RELAYS to replace the whole list, e.g. to point a private or test
+    # deployment at its own relay. It is a single scalar on purpose: a YAML list cannot be
+    # replaced by an indexed environment variable, only added to.
+    relays: ${MINT_VOUCHER_NOSTR_RELAYS:wss://relay.damus.io,wss://relay.cashu.xyz}
 
-    # Connection timeout in milliseconds
-    # Default: 5000ms (5 seconds)
-    connectionTimeoutMs: 5000
+    # Relay connection timeout in milliseconds
+    connectionTimeoutMs: ${MINT_VOUCHER_NOSTR_CONNECTION_TIMEOUT_MS:5000}
 
-    # Publish timeout in milliseconds (for voucher issuance)
-    # Default: 5000ms (5 seconds)
-    publishTimeoutMs: 5000
+    # Timeout for publishing a ledger or backup event (voucher issuance), in milliseconds
+    publishTimeoutMs: ${MINT_VOUCHER_NOSTR_PUBLISH_TIMEOUT_MS:5000}
 
-    # Query timeout in milliseconds (for status checks)
-    # Default: 10000ms (10 seconds)
-    queryTimeoutMs: 10000
+    # Timeout for querying ledger or backup events (status checks), in milliseconds
+    queryTimeoutMs: ${MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS:10000}
 
-    # Maximum retry attempts for failed operations
-    # Default: 3
+    # Connection attempts per relay after the first, with a linearly growing pause
     maxRetries: 3
 
-    # Enable exponential backoff for retries
-    # Default: true
-    exponentialBackoff: true
-
-    # Batch size for bulk operations
-    # Default: 100
-    batchSize: 100
-
-    # Enable relay health checks
-    # Default: true
-    healthCheckEnabled: true
-
-    # Health check interval in milliseconds
-    # Default: 60000ms (1 minute)
-    healthCheckIntervalMs: 60000
-
-    # Maximum consecutive failures before marking relay as unhealthy
-    # Default: 3
-    maxConsecutiveFailures: 3
-
-    # Auto-reconnect to relays on connection loss
-    # Default: true
-    autoReconnect: true
-
-    # Require a minimum number of relays
-    # Default: true
+    # Refuse to start with fewer relays than minimumRelays
     requireMinimumRelays: true
-
-    # Minimum number of relays required
-    # Default: 1
     minimumRelays: 1
 
 # ===================================================================
@@ -95,6 +66,7 @@ voucher:
 #
 # MINT_VOUCHER_ISSUER_PRIVKEY=your-64-char-hex-private-key
 # MINT_VOUCHER_ISSUER_PUBKEY=your-64-char-hex-public-key
+# MINT_VOUCHER_NOSTR_RELAYS=wss://relay.example.org,wss://relay2.example.org
 # SPRING_PROFILES_ACTIVE=voucher
 #
 # ===================================================================

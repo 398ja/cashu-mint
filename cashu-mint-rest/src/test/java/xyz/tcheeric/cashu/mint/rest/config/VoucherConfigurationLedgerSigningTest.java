@@ -4,6 +4,7 @@ import nostr.id.Identity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.voucher.nostr.NostrClientAdapter;
+import xyz.tcheeric.cashu.voucher.nostr.config.NostrRelayConfig;
 
 import java.lang.reflect.Field;
 
@@ -51,7 +52,7 @@ class VoucherConfigurationLedgerSigningTest {
         VoucherConfiguration config = new VoucherConfiguration(
                 propertiesWith(PRIVKEY, derivedPubKey()));
 
-        Object repository = config.voucherLedgerPort(mock(NostrClientAdapter.class));
+        Object repository = config.voucherLedgerPort(mock(NostrClientAdapter.class), NostrRelayConfig.builder().build());
 
         Field f = repository.getClass().getDeclaredField("issuerIdentity");
         f.setAccessible(true);
@@ -68,7 +69,7 @@ class VoucherConfigurationLedgerSigningTest {
 
         assertThatThrownBy(() -> new VoucherConfiguration(
                 propertiesWith(otherPriv, derivedPubKey()))
-                .voucherLedgerPort(mock(NostrClientAdapter.class)))
+                .voucherLedgerPort(mock(NostrClientAdapter.class), NostrRelayConfig.builder().build()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("does not derive");
     }
@@ -78,7 +79,7 @@ class VoucherConfigurationLedgerSigningTest {
     void missingPrivateKeyFailsFast() {
         assertThatThrownBy(() -> new VoucherConfiguration(
                 propertiesWith("  ", derivedPubKey()))
-                .voucherLedgerPort(mock(NostrClientAdapter.class)))
+                .voucherLedgerPort(mock(NostrClientAdapter.class), NostrRelayConfig.builder().build()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("issuerPrivateKey");
     }
