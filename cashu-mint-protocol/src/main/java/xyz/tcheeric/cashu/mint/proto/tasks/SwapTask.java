@@ -19,6 +19,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
@@ -179,6 +180,12 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      * and any failure releases them, so the wallet keeps its money and no signature exists.
      * After signing, the inputs are already unspendable by anyone else, so a failure can never
      * leave redeemable outputs alongside spendable inputs.
+     *
+     * <p>"Before signing" means before the first signature is recorded, not before the call that
+     * failed. A failure on a later output, such as a concurrent swap recording the same blinded
+     * message first ({@code outputs_already_signed}, issue #491), leaves the earlier outputs
+     * durably signed and recoverable through NUT-09 restore. Releasing the inputs then would let
+     * the same value be redeemed twice, so a partially signed swap spends its inputs instead.
      */
     private PostSwapResponse signAgainstHeldInputs(Mint mint,
                                                    List<Proof<T>> proofsToSwap,
@@ -188,14 +195,12 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                 new SwapProofHold(mintId, mintVaultService, proofVaultService, swapHoldRepository);
         hold.claim(proofsToSwap);
 
-        List<BlindSignature> blindSignatures;
+        List<BlindSignature> blindSignatures = new ArrayList<>(request.getBlindedMessages().size());
         try {
             hold.markSigning();
-            blindSignatures = signOutputs(mint, service);
+            signOutputs(mint, service, blindSignatures);
         } catch (CashuErrorException | RuntimeException signingFailure) {
-            // Nothing durable was published for this swap yet, so returning the inputs is the
-            // kind failure: the wallet keeps its money and can retry.
-            hold.release();
+            resolveTheHoldAfterFailedSigning(hold, blindSignatures);
             throw signingFailure;
         }
 
@@ -204,18 +209,36 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     }
 
     /**
+     * Releases the inputs when nothing was signed, and spends them when anything was.
+     *
+     * @param hold               the hold on this swap's inputs
+     * @param recordedSignatures the signatures recorded before the failure
+     */
+    private void resolveTheHoldAfterFailedSigning(SwapProofHold hold,
+                                                  List<BlindSignature> recordedSignatures)
+            throws CashuErrorException {
+        if (recordedSignatures.isEmpty()) {
+            hold.release();
+            return;
+        }
+        log.error("[swap-hold][alert] SWAP_PARTIALLY_SIGNED mint_id={} signed_outputs={} {}",
+                mintId, recordedSignatures.size(), hold.describeStrandedHold());
+        commitOrStrandTheHold(hold);
+    }
+
+    /**
      * Voucher swaps use standard keyset keys; the voucher metadata lives in the secret's NUT-10
      * tags and does not affect which key signs.
+     *
+     * @param signed receives each signature as soon as it is recorded, so a caller that sees
+     *               this fail can tell how far it got
      */
-    private List<BlindSignature> signOutputs(Mint mint, MintProtocolService service)
+    private void signOutputs(Mint mint, MintProtocolService service, List<BlindSignature> signed)
             throws CashuErrorException {
-        List<BlindedMessage> outputs = request.getBlindedMessages();
-        List<BlindSignature> blindSignatures = new ArrayList<>(outputs.size());
-        for (BlindedMessage output : outputs) {
-            blindSignatures.add(
-                    new SignBlindedMessageTask(mint, output, service, signatureVaultService).execute());
+        for (BlindedMessage output : request.getBlindedMessages()) {
+            signed.add(new SignBlindedMessageTask(mint, output, service, signatureVaultService,
+                    SignatureSource.SWAP).execute());
         }
-        return blindSignatures;
     }
 
     /**

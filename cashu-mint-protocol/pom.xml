@@ -72,6 +72,12 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
+        <!-- SignatureVaultFallbackAutoConfiguration: the in-memory vault is a
+             conditional fallback, which needs @AutoConfiguration ordering. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
 
         <!-- Caffeine cache for TTL-based eviction in VoucherQuoteRegistry -->
         <dependency>

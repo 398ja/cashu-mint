@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
@@ -177,7 +178,7 @@ public class SwapTaskFailureAfterSigningCannotDoubleSpendTest {
                              BlindSignature signature = new BlindSignature(output.getAmount(),
                                      KeysetId.fromString(KEYSET_ID),
                                      SignatureTestData.sampleSignature(), null);
-                             signatureVault.store(output, signature);
+                             signatureVault.store(output, signature, SignatureSource.SWAP);
                              return signature;
                          }).when(mock).execute();
                      })) {

@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.BlindSignature;
@@ -38,7 +39,7 @@ public class RestoreSignaturesTaskTest {
         Mockito.when(signature.getKeySetId()).thenReturn(keysetId);
         Mockito.when(signature.getAmount()).thenReturn(8);
 
-        service.store(message, signature);
+        service.store(message, signature, SignatureSource.MINT);
 
         PostRestoreRequest request = new PostRestoreRequest(List.of(message));
         RestoreSignaturesTask task = new RestoreSignaturesTask(request, service);
