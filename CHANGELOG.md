@@ -66,6 +66,16 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **An `ISSUING` quote reported `ISSUED` carries the moment it was issued as `updated_at` (#501).**
+  The status route reports a quote whose issuance ledger row exists as `ISSUED`, with
+  `amount_issued` equal to its amount, but took `updated_at` from the quote row, last stamped on
+  entering `ISSUING`. NUT-04 requires `updated_at` to move whenever `amount_issued` changes, so it
+  is now the ledger's `issued_at`, or the quote row's own time when that is later, so it never
+  goes backwards.
+- **NUT-17 mint-quote notifications report the quote's own unit.** The current-state reply from
+  #500 passed the configured default unit to the status lookup where the HTTP route passes none,
+  so a quote in another unit was reported in the default one. Both channels now make the same
+  call.
 - **NUT-17 `bolt11_mint_quote` notifications answer as the bolt11 status route does (#500).**
   `SubscriptionManager` built the mint-quote payload from the payment gateway alone, so a
   WebSocket subscription to a voucher quote id was answered `PAID`, the same leak #494 closed on

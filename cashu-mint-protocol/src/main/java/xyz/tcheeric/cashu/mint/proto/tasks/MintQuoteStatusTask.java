@@ -7,6 +7,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuote;
@@ -21,6 +22,7 @@ import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Reports the state of one mint quote, for exactly one of the two quote kinds.
@@ -137,7 +139,7 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
                 if (regular == null && (voucher != null || VoucherQuoteRegistry.isVoucherQuote(quoteId))) {
                     throw new CashuErrorException(CashuErrorCode.quote_not_found);
                 }
-                yield regular != null ? ResolvedQuote.of(regular, hasIssuanceRecord()) : unclassified(regularRepo);
+                yield regular != null ? ResolvedQuote.of(regular, issuanceRecord()) : unclassified(regularRepo);
             }
             case VOUCHER -> {
                 if (regular != null && voucher == null) {
@@ -161,9 +163,10 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
         return ResolvedQuote.gatewayOnly();
     }
 
-    private boolean hasIssuanceRecord() {
+    /** The issuance ledger row for this quote, when the ledger is wired and holds one. */
+    private Optional<IssuanceRecord> issuanceRecord() {
         IssuanceRecordRepository issuance = MintIntegrityContext.issuanceRecordRepository();
-        return issuance != null && issuance.findById(quoteId).isPresent();
+        return issuance == null ? Optional.empty() : issuance.findById(quoteId);
     }
 
     /**
@@ -179,10 +182,29 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
     private record ResolvedQuote(long amount, long charged, String unit, String lifecycle,
                                  Instant createdAt, Instant updatedAt) {
 
-        static ResolvedQuote of(MintQuote quote, boolean issuanceRecorded) {
-            String state = regularState(quote.lifecycleState(), issuanceRecorded);
+        static ResolvedQuote of(MintQuote quote, Optional<IssuanceRecord> issuance) {
+            String state = regularState(quote.lifecycleState(), issuance.isPresent());
             return new ResolvedQuote(quote.amount(), quote.amount(), quote.unit(), state,
-                    quote.createdAt(), quote.updatedAt());
+                    quote.createdAt(), lastChange(quote, issuance));
+        }
+
+        /**
+         * When the quote's accounting last changed. NUT-04: "Mints MUST update updated_at whenever
+         * amount_paid or amount_issued changes", and never let it go backwards.
+         *
+         * <p>A quote left in {@code ISSUING} with its ledger row written is reported
+         * {@code ISSUED}, so its {@code amount_issued} changed when the ledger row was written,
+         * after the row's own {@code updated_at} was last stamped on entering {@code ISSUING}.
+         * The ledger's {@code issued_at} is that moment; the later of the two is reported so the
+         * value never falls behind one a client has already seen (cashu-mint#501).
+         */
+        private static Instant lastChange(MintQuote quote, Optional<IssuanceRecord> issuance) {
+            Instant rowUpdated = quote.updatedAt();
+            Instant issuedAt = issuance.map(IssuanceRecord::issuedAt).orElse(null);
+            if (issuedAt == null) {
+                return rowUpdated;
+            }
+            return rowUpdated == null || issuedAt.isAfter(rowUpdated) ? issuedAt : rowUpdated;
         }
 
         static ResolvedQuote of(VoucherQuote quote) {

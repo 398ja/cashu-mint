@@ -397,12 +397,14 @@ public final class SubscriptionManager {
     /**
      * The quote's NUT-04 state as the bolt11 status route reports it, or empty when that route
      * refuses it (a voucher quote, an unknown id) or the lookup fails. Goes through
-     * {@link NUT04#quotePaymentStatus}, the route's own entry point, so the two channels share
-     * one lookup rather than two that could drift.
+     * {@link NUT04#quotePaymentStatus}, with the same arguments as the route, so the two channels
+     * share one lookup rather than two that could drift. No unit is passed, as the route passes
+     * none: the quote's own unit then picks the gateway and is reported, where forcing the
+     * configured default reported a {@code usd} quote as {@code sat}.
      */
     private Optional<PostMintQuoteResponse> fetchMintQuoteState(String quoteId) {
         try {
-            return Optional.of(NUT04.quotePaymentStatus(quoteId, PaymentMethod.BOLT11, defaultUnit));
+            return Optional.of(NUT04.quotePaymentStatus(quoteId, PaymentMethod.BOLT11));
         } catch (CashuErrorException refused) {
             log.info("current_mint_quote_state_refused quote_id={} reason={}", quoteId, refused.getMessage());
             return Optional.empty();
