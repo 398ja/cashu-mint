@@ -62,6 +62,7 @@ public final class MetricCatalogue {
         invariant.bindOrphanIssuance(() -> 0);
         invariant.bindPaidUnfunded(() -> 0);
         invariant.bindPaidUnissued(() -> 0);
+        invariant.bindIssuedAmount("keyset", () -> 0);
 
         return registry.getMeters().stream()
                 .map(MetricCatalogue::toDeclaration)
