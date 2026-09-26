@@ -65,6 +65,10 @@ public interface VaultProvisioningPort {
     /**
      * Compensates for a failed provisioning attempt by deleting any partial
      * vault state created during provisioning.
+     *
+     * <p>A mint that already owns a keyset is left in place: its keysets are its
+     * signing identity and may have issued proofs, so there is no partial state
+     * left to undo (cashu-mint#484).
      */
     void compensate(UUID mintId);
 }

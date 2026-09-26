@@ -230,8 +230,41 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
         }
     }
 
+    /**
+     * Rolls back a failed provisioning by deleting the mint row, but only while the mint owns no
+     * keyset (cashu-mint#484).
+     *
+     * <p>A keyset is the mint's signing identity and may already have issued proofs, so a mint
+     * that owns one is past the point where deleting it means anything. The vault agrees:
+     * {@code fk_t_keyset_on_mint} refuses the delete. Attempting it anyway failed safely but left
+     * two ERROR lines per attempt in the vault log describing a foreign-key violation on
+     * {@code t_mint}, which read exactly like a cascade bug and were once misdiagnosed as one
+     * (cashu-vault#150). Deleting the keysets first would make compensation destroy live signing
+     * material, so the mint is left in place and the reason is logged instead.
+     *
+     * <p>When the keysets cannot be read, nothing is deleted either: without knowing whether the
+     * mint signs, a delete is not safe to attempt.
+     */
     @Override
     public void compensate(final UUID mintId) {
+        final Set<KeySetEntity> keySets;
+        try {
+            keySets = readKeySets(keySetClientSupplier.get(), mintId);
+        } catch (final Exception e) {
+            log.warn("Vault compensation skipped for mint {}: could not read its keysets ({})",
+                mintId, e.getMessage());
+            return;
+        }
+        if (!keySets.isEmpty()) {
+            log.info("Vault compensation not applicable for mint {}: it owns {} keyset(s) {}, "
+                    + "which are its signing identity and are not rolled back",
+                mintId, keySets.size(), keySets.stream().map(KeySetEntity::getKeySetId).toList());
+            return;
+        }
+        deleteMintEntity(mintId);
+    }
+
+    private void deleteMintEntity(final UUID mintId) {
         try {
             final VaultClient<MintEntity> mintClient = mintClientSupplier.get();
             mintClient.delete(mintId.toString());

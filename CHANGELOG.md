@@ -63,6 +63,16 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **Provisioning compensation no longer tries to delete a mint that owns a keyset (#484).**
+  `VaultProvisioningAdapter.compensate` deleted the mint row unconditionally. For a mint that
+  already owned a keyset, which is every mint whose provisioning was retried after its keyset
+  was written, the vault's `fk_t_keyset_on_mint` refused the delete. Nothing was damaged, but each
+  attempt left two ERROR lines in the vault log describing a foreign-key violation on `t_mint`.
+  Those read exactly like a cascade bug and were once misdiagnosed as one (cashu-vault#150).
+  Compensation now reads the mint's keysets first. With none, it deletes the row as before. With
+  any, it leaves the mint alone and logs at INFO that compensation does not apply, naming the
+  keysets: they are the mint's signing identity and may have issued proofs, so there is nothing
+  partial to undo. If the keysets cannot be read, nothing is deleted.
 - **A voucher quote is now recorded before its invoice is raised, so a failed write can no longer
   take a customer's money (#469).** `VoucherMintQuoteTask` raised the gateway invoice first and
   wrote `voucher_quote` second. Raising an invoice is irreversible: it is payable the moment the

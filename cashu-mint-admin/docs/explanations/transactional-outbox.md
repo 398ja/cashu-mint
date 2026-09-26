@@ -204,4 +204,6 @@ The next poll cycle picks up the `VAULT_PROVISIONED` (or `VAULT_PROVISION_FAILED
 
 **Compensation.** If vault provisioning permanently fails, partial state is cleaned up via `vaultPort.compensate()`. Compensation is best-effort — if it fails, the error is logged but the mint still transitions to `PROVISION_FAILED`.
 
+Compensation deletes the mint row only while the mint owns no keyset. A keyset is the mint's signing identity and may already have issued proofs, and the vault's `fk_t_keyset_on_mint` refuses the delete anyway, so a mint that got that far is left in place with an INFO line naming its keysets. The same applies when the keysets cannot be read: nothing is deleted without knowing whether the mint signs (cashu-mint#484).
+
 **Virtual threads.** Each message in a batch is dispatched on a separate virtual thread, keeping the dispatcher responsive even with slow vault calls.
