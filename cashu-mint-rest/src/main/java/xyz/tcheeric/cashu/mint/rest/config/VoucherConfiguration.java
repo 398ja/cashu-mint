@@ -9,7 +9,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -23,7 +26,6 @@ import xyz.tcheeric.cashu.voucher.app.ports.VoucherLedgerPort;
 import xyz.tcheeric.cashu.voucher.nostr.NostrClientAdapter;
 import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherBackupRepository;
 import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherLedgerRepository;
-import xyz.tcheeric.cashu.voucher.nostr.config.NostrRelayConfig;
 
 /**
  * Spring configuration for voucher functionality.
@@ -44,7 +46,6 @@ import xyz.tcheeric.cashu.voucher.nostr.config.NostrRelayConfig;
  * VoucherService
  *   ├── VoucherLedgerPort (NostrVoucherLedgerRepository)
  *   │     └── NostrClientAdapter
- *   │           └── NostrRelayConfig
  *   └── VoucherBackupPort (NostrVoucherBackupRepository)
  *         └── NostrClientAdapter
  *
@@ -63,8 +64,7 @@ import xyz.tcheeric.cashu.voucher.nostr.config.NostrRelayConfig;
  * voucher.enabled=true
  * voucher.mint.issuerPrivateKey=${MINT_VOUCHER_ISSUER_PRIVKEY}
  * voucher.mint.issuerPublicKey=${MINT_VOUCHER_ISSUER_PUBKEY}
- * voucher.nostr.relays[0]=wss://relay.damus.io
- * voucher.nostr.relays[1]=wss://relay.cashu.xyz
+ * voucher.nostr.relays=${MINT_VOUCHER_NOSTR_RELAYS:wss://relay.damus.io,wss://relay.cashu.xyz}
  * </pre>
  *
  * @see VoucherProperties
@@ -82,60 +82,95 @@ public class VoucherConfiguration {
     private final VoucherProperties voucherProperties;
 
     /**
-     * Creates the Nostr relay configuration from properties.
-     *
-     * @return configured NostrRelayConfig
-     */
-    @Bean
-    public NostrRelayConfig nostrRelayConfig() {
-        VoucherProperties.Nostr nostr = voucherProperties.getNostr();
-
-        NostrRelayConfig config = NostrRelayConfig.builder()
-                .relayUrls(nostr.getRelays())
-                .connectionTimeoutMs(nostr.getConnectionTimeoutMs())
-                .publishTimeoutMs(nostr.getPublishTimeoutMs())
-                .queryTimeoutMs(nostr.getQueryTimeoutMs())
-                .maxRetries(nostr.getMaxRetries())
-                .exponentialBackoff(nostr.isExponentialBackoff())
-                .batchSize(nostr.getBatchSize())
-                .healthCheckEnabled(nostr.isHealthCheckEnabled())
-                .healthCheckIntervalMs(nostr.getHealthCheckIntervalMs())
-                .maxConsecutiveFailures(nostr.getMaxConsecutiveFailures())
-                .autoReconnect(nostr.isAutoReconnect())
-                .requireMinimumRelays(nostr.isRequireMinimumRelays())
-                .minimumRelays(nostr.getMinimumRelays())
-                .build();
-
-        // Validate configuration
-        config.validate();
-
-        log.info("Nostr relay config initialized with {} relay(s): {}",
-                config.getRelayCount(), config.getRelayUrls());
-
-        return config;
-    }
-
-    /**
      * Creates the Nostr client adapter for relay communication.
      *
-     * @param relayConfig Nostr relay configuration
+     * <p>Built straight from {@link VoucherProperties}, not through cashu-voucher's
+     * {@code NostrRelayConfig}: in 0.14.x that builder's {@code relayUrls(...)} writes a field
+     * Lombok's {@code @Builder.Default} never reads, so every list given to it is replaced by the
+     * two public default relays (cashu-voucher#44). That, not the missing placeholder alone, is
+     * why a deployment could not choose its relays (#407). The settings are checked here instead.
+     *
      * @return NostrClientAdapter instance
      */
     @Bean
-    public NostrClientAdapter nostrClientAdapter(NostrRelayConfig relayConfig) {
+    public NostrClientAdapter nostrClientAdapter() {
+        VoucherProperties.Nostr nostr = voucherProperties.getNostr();
+        List<String> relays = configuredRelays();
+        if (nostr.getMaxRetries() < 0) {
+            throw new IllegalStateException("voucher.nostr.maxRetries cannot be negative");
+        }
         NostrClientAdapter adapter = new NostrClientAdapter(
-                relayConfig.getRelayUrls(),
-                relayConfig.getConnectionTimeoutMs(),
-                relayConfig.getMaxRetries()
+                relays,
+                requirePositive("connectionTimeoutMs", nostr.getConnectionTimeoutMs()),
+                nostr.getMaxRetries()
         );
 
-        log.info("NostrClientAdapter initialized for voucher operations");
+        log.info("NostrClientAdapter initialized for voucher operations with {} relay(s): {}",
+                relays.size(), relays);
 
         return adapter;
     }
 
     /**
+     * The configured relays, refused at startup when they cannot work: fewer than the required
+     * minimum, or an entry that is not a {@code ws://} or {@code wss://} URL. Blank entries, as a
+     * trailing or doubled comma in {@code MINT_VOUCHER_NOSTR_RELAYS} produces, are skipped.
+     * Checked here because the library's own validation only ever saw its default list.
+     */
+    List<String> configuredRelays() {
+        VoucherProperties.Nostr nostr = voucherProperties.getNostr();
+        List<String> relays = nostr.getRelays() == null ? List.of()
+                : nostr.getRelays().stream()
+                        .filter(relay -> relay != null && !relay.isBlank())
+                        .map(VoucherConfiguration::requireRelayUrl)
+                        .toList();
+        int required = nostr.isRequireMinimumRelays() ? Math.max(1, nostr.getMinimumRelays()) : 1;
+        if (relays.size() < required) {
+            throw new IllegalStateException("voucher.nostr.relays has " + relays.size()
+                    + " relay(s) but at least " + required + " are required");
+        }
+        return relays;
+    }
+
+    /**
+     * The relay URL without surrounding whitespace, refused unless it is a {@code ws://} or
+     * {@code wss://} URL naming a host. A hostless value such as {@code wss:relay.example} would
+     * otherwise pass startup and only fail when the first voucher is published.
+     */
+    private static String requireRelayUrl(String relay) {
+        String url = relay.strip();
+        URI uri = parse(url);
+        boolean webSocket = uri != null
+                && ("ws".equalsIgnoreCase(uri.getScheme()) || "wss".equalsIgnoreCase(uri.getScheme()));
+        if (!webSocket || uri.getHost() == null) {
+            throw new IllegalStateException(
+                    "voucher.nostr.relays entries must be ws:// or wss:// URLs with a host, got: '"
+                            + relay + "'");
+        }
+        return url;
+    }
+
+    private static URI parse(String url) {
+        try {
+            return new URI(url);
+        } catch (URISyntaxException notAUrl) {
+            return null;
+        }
+    }
+
+    private static long requirePositive(String setting, long milliseconds) {
+        if (milliseconds <= 0) {
+            throw new IllegalStateException("voucher.nostr." + setting + " must be positive, got " + milliseconds);
+        }
+        return milliseconds;
+    }
+
+    /**
      * Creates the voucher ledger repository (NIP-33 public ledger).
+     *
+     * <p>Built with the configured publish and query timeouts. The shorter constructors hardcode
+     * 5000ms for both, which silently discarded {@code voucher.nostr.publishTimeoutMs} and
+     * {@code queryTimeoutMs} (cashu-mint#407).
      *
      * @param nostrClient Nostr client adapter
      * @return VoucherLedgerPort implementation
@@ -203,7 +238,10 @@ public class VoucherConfiguration {
 
         NostrVoucherLedgerRepository repository = new NostrVoucherLedgerRepository(
                 nostrClient,
-                issuerIdentity
+                issuerIdentity.getPublicKey(),
+                issuerIdentity,
+                publishTimeoutMs(),
+                queryTimeoutMs()
         );
 
         log.info("VoucherLedgerPort (Nostr) initialized with issuer public key: {}...",
@@ -215,16 +253,29 @@ public class VoucherConfiguration {
     /**
      * Creates the voucher backup repository (NIP-17 + NIP-44 private storage).
      *
+     * <p>Built with the configured timeouts, for the same reason as the ledger (#407).
+     *
      * @param nostrClient Nostr client adapter
      * @return VoucherBackupPort implementation
      */
     @Bean
     public VoucherBackupPort voucherBackupPort(NostrClientAdapter nostrClient) {
-        NostrVoucherBackupRepository repository = new NostrVoucherBackupRepository(nostrClient);
+        NostrVoucherBackupRepository repository = new NostrVoucherBackupRepository(
+                nostrClient,
+                publishTimeoutMs(),
+                queryTimeoutMs());
 
         log.info("VoucherBackupPort (Nostr) initialized for encrypted voucher backups");
 
         return repository;
+    }
+
+    private long publishTimeoutMs() {
+        return requirePositive("publishTimeoutMs", voucherProperties.getNostr().getPublishTimeoutMs());
+    }
+
+    private long queryTimeoutMs() {
+        return requirePositive("queryTimeoutMs", voucherProperties.getNostr().getQueryTimeoutMs());
     }
 
     /**

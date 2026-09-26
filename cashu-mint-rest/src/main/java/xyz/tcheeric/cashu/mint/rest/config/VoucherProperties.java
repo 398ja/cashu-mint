@@ -18,9 +18,7 @@ import java.util.List;
  *     issuerPrivateKey: ${MINT_VOUCHER_ISSUER_PRIVKEY}
  *     issuerPublicKey: ${MINT_VOUCHER_ISSUER_PUBKEY}
  *   nostr:
- *     relays:
- *       - wss://relay.damus.io
- *       - wss://relay.cashu.xyz
+ *     relays: ${MINT_VOUCHER_NOSTR_RELAYS:wss://relay.damus.io,wss://relay.cashu.xyz}
  *     connectionTimeoutMs: 5000
  *     publishTimeoutMs: 5000
  *     queryTimeoutMs: 10000
@@ -108,42 +106,6 @@ public class VoucherProperties {
          * Default: 3.
          */
         private int maxRetries = 3;
-
-        /**
-         * Whether to enable exponential backoff for retries.
-         * Default: true.
-         */
-        private boolean exponentialBackoff = true;
-
-        /**
-         * Batch size for bulk operations.
-         * Default: 100.
-         */
-        private int batchSize = 100;
-
-        /**
-         * Whether to enable relay health checks.
-         * Default: true.
-         */
-        private boolean healthCheckEnabled = true;
-
-        /**
-         * Health check interval in milliseconds.
-         * Default: 60000ms (1 minute).
-         */
-        private long healthCheckIntervalMs = 60000L;
-
-        /**
-         * Maximum consecutive failures before marking relay as unhealthy.
-         * Default: 3.
-         */
-        private int maxConsecutiveFailures = 3;
-
-        /**
-         * Whether to auto-reconnect to relays on connection loss.
-         * Default: true.
-         */
-        private boolean autoReconnect = true;
 
         /**
          * Whether to require a minimum number of relays.

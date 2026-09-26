@@ -90,8 +90,41 @@ pending vouchers never read as paid.
   `SignatureVaultStartupValidator` fails startup outside `local`, `test` and `websocket-test`
   when the vault is not durable. `cashu.mint.jpa.require-in-production=false` does not waive it.
 
+### Changed
+
+- **The voucher profile refuses to start on Nostr settings that cannot work (#407).** Each relay
+  must be a `ws://` or `wss://` URL naming a host, there must be at least `minimumRelays` of them
+  (and never zero), and the connection, publish and query timeouts must be positive. These were
+  previously checked only against the library's default relay list, or not at all, and a bad value
+  surfaced on the first voucher publish instead.
+
+### Removed
+
+- **Voucher Nostr settings that nothing read (#407).** `exponentialBackoff`, `batchSize`,
+  `healthCheckEnabled`, `healthCheckIntervalMs`, `maxConsecutiveFailures` and `autoReconnect` are
+  gone from `application-voucher.yml` and from `VoucherProperties.Nostr`, so the file no longer
+  shows settings that have no effect. A deployment that still sets one keeps starting: the value
+  is ignored, as it always was. The `NostrRelayConfig` bean is removed too; it carried the
+  library's default relays whatever was configured.
+
 ### Fixed
 
+- **The voucher Nostr configuration is honoured, and a deployment can point the mint at its own
+  relay (#407).** Three defects made `voucher.nostr` in `application-voucher.yml` look read while
+  it was not:
+  - The ledger and backup repositories were built with constructors that hardcode 5000ms, so
+    `publishTimeoutMs` and `queryTimeoutMs` were bound and then dropped. The shipped query timeout
+    of 10000ms showed up in the log as 5000ms. Both repositories now get the configured values.
+  - The relay list never reached the Nostr client. In cashu-voucher 0.14.x,
+    `NostrRelayConfig.builder().relayUrls(...)` writes a field Lombok's `@Builder.Default` does
+    not read, so any list was replaced by the two public defaults. The client now gets the bound
+    list directly, with blank entries skipped.
+  - The relays were a YAML list, which an environment variable can only add to. They are now one
+    comma-separated `${MINT_VOUCHER_NOSTR_RELAYS:...}` placeholder, and the three timeouts get
+    `MINT_VOUCHER_NOSTR_*` placeholders too. The indexed form (`VOUCHER_NOSTR_RELAYS_0`) still
+    replaces the list.
+
+  The library builder defect is filed as cashu-voucher#44.
 - **A NUT-17 `proof_state` subscriber that writes its Y in uppercase now receives updates (#511).**
   Subscriptions were indexed under the id exactly as sent, while the mint publishes lowercase Ys,
   so such a subscriber got the correct initial state and then never a state change. Proof-state

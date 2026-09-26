@@ -225,7 +225,7 @@ src/test/resources/application-test.properties
 voucher.enabled=true
 voucher.mint.issuerPrivateKey=0000...0001
 voucher.mint.issuerPublicKey=0279...81798
-voucher.nostr.relays[0]=ws://localhost:7777
+voucher.nostr.relays=ws://localhost:7777
 ```
 
 ## CI/CD Integration

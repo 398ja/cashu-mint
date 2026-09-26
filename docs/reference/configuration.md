@@ -101,7 +101,12 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | `voucher.enabled` | `true` (when profile active) | Enable voucher endpoints. |
 | `voucher.mint.issuerPrivateKey` | _(unset)_ | Hex-encoded secp256k1 private key (32 bytes) for signing vouchers. |
 | `voucher.mint.issuerPublicKey` | _(unset)_ | Hex-encoded BIP-340 x-only public key (32 bytes) paired with the issuer private key. Not the 33-byte compressed form. |
-| `voucher.nostr.relays` | `wss://relay.damus.io`, `wss://relay.cashu.xyz` | Default relay list for voucher ledger operations. |
+| `voucher.nostr.relays` | `wss://relay.damus.io,wss://relay.cashu.xyz` | Comma-separated relays for the voucher ledger and backups. Override with `MINT_VOUCHER_NOSTR_RELAYS`, which replaces the whole list. Each must be `ws://` or `wss://`; startup fails otherwise. |
+| `voucher.nostr.connectionTimeoutMs` | `5000` | Relay connection timeout. Override with `MINT_VOUCHER_NOSTR_CONNECTION_TIMEOUT_MS`. |
+| `voucher.nostr.publishTimeoutMs` | `5000` | Timeout for publishing a ledger or backup event. Override with `MINT_VOUCHER_NOSTR_PUBLISH_TIMEOUT_MS`. |
+| `voucher.nostr.queryTimeoutMs` | `10000` | Timeout for querying ledger or backup events. Override with `MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS`. |
+| `voucher.nostr.maxRetries` | `3` | Connection attempts per relay after the first. |
+| `voucher.nostr.requireMinimumRelays` / `minimumRelays` | `true` / `1` | Refuse to start with fewer relays than `minimumRelays`. |
 | `voucher.quote.fee-percent` | `10` | Percentage fee charged when creating voucher mint quotes. Override with `VOUCHER_QUOTE_FEE_PERCENT`. |
 | `voucher.quote.fee-percent.max` | `100` | Maximum allowed fee percentage. |
 | `voucher.master.secret` | _(auto-generated)_ | Hex-encoded master secret for voucher key derivation. If unset, a secure random secret is generated at startup. Override with `VOUCHER_MASTER_SECRET`. |
