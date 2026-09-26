@@ -4,17 +4,24 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -223,6 +230,140 @@ public class InvalidateProofTest {
 
             // Verify invalidate was NOT called
             Mockito.verify(proofVaultService, Mockito.never()).invalidate(Mockito.any());
+        }
+    }
+
+    /**
+     * A 409 recovery must invalidate the row that caused the conflict, even though the only
+     * identifier the task holds at that point is the curve point Y the row is stored under.
+     *
+     * <p>Unlike the three Mockito-stubbed conflict tests above, which answer the lookup with
+     * {@code Mockito.any()} and so cannot tell a hashed key from an unhashed one, this test backs
+     * the task with a vault that is keyed on the real Y and hashes its input in
+     * {@code retrieveProof} exactly as {@code DefaultProofVaultService} does. A recovery that
+     * passes the already-hashed Y to {@code retrieveProof} therefore hashes it a second time,
+     * misses a row that is genuinely there, and silently returns without invalidating it. The
+     * assertion is on that outcome, the stored row's final state, not on which vault method the
+     * task chose to call.
+     *
+     * <p>This is not the not-found case covered by
+     * {@code invalidateProof_conflictProofNotFound_treatedAsIdempotent}: here the vault does hold
+     * the row under its Y, so a correct lookup finds it and only a double-hashing lookup does not.
+     */
+    @Test
+    public void invalidateProof_conflictOnRowStoredUnderY_invalidatesThatRow() throws CashuErrorException {
+        RSSProof proof = new RSSProof();
+        proof.setUnblindedSignature(sampleSignature());
+        proof.setSecret(RandomStringSecret.create());
+        proof.setAmount(1);
+        proof.setKeySetId("00c4a3dade22f81b");
+
+        MintEntity mintEntity = new MintEntity();
+        mintEntity.setId(UUID.fromString(mint.getId()));
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        Mockito.when(mintVaultService.retrieveMint(mint.getId())).thenReturn(mintEntity);
+
+        // The row a retried swap collides with: already recorded under this proof's Y, and still
+        // unspent because the first attempt stored it and then failed before invalidating it.
+        String storedY = SpentProofKey.issuanceKey(proof.getSecret().toString());
+        ProofEntity unspentRow = new ProofEntity();
+        unspentRow.setSecret(storedY);
+        unspentRow.setState(ProofEntity.STATE_UNSPENT);
+        unspentRow.setMint(mintEntity);
+        VaultKeyedOnY vault = new VaultKeyedOnY();
+        vault.seed(storedY, unspentRow);
+
+        InvalidateProofsTask<RandomStringSecret> task =
+                new InvalidateProofsTask<>(mint, List.of(proof), mintVaultService, vault);
+        task.execute();
+
+        assertEquals(ProofEntity.STATE_SPENT, unspentRow.getState(),
+                "the row that caused the 409 is still unspent, so the retried swap reported "
+                        + "success while leaving its input spendable");
+        assertEquals(List.of(storedY), vault.invalidatedKeys(),
+                "invalidation must land on the row stored under Y, not on a second row");
+    }
+
+    /**
+     * A vault that stores proofs under the curve point Y, the way the real one does.
+     *
+     * <p>Its whole purpose is that {@link #retrieveProofByY} and {@link #retrieveProof} are not
+     * interchangeable: the first takes a key, the second takes a secret and hashes it. Handing an
+     * already-hashed Y to the second one therefore misses, which is precisely the failure a
+     * {@code Mockito.any()} stub cannot express. {@code store} rejects a duplicate key with the
+     * 409 the vault's {@code (mint_id, secret)} uniqueness constraint produces.
+     */
+    private static final class VaultKeyedOnY implements ProofVaultService {
+
+        private final Map<String, ProofEntity> rowsByY = new HashMap<>();
+        private final List<String> invalidatedKeys = new ArrayList<>();
+
+        void seed(String y, ProofEntity row) {
+            rowsByY.put(y, row);
+        }
+
+        List<String> invalidatedKeys() {
+            return List.copyOf(invalidatedKeys);
+        }
+
+        @Override
+        public void store(ProofEntity proofEntity) {
+            if (rowsByY.containsKey(proofEntity.getSecret())) {
+                throw HttpClientErrorException.create(HttpStatus.CONFLICT, "Conflict",
+                        HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8);
+            }
+            rowsByY.put(proofEntity.getSecret(), proofEntity);
+        }
+
+        @Override
+        public void invalidate(ProofEntity proofEntity) throws CashuErrorException {
+            ProofEntity stored = rowsByY.get(proofEntity.getSecret());
+            if (stored == null) {
+                throw new CashuErrorException("invalidate_on_unstored_row");
+            }
+            stored.setState(ProofEntity.STATE_SPENT);
+            invalidatedKeys.add(proofEntity.getSecret());
+        }
+
+        @Override
+        public void archive(ProofEntity proofEntity) {
+            rowsByY.remove(proofEntity.getSecret());
+        }
+
+        @Override
+        public void storePending(ProofEntity proofEntity) {
+            proofEntity.setState(ProofEntity.STATE_PENDING);
+            rowsByY.put(proofEntity.getSecret(), proofEntity);
+        }
+
+        @Override
+        public ProofEntity retrieveProof(UUID mintId, String secret) {
+            return firstRowUnderAnyKeyFor(secret);
+        }
+
+        @Override
+        public ProofEntity retrieveProofByY(String yHex) {
+            return rowsByY.get(yHex);
+        }
+
+        @Override
+        public String storageKeyFor(UUID mintId, String secret) {
+            for (String key : SpentProofKey.lookupKeys(secret)) {
+                if (rowsByY.containsKey(key)) {
+                    return key;
+                }
+            }
+            return SpentProofKey.issuanceKey(secret);
+        }
+
+        private ProofEntity firstRowUnderAnyKeyFor(String secret) {
+            for (String key : SpentProofKey.lookupKeys(secret)) {
+                ProofEntity stored = rowsByY.get(key);
+                if (stored != null) {
+                    return stored;
+                }
+            }
+            return null;
         }
     }
 
