@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import xyz.tcheeric.cashu.mint.rest.event.MintQuoteStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.QuoteStateChangeEvent;
 
 /**
@@ -43,6 +44,21 @@ public class QuoteStatePublisher {
                     event.getKind(),
                     event.getQuoteId(),
                     e.getMessage());
+        }
+    }
+
+    /**
+     * Handles a mint quote state change, delivering the NUT-04 response itself to
+     * {@code bolt11_mint_quote} subscribers (cashu-mint#500).
+     */
+    @Async
+    @EventListener
+    public void onMintQuoteStateChange(MintQuoteStateChangeEvent event) {
+        try {
+            subscriptionManager.publishMintQuoteState(event.getQuote());
+        } catch (Exception e) {
+            log.error("mint_quote_state_publish_error quote_id={} error={}",
+                    event.getQuote().getQuoteId(), e.getMessage());
         }
     }
 }

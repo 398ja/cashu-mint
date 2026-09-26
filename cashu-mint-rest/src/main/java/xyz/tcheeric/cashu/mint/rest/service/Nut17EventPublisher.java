@@ -10,6 +10,8 @@ import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.rest.event.MintQuoteStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.ProofStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.QuoteStateChangeEvent;
 
@@ -72,15 +74,17 @@ public class Nut17EventPublisher {
     }
 
     /**
-     * Publishes a mint quote state change.
+     * Publishes a mint quote state change, as the bolt11 status route reports the quote.
      *
-     * @param quoteId the quote ID
-     * @param payload the quote state payload
+     * <p>Takes the NUT-04 response rather than a hand-built payload, so subscribers get the same
+     * state, accounting fields and quote-kind separation as {@code GET /v1/mint/quote/bolt11/{id}}
+     * (cashu-mint#500).
+     *
+     * @param quote the quote as the bolt11 status route reports it
      */
-    public void publishMintQuoteState(String quoteId, QuoteStatePayload payload) {
-        log.debug("nut17_event_publish mint_quote quote_id={} state={}", quoteId, payload.getState());
-        eventPublisher.publishEvent(new QuoteStateChangeEvent(
-                this, SubscriptionKind.bolt11_mint_quote, quoteId, payload));
+    public void publishMintQuoteState(PostMintQuoteResponse quote) {
+        log.debug("nut17_event_publish mint_quote quote_id={} state={}", quote.getQuoteId(), quote.getState());
+        eventPublisher.publishEvent(new MintQuoteStateChangeEvent(this, quote));
     }
 
     /**

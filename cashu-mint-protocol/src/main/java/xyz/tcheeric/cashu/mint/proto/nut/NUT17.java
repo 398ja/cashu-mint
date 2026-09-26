@@ -4,6 +4,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.common.nut17.*;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -153,5 +154,20 @@ public final class NUT17 {
             @NonNull String subId,
             @NonNull QuoteStatePayload payload) {
         return JsonRpcNotification.of(subId, payload);
+    }
+
+    /**
+     * Creates a {@code bolt11_mint_quote} notification. NUT-17 says the payload is the NUT-04
+     * {@code MintQuoteResponse}, so this carries the status route's own response, accounting
+     * fields included, rather than a reduced state payload (cashu-mint#500).
+     *
+     * @param subId the subscription ID
+     * @param quote the mint quote as {@code GET /v1/mint/quote/bolt11/{id}} reports it
+     * @return the notification object
+     */
+    public static JsonRpcNotification mintQuoteStateNotification(
+            @NonNull String subId,
+            @NonNull PostMintQuoteResponse quote) {
+        return JsonRpcNotification.of(subId, quote);
     }
 }

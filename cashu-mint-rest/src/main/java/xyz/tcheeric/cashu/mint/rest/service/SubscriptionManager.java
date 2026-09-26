@@ -8,6 +8,9 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.nut17.*;
+import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -20,6 +23,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 
 /**
  * Manages NUT-17 WebSocket subscriptions.
@@ -235,6 +239,25 @@ public final class SubscriptionManager {
      * @param payload the quote state payload
      */
     public void publishQuoteState(SubscriptionKind kind, String quoteId, QuoteStatePayload payload) {
+        publish(kind, quoteId, subId -> NUT17.quoteStateNotification(subId, payload));
+    }
+
+    /**
+     * Publishes a mint quote's state to its {@code bolt11_mint_quote} subscribers.
+     *
+     * <p>NUT-17 carries the NUT-04 {@code MintQuoteResponse} itself, so the payload is the same
+     * response {@code GET /v1/mint/quote/bolt11/{id}} returns, accounting fields included
+     * (cashu-mint#500).
+     *
+     * @param quote the quote as the bolt11 status route reports it
+     */
+    public void publishMintQuoteState(PostMintQuoteResponse quote) {
+        publish(SubscriptionKind.bolt11_mint_quote, quote.getQuoteId(),
+                subId -> NUT17.mintQuoteStateNotification(subId, quote));
+    }
+
+    private void publish(SubscriptionKind kind, String quoteId,
+                         Function<String, JsonRpcNotification> notificationFor) {
         String indexKey = indexKey(kind, quoteId);
         Set<String> subIds = subscriptionIndex.get(indexKey);
         if (subIds == null || subIds.isEmpty()) {
@@ -248,8 +271,7 @@ public final class SubscriptionManager {
             WebSocketSession session = sessions.get(sub.sessionId());
             if (session == null || !session.isOpen()) continue;
 
-            JsonRpcNotification notification = NUT17.quoteStateNotification(subId, payload);
-            sendNotification(session, notification);
+            sendNotification(session, notificationFor.apply(subId));
         }
 
         log.debug("quote_state_published kind={} quote_id={} subscriber_count={}", kind, quoteId, subIds.size());
@@ -340,61 +362,53 @@ public final class SubscriptionManager {
     private record ProofStateResult(String y, String state, String witness, Exception error) {}
 
     /**
-     * Sends current mint quote states using parallel gateway queries via Virtual Threads.
+     * Sends current mint quote states, looked up in parallel on Virtual Threads.
+     *
+     * <p>Each state comes from the same lookup that serves
+     * {@code GET /v1/mint/quote/bolt11/{id}}, so the WebSocket and HTTP channels cannot disagree
+     * (cashu-mint#500): a voucher quote id is refused here as it is there, the state follows the
+     * quote's lifecycle (so {@code ISSUED} is reported), and the payload is the full NUT-04
+     * response with {@code amount_paid}, {@code amount_issued} and {@code updated_at}. A quote the
+     * route refuses produces no notification at all.
      */
     private void sendCurrentMintQuoteStates(WebSocketSession session, String subId, Set<String> quoteIds) {
         if (quoteIds.isEmpty()) {
             return;
         }
 
-        Gateway gateway;
-        try {
-            gateway = mintProtocolService.createGateway(PaymentMethod.BOLT11, defaultUnit);
-        } catch (Exception e) {
-            log.error("current_mint_quote_state_gateway_error sub_id={} error={}", subId, e.getMessage());
-            return;
-        }
-
-        // Use Virtual Thread executor for parallel gateway queries
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<QuoteStateResult>> futures = quoteIds.stream()
+            List<CompletableFuture<Optional<PostMintQuoteResponse>>> futures = quoteIds.stream()
                     .map(quoteId -> CompletableFuture.supplyAsync(
-                            () -> fetchMintQuoteState(gateway, quoteId), executor))
+                            () -> fetchMintQuoteState(quoteId), executor))
                     .toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-            for (CompletableFuture<QuoteStateResult> future : futures) {
-                QuoteStateResult result = future.getNow(null);
-                if (result != null && result.payload() != null) {
-                    JsonRpcNotification notification = NUT17.quoteStateNotification(subId, result.payload());
-                    sendNotification(session, notification);
-                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} paid={}",
-                            subId, result.quoteId(), result.payload().getPaid());
-                }
+            for (CompletableFuture<Optional<PostMintQuoteResponse>> future : futures) {
+                future.getNow(Optional.empty()).ifPresent(quote -> {
+                    sendNotification(session, NUT17.mintQuoteStateNotification(subId, quote));
+                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} state={}",
+                            subId, quote.getQuoteId(), quote.getState());
+                });
             }
         }
     }
 
-    private QuoteStateResult fetchMintQuoteState(Gateway gateway, String quoteId) {
+    /**
+     * The quote's NUT-04 state as the bolt11 status route reports it, or empty when that route
+     * refuses it (a voucher quote, an unknown id) or the lookup fails. Goes through
+     * {@link NUT04#quotePaymentStatus}, the route's own entry point, so the two channels share
+     * one lookup rather than two that could drift.
+     */
+    private Optional<PostMintQuoteResponse> fetchMintQuoteState(String quoteId) {
         try {
-            boolean paid = gateway.checkPaymentStatus(quoteId);
-            String request = gateway.getRequest(quoteId);
-            // NUT-17 carries the quote response, whose expiry is an absolute Unix timestamp.
-            int expiry = QuoteExpiry.absolute(gateway.getPaymentExpiry(quoteId),
-                    QuoteExpiry.createdAt(gateway, quoteId));
-
-            QuoteStatePayload payload = new QuoteStatePayload();
-            payload.setQuoteId(quoteId);
-            payload.setRequest(request);
-            payload.setState(paid ? "PAID" : "UNPAID");
-            payload.setPaid(paid);
-            payload.setExpiry((long) expiry);
-
-            return new QuoteStateResult(quoteId, payload, null);
+            return Optional.of(NUT04.quotePaymentStatus(quoteId, PaymentMethod.BOLT11, defaultUnit));
+        } catch (CashuErrorException refused) {
+            log.info("current_mint_quote_state_refused quote_id={} reason={}", quoteId, refused.getMessage());
+            return Optional.empty();
         } catch (Exception e) {
             log.error("current_mint_quote_state_error quote_id={} error={}", quoteId, e.getMessage());
-            return new QuoteStateResult(quoteId, null, e);
+            return Optional.empty();
         }
     }
 

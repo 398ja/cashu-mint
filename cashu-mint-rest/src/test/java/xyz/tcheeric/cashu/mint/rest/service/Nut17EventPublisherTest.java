@@ -11,7 +11,9 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
+import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
+import xyz.tcheeric.cashu.mint.rest.event.MintQuoteStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.ProofStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.QuoteStateChangeEvent;
 
@@ -103,23 +105,23 @@ class Nut17EventPublisherTest {
         assertEquals(NUT07.PENDING, captor.getValue().getState());
     }
 
-    // Tests that publishMintQuoteState emits QuoteStateChangeEvent with mint kind.
+    // A mint quote state change carries the NUT-04 response itself, as the bolt11 status route
+    // reports it, so NUT-17 subscribers get the accounting fields too (cashu-mint#500).
     @Test
-    void publishMintQuoteState_EmitsQuoteEventWithMintKind() {
-        QuoteStatePayload payload = new QuoteStatePayload();
-        payload.setQuoteId("mint-quote-123");
-        payload.setState("PAID");
-        payload.setPaid(true);
+    void publishMintQuoteState_EmitsTheNut04Response() {
+        PostMintQuoteResponse quote = PostMintQuoteResponse.builder()
+                .quoteId("mint-quote-123")
+                .state("ISSUED")
+                .amountPaid(64L)
+                .amountIssued(64L)
+                .build();
 
-        nut17EventPublisher.publishMintQuoteState("mint-quote-123", payload);
+        nut17EventPublisher.publishMintQuoteState(quote);
 
-        ArgumentCaptor<QuoteStateChangeEvent> captor = ArgumentCaptor.forClass(QuoteStateChangeEvent.class);
+        ArgumentCaptor<MintQuoteStateChangeEvent> captor = ArgumentCaptor.forClass(MintQuoteStateChangeEvent.class);
         verify(applicationEventPublisher).publishEvent(captor.capture());
 
-        QuoteStateChangeEvent event = captor.getValue();
-        assertEquals(SubscriptionKind.bolt11_mint_quote, event.getKind());
-        assertEquals("mint-quote-123", event.getQuoteId());
-        assertSame(payload, event.getPayload());
+        assertSame(quote, captor.getValue().getQuote());
     }
 
     // Tests that publishMeltQuoteState emits QuoteStateChangeEvent with melt kind.
