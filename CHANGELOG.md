@@ -18,6 +18,18 @@ pending vouchers never read as paid.
 
 ### Security
 
+- **The double-spend lookup no longer treats a programming error as "proof not found" (#488).**
+  `RSSSpendingCondition` and `VoucherSpendingCondition` caught every `Exception` from the vault
+  lookup and carried on as if the proof were unspent. That is right for a vault outage, which must
+  not block verification, but in #486 it also swallowed an NPE and silently disabled the
+  double-spend check for every proof. The catch is now `CashuErrorException | RestClientException`,
+  the only two things the lookup throws for an outage; anything else stops verification. The
+  warning logs a hashed secret id rather than the secret.
+- **An uninitialised spending condition can no longer be built (#488).** `VoucherSpendingCondition`'s
+  deprecated no-argument constructor, which had no callers and set `mint` to null, is removed, and
+  both conditions' all-arguments constructors now reject a null mint, protocol service or vault.
+  The in-verify mint guard stays as defence in depth. **Breaking** for any out-of-tree caller of
+  the no-argument constructor.
 - **The regular mint-quote status route no longer answers for voucher quotes (#494).**
   `GET /v1/mint/quote/bolt11/{id}` looked the id up in the voucher table too, and reported a voucher
   quote with its face value as `amount`. A voucher's invoice charges only a fee (10% by default), so
