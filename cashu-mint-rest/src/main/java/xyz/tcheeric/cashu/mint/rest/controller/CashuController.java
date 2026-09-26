@@ -394,33 +394,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
         // Publish mint quote state change for NUT-17 WebSocket subscribers
         if (response != null && eventPublisher != null) {
-            QuoteStatePayload payload = new QuoteStatePayload();
-            payload.setQuoteId(request.getQuoteId());
-            payload.setState("ISSUED");
-            payload.setPaid(true);
-
-            // Calculate total output amount from blinded messages
-            long totalAmount = request.getBlindedMessages().stream()
-                    .mapToLong(BlindedMessage::getAmount)
-                    .sum();
-            payload.setAmount(totalAmount);
-
-            // Enrich with request and expiry from quote lookup. The regular status route refuses
-            // voucher quote ids (#494), so a voucher mint is enriched through the voucher route.
-            try {
-                PostMintQuoteResponse quoteStatus = isVoucherQuote(request.getQuoteId())
-                        ? NUT04.voucherQuotePaymentStatus(request.getQuoteId(), paymentMethod)
-                        : NUT04.quotePaymentStatus(request.getQuoteId(), paymentMethod);
-                if (quoteStatus != null) {
-                    payload.setRequest(quoteStatus.getRequest());
-                    payload.setExpiry((long) quoteStatus.getExpiry());
-                }
-            } catch (Exception e) {
-                log.debug("mint_quote_enrichment_skipped quote_id={} reason={}",
-                        request.getQuoteId(), e.getMessage());
-            }
-
-            eventPublisher.publishMintQuoteState(request.getQuoteId(), payload);
+            publishMintQuoteStateAfterMint(request.getQuoteId(), paymentMethod);
         }
 
         return response == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(response);
@@ -675,6 +649,27 @@ public class CashuController<T extends Secret> implements org.springframework.co
     }
 
     // ---- Helpers ----
+
+    /**
+     * Tells {@code bolt11_mint_quote} subscribers that a quote was minted, with the quote exactly
+     * as {@code GET /v1/mint/quote/bolt11/{id}} now reports it (cashu-mint#500).
+     *
+     * <p>NUT-17 carries the NUT-04 response itself, so the notification is the status route's own
+     * response: lifecycle state, {@code amount_paid}, {@code amount_issued} and
+     * {@code updated_at} included, rather than a payload assembled here. A voucher quote is not
+     * published at all: the bolt11 route refuses voucher ids (#494), and announcing one over
+     * WebSocket would let a subscriber read a voucher's face value as a full payment.
+     */
+    private void publishMintQuoteStateAfterMint(String quoteId, PaymentMethod paymentMethod) {
+        if (isVoucherQuote(quoteId)) {
+            return;
+        }
+        try {
+            eventPublisher.publishMintQuoteState(NUT04.quotePaymentStatus(quoteId, paymentMethod));
+        } catch (Exception e) {
+            log.debug("mint_quote_state_publish_skipped quote_id={} reason={}", quoteId, e.getMessage());
+        }
+    }
 
     /**
      * Whether the quote id names a voucher quote, from the durable record when wired and the

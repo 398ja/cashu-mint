@@ -66,6 +66,15 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **NUT-17 `bolt11_mint_quote` notifications answer as the bolt11 status route does (#500).**
+  `SubscriptionManager` built the mint-quote payload from the payment gateway alone, so a
+  WebSocket subscription to a voucher quote id was answered `PAID`, the same leak #494 closed on
+  `GET /v1/mint/quote/bolt11/{id}`. It also never reported `ISSUED` and omitted `amount_paid`,
+  `amount_issued` and `updated_at`, which NUT-04 requires in every mint quote response and NUT-17
+  carries. The current-state reply now comes from the same `MintQuoteStatusTask` as the HTTP
+  route: a voucher or unknown quote id gets no notification, and a regular quote gets the full
+  NUT-04 response. The notification sent after a mint is the status route's response too, and a
+  voucher mint no longer publishes a bolt11 notification at all.
 - **Provisioning compensation no longer tries to delete a mint that owns a keyset (#484).**
   `VaultProvisioningAdapter.compensate` deleted the mint row unconditionally. For a mint that
   already owned a keyset, which is every mint whose provisioning was retried after its keyset

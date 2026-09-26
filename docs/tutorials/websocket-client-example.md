@@ -110,15 +110,23 @@ When the Lightning invoice is paid, terminal 1 receives a notification:
     "payload": {
       "quote": "quote-id",
       "request": "lnbc...",
+      "amount": 1000,
+      "unit": "sat",
+      "method": "bolt11",
+      "amount_paid": 1000,
+      "amount_issued": 0,
+      "updated_at": 1700000000,
       "state": "PAID",
-      "paid": true,
-      "expiry": 1700000000
+      "expiry": 1700000600,
+      "paid": true
     }
   }
 }
 ```
 
-After minting tokens with `POST /v1/mint/bolt11`, the state changes to `ISSUED`.
+The payload is the same NUT-04 response `GET /v1/mint/quote/bolt11/{quote_id}` returns. After
+minting tokens with `POST /v1/mint/bolt11`, the state changes to `ISSUED` and `amount_issued`
+catches up with `amount_paid`.
 
 ## Unsubscribe
 

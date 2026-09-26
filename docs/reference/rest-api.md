@@ -219,7 +219,10 @@ JSON-RPC 2.0 WebSocket endpoint for real-time state change notifications.
 
 **Supported subscription kinds:**
 - `proof_state` — Notifies when proofs transition between UNSPENT, PENDING, and SPENT.
-- `bolt11_mint_quote` — Notifies when mint quotes change state (UNPAID -> PAID -> ISSUED).
+- `bolt11_mint_quote`: notifies when mint quotes change state (UNPAID -> PAID -> ISSUED). The
+  payload is exactly what `GET /v1/mint/quote/bolt11/{quote_id}` returns, NUT-04 accounting fields
+  included. A voucher quote id or an unknown id gets no notification, just as that route refuses
+  them (cashu-mint#500).
 - `bolt11_melt_quote` — Notifies when melt quotes change state (UNPAID -> PENDING -> PAID).
 
 **Subscribe:**
