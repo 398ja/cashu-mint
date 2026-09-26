@@ -4,11 +4,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.impl.RequestScopedProofLookupCache;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
+import java.util.Locale;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,11 +29,11 @@ class RequestScopedProofLookupCacheTest {
     private static final java.util.UUID MINT_ID =
             java.util.UUID.fromString("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
 
-    private static final String Y =
-            "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee";
+    private static final StorageKey Y =
+            StorageKey.of("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
 
-    private static final String OTHER_Y =
-            "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2";
+    private static final StorageKey OTHER_Y =
+            StorageKey.of("02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2");
 
     @Test
     @DisplayName("Repeating a Y within one request reads the vault once")
@@ -39,14 +43,14 @@ class RequestScopedProofLookupCacheTest {
     void repeatingAYWithinOneRequestReadsTheVaultOnce() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
         ProofEntity spent = spentProof();
-        when(vault.retrieveProofByY(Y)).thenReturn(spent);
+        when(vault.retrieveProof(Y)).thenReturn(spent);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
 
         for (int mintConsulted = 0; mintConsulted < 6; mintConsulted++) {
-            assertThat(cache.retrieveProofByY(Y)).isSameAs(spent);
+            assertThat(cache.retrieveProof(Y)).isSameAs(spent);
         }
 
-        verify(vault, times(1)).retrieveProofByY(Y);
+        verify(vault, times(1)).retrieveProof(Y);
         assertThat(cache.lookupCount()).isEqualTo(1);
     }
 
@@ -56,14 +60,14 @@ class RequestScopedProofLookupCacheTest {
     // only hits would leave that case paying the full six round trips.
     void cachesTheAbsenceOfAProofNotOnlyAHit() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProofByY(Y)).thenReturn(null);
+        when(vault.retrieveProof(Y)).thenReturn(null);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
 
         for (int mintConsulted = 0; mintConsulted < 6; mintConsulted++) {
-            assertThat(cache.retrieveProofByY(Y)).isNull();
+            assertThat(cache.retrieveProof(Y)).isNull();
         }
 
-        verify(vault, times(1)).retrieveProofByY(Y);
+        verify(vault, times(1)).retrieveProof(Y);
     }
 
     @Test
@@ -72,17 +76,17 @@ class RequestScopedProofLookupCacheTest {
     void readsTheVaultOncePerDistinctY() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
         ProofEntity spent = spentProof();
-        when(vault.retrieveProofByY(Y)).thenReturn(spent);
-        when(vault.retrieveProofByY(OTHER_Y)).thenReturn(null);
+        when(vault.retrieveProof(Y)).thenReturn(spent);
+        when(vault.retrieveProof(OTHER_Y)).thenReturn(null);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
 
-        assertThat(cache.retrieveProofByY(Y)).isSameAs(spent);
-        assertThat(cache.retrieveProofByY(OTHER_Y)).isNull();
-        assertThat(cache.retrieveProofByY(Y)).isSameAs(spent);
-        assertThat(cache.retrieveProofByY(OTHER_Y)).isNull();
+        assertThat(cache.retrieveProof(Y)).isSameAs(spent);
+        assertThat(cache.retrieveProof(OTHER_Y)).isNull();
+        assertThat(cache.retrieveProof(Y)).isSameAs(spent);
+        assertThat(cache.retrieveProof(OTHER_Y)).isNull();
 
-        verify(vault, times(1)).retrieveProofByY(Y);
-        verify(vault, times(1)).retrieveProofByY(OTHER_Y);
+        verify(vault, times(1)).retrieveProof(Y);
+        verify(vault, times(1)).retrieveProof(OTHER_Y);
     }
 
     @Test
@@ -92,18 +96,18 @@ class RequestScopedProofLookupCacheTest {
     // outlived its request would report it spendable and open a double-spend window.
     void aProofSpentBetweenTwoRequestsReadsAsSpentInTheSecond() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProofByY(Y)).thenReturn(null);
+        when(vault.retrieveProof(Y)).thenReturn(null);
 
         RequestScopedProofLookupCache firstRequest = new RequestScopedProofLookupCache(vault);
-        assertThat(firstRequest.retrieveProofByY(Y)).isNull();
+        assertThat(firstRequest.retrieveProof(Y)).isNull();
 
         ProofEntity spent = spentProof();
-        when(vault.retrieveProofByY(Y)).thenReturn(spent);
+        when(vault.retrieveProof(Y)).thenReturn(spent);
 
         RequestScopedProofLookupCache secondRequest = new RequestScopedProofLookupCache(vault);
-        assertThat(secondRequest.retrieveProofByY(Y)).isSameAs(spent);
+        assertThat(secondRequest.retrieveProof(Y)).isSameAs(spent);
 
-        verify(vault, times(2)).retrieveProofByY(Y);
+        verify(vault, times(2)).retrieveProof(Y);
     }
 
     @Test
@@ -113,16 +117,16 @@ class RequestScopedProofLookupCacheTest {
     // correctness bug rather than a cache hit, so a write discards the snapshot.
     void aReadAfterAWriteIsNotAnsweredFromThePreWriteSnapshot() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProofByY(Y)).thenReturn(null);
+        when(vault.retrieveProof(Y)).thenReturn(null);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
-        assertThat(cache.retrieveProofByY(Y)).isNull();
+        assertThat(cache.retrieveProof(Y)).isNull();
 
         ProofEntity spent = spentProof();
         cache.commitSpentForHold("hold");
-        when(vault.retrieveProofByY(Y)).thenReturn(spent);
+        when(vault.retrieveProof(Y)).thenReturn(spent);
 
-        assertThat(cache.retrieveProofByY(Y)).isSameAs(spent);
-        verify(vault, times(2)).retrieveProofByY(Y);
+        assertThat(cache.retrieveProof(Y)).isSameAs(spent);
+        verify(vault, times(2)).retrieveProof(Y);
     }
 
     @Test
@@ -131,14 +135,29 @@ class RequestScopedProofLookupCacheTest {
     // swap and melt paths, so caching it would put a snapshot where state is changing.
     void secretKeyedLookupsArePassedStraightThrough() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProof(MINT_ID, "secret")).thenReturn(null);
+        ProofSecret secret = new ProofSecret("secret");
+        when(vault.retrieveProof(MINT_ID, secret)).thenReturn(null);
         RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
 
-        cache.retrieveProof(MINT_ID, "secret");
-        cache.retrieveProof(MINT_ID, "secret");
+        cache.retrieveProof(MINT_ID, secret);
+        cache.retrieveProof(MINT_ID, secret);
 
-        verify(vault, times(2)).retrieveProof(MINT_ID, "secret");
-        verify(vault, never()).retrieveProofByY(anyString());
+        verify(vault, times(2)).retrieveProof(MINT_ID, secret);
+        verify(vault, never()).retrieveProof(any(StorageKey.class));
+    }
+
+    @Test
+    @DisplayName("The same Y in either hex case is one cache entry")
+    // StorageKey normalises to lowercase, the form the vault stores, so a client that sends an
+    // uppercase Y is served the same answer and does not cost a second read.
+    void theSameYInEitherHexCaseIsOneCacheEntry() throws CashuErrorException {
+        ProofVaultService vault = Mockito.mock(ProofVaultService.class);
+        RequestScopedProofLookupCache cache = new RequestScopedProofLookupCache(vault);
+
+        cache.retrieveProof(Y);
+        cache.retrieveProof(StorageKey.of(Y.hex().toUpperCase(Locale.ROOT)));
+
+        verify(vault, times(1)).retrieveProof(Y);
     }
 
     private static ProofEntity spentProof() {

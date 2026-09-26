@@ -5,6 +5,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -22,8 +24,9 @@ import static org.mockito.ArgumentMatchers.eq;
  * {@code retrieveProof}, the input is hashed a second time and the lookup
  * silently misses every stored proof — producing a spurious UNSPENT response.
  * <p>
- * The fix introduces {@link ProofVaultService#retrieveProofByY(String)} which
- * skips the hash step. These tests pin the contract.
+ * The fix introduced a separate lookup by Y that skips the hash step, and #487 gave the two
+ * lookups distinct argument types ({@link StorageKey}, {@link ProofSecret}) so the wrong one no
+ * longer compiles. These tests pin the runtime contract behind the types.
  */
 public class DefaultProofVaultServiceTest {
 
@@ -35,8 +38,8 @@ public class DefaultProofVaultServiceTest {
      * Pre-condition: confirm {@link SecretUtil#toYFromString(String)} is NOT
      * idempotent — i.e. hashing a Y point produces a different Y'. If this
      * assertion ever flips (e.g. someone makes toYFromString detect a Y on
-     * input), the double-hash bug class disappears and this test can be
-     * deleted alongside {@code retrieveProofByY}.
+     * input), the double-hash bug class disappears and the lookup by Y is no
+     * longer load-bearing.
      */
     @Test
     public void hashToCurveIsNotIdempotentOnY() {
@@ -49,7 +52,7 @@ public class DefaultProofVaultServiceTest {
     }
 
     /**
-     * {@code retrieveProofByY} forwards its input directly to
+     * {@code retrieveProof(StorageKey)} forwards its key directly to
      * {@link DBProofVault#retrieveProof(String)} without hashing.
      *
      * <p>This lookup stays unscoped: a Y is globally unique by construction (it is a curve point
@@ -57,7 +60,7 @@ public class DefaultProofVaultServiceTest {
      * NUT-07 and NUT-17 both receive a bare list of Y values with no mint attached.
      */
     @Test
-    public void retrieveProofByYDoesNotHashInput() throws CashuErrorException {
+    public void aLookupByStorageKeyDoesNotHashIt() throws CashuErrorException {
         String yHex = "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee";
         ProofEntity expected = new ProofEntity();
 
@@ -65,9 +68,9 @@ public class DefaultProofVaultServiceTest {
             mocked.when(() -> DBProofVault.retrieveProof(eq(yHex))).thenReturn(expected);
 
             DefaultProofVaultService svc = new DefaultProofVaultService();
-            ProofEntity actual = svc.retrieveProofByY(yHex);
+            ProofEntity actual = svc.retrieveProof(StorageKey.of(yHex));
 
-            assertSame(expected, actual, "retrieveProofByY must look up by raw Y, not the hash of Y");
+            assertSame(expected, actual, "A lookup by Y must use the raw Y, not the hash of Y");
             mocked.verify(() -> DBProofVault.retrieveProof(eq(yHex)));
         }
     }
@@ -87,7 +90,7 @@ public class DefaultProofVaultServiceTest {
             mocked.when(() -> DBProofVault.retrieveProof(eq(MINT_ID.toString()), eq(expectedY))).thenReturn(expected);
 
             DefaultProofVaultService svc = new DefaultProofVaultService();
-            ProofEntity actual = svc.retrieveProof(MINT_ID, rawSecret);
+            ProofEntity actual = svc.retrieveProof(MINT_ID, new ProofSecret(rawSecret));
 
             assertSame(expected, actual);
             mocked.verify(() -> DBProofVault.retrieveProof(eq(MINT_ID.toString()), eq(expectedY)));

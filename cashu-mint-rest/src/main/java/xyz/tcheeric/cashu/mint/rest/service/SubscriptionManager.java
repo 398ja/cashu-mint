@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.nut17.*;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT17;
@@ -227,8 +228,7 @@ public final class SubscriptionManager {
             sendNotification(session, notification);
         }
 
-        String truncatedY = (y != null && y.length() > 8) ? y.substring(0, 8) : y;
-        log.debug("proof_state_published y={} state={} subscriber_count={}", truncatedY, state, subIds.size());
+        log.debug("proof_state_published y={} state={} subscriber_count={}", yPrefix(y), state, subIds.size());
     }
 
     /**
@@ -327,19 +327,25 @@ public final class SubscriptionManager {
                             subId, result.y(), result.state(), result.witness());
                     sendNotification(session, notification);
                     log.debug("current_proof_state_sent sub_id={} y_prefix={} state={}",
-                            subId, result.y().length() > 8 ? result.y().substring(0, 8) : result.y(), result.state());
+                            subId, yPrefix(result.y()), result.state());
                 }
             }
         }
     }
 
     private ProofStateResult fetchProofState(String y) {
+        StorageKey key;
         try {
-            // NUT-17 delivers the hash-to-curve point Y, exactly as NUT-07 does.
-            // retrieveProof(mintId, secret) would hash it again and miss every entry, and a miss
-            // is indistinguishable from UNSPENT here, so a subscriber would be told every proof
-            // it watches is unspent. See #485.
-            ProofEntity proofEntity = proofVaultService.retrieveProofByY(y);
+            // NUT-17 delivers the hash-to-curve point Y, exactly as NUT-07 does, and Y is the
+            // storage key (#485, #487). An id that is not a curve point names no proof: it gets no
+            // state rather than UNSPENT, and as client input it is not an error on our side.
+            key = StorageKey.of(y);
+        } catch (IllegalArgumentException notACurvePoint) {
+            log.warn("current_proof_state_invalid_y y_prefix={}", yPrefix(y));
+            return new ProofStateResult(y, null, null, notACurvePoint);
+        }
+        try {
+            ProofEntity proofEntity = proofVaultService.retrieveProof(key);
             String state;
             String witness = null;
             if (proofEntity == null) {
@@ -354,12 +360,17 @@ public final class SubscriptionManager {
             return new ProofStateResult(y, state, witness, null);
         } catch (Exception e) {
             log.error("current_proof_state_error y={} error={}",
-                    y != null && y.length() > 8 ? y.substring(0, 8) : y, e.getMessage());
+                    yPrefix(y), e.getMessage());
             return new ProofStateResult(y, null, null, e);
         }
     }
 
     private record ProofStateResult(String y, String state, String witness, Exception error) {}
+
+    /** The first eight characters of a Y, enough to correlate log lines without logging it whole. */
+    private static String yPrefix(String y) {
+        return y != null && y.length() > 8 ? y.substring(0, 8) : y;
+    }
 
     /**
      * Sends current mint quote states, looked up in parallel on Virtual Threads.

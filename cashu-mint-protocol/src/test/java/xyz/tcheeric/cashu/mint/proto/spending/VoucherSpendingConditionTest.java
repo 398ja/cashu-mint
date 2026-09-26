@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.common.nut11.P2PKVoucherSecret;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
@@ -111,7 +112,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         // Mock: keyset key lookup returns a valid key
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -206,7 +207,7 @@ class VoucherSpendingConditionTest {
         // Mock: proof in terminal STATE_SPENT
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenReturn(spent);
 
         // Act & Assert
@@ -230,13 +231,13 @@ class VoucherSpendingConditionTest {
 
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(spent);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
 
         CashuErrorException ex = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
         assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
                 "An already-SPENT voucher proof must be rejected as reused");
         Mockito.verify(mockProofVaultService)
-                .retrieveProof(UUID.fromString(MINT_ID), proof.getSecret().toString());
+                .retrieveProof(UUID.fromString(MINT_ID), ProofSecret.of(proof.getSecret()));
     }
 
     /**
@@ -275,7 +276,7 @@ class VoucherSpendingConditionTest {
             assertTrue(ex.getMessage().contains("without a mint"),
                     "The refusal must name its cause; got: " + ex.getMessage());
         }
-        Mockito.verify(mockProofVaultService, never()).retrieveProof(any(), anyString());
+        Mockito.verify(mockProofVaultService, never()).retrieveProof(any(), any(ProofSecret.class));
     }
 
     /**
@@ -319,7 +320,7 @@ class VoucherSpendingConditionTest {
     void verify_VaultLookupFails_VerificationStillProceeds() throws CashuErrorException {
         Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
 
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new CashuErrorException("vault unreachable"));
 
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -348,7 +349,7 @@ class VoucherSpendingConditionTest {
     void verify_VaultLookupThrowsUnchecked_VerificationStillProceeds() throws CashuErrorException {
         Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
 
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
 
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -375,7 +376,7 @@ class VoucherSpendingConditionTest {
     void verify_ProgrammingErrorInTheLookup_IsNotAbsorbed() throws CashuErrorException {
         Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
 
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new NullPointerException("bug in the lookup"));
 
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -407,7 +408,7 @@ class VoucherSpendingConditionTest {
 
         ProofEntity pending = new ProofEntity();
         pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenReturn(pending);
 
         // The spending condition may still fail later for an unrelated reason
@@ -432,7 +433,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         // Mock: keyset key lookup returns a valid key
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
@@ -459,7 +460,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(8, null); // null keyset ID
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         // Act & Assert
         assertThrows(CashuErrorException.class, () -> condition.verify(proof));
@@ -474,7 +475,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(8, ""); // empty keyset ID
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         // Act & Assert
         assertThrows(CashuErrorException.class, () -> condition.verify(proof));
@@ -491,7 +492,7 @@ class VoucherSpendingConditionTest {
         Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
 
         // Mock: proof not yet used
-        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         // Mock: keyset key lookup returns null (key not found)
         Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))

@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -60,7 +61,7 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
         // by that. Without a mint there is no double-spend check at all.
         UUID mintId = requireMintId();
         try {
-            proofEntity = proofVaultService.retrieveProof(mintId, secret.toString());
+            proofEntity = proofVaultService.retrieveProof(mintId, ProofSecret.of(secret));
         } catch (CashuErrorException | RestClientException vaultUnavailable) {
             // Only a vault outage is absorbed, so that an outage does not block verification.
             // Anything else is a programming error on the one path where hiding it is least

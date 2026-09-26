@@ -11,6 +11,8 @@ import org.springframework.web.socket.WebSocketSession;
 import xyz.tcheeric.cashu.common.nut17.JsonRpcNotification;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -27,12 +29,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * A {@code proof_state} subscription must report the state the vault actually holds.
  *
- * <p>NUT-17 delivers the hash-to-curve point Y on the wire, exactly as NUT-07 does. The vault has
- * two lookups that both take a {@code String}: {@code retrieveProof(mintId, secret)} hashes its
- * input to derive the storage key, and {@code retrieveProofByY(y)} does not. Handing an
+ * <p>NUT-17 delivers the hash-to-curve point Y on the wire, exactly as NUT-07 does. The vault had
+ * two lookups that both took a {@code String}: one hashed its input to derive the storage key, the
+ * other did not. Handing an
  * already-hashed Y to the hashing form hashes it a second time, so the lookup misses every row.
  * {@code SubscriptionManager.fetchProofState} maps a miss to {@code UNSPENT}, so the subscriber is
- * told its SPENT and PENDING proofs are unspent, with no exception and no log. See #485.
+ * told its SPENT and PENDING proofs are unspent, with no exception and no log. See #485. Since
+ * #487 the two take distinct types, {@code ProofSecret} and {@code StorageKey}.
  *
  * <p>These tests deliberately do not verify which vault method was called. The predecessor test did
  * exactly that and passed while the bug was live, because "the code calls this method" moves
@@ -72,18 +75,19 @@ class SubscriptionManagerReportsTrueProofStateTest {
 
     /**
      * The premise the rest of this class rests on: hashing a Y a second time yields a different
-     * value, so the hashing lookup cannot find a row stored under the true Y. If this ever flips,
-     * the whole bug class disappears and these tests can go with it.
+     * value, so the hashing lookup cannot find a row stored under the true Y. Since #487 that
+     * mistake no longer compiles by accident: a Y has to be wrapped as a {@link ProofSecret} on
+     * purpose, which is what this test does to show what the types now prevent.
      */
     @Test
     @DisplayName("the fake vault misses when an already-hashed Y reaches the hashing lookup")
     void theFakeVaultMissesWhenAnAlreadyHashedYReachesTheHashingLookup() throws Exception {
         vault.record(Y_OF_SPENT_PROOF, ProofEntity.STATE_SPENT, null);
 
-        assertThat(vault.retrieveProofByY(Y_OF_SPENT_PROOF))
+        assertThat(vault.retrieveProof(StorageKey.of(Y_OF_SPENT_PROOF)))
                 .as("the Y-keyed lookup finds the row it was stored under")
                 .isNotNull();
-        assertThat(vault.retrieveProof(UUID.randomUUID(), Y_OF_SPENT_PROOF))
+        assertThat(vault.retrieveProof(UUID.randomUUID(), new ProofSecret(Y_OF_SPENT_PROOF)))
                 .as("the hashing lookup hashes the Y again and misses, which is bug #485 in miniature")
                 .isNull();
     }
@@ -188,9 +192,9 @@ class SubscriptionManagerReportsTrueProofStateTest {
 
     /**
      * A vault keyed on the true storage key Y, with the two lookups behaving as production does:
-     * {@code retrieveProof} hashes its input with the real hash_to_curve, {@code retrieveProofByY}
-     * does not. This is what makes a double hash observable as a wrong state rather than as an
-     * unexpected method call.
+     * the secret lookup hashes its input with the real hash_to_curve, the key lookup does not.
+     * This is what makes a double hash observable as a wrong state rather than as an unexpected
+     * method call.
      */
     private static final class VaultKeyedOnTheTrueY implements ProofVaultService {
 
@@ -205,13 +209,13 @@ class SubscriptionManagerReportsTrueProofStateTest {
         }
 
         @Override
-        public ProofEntity retrieveProofByY(String yHex) {
-            return proofsByY.get(yHex);
+        public ProofEntity retrieveProof(StorageKey key) {
+            return proofsByY.get(key.hex());
         }
 
         @Override
-        public ProofEntity retrieveProof(UUID mintId, String secret) {
-            return proofsByY.get(SecretUtil.toYFromString(secret));
+        public ProofEntity retrieveProof(UUID mintId, ProofSecret secret) {
+            return proofsByY.get(SecretUtil.toYFromString(secret.value()));
         }
     }
 }

@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.error.ErrorResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
@@ -880,8 +881,10 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         if (proof.getSecret() == null) {
             return;
         }
+        // The row's `secret` column holds the storage key Y, not the secret: that is what the
+        // vault's (mint_id, secret) uniqueness is over.
         row.setSecret(proofVaultService.storageKeyFor(UUID.fromString(mint.getId()),
-                proof.getSecret().toString()));
+                ProofSecret.of(proof.getSecret())).hex());
     }
 
     /**

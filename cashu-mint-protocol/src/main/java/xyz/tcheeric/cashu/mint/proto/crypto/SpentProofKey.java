@@ -19,8 +19,9 @@ import java.util.Optional;
  * is a double-spend hole rather than a compatibility inconvenience.
  *
  * <p>This class is the single place that answers the two questions the store needs:
- * {@link #lookupKeys(String)} for "under which keys might this proof already be recorded" and
- * {@link #issuanceKey(String)} for "under which key does the mint record a proof it has issued".
+ * {@link #lookupKeys(ProofSecret)} for "under which keys might this proof already be recorded" and
+ * {@link #issuanceKey(ProofSecret)} for "under which key does the mint record a proof it has
+ * issued". It is also the only place a {@link ProofSecret} becomes a {@link StorageKey}.
  *
  * @see SecretEncoding
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/00.md">NUT-00</a>
@@ -38,10 +39,10 @@ public final class SpentProofKey {
      * <p>Encodings that cannot be applied to this secret are skipped, so the legacy key never
      * widens a lookup beyond the two points the proof could genuinely have been issued under.
      */
-    public static List<String> lookupKeys(@NonNull String secret) {
-        List<String> keys = new ArrayList<>(SecretEncoding.verificationOrder().size());
+    public static List<StorageKey> lookupKeys(@NonNull ProofSecret secret) {
+        List<StorageKey> keys = new ArrayList<>(SecretEncoding.verificationOrder().size());
         for (SecretEncoding encoding : SecretEncoding.verificationOrder()) {
-            keyUnder(secret, encoding)
+            keyUnder(secret.value(), encoding)
                     .filter(key -> !keys.contains(key))
                     .ifPresent(keys::add);
         }
@@ -52,28 +53,22 @@ public final class SpentProofKey {
      * The key a proof is recorded under when no earlier record of it exists. Issuance is never
      * ambiguous, so this is always the spec encoding.
      */
-    public static String issuanceKey(@NonNull String secret) {
-        return keyUnder(secret, SecretEncoding.forIssuance())
+    public static StorageKey issuanceKey(@NonNull ProofSecret secret) {
+        return keyUnder(secret.value(), SecretEncoding.forIssuance())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "secret cannot be encoded under " + SecretEncoding.forIssuance()));
     }
 
-    /**
-     * Answers whether the given value is already a curve point rather than a secret, so callers
-     * that may be handed either can avoid hashing an already-hashed value.
-     */
-    public static boolean isCurvePoint(@NonNull String value) {
-        return value.length() == 66 && (value.startsWith("02") || value.startsWith("03"));
-    }
-
-    private static Optional<String> keyUnder(String secret, SecretEncoding encoding) {
+    private static Optional<StorageKey> keyUnder(String secret, SecretEncoding encoding) {
         if (secret.isEmpty() || !encoding.supports(secret)) {
             return Optional.empty();
         }
+        byte[] point;
         try {
-            return Optional.of(PublicKey.fromBytes(BDHKEUtils.hashToCurve(secret, encoding)).toString());
+            point = BDHKEUtils.hashToCurve(secret, encoding);
         } catch (IllegalArgumentException inapplicable) {
             return Optional.empty();
         }
+        return Optional.of(StorageKey.of(PublicKey.fromBytes(point).toString()));
     }
 }

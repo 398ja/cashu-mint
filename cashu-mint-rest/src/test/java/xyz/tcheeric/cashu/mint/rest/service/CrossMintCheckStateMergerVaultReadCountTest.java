@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
@@ -57,7 +58,7 @@ class CrossMintCheckStateMergerVaultReadCountTest {
 
         PostCheckStateResponse response = mergerOver(vault).merge(requestFor(Y_HELD_BY_THE_VAULT));
 
-        verify(vault, times(1)).retrieveProofByY(Y_HELD_BY_THE_VAULT);
+        verify(vault, times(1)).retrieveProof(StorageKey.of(Y_HELD_BY_THE_VAULT));
         assertThat(response.getStates()).hasSize(1);
         assertThat(response.getStates().get(0).getState()).isEqualTo(NUT07.SPENT);
     }
@@ -71,7 +72,7 @@ class CrossMintCheckStateMergerVaultReadCountTest {
 
         PostCheckStateResponse response = mergerOver(vault).merge(requestFor(Y_UNKNOWN_TO_THE_VAULT));
 
-        verify(vault, times(1)).retrieveProofByY(Y_UNKNOWN_TO_THE_VAULT);
+        verify(vault, times(1)).retrieveProof(StorageKey.of(Y_UNKNOWN_TO_THE_VAULT));
         assertThat(response.getStates().get(0).getState()).isEqualTo(NUT07.UNSPENT);
     }
 
@@ -92,8 +93,8 @@ class CrossMintCheckStateMergerVaultReadCountTest {
         assertThat(response.getStates())
                 .extracting(PostCheckStateResponse.ResponseState::getState)
                 .containsExactly(NUT07.SPENT, NUT07.UNSPENT, NUT07.SPENT);
-        verify(vault, times(1)).retrieveProofByY(Y_HELD_BY_THE_VAULT);
-        verify(vault, times(1)).retrieveProofByY(Y_UNKNOWN_TO_THE_VAULT);
+        verify(vault, times(1)).retrieveProof(StorageKey.of(Y_HELD_BY_THE_VAULT));
+        verify(vault, times(1)).retrieveProof(StorageKey.of(Y_UNKNOWN_TO_THE_VAULT));
     }
 
     @Test
@@ -103,19 +104,19 @@ class CrossMintCheckStateMergerVaultReadCountTest {
     // would still read UNSPENT after being spent, which is a double-spend window.
     void aProofSpentBetweenTwoMergesReadsAsSpentInTheSecond() throws CashuErrorException {
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProofByY(Y_HELD_BY_THE_VAULT)).thenReturn(null);
+        when(vault.retrieveProof(StorageKey.of(Y_HELD_BY_THE_VAULT))).thenReturn(null);
         CrossMintCheckStateMerger merger = mergerOver(vault);
 
         PostCheckStateResponse beforeTheSpend = merger.merge(requestFor(Y_HELD_BY_THE_VAULT));
         assertThat(beforeTheSpend.getStates().get(0).getState()).isEqualTo(NUT07.UNSPENT);
 
         ProofEntity spent = proofInState(ProofEntity.STATE_SPENT);
-        when(vault.retrieveProofByY(Y_HELD_BY_THE_VAULT)).thenReturn(spent);
+        when(vault.retrieveProof(StorageKey.of(Y_HELD_BY_THE_VAULT))).thenReturn(spent);
 
         PostCheckStateResponse afterTheSpend = merger.merge(requestFor(Y_HELD_BY_THE_VAULT));
         assertThat(afterTheSpend.getStates().get(0).getState()).isEqualTo(NUT07.SPENT);
 
-        verify(vault, times(2)).retrieveProofByY(Y_HELD_BY_THE_VAULT);
+        verify(vault, times(2)).retrieveProof(StorageKey.of(Y_HELD_BY_THE_VAULT));
     }
 
     @Test
@@ -189,7 +190,7 @@ class CrossMintCheckStateMergerVaultReadCountTest {
             }
         };
         ProofVaultService vault = Mockito.mock(ProofVaultService.class);
-        when(vault.retrieveProofByY(Y_UNKNOWN_TO_THE_VAULT)).thenReturn(null);
+        when(vault.retrieveProof(StorageKey.of(Y_UNKNOWN_TO_THE_VAULT))).thenReturn(null);
         return new CrossMintCheckStateMerger(loadService, vault,
                 (mintId, request, lookupCache) -> {
                     mintsAsked.add(mintId);
@@ -205,7 +206,7 @@ class CrossMintCheckStateMergerVaultReadCountTest {
         // The stub value is built first: stubbing a mock inside a when(...) argument leaves the
         // outer stubbing unfinished and Mockito rejects it.
         ProofEntity spent = proofInState(ProofEntity.STATE_SPENT);
-        when(vault.retrieveProofByY(y)).thenReturn(spent);
+        when(vault.retrieveProof(StorageKey.of(y))).thenReturn(spent);
         return vault;
     }
 

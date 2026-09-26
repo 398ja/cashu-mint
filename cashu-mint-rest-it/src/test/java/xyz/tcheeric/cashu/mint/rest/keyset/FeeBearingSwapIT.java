@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.rest.support.ProofVaultStubs;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -138,6 +139,7 @@ class FeeBearingSwapIT extends AbstractMintDurableIT {
     MintEntity mintEntity = new MintEntity();
     mintEntity.setId(MINT_UUID);
     when(mintVaultService.retrieveMint(anyString())).thenReturn(mintEntity);
+    ProofVaultStubs.keyProofsByIssuanceKey(proofVaultService);
     java.util.Map<String, Integer> heldByHold = new java.util.concurrent.ConcurrentHashMap<>();
     when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
         .thenAnswer(invocation -> {

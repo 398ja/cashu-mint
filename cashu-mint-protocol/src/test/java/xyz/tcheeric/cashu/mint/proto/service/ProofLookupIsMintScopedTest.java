@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
@@ -37,7 +39,8 @@ import static org.mockito.ArgumentMatchers.eq;
 class ProofLookupIsMintScopedTest {
 
     private static final UUID MINT_ID = UUID.fromString("1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae");
-    private static final String SECRET = "a5c0e0a5e9e3d2c1b0a9f8e7d6c5b4a3928170615043f2e1d0c9b8a796857463";
+    private static final ProofSecret SECRET =
+            new ProofSecret("a5c0e0a5e9e3d2c1b0a9f8e7d6c5b4a3928170615043f2e1d0c9b8a796857463");
 
     private final DefaultProofVaultService service = new DefaultProofVaultService();
 
@@ -86,8 +89,8 @@ class ProofLookupIsMintScopedTest {
         @Test
         @DisplayName("still checks both NUT-00 encodings before concluding a proof is unspent")
         void stillChecksBothEncodings() throws Exception {
-            String legacyKey = SpentProofKey.lookupKeys(SECRET).get(0);
-            String otherKey = SpentProofKey.lookupKeys(SECRET).get(1);
+            String legacyKey = SpentProofKey.lookupKeys(SECRET).get(0).hex();
+            String otherKey = SpentProofKey.lookupKeys(SECRET).get(1).hex();
             ProofEntity storedUnderTheSecondKey = new ProofEntity();
 
             try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
@@ -111,10 +114,10 @@ class ProofLookupIsMintScopedTest {
         @Test
         @DisplayName("resolves the existing key scoped to the mint")
         void resolvesTheExistingKeyScopedToTheMint() throws Exception {
-            String legacyKey = SpentProofKey.lookupKeys(SECRET).get(0);
+            StorageKey legacyKey = SpentProofKey.lookupKeys(SECRET).get(0);
 
             try (MockedStatic<DBProofVault> vault = Mockito.mockStatic(DBProofVault.class)) {
-                vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyKey))
+                vault.when(() -> DBProofVault.retrieveProof(MINT_ID.toString(), legacyKey.hex()))
                         .thenReturn(new ProofEntity());
 
                 assertThat(service.storageKeyFor(MINT_ID, SECRET))
@@ -150,12 +153,12 @@ class ProofLookupIsMintScopedTest {
         ProofVaultService bare = new ProofVaultService() {
 
             @Override
-            public ProofEntity retrieveProof(UUID mintId, String secret) {
+            public ProofEntity retrieveProof(UUID mintId, ProofSecret secret) {
                 return null;
             }
 
             @Override
-            public ProofEntity retrieveProofByY(String yHex) {
+            public ProofEntity retrieveProof(StorageKey key) {
                 return null;
             }
         };

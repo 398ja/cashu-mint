@@ -30,6 +30,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.rest.support.ProofVaultStubs;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.rest.spec001.AbstractMintDurableIT;
 import xyz.tcheeric.cashu.mint.rest.spec002.support.MeltProofFixture;
@@ -125,6 +126,7 @@ class MeltBurnFirstOrderingIT extends AbstractMintDurableIT {
 
     @BeforeEach
     void setup() throws Exception {
+        ProofVaultStubs.keyProofsByIssuanceKey(proofVaultService);
         Mint mint = MeltProofFixture.mintWithKeys();
         when(mintLoadService.load(any(UUID.class), Mockito.anyBoolean())).thenReturn(mint);
         when(mintLoadService.load(Mockito.anyBoolean())).thenReturn(List.of(mint));

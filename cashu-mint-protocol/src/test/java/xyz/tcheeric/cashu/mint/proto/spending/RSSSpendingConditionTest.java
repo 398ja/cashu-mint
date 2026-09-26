@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
+import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
@@ -77,7 +78,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(null);
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(null);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -103,7 +104,7 @@ public class RSSSpendingConditionTest {
 
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(spent);
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -143,13 +144,13 @@ public class RSSSpendingConditionTest {
 
         ProofEntity spent = new ProofEntity();
         spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(spent);
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
 
         CashuErrorException ex = assertThrows(CashuErrorException.class, () -> cond.verify(proof));
         assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
                 "An already-SPENT proof must be rejected as reused");
         Mockito.verify(proofVaultService)
-                .retrieveProof(UUID.fromString(mintId), proof.getSecret().toString());
+                .retrieveProof(UUID.fromString(mintId), ProofSecret.of(proof.getSecret()));
     }
 
     /**
@@ -186,7 +187,7 @@ public class RSSSpendingConditionTest {
             assertTrue(ex.getMessage().contains("without a mint"),
                     "The refusal must name its cause; got: " + ex.getMessage());
         }
-        Mockito.verify(proofVaultService, never()).retrieveProof(any(), anyString());
+        Mockito.verify(proofVaultService, never()).retrieveProof(any(), any(ProofSecret.class));
     }
 
     /**
@@ -229,7 +230,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new CashuErrorException("vault unreachable"));
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
@@ -260,7 +261,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
@@ -289,7 +290,7 @@ public class RSSSpendingConditionTest {
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString()))
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
                 .thenThrow(new NullPointerException("bug in the lookup"));
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
@@ -319,7 +320,7 @@ public class RSSSpendingConditionTest {
 
         ProofEntity pending = new ProofEntity();
         pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(proofVaultService.retrieveProof(any(), anyString())).thenReturn(pending);
+        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(pending);
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))

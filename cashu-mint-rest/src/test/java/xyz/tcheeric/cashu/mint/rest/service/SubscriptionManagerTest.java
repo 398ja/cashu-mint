@@ -12,6 +12,7 @@ import org.springframework.web.socket.WebSocketSession;
 import xyz.tcheeric.cashu.common.nut17.JsonRpcNotification;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 
@@ -28,6 +29,10 @@ import static org.mockito.Mockito.lenient;
  */
 @ExtendWith(MockitoExtension.class)
 class SubscriptionManagerTest {
+
+    /** A real compressed point: the current-state lookup refuses anything that is not one (#487). */
+    private static final String REAL_Y =
+            "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee";
 
     private ObjectMapper objectMapper;
     private SubscriptionManager subscriptionManager;
@@ -192,9 +197,9 @@ class SubscriptionManagerTest {
     @Test
     void sendCurrentState_ProofState_UnspentWhenNotInVault() throws Exception {
         when(session1.isOpen()).thenReturn(true);
-        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(null);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(null);
 
-        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of(REAL_Y));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
 
         ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
@@ -210,9 +215,9 @@ class SubscriptionManagerTest {
         when(session1.isOpen()).thenReturn(true);
         xyz.tcheeric.cashu.vault.db.model.ProofEntity proofEntity = new xyz.tcheeric.cashu.vault.db.model.ProofEntity();
         proofEntity.setState(xyz.tcheeric.cashu.vault.db.model.ProofEntity.STATE_SPENT);
-        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(proofEntity);
 
-        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of(REAL_Y));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
 
         ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
@@ -228,9 +233,9 @@ class SubscriptionManagerTest {
         when(session1.isOpen()).thenReturn(true);
         xyz.tcheeric.cashu.vault.db.model.ProofEntity proofEntity = new xyz.tcheeric.cashu.vault.db.model.ProofEntity();
         proofEntity.setState(xyz.tcheeric.cashu.vault.db.model.ProofEntity.STATE_PENDING);
-        when(proofVaultService.retrieveProofByY("proof-y-1")).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(proofEntity);
 
-        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of(REAL_Y));
         subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
 
         ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
@@ -238,5 +243,16 @@ class SubscriptionManagerTest {
 
         String json = messageCaptor.getValue().getPayload();
         assertTrue(json.contains("PENDING"), "Should report PENDING for pending proof");
+    }
+
+    // A subscribed id that is not a curve point cannot name a proof. It gets no state at all rather
+    // than UNSPENT, which would falsely tell the subscriber the proof is spendable (#487).
+    @Test
+    void sendCurrentState_ProofState_MalformedYGetsNoState() throws Exception {
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of("proof-y-1"));
+        subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
+
+        verify(session1, never()).sendMessage(any(TextMessage.class));
+        verifyNoInteractions(proofVaultService);
     }
 }

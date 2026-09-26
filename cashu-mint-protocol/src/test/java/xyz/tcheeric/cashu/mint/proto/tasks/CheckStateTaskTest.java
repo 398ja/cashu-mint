@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateRequest;
 import xyz.tcheeric.cashu.entities.rest.nut07.PostCheckStateResponse;
+import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT07;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -44,7 +45,7 @@ public class CheckStateTaskTest {
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
-        when(proofVaultService.retrieveProofByY(secret.toString())).thenReturn(proofEntity);
+        when(proofVaultService.retrieveProof(StorageKey.of(secret))).thenReturn(proofEntity);
         when(proofEntity.getState()).thenReturn(ProofEntity.STATE_PENDING);
         when(proofEntity.getWitness()).thenReturn("wit");
 
@@ -52,7 +53,7 @@ public class CheckStateTaskTest {
         PostCheckStateResponse response = task.execute();
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProofByY(secret.toString());
+        verify(proofVaultService).retrieveProof(StorageKey.of(secret));
 
         assertEquals(1, response.getStates().size());
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
@@ -77,7 +78,7 @@ public class CheckStateTaskTest {
 
         // Mock the ProofVaultService to throw a runtime error
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        when(proofVaultService.retrieveProofByY(secret.toString()))
+        when(proofVaultService.retrieveProof(StorageKey.of(secret)))
                 .thenThrow(new IllegalStateException("fail"));
 
         // Execute
@@ -85,7 +86,7 @@ public class CheckStateTaskTest {
         assertThrows(IllegalStateException.class, task::execute);
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProofByY(secret.toString());
+        verify(proofVaultService).retrieveProof(StorageKey.of(secret));
     }
 
     // Ensures missing proofs are reported as unspent when the vault returns null.
@@ -102,13 +103,13 @@ public class CheckStateTaskTest {
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
 
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        when(proofVaultService.retrieveProofByY(secret.toString())).thenReturn(null);
+        when(proofVaultService.retrieveProof(StorageKey.of(secret))).thenReturn(null);
 
         CheckStateTask task = new CheckStateTask(mintId, request, mintProtocolService, proofVaultService, mintVaultService);
         PostCheckStateResponse response = task.execute();
 
         verify(mintVaultService).load(mintEntity, false, true);
-        verify(proofVaultService).retrieveProofByY(secret.toString());
+        verify(proofVaultService).retrieveProof(StorageKey.of(secret));
 
         PostCheckStateResponse.ResponseState state = response.getStates().get(0);
         assertEquals(NUT07.UNSPENT, state.getState());

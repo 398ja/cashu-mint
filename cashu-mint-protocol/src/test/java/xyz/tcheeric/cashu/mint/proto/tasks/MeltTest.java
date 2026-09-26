@@ -29,6 +29,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.service.ProofVaultServiceMocks;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -182,7 +183,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
@@ -234,7 +235,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
@@ -282,7 +283,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenThrow(new IllegalStateException("fail"));
 
@@ -334,7 +335,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class))).thenReturn(0);
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
@@ -585,7 +586,7 @@ public class MeltTest {
 
         MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
         Mockito.when(mintVaultService.retrieveMint(anyString())).thenReturn(new xyz.tcheeric.cashu.vault.db.model.MintEntity());
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
 
         MintLoadService mintLoadService = Mockito.mock(MintLoadService.class);
         Mint mint = new Mint(UUID.randomUUID().toString());
@@ -605,10 +606,8 @@ public class MeltTest {
      * way the real vault answers a melt whose inputs are all fresh.
      */
     private static ProofVaultService proofVaultBindingEveryInput() throws CashuErrorException {
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         java.util.Map<String, Integer> heldByHold = new java.util.concurrent.ConcurrentHashMap<>();
-        Mockito.when(proofVaultService.storageKeyFor(any(UUID.class), anyString()))
-                .thenAnswer(call -> "y-" + call.getArgument(1, String.class));
         Mockito.when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class)))
                 .thenAnswer(call -> {
                     int bound = call.getArgument(0, List.class).size();
