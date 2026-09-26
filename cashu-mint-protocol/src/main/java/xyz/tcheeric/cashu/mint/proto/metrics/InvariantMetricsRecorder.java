@@ -145,6 +145,22 @@ public interface InvariantMetricsRecorder {
     void bindPaidUnissued(Supplier<Number> value);
 
     /**
+     * Binds the issued amount of one keyset to {@code value}. Emits
+     * {@code cashu_mint_issued_amount_total{keyset}}: the total face value the
+     * mint has signed on that keyset, summed from the durable signature record
+     * (issue #491).
+     *
+     * <p>This is the "issued" side of the issued-versus-backed reconciliation.
+     * The record is append-only, so the value never falls, and it is re-derived
+     * from the database rather than accumulated in process, so a restart does
+     * not reset it. Called once per keyset, the first time a poll sees it.
+     *
+     * @param keysetId the keyset the series is labelled with
+     * @param value    supplier read on every scrape
+     */
+    void bindIssuedAmount(String keysetId, Supplier<Number> value);
+
+    /**
      * An invariant poll threw. Emits
      * {@code cashu_mint_invariant_poll_failures_total} — without it a failing
      * poll would hold a stale gauge value and silently disarm the alert.

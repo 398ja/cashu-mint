@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -43,7 +44,7 @@ public class SignBlindedMessage33ByteTest {
         byte[] thirtyThree = Hex.decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798");
 
         Mint mint = new Mint();
-        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService());
+        SignBlindedMessageTask task = new SignBlindedMessageTask(mint, blindedMessage, service, new DefaultSignatureVaultService(), SignatureSource.MINT);
 
         try (MockedStatic<BDHKEUtils> mocked = Mockito.mockStatic(BDHKEUtils.class)) {
             mocked.when(() -> BDHKEUtils.signBlindedMessage(

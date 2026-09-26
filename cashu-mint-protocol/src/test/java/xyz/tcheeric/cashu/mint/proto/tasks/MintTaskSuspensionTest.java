@@ -67,7 +67,7 @@ class MintTaskSuspensionTest {
         .extracting(t -> ((CashuErrorException) t).getErrorCode().name()).isEqualTo("mint_suspended");
 
     // Nothing may be signed or stored for a mint that is not issuing.
-    verify(signatureVaultService, never()).store(any(), any());
+    verify(signatureVaultService, never()).store(any(), any(), any());
   }
 
   @Test

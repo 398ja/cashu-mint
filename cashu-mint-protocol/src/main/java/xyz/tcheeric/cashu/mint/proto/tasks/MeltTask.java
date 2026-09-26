@@ -33,6 +33,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
@@ -554,7 +555,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         List<BlindSignature> changeSignatures = new java.util.ArrayList<>(outputs.size());
         for (BlindedMessage bm : outputs) {
             SignBlindedMessageTask sign = new SignBlindedMessageTask(
-                    mint, bm, mintProtocolService, signatureVaultService);
+                    mint, bm, mintProtocolService, signatureVaultService, SignatureSource.MELT_CHANGE);
             BlindSignature sig = sign.execute();
             changeSignatures.add(sig);
         }

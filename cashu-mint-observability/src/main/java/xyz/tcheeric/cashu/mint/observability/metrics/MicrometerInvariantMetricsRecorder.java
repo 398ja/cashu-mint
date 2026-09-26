@@ -1,10 +1,13 @@
 package xyz.tcheeric.cashu.mint.observability.metrics;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import xyz.tcheeric.cashu.mint.proto.metrics.InvariantMetricsRecorder;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -15,6 +18,13 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
 
     private final MeterRegistry registry;
     private final Counter pollFailures;
+
+    /**
+     * Holds each issued-amount supplier strongly. A function counter only keeps a weak
+     * reference to the object it reads, so without this the supplier could be collected and
+     * the series would silently start reporting NaN.
+     */
+    private final Map<String, Supplier<Number>> issuedAmountSources = new ConcurrentHashMap<>();
 
     public MicrometerInvariantMetricsRecorder(MeterRegistry registry) {
         this.registry = registry;
@@ -88,6 +98,23 @@ public class MicrometerInvariantMetricsRecorder implements InvariantMetricsRecor
                 .description("Mint quotes in PAID past the stranded TTL: payment accepted, "
                         + "nothing issued, and nothing will issue it without the client "
                         + "returning (see MintQuoteJpaRepository#countPaidUnissued)")
+                .register(registry);
+    }
+
+    /**
+     * Registered as a function counter rather than a gauge so the exposition keeps its
+     * {@code _total} suffix: the Prometheus registry strips it from gauges. The value is a
+     * sum over an append-only table, so it satisfies a counter's never-decreasing contract.
+     */
+    @Override
+    public void bindIssuedAmount(String keysetId, Supplier<Number> value) {
+        issuedAmountSources.put(keysetId, value);
+        FunctionCounter.builder("cashu_mint_issued_amount_total", value,
+                        supplier -> supplier.get().doubleValue())
+                .description("Total face value the mint has signed per keyset, summed from the "
+                        + "durable blind_signature record "
+                        + "(see BlindSignatureJpaRepository#sumIssuedAmountByKeyset)")
+                .tag("keyset", keysetId)
                 .register(registry);
     }
 
