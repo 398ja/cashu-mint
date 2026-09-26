@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.client.RestClientException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -16,6 +17,7 @@ import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.vault.db.log.SecretLogId;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
@@ -37,6 +39,10 @@ import java.util.UUID;
  * The voucher metadata (face value, issuer, etc.) is stored in the secret's NUT-10 tags
  * and does not affect the cryptographic key used for the proof.
  *
+ * <p>Every collaborator is required. A condition without a mint cannot run the double-spend check,
+ * which is scoped per mint, so that state is made unconstructible rather than merely caught at
+ * verification time (cashu-mint#488).
+ *
  * @param <T> the secret type (must be VoucherSecret)
  */
 @AllArgsConstructor
@@ -44,24 +50,16 @@ import java.util.UUID;
 public class VoucherSpendingCondition<T extends Secret> implements SpendingCondition<T> {
 
     @Setter(AccessLevel.NONE)
+    @NonNull
     private final Mint mint;
+    @NonNull
     private final MintProtocolService mintProtocolService;
+    @NonNull
     private final ProofVaultService proofVaultService;
 
     public VoucherSpendingCondition(@NonNull Mint mint,
                                     @NonNull MintProtocolService mintProtocolService) {
         this(mint, mintProtocolService, new DefaultProofVaultService());
-    }
-
-    /**
-     * Legacy constructor for backward compatibility.
-     * @deprecated Use the constructor with Mint and MintProtocolService instead.
-     */
-    @Deprecated
-    public VoucherSpendingCondition() {
-        this.mint = null;
-        this.mintProtocolService = null;
-        this.proofVaultService = new DefaultProofVaultService();
     }
 
     @Override
@@ -116,8 +114,12 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         UUID mintId = requireMintId();
         try {
             proofEntity = proofVaultService.retrieveProof(mintId, secret.toString());
-        } catch (Exception e) {
-            log.warn("Failed to retrieve proof for secret {}: {}", secret, e.getMessage(), e);
+        } catch (CashuErrorException | RestClientException vaultUnavailable) {
+            // Only a vault outage is absorbed, so that an outage does not block verification.
+            // Anything else is a programming error on the one path where hiding it is least
+            // acceptable: an NPE caught here once disabled the double-spend check (#486, #488).
+            log.warn("voucher_proof_lookup_failed secret={} reason={}",
+                    SecretLogId.of(secret.toString()), vaultUnavailable.toString());
             proofEntity = null;
         }
 
@@ -143,7 +145,7 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         log.debug("Voucher proof keyset id is valid...");
 
         // 5. Get private key from keyset (standard power-of-2 key lookup)
-        PrivateKey privateKey = getPrivateKey(proof, mint);
+        PrivateKey privateKey = getPrivateKey(proof);
         if (privateKey == null) {
             log.error("verify_proof_key_set_not_found amount={}", proof.getAmount());
             throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_not_found);
@@ -165,14 +167,9 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
      * Gets the private key for the proof amount using standard keyset lookup.
      *
      * @param proof the proof containing amount and keyset ID
-     * @param mint the mint instance
      * @return the private key for the amount, or null if not found
      */
-    private PrivateKey getPrivateKey(@NonNull Proof<T> proof, Mint mint) throws CashuErrorException {
-        if (mintProtocolService == null || mint == null) {
-            log.error("VoucherSpendingCondition not properly initialized - missing mint or protocol service");
-            return null;
-        }
+    private PrivateKey getPrivateKey(@NonNull Proof<T> proof) throws CashuErrorException {
         log.debug("Getting private key for voucher proof amount={}", proof.getAmount());
         return mintProtocolService.getPrivateKey(proof.getKeySetId(), proof.getAmount(), mint);
     }
@@ -180,14 +177,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     /**
      * The mint whose proof table the double-spend check must consult.
      *
-     * <p>Fails rather than returning null. The deprecated no-argument constructor leaves
-     * {@code mint} null, and a proof lookup without a mint cannot answer "has this been spent
-     * here": an unscoped lookup could read another mint's row, and skipping the lookup entirely
-     * would let an already-spent proof verify. Neither is an acceptable default on the path that
-     * prevents double spending, so an uninitialised condition refuses to verify at all.
+     * <p>Fails rather than returning null. The constructors reject a null mint, so this guards a
+     * mint without an id, and stays as defence in depth that documents the invariant where it is
+     * relied on. A proof lookup without a mint cannot answer "has this been spent here": an
+     * unscoped lookup could read another mint's row, and skipping the lookup entirely would let an
+     * already-spent proof verify.
      */
     private UUID requireMintId() throws CashuErrorException {
-        if (mint == null || mint.getId() == null) {
+        if (mint.getId() == null) {
             log.error("verify_proof_no_mint_error voucher_proof: cannot check for a double spend "
                     + "without a mint, refusing to verify");
             throw new CashuErrorException(

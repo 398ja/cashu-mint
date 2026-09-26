@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.web.client.ResourceAccessException;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -189,22 +190,25 @@ public class RSSSpendingConditionTest {
     }
 
     /**
-     * The same refusal when the condition holds no mint at all.
+     * A condition cannot be built without a mint, a protocol service or a vault (#488).
      *
-     * <p>The two-argument constructor rejects a null mint, but the all-arguments one does not, so a
-     * null mint is reachable and must fail the same way a mint without an id does.
+     * <p>The all-arguments constructor used to accept a null mint while the two-argument one
+     * rejected it, so the class half-believed its own invariant and the double-spend guard was the
+     * only line of defence. Now the state is unrepresentable.
      */
     @Test
-    public void verifyWithNullMintRefusesRatherThanSkippingTheDoubleSpendCheck() throws CashuErrorException {
-        RSSProof proof = createProof("ks1");
+    public void aConditionCannotBeBuiltWithoutItsCollaborators() {
+        Mint mint = createMint("ks1");
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(null, service, proofVaultService);
 
-        CashuErrorException ex = assertThrows(CashuErrorException.class, () -> cond.verify(proof));
-        assertTrue(ex.getMessage().contains("without a mint"),
-                "The refusal must name its cause; got: " + ex.getMessage());
-        Mockito.verify(proofVaultService, never()).retrieveProof(any(), anyString());
+        assertThrows(NullPointerException.class,
+                () -> new RSSSpendingCondition(null, service, proofVaultService));
+        assertThrows(NullPointerException.class,
+                () -> new RSSSpendingCondition(mint, null, proofVaultService));
+        assertThrows(NullPointerException.class,
+                () -> new RSSSpendingCondition(mint, service, null));
+        assertThrows(NullPointerException.class, () -> new RSSSpendingCondition(null, service));
     }
 
     /**
@@ -241,12 +245,11 @@ public class RSSSpendingConditionTest {
     }
 
     /**
-     * A runtime failure from the vault must be absorbed too, not only a checked one.
+     * The vault client's own unchecked failure, a {@code RestClientException}, is an outage too and
+     * is absorbed like the checked one.
      *
-     * <p>The catch is on {@code Exception}, and a remote client throws unchecked failures as
-     * readily as checked ones. Splitting this from the checked case records which breadth is
-     * actually depended upon, so narrowing the catch later shows up as a specific failure rather
-     * than as a mystery.
+     * <p>{@code ProofClient} talks to the vault through a {@code RestTemplate}, which reports a
+     * refused connection or a 5xx as a {@code RestClientException} subtype.
      */
     @Test
     public void verifyProceedsWhenTheVaultLookupThrowsUnchecked() throws CashuErrorException {
@@ -258,7 +261,7 @@ public class RSSSpendingConditionTest {
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
         Mockito.when(proofVaultService.retrieveProof(any(), anyString()))
-                .thenThrow(new IllegalStateException("connection pool exhausted"));
+                .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
 
         try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
             Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
@@ -267,6 +270,35 @@ public class RSSSpendingConditionTest {
             bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
 
             assertDoesNotThrow(() -> cond.verify(proof));
+        }
+    }
+
+    /**
+     * A programming error in the lookup is not mistaken for a vault outage (#488).
+     *
+     * <p>The catch used to be on {@code Exception}. In #486 an NPE from resolving the mint inside
+     * it was relabelled "no proof found", and the double-spend check silently passed for every
+     * proof. Only outage exceptions are absorbed now, so anything else stops verification.
+     */
+    @Test
+    public void aProgrammingErrorInTheLookupIsNotAbsorbed() throws CashuErrorException {
+        String kid = "ks1";
+        Mint mint = createMint(kid);
+        RSSProof proof = createProof(kid);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
+
+        Mockito.when(proofVaultService.retrieveProof(any(), anyString()))
+                .thenThrow(new NullPointerException("bug in the lookup"));
+
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
+                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
+            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
+
+            assertThrows(NullPointerException.class, () -> cond.verify(proof),
+                    "A bug in the double-spend lookup must stop verification, not pass as unspent");
         }
     }
 

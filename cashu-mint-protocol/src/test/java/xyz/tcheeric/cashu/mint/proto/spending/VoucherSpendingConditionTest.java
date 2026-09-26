@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.web.client.ResourceAccessException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -278,22 +279,31 @@ class VoucherSpendingConditionTest {
     }
 
     /**
-     * A condition built by the deprecated no-argument constructor must refuse to verify.
+     * A condition cannot be built without a mint, a protocol service or a vault (#488).
      *
-     * <p>That constructor sets {@code mint} to null, which is the only way to reach the guard
-     * outside of tests. Without a mint the double-spend check cannot run, and a condition that
-     * cannot run it must not report a proof as verified.
+     * <p>The deprecated no-argument constructor, which had no callers, set {@code mint} to null
+     * and was the only way to reach an uninitialised condition. It is gone, and the all-arguments
+     * constructor now rejects nulls too, so the state the double-spend guard caught is
+     * unrepresentable.
      */
     @Test
-    @SuppressWarnings("deprecation")
-    void verify_ConditionFromDeprecatedNoArgConstructor_Refuses() {
-        Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
-        VoucherSpendingCondition<VoucherSecret> uninitialised = new VoucherSpendingCondition<>();
+    void aConditionCannotBeBuiltWithoutItsCollaborators() {
+        assertThrows(NullPointerException.class,
+                () -> new VoucherSpendingCondition<VoucherSecret>(null, mockMintProtocolService, mockProofVaultService));
+        assertThrows(NullPointerException.class,
+                () -> new VoucherSpendingCondition<VoucherSecret>(mockMint, null, mockProofVaultService));
+        assertThrows(NullPointerException.class,
+                () -> new VoucherSpendingCondition<VoucherSecret>(mockMint, mockMintProtocolService, null));
+        assertThrows(NullPointerException.class,
+                () -> new VoucherSpendingCondition<VoucherSecret>(null, mockMintProtocolService));
+    }
 
-        CashuErrorException ex =
-                assertThrows(CashuErrorException.class, () -> uninitialised.verify(proof));
-        assertTrue(ex.getMessage().contains("without a mint"),
-                "An uninitialised condition must refuse rather than verify; got: " + ex.getMessage());
+    /**
+     * The uninitialised state has no way in: there is no public no-argument constructor to reach it.
+     */
+    @Test
+    void thereIsNoNoArgumentConstructor() {
+        assertThrows(NoSuchMethodException.class, () -> VoucherSpendingCondition.class.getConstructor());
     }
 
     /**
@@ -328,18 +338,18 @@ class VoucherSpendingConditionTest {
     }
 
     /**
-     * A runtime failure from the vault must be absorbed too, not only a checked one.
+     * The vault client's own unchecked failure, a {@code RestClientException}, is an outage too and
+     * is absorbed like the checked one.
      *
-     * <p>The catch is on {@code Exception}, and a remote client throws unchecked failures as
-     * readily as checked ones. Keeping this separate from the checked case records which breadth
-     * is actually depended upon, so narrowing the catch later fails in a way that names itself.
+     * <p>{@code ProofClient} talks to the vault through a {@code RestTemplate}, which reports a
+     * refused connection or a 5xx as a {@code RestClientException} subtype.
      */
     @Test
     void verify_VaultLookupThrowsUnchecked_VerificationStillProceeds() throws CashuErrorException {
         Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
 
         Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
-                .thenThrow(new IllegalStateException("connection pool exhausted"));
+                .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
 
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
         Mockito.when(mockKey.toBytes()).thenReturn(new byte[32]);
@@ -351,6 +361,34 @@ class VoucherSpendingConditionTest {
                     .thenReturn(true);
 
             assertDoesNotThrow(() -> condition.verify(proof));
+        }
+    }
+
+    /**
+     * A programming error in the lookup is not mistaken for a vault outage (#488).
+     *
+     * <p>The catch used to be on {@code Exception}. In #486 an NPE from resolving the mint inside
+     * it was relabelled "no proof found", and the double-spend check silently passed for every
+     * proof. Only outage exceptions are absorbed now, so anything else stops verification.
+     */
+    @Test
+    void verify_ProgrammingErrorInTheLookup_IsNotAbsorbed() throws CashuErrorException {
+        Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
+
+        Mockito.when(mockProofVaultService.retrieveProof(any(), anyString()))
+                .thenThrow(new NullPointerException("bug in the lookup"));
+
+        PrivateKey mockKey = Mockito.mock(PrivateKey.class);
+        Mockito.when(mockKey.toBytes()).thenReturn(new byte[32]);
+        Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
+                .thenReturn(mockKey);
+
+        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
+                    .thenReturn(true);
+
+            assertThrows(NullPointerException.class, () -> condition.verify(proof),
+                    "A bug in the double-spend lookup must stop verification, not pass as unspent");
         }
     }
 
