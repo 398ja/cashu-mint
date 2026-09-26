@@ -106,6 +106,15 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | `voucher.quote.fee-percent.max` | `100` | Maximum allowed fee percentage. |
 | `voucher.master.secret` | _(auto-generated)_ | Hex-encoded master secret for voucher key derivation. If unset, a secure random secret is generated at startup. Override with `VOUCHER_MASTER_SECRET`. |
 
+## Durable persistence
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `cashu.mint.jpa.enabled` | `false` | Wires the Postgres persistence adapters, including the durable signature vault (`JpaSignatureVaultService`, table `blind_signature`). Override with `CASHU_MINT_JPA_ENABLED`. Required outside the `local`, `test` and `websocket-test` profiles. |
+| `cashu.mint.jpa.require-in-production` | `true` | Setting `false` waives the melt-path durable-persistence guard. It does **not** waive the signature-vault guard: any profile other than `local`, `test` or `websocket-test` refuses to boot while the signature vault is the in-memory fallback. |
+
+See [Why the signature vault is durable](../explanations/durable-signature-vault.md).
+
 ## Observability
 
 | Property | Default | Description |

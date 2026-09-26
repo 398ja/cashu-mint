@@ -9,6 +9,9 @@ and `storePending` are removed. **Coordinated deploy:** requires cashu-vault 0.1
 0.1.113), and cashu-vault 0.15.0 requires this, because the vault now refuses the whole-row
 overwrite the old melt burn depended on.
 
+#491 also changes `SignatureVaultService.store` (takes a `SignatureSource`, refuses duplicates)
+and makes production refuse to boot without the durable signature vault.
+
 ### Security
 
 - **Melt no longer marks its inputs spent by overwriting their vault rows (#492).** After a paid
@@ -28,6 +31,18 @@ overwrite the old melt burn depended on.
   under the legacy NUT-00 point was claimed under the spec point, which inserted a fresh row and
   let the melt pay; the old burn re-keyed the row only after the payment had gone. The claim now
   uses `storageKeyFor`, as the swap already did, so such a proof is refused before paying.
+- **Signed outputs are recorded durably, so the mint no longer forgets them on restart or
+  across replicas (#491).** The signature vault behind duplicate-output refusal and NUT-09
+  restore was in-memory only. After a restart a client could get a second signature on a `B_`
+  the mint had already signed, NUT-09 restore returned nothing for earlier outputs, and each
+  replica kept its own record. With `cashu.mint.jpa.enabled=true` the new
+  `JpaSignatureVaultService` records every signature in a `blind_signature` table (Flyway
+  `V20260926_001`), keyed by `b_`, with keyset, amount, `C_`, DLEQ proof and source
+  (`MINT`, `SWAP`, `MELT_CHANGE`). A second signature on the same `B_` is refused with
+  `outputs_already_signed` by the primary key, including between two instances.
+- **Production refuses to boot on the in-memory signature vault (#491).**
+  `SignatureVaultStartupValidator` fails startup outside `local`, `test` and `websocket-test`
+  when the vault is not durable. `cashu.mint.jpa.require-in-production=false` does not waive it.
 
 ### Fixed
 
@@ -48,10 +63,25 @@ overwrite the old melt burn depended on.
   presented again the proof is rejected by swap as already spent (`11001`) and by melt before any
   payment. Pointed at cashu-vault 0.14.0 with `-Dcashu.vault.server.jar=...` it fails at the
   delete, which is the attack it exists to catch.
+- `cashu_mint_issued_amount_total{keyset}`: total face value signed per keyset, summed from
+  `blind_signature` by the invariant poller. The issued side of an issued-versus-backed
+  reconciliation (#491).
 
 ### Changed
 
 - imani-bom 0.1.112 -> 0.1.113, for cashu-vault 0.15.0.
+- **`SignatureVaultService.store` takes a `SignatureSource` and refuses duplicates (#491).**
+  It used to log a duplicate and keep the first signature; it now throws
+  `outputs_already_signed`. The port also gains `isDurable()`. Out-of-tree implementations
+  and callers must be updated.
+- `DefaultSignatureVaultService` is no longer a component-scanned `@Service`. It is supplied by
+  `SignatureVaultFallbackAutoConfiguration` only when no other vault is defined, so the durable
+  vault never races it for the bean.
+- A mint request whose outputs were already signed is refused while its quote is still `PAID`
+  (or `FUNDED`), so the refusal cannot strand a paid quote in `ISSUING`.
+- A swap refused after some of its outputs were recorded now spends its held inputs instead of
+  releasing them, because those outputs are already recoverable through NUT-09 restore.
+
 
 ## [0.39.0] - 2026-09-26
 
