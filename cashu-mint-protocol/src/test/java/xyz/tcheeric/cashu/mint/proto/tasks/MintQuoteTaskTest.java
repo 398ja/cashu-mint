@@ -12,9 +12,12 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,11 +37,14 @@ public class MintQuoteTaskTest {
         Mockito.when(service.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
 
         MintQuoteTask task = new MintQuoteTask(42, PaymentMethod.MOCK, service);
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response = task.execute();
+        long after = Instant.now().getEpochSecond();
 
         assertEquals("qid", response.getQuoteId());
         assertEquals("req", response.getRequest());
-        assertEquals(123L, response.getExpiry());
+        // NUT-04: the gateway's 123 s TTL becomes an absolute timestamp counted from now (#494).
+        assertTrue(response.getExpiry() >= before + 123 && response.getExpiry() <= after + 123);
         assertFalse(response.isPaid());
     }
 
@@ -48,6 +54,7 @@ public class MintQuoteTaskTest {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.getRequest("qid")).thenReturn("req");
         when(gateway.getPaymentExpiry("qid")).thenReturn(123);
+        when(gateway.getCreatedAt("qid")).thenReturn(Instant.ofEpochSecond(1_790_000_000L));
         when(gateway.checkPaymentStatus("qid")).thenReturn(true);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
@@ -58,7 +65,8 @@ public class MintQuoteTaskTest {
 
         assertEquals("qid", response.getQuoteId());
         assertEquals("req", response.getRequest());
-        assertEquals(123L, response.getExpiry());
+        // NUT-04: the 123 s TTL is counted from the gateway's creation time (#494).
+        assertEquals(1_790_000_123L, response.getExpiry());
         assertEquals(true, response.isPaid());
     }
 
@@ -117,11 +125,14 @@ public class MintQuoteTaskTest {
         // intentionally NOT passed; its verify asserts no leakage from the
         // task into any external repo handle.
         MintQuoteTask task = new MintQuoteTask(7L, PaymentMethod.MOCK, "sat", service, null, null);
+        long before = Instant.now().getEpochSecond();
         PostMintQuoteResponse response = task.execute();
+        long after = Instant.now().getEpochSecond();
 
         assertEquals("qid-legacy", response.getQuoteId());
         assertEquals("req", response.getRequest());
-        assertEquals(60L, response.getExpiry());
+        assertTrue(response.getExpiry() >= before + 60 && response.getExpiry() <= after + 60,
+                "the 60 s TTL is reported as an absolute timestamp (#494)");
         verify(repository, never()).save(Mockito.any());
         Mockito.verifyNoInteractions(repository);
     }

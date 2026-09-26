@@ -52,10 +52,13 @@ import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT09;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.MintInfo;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.cashu.mint.rest.service.CrossMintCheckStateMerger;
 import xyz.tcheeric.cashu.mint.rest.service.Nut17EventPublisher;
 import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
@@ -402,10 +405,12 @@ public class CashuController<T extends Secret> implements org.springframework.co
                     .sum();
             payload.setAmount(totalAmount);
 
-            // Enrich with request and expiry from quote lookup
+            // Enrich with request and expiry from quote lookup. The regular status route refuses
+            // voucher quote ids (#494), so a voucher mint is enriched through the voucher route.
             try {
-                PostMintQuoteResponse quoteStatus = NUT04.quotePaymentStatus(
-                        request.getQuoteId(), paymentMethod);
+                PostMintQuoteResponse quoteStatus = isVoucherQuote(request.getQuoteId())
+                        ? NUT04.voucherQuotePaymentStatus(request.getQuoteId(), paymentMethod)
+                        : NUT04.quotePaymentStatus(request.getQuoteId(), paymentMethod);
                 if (quoteStatus != null) {
                     payload.setRequest(quoteStatus.getRequest());
                     payload.setExpiry((long) quoteStatus.getExpiry());
@@ -670,6 +675,16 @@ public class CashuController<T extends Secret> implements org.springframework.co
     }
 
     // ---- Helpers ----
+
+    /**
+     * Whether the quote id names a voucher quote, from the durable record when wired and the
+     * in-memory registry otherwise. The same classification {@code MintTask} uses.
+     */
+    private static boolean isVoucherQuote(String quoteId) {
+        VoucherQuoteRepository voucherQuotes = MintIntegrityContext.voucherQuoteRepository();
+        return (voucherQuotes != null && voucherQuotes.findById(quoteId).isPresent())
+                || VoucherQuoteRegistry.isVoucherQuote(quoteId);
+    }
 
     private UUID inferMintIdFromSwapInputs(PostSwapRequest<T> request) throws CashuErrorException {
         if (request.getInputs() == null || request.getInputs().isEmpty()) {

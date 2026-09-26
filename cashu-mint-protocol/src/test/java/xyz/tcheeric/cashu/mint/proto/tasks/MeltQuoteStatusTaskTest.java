@@ -8,6 +8,8 @@ import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltQuoteResponse;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +19,7 @@ public class MeltQuoteStatusTaskTest {
     public void execute() throws CashuErrorException {
         Gateway gateway = Mockito.mock(Gateway.class);
         when(gateway.getPaymentExpiry("qid")).thenReturn(5);
+        when(gateway.getCreatedAt("qid")).thenReturn(Instant.ofEpochSecond(1_790_000_000L));
         when(gateway.checkPaymentStatus("qid")).thenReturn(true);
 
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
@@ -26,7 +29,8 @@ public class MeltQuoteStatusTaskTest {
         PostMeltQuoteResponse resp = task.execute();
 
         assertEquals("qid", resp.getQuoteId());
-        assertEquals(5L, resp.getExpiry());
+        // NUT-05: the 5 s TTL is counted from the gateway's creation time (#494).
+        assertEquals(1_790_000_005L, resp.getExpiry());
         assertEquals(true, resp.isPaid());
     }
 }
