@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-09-27
+
 **Breaking for out-of-tree `ProofVaultService` implementations:** `store`, `invalidate`, `archive`
 and `storePending` are removed. **Coordinated deploy:** requires cashu-vault 0.15.0 (imani-bom
 0.1.113), and cashu-vault 0.15.0 requires this, because the vault now refuses the whole-row
