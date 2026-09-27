@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintSuspensionRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapResponseCache;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.IdentityHasher;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingRepository;
@@ -48,6 +49,7 @@ public class MintIntegrityContextInstaller {
     private final IdentityHasher identityHasher;
     private final MintSuspensionRepository mintSuspensionRepository;
     private final SwapHoldRepository swapHoldRepository;
+    private final SwapResponseCache swapResponseCache;
     private final Environment environment;
 
     @Autowired(required = false)
@@ -74,11 +76,13 @@ public class MintIntegrityContextInstaller {
         MintIntegrityContext.installIdentityHasher(identityHasher);
         MintIntegrityContext.installMintSuspension(mintSuspensionRepository);
         MintIntegrityContext.installSwapHolds(swapHoldRepository);
-        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={}, mintSuspensionRepo={})",
+        MintIntegrityContext.installSwapResponseCache(swapResponseCache);
+        log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={}, mintSuspensionRepo={}, swapResponseCache={})",
                 quoteRepository != null, issuanceRecordRepository != null,
                 meltSagaRepository != null, lightningPaymentPort != null,
                 mintUrl, meltPaymentTimeout,
-                voucherIouPolicy, activeProfile, identityHasher != null, mintSuspensionRepository != null);
+                voucherIouPolicy, activeProfile, identityHasher != null, mintSuspensionRepository != null,
+                swapResponseCache != null);
     }
 
     @PreDestroy

@@ -145,11 +145,11 @@ class NutWiringContractTest {
         }
     }
 
-    // /v1/swap has no response cache: SwapTask rejects a replay with
-    // outputs_already_signed, so advertising it under NUT-19 would tell a wallet
-    // a retry is safe when it destroys the wallet's signatures.
+    // /v1/swap is advertised as cached now that SwapTask replays stored
+    // responses (issue #482). A wallet splitting a large spend across several
+    // swaps relies on this entry to know an ambiguous chunk is safe to replay.
     @Test
-    void swapIsNotAdvertisedAsCachedWhileItHasNoCache() {
+    void swapIsAdvertisedAsCachedBecauseItsResponsesAreReplayable() {
         Set<String> advertisedPaths = mintInfoService.getMintInfo().getNuts()
                 .get(NutSupport.CACHED_RESPONSES.key())
                 .getCachedEndpoints().stream()
@@ -157,8 +157,8 @@ class NutWiringContractTest {
                 .collect(Collectors.toCollection(TreeSet::new));
 
         assertThat(advertisedPaths)
-                .as("/v1/swap must not claim NUT-19 until SwapTask caches its responses")
-                .doesNotContain(SWAP_PATH);
+                .as("/v1/swap must be listed under NUT-19 while SwapTask caches its responses")
+                .contains(SWAP_PATH);
     }
 
     private Class<?> resolveCacheWitnessClass(CachedEndpoint endpoint) {

@@ -51,6 +51,28 @@ public final class MintIntegrityContext {
     private static volatile String voucherIouPolicy;
     private static volatile String activeProfile;
     private static volatile SwapHoldRepository swapHoldRepository;
+    private static volatile SwapResponseCache swapResponseCache;
+
+    /**
+     * Installs the NUT-19 swap response cache (issue #482). Idempotent.
+     *
+     * <p>Absent it, a replayed swap is refused with {@code outputs_already_signed}, as it was
+     * before the cache existed. Production cannot run without it, because it cannot run without
+     * the durable persistence layer that provides it.
+     */
+    public static void installSwapResponseCache(SwapResponseCache swapResponseCache) {
+        MintIntegrityContext.swapResponseCache = swapResponseCache;
+    }
+
+    /**
+     * The swap response cache, or a no-op when none is wired, so a swap needs no null check for a
+     * dependency whose absence only costs the replay.
+     */
+    public static SwapResponseCache swapResponseCache() {
+        SwapResponseCache installed = swapResponseCache;
+        return installed != null ? installed : new SwapResponseCache() {
+        };
+    }
 
     /**
      * Installs durable storage for swap holds (issue #400). Idempotent.
@@ -158,6 +180,7 @@ public final class MintIntegrityContext {
         voucherIouPolicy = null;
         activeProfile = null;
         mintSuspensionRepository = null;
+        swapResponseCache = null;
     }
 
     public static IdentityHasher identityHasher() {

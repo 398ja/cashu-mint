@@ -30,7 +30,7 @@ it cannot understate support the vectors prove.
 | NUT-11 | P2PK spending conditions | [11.md](https://github.com/cashubtc/nuts/blob/main/11.md) | `P2PKSpendingCondition` | simple |
 | NUT-12 | DLEQ proofs | [12.md](https://github.com/cashubtc/nuts/blob/main/12.md) | `DLEQProofGenerator` | simple |
 | NUT-17 | WebSocket subscriptions | [17.md](https://github.com/cashubtc/nuts/blob/main/17.md) | `NUT17`, `WebSocketHandler` | websocket |
-| NUT-19 | Cached responses | [19.md](https://github.com/cashubtc/nuts/blob/main/19.md) | `MeltSaga` response cache | cached responses |
+| NUT-19 | Cached responses | [19.md](https://github.com/cashubtc/nuts/blob/main/19.md) | `MeltSaga` response cache, `IssuanceRecord`, `SwapResponseCache` | cached responses |
 | NUT-20 | Signature on mint quote | [20.md](https://github.com/cashubtc/nuts/blob/main/20.md) | `MintQuoteSignature` (cashu-lib), enforced by `MintTask` | simple |
 
 Protocol classes live in

@@ -21,13 +21,10 @@ import lombok.RequiredArgsConstructor;
  * leaving a false promise on the wire, and no path can be added without naming
  * the store behind it.
  *
- * <p>{@code /v1/swap} is deliberately absent: {@code SwapTask} keeps no record
- * of the signatures it issued, so there is nothing to replay. Narrowing the
- * claim is the honest move — under-advertising costs a wallet one retry it could
- * have made safely, while over-advertising costs it the retry it did make.
- * Listing swap again is a matter of giving {@code SwapTask} a cache keyed on the
- * outputs fingerprint, the way the mint path is keyed on {@code outputs_hash},
- * and adding the entry here with that store as its witness.
+ * <p>{@code /v1/swap} was once listed with no cache behind it and removed for
+ * that reason. It is listed again because {@code SwapTask} now stores every
+ * successful response under a fingerprint of the request's inputs and outputs
+ * (issue #482), and the entry below names that store.
  *
  * @see <a href="https://github.com/cashubtc/nuts/blob/main/19.md">NUT-19</a>
  */
@@ -47,7 +44,20 @@ public enum CachedEndpoint {
      * verbatim on a replay.
      */
     MELT_BOLT11("POST", "/v1/melt/bolt11",
-            "xyz.tcheeric.cashu.mint.proto.ports.MeltSaga", "meltResponseCache");
+            "xyz.tcheeric.cashu.mint.proto.ports.MeltSaga", "meltResponseCache"),
+
+    /**
+     * NUT-03 swap. A replay of the identical request is answered from the
+     * swap response cache, keyed on the inputs and the outputs together so that
+     * two different swaps asking for the same outputs never share an entry.
+     *
+     * <p>The witness is the replay step {@code SwapTask} calls, not the
+     * {@code SwapResponseCache} port: the port's methods are interface defaults
+     * that would survive the swap path ceasing to consult it, which is exactly
+     * the regression this entry must catch.
+     */
+    SWAP("POST", "/v1/swap",
+            "xyz.tcheeric.cashu.mint.proto.tasks.SwapResponseReplay", "previousResponse");
 
     private final String httpMethod;
     private final String path;
