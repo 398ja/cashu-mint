@@ -69,9 +69,10 @@ re-sign:
   from the `issuance_record` row without signing, so it never reaches the vault.
 - **Melt.** NUT-08 change is signed once after the saga reaches `COMPLETED`, and a replayed
   melt is answered from the saga's response cache.
-- **Swap.** Swap is not advertised under NUT-19. A replayed swap was already refused with
-  `outputs_already_signed` by `ValidateTransactionTask`; the durable vault makes that true
-  after restarts too.
+- **Swap.** A replayed swap is answered from `swap_response_cache` without signing, so it
+  never reaches the vault (NUT-19, issue #482). A swap with the same outputs but different
+  inputs is not a replay: it is processed, and the vault refuses its outputs with
+  `outputs_already_signed`.
 
 ## Two orderings the refusal forced
 

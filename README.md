@@ -34,7 +34,7 @@ this table, when support changes**; the table below follows it.
 | NUT-11 | P2PK spending conditions | simple | `P2PKSpendingCondition` |
 | NUT-12 | DLEQ proofs | simple | `DLEQProofGenerator` |
 | NUT-17 | WebSocket subscriptions | websocket | `NUT17` |
-| NUT-19 | Cached responses | cached responses | `MeltSaga` |
+| NUT-19 | Cached responses | cached responses | `MeltSaga`, `IssuanceRecord`, `SwapResponseCache` |
 | NUT-20 | Signature on mint quote | simple | `MintQuoteSignature` (cashu-lib) |
 
 Two entries carry history worth knowing:

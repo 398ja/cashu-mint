@@ -136,23 +136,65 @@ by `ValidateTransactionTask.rejectAlreadySignedOutputs` with
 cached, and safely retried an interrupted swap would have got an error instead of
 its signatures.
 
-Each route is now a
+Each route is a
 [`CachedEndpoint`](../../cashu-mint-protocol/src/main/java/xyz/tcheeric/cashu/mint/proto/nut/CachedEndpoint.java)
 constant naming the store it replays from: `/v1/mint/bolt11` witnessed by
 `IssuanceRecord.signaturesJson`, `/v1/melt/bolt11` by
-`MeltSaga.meltResponseCache`. A path cannot be advertised without naming a cache
-that exists.
+`MeltSaga.meltResponseCache`, `/v1/swap` by `SwapResponseReplay.previousResponse`.
+A path cannot be advertised without naming a cache that exists. The swap witness is
+the replay step `SwapTask` calls rather than the `SwapResponseCache` port, because
+the port's methods are interface defaults that would outlive the swap path ceasing
+to use them.
 
-`/v1/swap` was dropped rather than given a cache. Both were on the table, and
-narrowing the claim won on asymmetry of harm: under-advertising costs a wallet
+`/v1/swap` was first dropped rather than given a cache. Both were on the table,
+and narrowing the claim won on asymmetry of harm: under-advertising costs a wallet
 one retry it could have made safely, while over-advertising costs it the retry it
-did make. A swap cache is also not a small change - it needs a durable store
-keyed on the outputs fingerprint and a replay path through the validator that
-distinguishes "these outputs were signed for this same request" from "these
-outputs were signed for a different one", which is the double-spend check itself.
-Shipping the honest advertisement now and the cache when it can be done properly
-is the safer order. When `SwapTask` gains that store, adding the enum constant
-with it as the witness is all the advertisement needs.
+did make. Shipping the honest advertisement first and the cache when it could be
+done properly was the safer order.
+
+### How the swap cache is keyed
+
+The cache arrived with issue #482, once a wallet needed it: splitting a spend of
+more than 1000 proofs across several swaps is only safe if an ambiguous chunk can
+be replayed. `SwapTask` stores every successful response in `swap_response_cache`
+under a `SwapRequestFingerprint`, and looks it up before validation, which would
+otherwise refuse the replay's spent inputs.
+
+The key is the part that needs care, because it is what tells "these outputs were
+signed for this same request" from "these outputs were signed for a different
+one":
+
+- **Inputs are in the key, not only outputs.** The mint path is keyed per quote,
+  so outputs alone are enough there. A swap has no quote, and two different swaps
+  asking for identical outputs would otherwise share an entry, handing the second
+  the first one's signatures.
+- **Input order is ignored, output order is not.** A wallet may rebuild its input
+  list in any order. The response is positional, so a reordered replay must miss
+  rather than return signatures the wallet would pair with the wrong blinding
+  factors.
+- **The NUT-11 witness is left out.** A wallet re-signs a P2PK retry, and BIP-340
+  signatures carry fresh randomness, so keying on the witness would turn every
+  locked retry into a miss. Nothing is given away: the cached signatures are over
+  the same `B_` values, and only the holder of their blinding factors can unblind
+  them.
+
+The lookup runs under the per-proof lock, so a replay racing its original on the
+same instance waits for it and then finds its response. Across instances, the
+input hold and the durable signature vault already let only one of two racing
+requests sign; the loser is refused, and its next retry finds the winner's entry.
+
+The cache is an aid to recovery, never a condition of the swap. A lookup that
+fails is a miss, and a store that fails is logged while the swap still returns its
+signatures, which stay recoverable through NUT-09 restore. Entries expire one
+`mint.capabilities.cached-response-ttl` after they are written, the same value
+`/v1/info` advertises as `ttl`.
+
+Two consequences are deliberate. A replay is not validated again, so a replay with
+a missing or wrong NUT-11 witness is still answered; it hands out nothing the
+original request did not. And the advertisement is static, like the mint and melt
+entries: a mint running without `cashu.mint.jpa.enabled` has only the no-op cache
+and refuses a replay as before. Production cannot run that way unless an operator
+waives `cashu.mint.jpa.require-in-production`.
 
 ## See also
 

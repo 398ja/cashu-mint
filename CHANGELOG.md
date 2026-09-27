@@ -264,6 +264,25 @@ pending vouchers never read as paid.
 
 ### Added
 
+- **`POST /v1/swap` is a NUT-19 cached endpoint (#482).** A successful swap response is stored
+  under a SHA-256 fingerprint of the request's inputs and outputs (`SwapRequestFingerprint`), and
+  the identical request arriving again within the advertised `ttl` gets the same blind signatures
+  back instead of `outputs_already_signed`. A wallet that lost its connection mid-swap can now
+  replay safely rather than guess, which is what imani-wallet-lib#72 needs to split a spend of
+  more than 1000 proofs across several swaps. The key covers inputs as well as outputs, so two
+  swaps asking for the same outputs never share an entry; input order is ignored, output order is
+  not (the response is positional), and the NUT-11 witness is left out so a re-signed P2PK retry
+  still replays. The store is the new `swap_response_cache` table (migration
+  `V20260927_001`), shared across replicas and restarts, with `expires_at` taken from
+  `mint.capabilities.cached-response-ttl` so the advertised and enforced lifetimes are one value.
+  Expired rows are never replayed and are deleted by `SwapResponseCachePurger` every
+  `cashu.mint.swap.response-cache-purge-interval` (default `PT5M`). `/v1/swap` is listed in
+  `nuts["19"].cached_endpoints` again, as `CachedEndpoint.SWAP` witnessed by
+  `SwapResponseReplay#previousResponse` (the step `SwapTask` calls), so `NutWiringContractTest`
+  fails the build if the replay is removed while the advertisement stays. A cache lookup or store
+  that fails never fails the swap. Like the mint and melt entries, the advertisement is static: a
+  deployment running without `cashu.mint.jpa.enabled` (only possible outside production, or with
+  `require-in-production=false`) advertises the route with no durable cache behind it.
 - **`SpentProofCannotBeRevivedIT`**, the cross-repo double-spend test from #492. It starts the
   real cashu-vault server (the `exec` jar at the BOM's version, copied by
   `maven-dependency-plugin`) on its own PostgreSQL, melts a proof, then uses the mint's own vault

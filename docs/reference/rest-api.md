@@ -77,6 +77,11 @@ Body (abridged):
 
 Returns a standard NUT-03 swap response or `400` when inputs are missing/empty.
 
+This route is a NUT-19 cached endpoint. Replaying the identical request (same inputs in any
+order, same outputs in the same order) within the advertised `ttl` returns the original
+response instead of `outputs_already_signed`. A request that differs in any input or output is
+processed as a new swap. See [what NUT-19 may claim](../explanations/mint-info-advertisement.md#what-nut-19-may-claim).
+
 ## Mint quotes
 
 ### `POST /v1/mint/quote/{method}`

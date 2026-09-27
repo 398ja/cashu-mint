@@ -64,7 +64,7 @@ Which NUTs appear in the `nuts` map is derived from the code (`NutSupport`) and 
 | `mint.capabilities.melt-methods[n].*` | as above | Same shape for melt. |
 | `mint.capabilities.mint-disabled` | `false` | Advertise minting as disabled. |
 | `mint.capabilities.melt-disabled` | `false` | Advertise melting as disabled. |
-| `mint.capabilities.cached-response-ttl` | `PT15M` | NUT-19 `ttl`; how long a cached response stays replayable. |
+| `mint.capabilities.cached-response-ttl` | `PT15M` | NUT-19 `ttl`; how long a cached response stays replayable. Also the lifetime of each `/v1/swap` cache entry. |
 
 See [why /v1/info is derived from the wiring](../explanations/mint-info-advertisement.md).
 
@@ -117,6 +117,7 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | --- | --- | --- |
 | `cashu.mint.jpa.enabled` | `false` | Wires the Postgres persistence adapters, including the durable signature vault (`JpaSignatureVaultService`, table `blind_signature`). Override with `CASHU_MINT_JPA_ENABLED`. Required outside the `local`, `test` and `websocket-test` profiles. |
 | `cashu.mint.jpa.require-in-production` | `true` | Setting `false` waives the melt-path durable-persistence guard. It does **not** waive the signature-vault guard: any profile other than `local`, `test` or `websocket-test` refuses to boot while the signature vault is the in-memory fallback. |
+| `cashu.mint.swap.response-cache-purge-interval` | `PT5M` | How often `SwapResponseCachePurger` deletes expired NUT-19 `/v1/swap` responses from `swap_response_cache`. Expired rows are never replayed whether or not the purge has run, so this only bounds the table size. |
 
 See [Why the signature vault is durable](../explanations/durable-signature-vault.md).
 

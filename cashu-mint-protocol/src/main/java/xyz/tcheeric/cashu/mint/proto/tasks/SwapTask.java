@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.IouKeysets;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapResponseCache;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -31,6 +32,7 @@ import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,6 +43,10 @@ import java.util.UUID;
  * commits that hold once the outputs are signed, and releases it if the swap fails before
  * signing. Signing first and spending afterwards would let a failure in between leave outputs
  * recoverable through NUT-09 restore while the inputs were still spendable (issue #400).
+ *
+ * <p>A successful swap is remembered under its request fingerprint, and the identical request
+ * arriving again is answered with the same signatures instead of being processed (NUT-19, issue
+ * #482). See {@link SwapResponseReplay}.
  */
 @Slf4j
 public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapResponse> {
@@ -52,6 +58,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final MintVaultService mintVaultService;
     private final ProofVaultService proofVaultService;
     private final SwapHoldRepository swapHoldRepository;
+    private final SwapResponseCache swapResponseCache;
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -84,6 +91,18 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                     @NonNull MintVaultService mintVaultService,
                     @NonNull ProofVaultService proofVaultService,
                     @NonNull SwapHoldRepository swapHoldRepository) {
+        this(mintId, request, mintLoadService, signatureVaultService, mintVaultService,
+                proofVaultService, swapHoldRepository, MintIntegrityContext.swapResponseCache());
+    }
+
+    public SwapTask(@NonNull UUID mintId,
+                    @NonNull PostSwapRequest<T> request,
+                    @NonNull MintLoadService mintLoadService,
+                    @NonNull SignatureVaultService signatureVaultService,
+                    @NonNull MintVaultService mintVaultService,
+                    @NonNull ProofVaultService proofVaultService,
+                    @NonNull SwapHoldRepository swapHoldRepository,
+                    @NonNull SwapResponseCache swapResponseCache) {
         this.mintId = mintId;
         this.request = request;
         this.mintLoadService = mintLoadService;
@@ -91,6 +110,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
         this.swapHoldRepository = swapHoldRepository;
+        this.swapResponseCache = swapResponseCache;
     }
 
     @Override
@@ -131,46 +151,65 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToSwap.stream().map(proof -> proof.getSecret().toString()).toList())) {
 
-            MintProtocolService service = MintProtocolServiceFactory.getInstance();
-
-            // This is the keyset snapshot scope boundary for a swap. It is created once here and
-            // handed to every task below that needs keysets, so one HTTP request reads each
-            // generation at most once. The alternative, each task calling
-            // KeySetDirectory.of(mintLoadService) for itself, is what left staging at a measured
-            // 22.5 keyset loads and 87 vault key GETs per swap after the per-task directory
-            // landed: correct in isolation, still repeated per task.
-            //
-            // The reference dies with this stack frame, which is entered once per POST /v1/swap,
-            // so a keyset rotation is invisible for at most one request. That is safe because it
-            // is also required: the unit rules, the archived-keyset rule and the fee arithmetic
-            // must judge every input and output of this swap against one set of keysets, and a
-            // rotation landing mid-swap would otherwise let them disagree. Nothing static, no
-            // ThreadLocal and no Spring scope, so a pooled handler thread carries nothing into
-            // the next request.
-            KeySetDirectory keySets = KeySetDirectory.of(mintLoadService);
-
-            // Validate no mixed voucher/regular proofs before verification
-            boolean isVoucherSwap = validateNoMixedProofTypes(proofsToSwap);
-
-            // Validate voucher swap amounts before signing (free splitting, but totals must match)
-            if (isVoucherSwap) {
-                validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
+            // NUT-19: looked up under the input lock, so a replay racing the original on this
+            // instance waits for it and then finds its response rather than failing on its hold.
+            // It must come before validation, which would refuse the replay's spent inputs.
+            SwapResponseReplay replay = SwapResponseReplay.of(request, swapResponseCache);
+            Optional<PostSwapResponse> previous = replay.previousResponse();
+            if (previous.isPresent()) {
+                return previous.get();
             }
 
-            new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
-                    keySets, signatureVaultService).execute();
-
-            new VerifyProofsTask<>(mint, request, service).execute();
-
-            // NUT-02: the balance equation is checked before signing, so a rejected swap
-            // leaves no blind signature behind for NUT-09 restore to hand back. Voucher
-            // swaps carry no fees and were balanced above.
-            if (!isVoucherSwap) {
-                new VerifyFeesTask<>(request, keySets).execute();
-            }
-
-            return signAgainstHeldInputs(mint, proofsToSwap, service);
+            PostSwapResponse response = validateAndSign(mint, proofsToSwap);
+            replay.remember(response);
+            return response;
         }
+    }
+
+    /**
+     * Validates the swap and, only if every rule passes, signs its outputs against held inputs.
+     */
+    private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap)
+            throws CashuErrorException {
+        MintProtocolService service = MintProtocolServiceFactory.getInstance();
+
+        // This is the keyset snapshot scope boundary for a swap. It is created once here and
+        // handed to every task below that needs keysets, so one HTTP request reads each
+        // generation at most once. The alternative, each task calling
+        // KeySetDirectory.of(mintLoadService) for itself, is what left staging at a measured
+        // 22.5 keyset loads and 87 vault key GETs per swap after the per-task directory
+        // landed: correct in isolation, still repeated per task.
+        //
+        // The reference dies with this stack frame, which is entered once per POST /v1/swap,
+        // so a keyset rotation is invisible for at most one request. That is safe because it
+        // is also required: the unit rules, the archived-keyset rule and the fee arithmetic
+        // must judge every input and output of this swap against one set of keysets, and a
+        // rotation landing mid-swap would otherwise let them disagree. Nothing static, no
+        // ThreadLocal and no Spring scope, so a pooled handler thread carries nothing into
+        // the next request.
+        KeySetDirectory keySets = KeySetDirectory.of(mintLoadService);
+
+        // Validate no mixed voucher/regular proofs before verification
+        boolean isVoucherSwap = validateNoMixedProofTypes(proofsToSwap);
+
+        // Validate voucher swap amounts before signing (free splitting, but totals must match)
+        if (isVoucherSwap) {
+            validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
+        }
+
+        new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
+                keySets, signatureVaultService).execute();
+
+        new VerifyProofsTask<>(mint, request, service).execute();
+
+        // NUT-02: the balance equation is checked before signing, so a rejected swap
+        // leaves no blind signature behind for NUT-09 restore to hand back. Voucher
+        // swaps carry no fees and were balanced above.
+        if (!isVoucherSwap) {
+            new VerifyFeesTask<>(request, keySets).execute();
+        }
+
+        return signAgainstHeldInputs(mint, proofsToSwap, service);
     }
 
     /**
