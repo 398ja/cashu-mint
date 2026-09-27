@@ -10,9 +10,14 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.CachedSwapResponse;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapHold;
+import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapResponseCache;
+import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -40,6 +45,13 @@ import java.util.Optional;
  *
  * <p>{@code CachedEndpoint.SWAP} names {@link #previousResponse()} as its witness, so removing
  * this class fails {@code NutWiringContractTest} while {@code /v1/swap} is still advertised.
+ *
+ * <p><b>Replays that race their original across instances (issue #519).</b> The input lock only
+ * serialises requests within one JVM. A replay reaching another instance while its original is
+ * still signing misses the cache and is refused by the original's hold. Rather than hand the
+ * wallet that error for a swap that is about to succeed, {@link #awaitInFlightOriginal} waits for
+ * the original's response when, and only when, a hold taken by the <em>same request</em> is still
+ * in flight. A different request whose inputs are held elsewhere is refused at once.
  */
 @Slf4j
 final class SwapResponseReplay {
@@ -48,15 +60,24 @@ final class SwapResponseReplay {
 
     private final SwapRequestFingerprint fingerprint;
     private final SwapResponseCache cache;
+    private final SwapHoldRepository holds;
 
-    private SwapResponseReplay(SwapRequestFingerprint fingerprint, SwapResponseCache cache) {
+    private SwapResponseReplay(SwapRequestFingerprint fingerprint, SwapResponseCache cache,
+                               SwapHoldRepository holds) {
         this.fingerprint = fingerprint;
         this.cache = cache;
+        this.holds = holds;
     }
 
     static <T extends Secret> SwapResponseReplay of(@NonNull PostSwapRequest<T> request,
-                                                    @NonNull SwapResponseCache cache) {
-        return new SwapResponseReplay(SwapRequestFingerprint.of(request), cache);
+                                                    @NonNull SwapResponseCache cache,
+                                                    @NonNull SwapHoldRepository holds) {
+        return new SwapResponseReplay(SwapRequestFingerprint.of(request), cache, holds);
+    }
+
+    /** The request's NUT-19 key, which the swap's own hold is recorded under. */
+    SwapRequestFingerprint fingerprint() {
+        return fingerprint;
     }
 
     /**
@@ -88,6 +109,79 @@ final class SwapResponseReplay {
                             + "this swap will be refused; its outputs remain recoverable through "
                             + "NUT-09 restore",
                     fingerprint, storeFailure);
+        }
+    }
+
+    /**
+     * Waits for the response of this same request, processed by another instance, after this
+     * attempt was refused.
+     *
+     * <p>Waits only while a hold recorded under this request's fingerprint, other than this
+     * attempt's own, is still in flight or was committed within the settle window. Without such a
+     * hold there is no original to wait for, and the refusal stands.
+     *
+     * @param ownHoldId the hold this attempt took or tried to take, which is not an original
+     * @param wait      the backoff schedule and settle window
+     * @return the original's response, or empty when there is none to wait for or it did not
+     *         arrive within the budget
+     * @throws CashuErrorException {@code internal_error} when the response that arrives cannot be
+     *                             read back
+     */
+    Optional<PostSwapResponse> awaitInFlightOriginal(@NonNull String ownHoldId,
+                                                     @NonNull InFlightReplayWait wait)
+            throws CashuErrorException {
+        if (!anOriginalIsInFlight(ownHoldId, wait)) {
+            return Optional.empty();
+        }
+        log.info("[swap][nut19] awaiting_in_flight_original request_fingerprint={}", fingerprint);
+        for (Duration pause : wait.pauses()) {
+            if (!pauseFor(pause, wait)) {
+                return Optional.empty();
+            }
+            Optional<PostSwapResponse> response = previousResponse();
+            if (response.isPresent()) {
+                return response;
+            }
+            if (!anOriginalIsInFlight(ownHoldId, wait)) {
+                return Optional.empty();
+            }
+        }
+        log.warn("[swap][nut19] in_flight_original_not_answered request_fingerprint={}", fingerprint);
+        return Optional.empty();
+    }
+
+    private boolean anOriginalIsInFlight(String ownHoldId, InFlightReplayWait wait) {
+        Instant settledBefore = wait.clock().instant().minus(wait.settleWindow());
+        try {
+            return holds.findByRequestFingerprint(fingerprint).stream()
+                    .filter(hold -> !ownHoldId.equals(hold.holdId()))
+                    .anyMatch(hold -> isInFlight(hold, settledBefore));
+        } catch (RuntimeException lookupFailure) {
+            log.warn("[swap][nut19] hold_lookup_failed request_fingerprint={} cause={}",
+                    fingerprint, lookupFailure.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * A hold that has not finished, or finished so recently that its response may still be on
+     * its way to the cache. A released hold never had a response to wait for.
+     */
+    private static boolean isInFlight(SwapHold hold, Instant settledBefore) {
+        SwapHoldPhase phase = hold.phase();
+        if (phase == SwapHoldPhase.HELD || phase == SwapHoldPhase.SIGNING) {
+            return true;
+        }
+        return phase == SwapHoldPhase.COMMITTED && hold.updatedAt().isAfter(settledBefore);
+    }
+
+    private static boolean pauseFor(Duration pause, InFlightReplayWait wait) {
+        try {
+            wait.sleeper().sleep(pause.toMillis());
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 

@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -64,17 +65,20 @@ class SwapProofHold {
     private final MintVaultService mintVaultService;
     private final ProofVaultService proofVaultService;
     private final SwapHoldRepository holdRepository;
+    private final SwapRequestFingerprint requestFingerprint;
     private final String holdId;
     private int heldCount;
 
     SwapProofHold(@NonNull UUID mintId,
                   @NonNull MintVaultService mintVaultService,
                   @NonNull ProofVaultService proofVaultService,
-                  @NonNull SwapHoldRepository holdRepository) {
+                  @NonNull SwapHoldRepository holdRepository,
+                  @NonNull SwapRequestFingerprint requestFingerprint) {
         this.mintId = mintId;
         this.holdRepository = holdRepository;
         this.mintVaultService = mintVaultService;
         this.proofVaultService = proofVaultService;
+        this.requestFingerprint = requestFingerprint;
         this.holdId = SWAP_HOLD_PREFIX + UUID.randomUUID();
     }
 
@@ -88,11 +92,16 @@ class SwapProofHold {
      * <p>A partial claim is released before returning, so a caller that sees an exception knows
      * no input is left bound to this hold.
      *
+     * <p>The hold record is opened first, so it exists from the instant any input is bound. A
+     * replay of the same request refused by this claim on another instance looks for exactly that
+     * record to decide whether to wait for this swap's response (issue #519).
+     *
      * @throws CashuErrorException {@link CashuErrorCode#proofs_not_bound} when any input could
      *                             not be claimed, which includes an input already spent or
      *                             already held by another swap or melt
      */
     <T extends Secret> void claim(@NonNull List<Proof<T>> inputs) throws CashuErrorException {
+        holdRepository.open(holdId, inputs.size(), requestFingerprint);
         int bound = claimCount(inputs);
         if (bound < inputs.size()) {
             log.warn("[swap-hold] proofs_not_bound hold_id={} expected={} bound={}",
@@ -101,7 +110,6 @@ class SwapProofHold {
             throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
         heldCount = bound;
-        holdRepository.open(holdId, bound);
         log.debug("[swap-hold] inputs_held hold_id={} count={}", holdId, bound);
     }
 

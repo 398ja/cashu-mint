@@ -114,6 +114,19 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **A `/v1/swap` replay that races its original on another replica now gets the original's
+  response (#519).** The per-proof lock only serialises one JVM, so a replay reaching a second
+  instance while the original was still signing missed the NUT-19 cache and was refused with
+  `proofs_not_bound` (or `outputs_already_signed` / already spent). Each `swap_hold` now records
+  the request fingerprint that took it (migration `V20260927_002`, column `request_fingerprint`),
+  written before the inputs are claimed. A refused attempt whose fingerprint matches another hold
+  that is still `HELD`/`SIGNING`, or `COMMITTED` within 30 seconds (wide enough to absorb clock
+  skew between replicas), waits outside the input lock, with a bounded backoff (about 8.5 s), for
+  that swap's response and returns it. A different request whose inputs are held by someone else
+  is refused immediately, as before. Every refused claim now leaves a `RELEASED` `swap_hold` row.
+  **Breaking** for out-of-tree `SwapHoldRepository` implementations: `open` now takes the request
+  fingerprint. The interface is an internal port with no published implementations, so this is
+  not a semver-major change for the mint.
 - **The voucher Nostr configuration is honoured, and a deployment can point the mint at its own
   relay (#407).** Three defects made `voucher.nostr` in `application-voucher.yml` look read while
   it was not:

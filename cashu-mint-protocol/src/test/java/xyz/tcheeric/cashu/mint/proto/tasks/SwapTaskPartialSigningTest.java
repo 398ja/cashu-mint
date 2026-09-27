@@ -26,6 +26,7 @@ import xyz.tcheeric.cashu.mint.proto.service.ProofVaultServiceMocks;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
+import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
 import java.util.ArrayList;
@@ -99,7 +100,7 @@ class SwapTaskPartialSigningTest {
         private final List<SwapHoldPhase> phases = new ArrayList<>();
 
         @Override
-        public void open(String holdId, int inputCount) {
+        public void open(String holdId, int inputCount, SwapRequestFingerprint requestFingerprint) {
         }
 
         @Override

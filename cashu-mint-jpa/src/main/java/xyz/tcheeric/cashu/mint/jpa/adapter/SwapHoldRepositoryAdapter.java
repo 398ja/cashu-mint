@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.mint.jpa.repository.SwapHoldJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHold;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
+import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,12 +30,13 @@ public class SwapHoldRepositoryAdapter implements SwapHoldRepository {
 
   @Override
   @Transactional
-  public void open(String holdId, int inputCount) {
+  public void open(String holdId, int inputCount, SwapRequestFingerprint requestFingerprint) {
     Instant now = Instant.now();
     SwapHoldEntity entity = new SwapHoldEntity();
     entity.setHoldId(holdId);
     entity.setPhase(SwapHoldPhase.HELD);
     entity.setInputCount(inputCount);
+    entity.setRequestFingerprint(requestFingerprint.hex());
     entity.setCreatedAt(now);
     entity.setUpdatedAt(now);
     holds.save(entity);
@@ -73,6 +75,12 @@ public class SwapHoldRepositoryAdapter implements SwapHoldRepository {
   @Transactional(readOnly = true)
   public Optional<SwapHold> findById(String holdId) {
     return holds.findById(holdId).map(SwapHold.class::cast);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<SwapHold> findByRequestFingerprint(SwapRequestFingerprint requestFingerprint) {
+    return List.copyOf(holds.findByRequestFingerprint(requestFingerprint.hex()));
   }
 
   @Override

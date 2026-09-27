@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.ports;
 
 import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
+import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,8 +21,18 @@ import java.util.Optional;
  */
 public interface SwapHoldRepository {
 
-    /** Records a hold in {@link SwapHoldPhase#HELD}, before the inputs are claimed. */
-    default void open(String holdId, int inputCount) {
+    /**
+     * Records a hold in {@link SwapHoldPhase#HELD}, before the inputs are claimed.
+     *
+     * <p>Before rather than after: a replay racing this swap on another instance is refused the
+     * moment the claim lands, and must already be able to find the record that tells it its
+     * original is in flight (issue #519). A claim that then fails releases the record.
+     *
+     * @param requestFingerprint the NUT-19 key of the swap that took the hold, so a replay of the
+     *                           same request arriving at another instance can tell that its
+     *                           original is still in flight (issue #519)
+     */
+    default void open(String holdId, int inputCount, SwapRequestFingerprint requestFingerprint) {
     }
 
     /**
@@ -35,6 +46,16 @@ public interface SwapHoldRepository {
 
     default Optional<SwapHold> findById(String holdId) {
         return Optional.empty();
+    }
+
+    /**
+     * Every hold taken by a swap with this request fingerprint, in any phase.
+     *
+     * <p>This is what lets a replay tell "my original is in flight on another instance" apart
+     * from "my inputs are held by a different request". Only the first is worth waiting for.
+     */
+    default List<SwapHold> findByRequestFingerprint(SwapRequestFingerprint requestFingerprint) {
+        return List.of();
     }
 
     /**

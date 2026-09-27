@@ -108,8 +108,11 @@ public class SwapTaskRejectionLeavesNoSignatureTest {
                     "validation must run before the signing loop");
             assertNull(signatureVault.retrieve(output),
                     "a rejected swap must leave no signature retrievable through NUT-09 restore");
-            assertTrue(holdCons.constructed().isEmpty(),
-                    "a rejected swap must not even hold its inputs, let alone spend them");
+            // The hold object is built before validation so a racing replay can recognise its own
+            // hold (issue #519); building it binds nothing. What must not happen is the claim.
+            for (SwapProofHold hold : holdCons.constructed()) {
+                Mockito.verify(hold, Mockito.never()).claim(any());
+            }
         }
     }
 
