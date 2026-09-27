@@ -40,6 +40,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
+import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
@@ -194,6 +195,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     protected PostMeltResponse doExecute() throws CashuErrorException {
         // TODO - Use java module instead?
         List<Proof<T>> proofsToMelt = postMeltRequest.getInputs();
+        // cashu-mint#521: the same limits as SwapTask, before any proof is locked or keyset loaded.
+        // @Valid on the REST body refuses these first; this covers a melt reaching the task without
+        // body validation, such as the deprecated direct controller entry point.
+        SecurityLimits.requireWithinInputLimit("melt_task", proofsToMelt);
+        SecurityLimits.requireWithinOutputLimit("melt_task", postMeltRequest.getOutputs());
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
             // This is the keyset snapshot scope boundary for a melt, matching SwapTask. One

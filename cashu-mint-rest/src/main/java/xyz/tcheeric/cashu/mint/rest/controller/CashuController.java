@@ -64,10 +64,13 @@ import xyz.tcheeric.cashu.mint.rest.service.Nut17EventPublisher;
 import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
 
 import org.springframework.lang.Nullable;
+import org.springframework.validation.FieldError;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -78,6 +81,13 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
     // Request ID header for tracing (matches gateway's AbstractRequestBase)
     public static final String REQUEST_ID_HEADER = "X-Request-ID";
+
+    /** The Bean Validation constraint a list over its declared maximum violates. */
+    private static final String SIZE_CONSTRAINT = "Size";
+    /** The proof list of a swap or melt body ({@code PostInputRequest.inputs}). */
+    private static final String INPUTS_FIELD = "inputs";
+    /** The blinded-message lists of the NUT bodies: swap and mint, restore, and melt change. */
+    private static final Set<String> OUTPUT_FIELDS = Set.of("blindedMessages", "outputs");
 
     // Spec 036 — trace producer seam. Spring injects this via the aware callback
     // (no constructor change). Trace application events are published here at
@@ -828,10 +838,36 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         log.warn("invalid request body: {}", detail);
-        return new ResponseEntity<>(
-                ErrorResponse.of(CashuErrorCode.internal_error,
-                        detail.isEmpty() ? "Request body failed validation" : detail),
-                HttpStatus.BAD_REQUEST);
+        return tooManyCode(ex)
+                .map(code -> respond(code, detail))
+                .orElseGet(() -> new ResponseEntity<>(
+                        ErrorResponse.of(CashuErrorCode.internal_error,
+                                detail.isEmpty() ? "Request body failed validation" : detail),
+                        HttpStatus.BAD_REQUEST));
+    }
+
+    /**
+     * The NUT-00 code for a list over its size limit (cashu-mint#521): {@code too_many_inputs}
+     * (11014) for proofs, {@code too_many_outputs} (11015) for blinded messages, or empty when the
+     * violation is something else.
+     *
+     * <p>The in-task checks in {@code SwapTask} already answer with these codes, but {@code @Valid}
+     * refuses an over-sized body first, so without this a wallet saw {@code internal_error} for the
+     * one limit it can act on: splitting the request.
+     */
+    private static Optional<CashuErrorCode> tooManyCode(MethodArgumentNotValidException ex) {
+        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            if (!SIZE_CONSTRAINT.equals(error.getCode())) {
+                continue;
+            }
+            if (INPUTS_FIELD.equals(error.getField())) {
+                return Optional.of(CashuErrorCode.too_many_inputs);
+            }
+            if (OUTPUT_FIELDS.contains(error.getField())) {
+                return Optional.of(CashuErrorCode.too_many_outputs);
+            }
+        }
+        return Optional.empty();
     }
 
     /**

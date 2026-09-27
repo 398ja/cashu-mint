@@ -114,6 +114,16 @@ pending vouchers never read as paid.
 
 ### Fixed
 
+- **An over-sized request is refused as `too_many_inputs` / `too_many_outputs`, not
+  `internal_error` (#521).** `@Valid` refuses a body whose `inputs` or blinded-message list exceeds
+  its `@Size` before any task runs, and `handleInvalidRequestBody` answered every such violation
+  with `internal_error`. So a wallet could not tell "split this request" from a malformed one; for
+  `/v1/melt`, which had no in-task check at all, that was the only answer. A `@Size` violation on
+  `inputs` now answers 11014 and one on `outputs` / `blindedMessages` 11015, on every endpoint;
+  other violations keep `internal_error`. `MeltTask` also checks both limits itself, as `SwapTask`
+  does, before locking any proof, so a melt reaching it without body validation is refused the same
+  way.
+
 - **A `/v1/swap` replay that races its original on another replica now gets the original's
   response (#519).** The per-proof lock only serialises one JVM, so a replay reaching a second
   instance while the original was still signing missed the NUT-19 cache and was refused with
