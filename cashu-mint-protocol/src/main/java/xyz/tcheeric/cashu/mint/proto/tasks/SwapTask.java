@@ -147,19 +147,8 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         List<Proof<T>> inputProofs = request.getInputs();
         List<BlindedMessage> outputMessages = request.getBlindedMessages();
 
-        if (inputProofs != null && inputProofs.size() > SecurityLimits.MAX_PROOFS) {
-            log.warn("swap_task too_many_inputs count={} max={}",
-                    inputProofs.size(), SecurityLimits.MAX_PROOFS);
-                    throw new CashuErrorException(CashuErrorCode.too_many_inputs,
-                    "Maximum " + SecurityLimits.MAX_PROOFS + " inputs allowed");
-        }
-
-        if (outputMessages != null && outputMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
-            log.warn("swap_task too_many_outputs count={} max={}",
-                    outputMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
-                    throw new CashuErrorException(CashuErrorCode.too_many_outputs,
-                    "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
-        }
+        SecurityLimits.requireWithinInputLimit("swap_task", inputProofs);
+        SecurityLimits.requireWithinOutputLimit("swap_task", outputMessages);
 
         Mint mint = mintLoadService.load(mintId, false);
         if (mint == null) {

@@ -189,12 +189,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 "Blinded messages must not be null");
 
         // Security limit check (per Oracle Secure Coding Guidelines DOS-1)
-        if (blindedMessages.size() > SecurityLimits.MAX_BLINDED_MESSAGES) {
-            log.warn("mint_task too_many_outputs count={} max={}",
-                    blindedMessages.size(), SecurityLimits.MAX_BLINDED_MESSAGES);
-                    throw new CashuErrorException(CashuErrorCode.too_many_outputs,
-                    "Maximum " + SecurityLimits.MAX_BLINDED_MESSAGES + " outputs allowed");
-        }
+        SecurityLimits.requireWithinOutputLimit("mint_task", blindedMessages);
 
         // Spec 007 — reject a null output up front, before any stream/amount
         // computation. The downstream amount-sum / hash streams dereference

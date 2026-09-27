@@ -6,6 +6,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -35,6 +37,10 @@ class NutRequestSizeLimitTest {
     private static final String POINT =
             "02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee";
     private static final int OVER_LIMIT = 1001;
+    /** NUT-00 {@code too_many_inputs} (11014): a wallet reads this as "split the request". */
+    private static final int TOO_MANY_INPUTS = CashuErrorCode.too_many_inputs.getCode();
+    /** NUT-00 {@code too_many_outputs} (11015). */
+    private static final int TOO_MANY_OUTPUTS = CashuErrorCode.too_many_outputs.getCode();
 
     private MockMvc mockMvc;
     private SignatureVaultService signatureVaultService;
@@ -58,47 +64,91 @@ class NutRequestSizeLimitTest {
                 .build();
     }
 
-    /** An over-sized swap is refused before any mint is loaded or any proof looked up. */
+    /** An over-sized swap is refused as too_many_outputs before any mint is loaded or any proof looked up. */
     @Test
     void swapRefusesMoreOutputsThanTheMaximum() throws Exception {
         String body = "{\"inputs\":[],\"outputs\":[" + blindedMessages(OVER_LIMIT) + "]}";
         mockMvc.perform(post("/v1/swap").contentType(APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_OUTPUTS));
         verifyNoInteractions(mintLoadService);
     }
 
-    /** Same for mint. */
+    /**
+     * cashu-mint#521: a swap with too many inputs answers too_many_inputs, the code SwapTask's own
+     * check uses, not the internal_error a failed validation used to produce.
+     */
+    @Test
+    void swapRefusesMoreInputsThanTheMaximumAsTooManyInputs() throws Exception {
+        String body = "{\"inputs\":[" + proofs(OVER_LIMIT) + "],\"outputs\":[" + blindedMessages(1) + "]}";
+        mockMvc.perform(post("/v1/swap").contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_INPUTS));
+        verifyNoInteractions(mintLoadService);
+    }
+
+    /** Same for mint: too_many_outputs. */
     @Test
     void mintRefusesMoreOutputsThanTheMaximum() throws Exception {
         String body = "{\"quote\":\"q-1\",\"outputs\":[" + blindedMessages(OVER_LIMIT) + "]}";
         mockMvc.perform(post("/v1/mint/bolt11").contentType(APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_OUTPUTS));
         verifyNoInteractions(mintLoadService);
     }
 
     /**
      * Melt is the one that had no bound at all — no {@code @Valid} and, unlike swap and mint, no
      * in-task {@code SecurityLimits} check either. Its inputs were limited only by the request
-     * body cap.
+     * body cap. cashu-mint#521: it now answers too_many_inputs, so a wallet can tell it apart
+     * from any other malformed request and merge its proofs.
      */
     @Test
     void meltRefusesMoreInputsThanTheMaximum() throws Exception {
         String body = "{\"quote\":\"q-1\",\"inputs\":[" + proofs(OVER_LIMIT) + "]}";
         mockMvc.perform(post("/v1/melt/bolt11").contentType(APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_INPUTS));
         verifyNoInteractions(mintLoadService);
     }
 
-    /** Restore, the endpoint the original High finding was reported against. */
+    /** A melt carrying too many NUT-08 change outputs answers too_many_outputs. */
+    @Test
+    void meltRefusesMoreChangeOutputsThanTheMaximum() throws Exception {
+        String body = "{\"quote\":\"q-1\",\"inputs\":[" + proofs(1) + "],\"outputs\":["
+                + blindedMessages(OVER_LIMIT) + "]}";
+        mockMvc.perform(post("/v1/melt/bolt11").contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_OUTPUTS));
+        verifyNoInteractions(mintLoadService);
+    }
+
+    /**
+     * Only a list over its size limit is "too many". A swap with no inputs at all violates a different
+     * constraint on the same field, and must not be answered as if it had too many.
+     */
+    @Test
+    void anEmptyInputListIsNotTooManyInputs() throws Exception {
+        String body = "{\"inputs\":[],\"outputs\":[" + blindedMessages(1) + "]}";
+        mockMvc.perform(post("/v1/swap").contentType(APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(CashuErrorCode.internal_error.getCode()));
+    }
+
+    /** Restore, the endpoint the original High finding was reported against: too_many_outputs. */
     @Test
     void restoreRefusesMoreOutputsThanTheMaximum() throws Exception {
         String body = "{\"outputs\":[" + blindedMessages(OVER_LIMIT) + "]}";
         mockMvc.perform(post("/v1/restore").contentType(APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(TOO_MANY_OUTPUTS));
         verifyNoInteractions(signatureVaultService);
     }
 
-    /** Checkstate, the other half of the original finding. */
+    /**
+     * Checkstate, the other half of the original finding. Its Ys are neither inputs nor outputs, and
+     * NUT-00 has no code for them, so it stays a plain 400.
+     */
     @Test
     void checkStateRefusesMoreSecretsThanTheMaximum() throws Exception {
         StringBuilder ys = new StringBuilder();
