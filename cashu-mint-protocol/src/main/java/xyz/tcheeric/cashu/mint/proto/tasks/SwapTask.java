@@ -51,6 +51,17 @@ import java.util.UUID;
 @Slf4j
 public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapResponse> {
 
+    /**
+     * The refusals a replay can meet while its original is still in flight on another instance:
+     * outputs the original already signed, inputs it holds, and inputs it has just spent. Anything
+     * else is a refusal the original would have met too, so there is nothing to wait for.
+     */
+    private static final Set<CashuErrorCode> REFUSALS_OF_A_RACING_REPLAY = Set.of(
+            CashuErrorCode.outputs_already_signed,
+            CashuErrorCode.proofs_not_bound,
+            CashuErrorCode.proofs_pending,
+            CashuErrorCode.verify_proof_already_used_error);
+
     private final UUID mintId;
     private final PostSwapRequest<T> request;
     private final MintLoadService mintLoadService;
@@ -59,6 +70,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final ProofVaultService proofVaultService;
     private final SwapHoldRepository swapHoldRepository;
     private final SwapResponseCache swapResponseCache;
+    private final InFlightReplayWait inFlightReplayWait;
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -103,6 +115,19 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
                     @NonNull ProofVaultService proofVaultService,
                     @NonNull SwapHoldRepository swapHoldRepository,
                     @NonNull SwapResponseCache swapResponseCache) {
+        this(mintId, request, mintLoadService, signatureVaultService, mintVaultService,
+                proofVaultService, swapHoldRepository, swapResponseCache, InFlightReplayWait.DEFAULT);
+    }
+
+    SwapTask(@NonNull UUID mintId,
+             @NonNull PostSwapRequest<T> request,
+             @NonNull MintLoadService mintLoadService,
+             @NonNull SignatureVaultService signatureVaultService,
+             @NonNull MintVaultService mintVaultService,
+             @NonNull ProofVaultService proofVaultService,
+             @NonNull SwapHoldRepository swapHoldRepository,
+             @NonNull SwapResponseCache swapResponseCache,
+             @NonNull InFlightReplayWait inFlightReplayWait) {
         this.mintId = mintId;
         this.request = request;
         this.mintLoadService = mintLoadService;
@@ -111,6 +136,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         this.proofVaultService = proofVaultService;
         this.swapHoldRepository = swapHoldRepository;
         this.swapResponseCache = swapResponseCache;
+        this.inFlightReplayWait = inFlightReplayWait;
     }
 
     @Override
@@ -148,28 +174,65 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         // Acquire per-proof locks to prevent concurrent swaps of the same proofs.
         // This serializes access similar to SERIALIZABLE transaction isolation.
         List<Proof<T>> proofsToSwap = request.getInputs();
+        SwapResponseReplay replay =
+                SwapResponseReplay.of(request, swapResponseCache, swapHoldRepository);
+        SwapProofHold hold = new SwapProofHold(mintId, mintVaultService, proofVaultService,
+                swapHoldRepository, replay.fingerprint());
+        CashuErrorException racingRefusal;
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToSwap.stream().map(proof -> proof.getSecret().toString()).toList())) {
 
             // NUT-19: looked up under the input lock, so a replay racing the original on this
             // instance waits for it and then finds its response rather than failing on its hold.
             // It must come before validation, which would refuse the replay's spent inputs.
-            SwapResponseReplay replay = SwapResponseReplay.of(request, swapResponseCache);
             Optional<PostSwapResponse> previous = replay.previousResponse();
             if (previous.isPresent()) {
                 return previous.get();
             }
 
-            PostSwapResponse response = validateAndSign(mint, proofsToSwap);
-            replay.remember(response);
-            return response;
+            try {
+                PostSwapResponse response = validateAndSign(mint, proofsToSwap, hold);
+                replay.remember(response);
+                return response;
+            } catch (CashuErrorException refusal) {
+                if (!REFUSALS_OF_A_RACING_REPLAY.contains(refusal.getErrorCode())) {
+                    throw refusal;
+                }
+                racingRefusal = refusal;
+            }
         }
+        // Outside the lock on purpose: a different request for the same inputs on this instance
+        // must be refused at once, not queue behind this replay's wait (issue #519).
+        return awaitOriginalOrRethrow(racingRefusal, hold, replay);
+    }
+
+    /**
+     * Answers a refused attempt with the response of the same request in flight on another
+     * instance, or rethrows the refusal when there is none (issue #519).
+     *
+     * <p>The input lock only serialises requests inside one JVM, so a wallet's replay can reach a
+     * second instance while its original is still signing there. It then misses the cache and is
+     * refused by the original's hold or spent inputs, although the swap is about to succeed. Only
+     * a refusal of that kind is held back, and only while a hold recorded under the same request
+     * fingerprint is in flight; a different request is refused at once.
+     *
+     * <p>A response borrowed from the original is not remembered again: it is already cached.
+     */
+    private PostSwapResponse awaitOriginalOrRethrow(CashuErrorException refusal, SwapProofHold hold,
+                                                    SwapResponseReplay replay)
+            throws CashuErrorException {
+        Optional<PostSwapResponse> original =
+                replay.awaitInFlightOriginal(hold.holdId(), inFlightReplayWait);
+        if (original.isEmpty()) {
+            throw refusal;
+        }
+        return original.get();
     }
 
     /**
      * Validates the swap and, only if every rule passes, signs its outputs against held inputs.
      */
-    private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap)
+    private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap, SwapProofHold hold)
             throws CashuErrorException {
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
@@ -209,7 +272,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             new VerifyFeesTask<>(request, keySets).execute();
         }
 
-        return signAgainstHeldInputs(mint, proofsToSwap, service);
+        return signAgainstHeldInputs(mint, proofsToSwap, service, hold);
     }
 
     /**
@@ -228,10 +291,9 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      */
     private PostSwapResponse signAgainstHeldInputs(Mint mint,
                                                    List<Proof<T>> proofsToSwap,
-                                                   MintProtocolService service)
+                                                   MintProtocolService service,
+                                                   SwapProofHold hold)
             throws CashuErrorException {
-        SwapProofHold hold =
-                new SwapProofHold(mintId, mintVaultService, proofVaultService, swapHoldRepository);
         hold.claim(proofsToSwap);
 
         List<BlindSignature> blindSignatures = new ArrayList<>(request.getBlindedMessages().size());

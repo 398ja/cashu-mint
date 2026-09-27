@@ -41,4 +41,7 @@ public interface SwapHoldJpaRepository extends JpaRepository<SwapHoldEntity, Str
       """)
   List<SwapHoldEntity> findUnresolvedOlderThan(
       @Param("unresolved") List<SwapHoldPhase> unresolved, @Param("olderThan") Instant olderThan);
+
+  /** Every hold taken by the request with this NUT-19 fingerprint (issue #519). */
+  List<SwapHoldEntity> findByRequestFingerprint(String requestFingerprint);
 }

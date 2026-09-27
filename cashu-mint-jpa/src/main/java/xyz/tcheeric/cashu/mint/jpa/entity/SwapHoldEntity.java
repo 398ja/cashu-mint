@@ -43,6 +43,13 @@ public class SwapHoldEntity implements SwapHold {
   @Column(name = "input_count", nullable = false)
   private int inputCount;
 
+  /**
+   * The NUT-19 key of the request that took the hold, so a replay on another instance can find
+   * its in-flight original (issue #519). Null on holds written before the column existed.
+   */
+  @Column(name = "request_fingerprint", length = 64)
+  private String requestFingerprint;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 

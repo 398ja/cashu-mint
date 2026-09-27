@@ -179,9 +179,27 @@ one":
   them.
 
 The lookup runs under the per-proof lock, so a replay racing its original on the
-same instance waits for it and then finds its response. Across instances, the
-input hold and the durable signature vault already let only one of two racing
-requests sign; the loser is refused, and its next retry finds the winner's entry.
+same instance waits for it and then finds its response.
+
+Across instances the lock does not reach, so a replay arriving at a second
+replica while its original is still signing misses the cache and is refused by
+the original's hold or spent inputs (issue #519). Every swap hold therefore
+records the request fingerprint it was taken for, opened before the inputs are
+claimed so it exists the moment they are bound. A refused attempt looks for a
+hold under its own fingerprint, other than its own, that is still in flight or
+was committed within the last 30 seconds. If there is one, it releases the input
+lock and waits with a bounded backoff (about 8.5 s) for that original's response
+to appear in the cache, and returns it. The window is wide because the hold's
+`updatedAt` is stamped by the other replica's clock. If there is no such hold,
+the refusal stands at once, so a different request whose inputs are held
+elsewhere is never kept waiting. Only the four refusals a racing replay can meet
+trigger the wait: `outputs_already_signed`, `proofs_not_bound`, `proofs_pending`
+and `verify_proof_already_used_error`.
+
+Two edges are accepted. If the original fails while the replay waits, the replay
+returns its refusal; the wallet's next retry then runs as a fresh swap on inputs
+that are spendable again. An original that crashed mid-signing makes its replays
+wait the full budget until `SwapHoldReconciler` resolves the hold.
 
 The cache is an aid to recovery, never a condition of the swap. A lookup that
 fails is a miss, and a store that fails is logged while the swap still returns its

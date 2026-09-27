@@ -10,12 +10,15 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,8 +40,11 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.jpa.SwapResponseCachePurger;
+import xyz.tcheeric.cashu.mint.jpa.entity.SwapHoldEntity;
 import xyz.tcheeric.cashu.mint.jpa.entity.SwapResponseCacheEntity;
+import xyz.tcheeric.cashu.mint.jpa.repository.SwapHoldJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.SwapResponseCacheJpaRepository;
+import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -83,6 +89,8 @@ class SwapResponseReplayIT extends AbstractMintDurableIT {
 
   @Autowired SwapResponseCachePurger purger;
 
+  @Autowired SwapHoldJpaRepository swapHolds;
+
   private final RestTemplate restTemplate = new RestTemplate();
 
   private static MintProtocolService originalProtocolService;
@@ -113,6 +121,7 @@ class SwapResponseReplayIT extends AbstractMintDurableIT {
   @BeforeEach
   void serveAFreeKeySetAndAClaimingVault() throws Exception {
     swapResponseCache.deleteAllInBatch();
+    swapHolds.deleteAllInBatch();
     wireFreeKeySet();
     stubVault();
   }
@@ -197,6 +206,67 @@ class SwapResponseReplayIT extends AbstractMintDurableIT {
         .as("an expired entry must not be replayed — body=%s", replay.getBody())
         .isTrue();
     assertThat(swapResponseCache.count()).as("the purge removes expired entries").isZero();
+  }
+
+  // Issue #519: the replay reaches this instance while its original is still signing on another.
+  // Simulated by putting the original's real hold back into SIGNING and storing its response only
+  // after the replay has arrived. The replay waits for it instead of failing.
+  @Test
+  void aReplayRacingItsOriginalOnAnotherInstanceGetsTheOriginalsResponse() throws Exception {
+    String request = swapRequest(List.of(proofJson(8)), List.of(blindedMessageJson(8)));
+    ResponseEntity<String> original = postSwap(request);
+    assertThat(original.getStatusCode().is2xxSuccessful()).as("body=%s", original.getBody()).isTrue();
+    SwapResponseCacheEntity stored = swapResponseCache.findAll().get(0);
+    putTheOriginalBackInFlight(stored.getRequestFingerprint());
+    swapResponseCache.deleteAllInBatch();
+
+    CompletableFuture<Void> originalFinishes = CompletableFuture.runAsync(
+        () -> restore(stored), CompletableFuture.delayedExecutor(700, TimeUnit.MILLISECONDS));
+    ResponseEntity<String> replay = postSwap(request);
+    originalFinishes.join();
+
+    assertThat(replay.getStatusCode().is2xxSuccessful())
+        .as("a replay racing its in-flight original must get its response — body=%s", replay.getBody())
+        .isTrue();
+    assertThat(MAPPER.readTree(replay.getBody()).get("signatures"))
+        .isEqualTo(MAPPER.readTree(original.getBody()).get("signatures"));
+  }
+
+  // Issue #519: a different request is not kept waiting because some other swap is in flight.
+  // It asks for the same outputs as an in-flight swap, is refused, and is refused promptly.
+  @Test
+  void aDifferentRequestIsRefusedWithoutWaitingForAnInFlightSwap() throws Exception {
+    List<Map<String, Object>> outputs = List.of(blindedMessageJson(8));
+    assertThat(postSwap(swapRequest(List.of(proofJson(8)), outputs)).getStatusCode().is2xxSuccessful())
+        .isTrue();
+    putTheOriginalBackInFlight(swapResponseCache.findAll().get(0).getRequestFingerprint());
+
+    long started = System.nanoTime();
+    ResponseEntity<String> different = postSwap(swapRequest(List.of(proofJson(8)), outputs));
+    Duration took = Duration.ofNanos(System.nanoTime() - started);
+
+    assertThat(different.getBody()).contains("\"code\":" + OUTPUTS_ALREADY_SIGNED);
+    assertThat(took).as("nothing of this request is in flight, so it must not wait")
+        .isLessThan(Duration.ofSeconds(1));
+  }
+
+  /** Makes the hold taken by the given request look like a swap still signing elsewhere. */
+  private void putTheOriginalBackInFlight(String requestFingerprint) {
+    List<SwapHoldEntity> holds = swapHolds.findByRequestFingerprint(requestFingerprint);
+    assertThat(holds).as("the swap recorded its hold under its request fingerprint").hasSize(1);
+    SwapHoldEntity hold = holds.get(0);
+    hold.setPhase(SwapHoldPhase.SIGNING);
+    hold.setUpdatedAt(Instant.now());
+    swapHolds.saveAndFlush(hold);
+  }
+
+  private void restore(SwapResponseCacheEntity stored) {
+    SwapResponseCacheEntity again = new SwapResponseCacheEntity();
+    again.setRequestFingerprint(stored.getRequestFingerprint());
+    again.setResponseJson(stored.getResponseJson());
+    again.setCreatedAt(Instant.now());
+    again.setExpiresAt(Instant.now().plusSeconds(900));
+    swapResponseCache.saveAndFlush(again);
   }
 
   private void expireEveryCachedResponse() {
