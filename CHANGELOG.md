@@ -4,6 +4,34 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **An unlocked voucher's issuer signature and expiry are now actually checked (#525).** An
+  unlocked voucher reaches the mint as `["VOUCHER", <cbor blob>, nonce, []]`: its terms live in
+  CBOR inside `data` and the tag array is **empty**. Every check in `VoucherSpendingCondition`
+  read tags, so for these vouchers they all found nothing and passed. No signature check, no
+  expiry check, no issuer binding, and a forged signature was never compared against anything.
+  The blob is now decoded with `UnlockedVoucherBlob` and the existing checks run against the
+  voucher it describes, so an unlocked voucher is held to the same terms a locked one already
+  was. Requires cashu-voucher 0.15.0 (imani-bom 0.1.122).
+
+  Telling the two forms apart is the subtle part: `VoucherSecret` uses `data` for the voucher ID
+  as a UUID string with the terms in tags, while the serialised form uses it for the CBOR blob
+  with no tags. Both arrive here, so the discriminator is whether `data` parses as a UUID. A
+  `data` that is neither a UUID nor a readable blob is refused, empty included, because terms
+  that cannot be read cannot be checked.
+
+  Signature *presence* is deliberately not required, only validity when one is present.
+  Requiring presence would refuse every unsigned voucher at the mint, a behaviour change well
+  beyond this bug. Redemption for value already requires a verified issuer signature elsewhere.
+
+### Fixed
+
+- **`voucher_proof_verified` no longer logs an entire voucher blob (#525).** The success line
+  read the voucher id straight off the wire secret, and `VoucherMetadata.voucherId` falls back
+  to the raw `data` bytes for an unlocked voucher, so it printed roughly 700 bytes of CBOR
+  including the lock key and the issuer signature. It now names the decoded voucher's id.
+
 ## [0.40.0] - 2026-09-27
 
 **Breaking for out-of-tree `ProofVaultService` implementations:** `store`, `invalidate`, `archive`

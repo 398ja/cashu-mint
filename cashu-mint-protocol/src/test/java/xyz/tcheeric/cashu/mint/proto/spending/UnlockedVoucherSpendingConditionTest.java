@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.bouncycastle.util.encoders.Hex;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -28,7 +31,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.LoggerFactory;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -222,5 +229,65 @@ class UnlockedVoucherSpendingConditionTest {
         assertNotNull(blob.get("issuerPublicKey"));
         assertNotNull(blob.get("faceValue"));
         assertNotNull(UUID.fromString((String) blob.get("voucherId")));
+    }
+
+    /**
+     * The success log must name the voucher, not dump it.
+     *
+     * <p>Found in review rather than by a test, which is why one exists now.
+     * {@code VoucherMetadata.voucherId} falls back to the raw {@code data} bytes for an
+     * unlocked voucher, so logging it straight off the wire secret wrote the entire CBOR blob
+     * into the line, lock key and issuer signature included. A log that records a secret is a
+     * place the secret now lives, and mint logs are shipped.
+     */
+    @Test
+    @DisplayName("the success log records the voucher id, not the whole blob")
+    void successLogDoesNotLeakTheBlob() throws CashuErrorException {
+        Logger conditionLog = (Logger) LoggerFactory.getLogger(VoucherSpendingCondition.class);
+        ListAppender<ILoggingEvent> lines = new ListAppender<>();
+        lines.start();
+        conditionLog.addAppender(lines);
+        try {
+            Map<String, Object> blob = capturedBlob();
+            stubHealthyProof();
+            try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
+                bdhke.when(() -> BDHKEUtils.verify(anyString(),
+                                ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
+                        .thenReturn(true);
+                condition.verify(unlockedVoucherProof(blob));
+            }
+
+            String verified = lines.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .filter(line -> line.startsWith("voucher_proof_verified"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("the success line must be logged"));
+
+            assertTrue(verified.contains((String) blob.get("voucherId")),
+                    "the line must still identify which voucher was verified");
+            assertFalse(verified.contains((String) blob.get("issuerSignature")),
+                    "an issuer signature in a log line is a signature stored in the log");
+            assertFalse(verified.contains("issuerPublicKey"),
+                    "raw blob field names mean the whole blob was printed");
+        } finally {
+            conditionLog.detachAppender(lines);
+        }
+    }
+
+    /**
+     * A voucher-shaped secret with nothing in it at all: no blob, no tags.
+     *
+     * <p>Raised in review. If such a secret reaches the condition it has no terms anywhere, so
+     * every tag-based guard reads nothing and passes, which is the exact shape of #525 wearing
+     * a different disguise. The discriminator must not let an empty secret take the tag path
+     * and be waved through.
+     */
+    @Test
+    @DisplayName("a voucher with neither blob nor tags is refused, not waved through")
+    void emptyVoucherIsRefused() throws CashuErrorException {
+        CashuErrorException refusal = verifyExpectingRefusal(voucherProofWithData(""));
+
+        assertEquals("voucher_signature_invalid", refusal.getErrorCode().name(),
+                "a voucher with no terms anywhere cannot be checked, so it cannot be honoured");
     }
 }

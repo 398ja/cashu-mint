@@ -96,11 +96,11 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         // Three cases, and the middle one is the security-relevant one:
         //   - `data` is a UUID string: the terms are in tags, read them there.
         //   - `data` is a readable CBOR blob: the terms are in the blob, read them there.
-        //   - `data` is neither: the terms are unknowable, so refuse. An unchecked voucher must
-        //     not be spendable, which is the hole #525 describes.
+        //   - `data` is neither, empty included: the terms are unknowable, so refuse. An
+        //     unchecked voucher must not be spendable, which is the hole #525 describes.
         WellKnownSecret checkable = voucherSecret;
         if (voucherSecret != null && voucherSecret.getKind() == WellKnownSecret.Kind.VOUCHER
-                && !carriesVoucherIdInData(voucherSecret)) {
+                && !keepsTermsInTags(voucherSecret)) {
             VoucherSecret fromBlob = UnlockedVoucherBlob.read(voucherSecret);
             if (fromBlob == null) {
                 log.error("voucher_blob_unreadable: refusing a voucher whose terms cannot be read");
@@ -205,9 +205,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             throw new CashuErrorException(CashuErrorCode.verify_proof_failed_error);
         }
 
+        // Logged from `checkable`, not from the raw secret, and that distinction is not
+        // cosmetic. `VoucherMetadata.voucherId` falls back to the raw `data` bytes for an
+        // unlocked voucher, so reading it off the wire secret printed the whole CBOR blob
+        // into the log line: lock key, issuer signature and all. `checkable` names the
+        // decoded voucher, whose id is an id.
         log.info("voucher_proof_verified amount={} voucherId={}",
                 proof.getAmount(),
-                voucherSecret != null ? VoucherMetadata.voucherId(voucherSecret) : "unknown");
+                checkable != null ? VoucherMetadata.voucherId(checkable) : "unknown");
     }
 
     /**
@@ -242,20 +247,22 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     }
 
     /**
-     * Whether this secret keeps its voucher ID in {@code data}, meaning its terms are in tags.
+     * Whether this secret keeps its terms in NUT-10 tags rather than in a {@code data} blob.
      *
-     * <p>{@code VoucherSecret} writes the voucher ID there as a UUID string, so a {@code data}
-     * that parses as a UUID identifies that convention. A CBOR blob never does: it is binary,
-     * and far longer than 36 bytes.
+     * <p>{@code VoucherSecret} puts the voucher ID in {@code data} as a UUID string and the
+     * terms in tags, so a {@code data} that parses as a UUID identifies that convention. A
+     * CBOR blob never does: it is binary, and far longer than 36 bytes.
      *
-     * <p>This is a discriminator, not a validator. It answers "where are the terms", and the
-     * answer "in tags" is then checked by the tag-based guards below like any locked voucher.
+     * <p>An EMPTY {@code data} is deliberately not this convention. It means neither form is
+     * present, so the caller sends it to the decode, which fails, which refuses. Answering
+     * "tags" there would hand an empty secret to guards that read nothing and pass it.
+     *
+     * <p>This is a discriminator, not a validator. It answers only "where are the terms".
      */
-    private static boolean carriesVoucherIdInData(WellKnownSecret secret) {
+    private static boolean keepsTermsInTags(WellKnownSecret secret) {
         byte[] data = secret.getData();
         if (data == null || data.length == 0) {
-            // No data at all: nothing to decode, so the terms can only be in tags.
-            return true;
+            return false;
         }
         try {
             UUID.fromString(new String(data, StandardCharsets.UTF_8));
