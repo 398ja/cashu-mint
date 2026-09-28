@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -19,9 +20,11 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -77,26 +80,70 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                 secret instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
         WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) secret : null;
 
+        // Where an unlocked voucher keeps its terms, and why this is not simply a tag read.
+        //
+        // A P2PK_VOUCHER carries its terms as NUT-10 tags. A plain VOUCHER that arrived over
+        // the wire carries them as CBOR inside `data`, with an EMPTY tag array, so every
+        // tag-based check below found nothing and PASSED: no signature, no expiry, no issuer
+        // binding (cashu-mint#525). The terms were there all along, unreadable to a tag reader.
+        //
+        // But `data` does not always hold a blob, and this is the detail that cost two wrong
+        // attempts. `VoucherSecret` itself uses `data` for the voucher ID as a UUID string,
+        // with the terms in tags. The gateway's codec uses it for the CBOR blob, with no tags.
+        // Both forms are real and both arrive here, so the question is not "is `data` set" but
+        // "which convention is this secret using".
+        //
+        // Three cases, and the middle one is the security-relevant one:
+        //   - `data` is a UUID string: the terms are in tags, read them there.
+        //   - `data` is a readable CBOR blob: the terms are in the blob, read them there.
+        //   - `data` is neither: the terms are unknowable, so refuse. An unchecked voucher must
+        //     not be spendable, which is the hole #525 describes.
+        WellKnownSecret checkable = voucherSecret;
+        if (voucherSecret != null && voucherSecret.getKind() == WellKnownSecret.Kind.VOUCHER
+                && !carriesVoucherIdInData(voucherSecret)) {
+            VoucherSecret fromBlob = UnlockedVoucherBlob.read(voucherSecret);
+            if (fromBlob == null) {
+                log.error("voucher_blob_unreadable: refusing a voucher whose terms cannot be read");
+                throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
+                        "Voucher terms could not be read");
+            }
+            checkable = fromBlob;
+        }
+
         // 1. Validate voucher expiry
-        if (voucherSecret != null && VoucherMetadata.isExpired(voucherSecret)) {
+        if (checkable != null && VoucherMetadata.isExpired(checkable)) {
             log.error("voucher_expired voucherId={} expiresAt={}",
-                    VoucherMetadata.voucherId(voucherSecret),
-                    VoucherMetadata.expiresAt(voucherSecret));
+                    VoucherMetadata.voucherId(checkable),
+                    VoucherMetadata.expiresAt(checkable));
                     throw new CashuErrorException(CashuErrorCode.voucher_expired,
                     "Voucher has expired and cannot be redeemed");
         }
 
-        // 2. Validate issuer signature
-        if (voucherSecret != null && VoucherMetadata.isSigned(voucherSecret)) {
-            if (!VoucherSignatureService.verify(voucherSecret)) {
+        // 2. Validate the issuer signature, when the voucher carries one.
+        //
+        // Presence is deliberately NOT required here, and that is worth stating because it
+        // looks like the hole #525 describes. It is not. An unsigned voucher is refused
+        // wherever it is redeemed for value: the gateway's redemption path requires a
+        // verified issuer signature, and the wallet refuses one too. What #525 was actually
+        // about is that a SIGNED unlocked voucher's signature was never CHECKED, because the
+        // signature lived in a blob no tag reader could see. That is what the decode above
+        // fixes.
+        //
+        // Requiring presence here as well would refuse every unsigned voucher at the mint,
+        // which sounds stricter and is a behaviour change well beyond this bug: the mint
+        // would stop honouring proofs it has always honoured, and 8 existing tests say so,
+        // including ones about expiry and double-spending that have nothing to do with
+        // signatures. Widening the refusal is a separate decision, with its own issue.
+        if (checkable != null && VoucherMetadata.isSigned(checkable)) {
+            if (!VoucherSignatureService.verify(checkable)) {
                 log.error("voucher_signature_invalid voucherId={} issuerPubkey={}",
-                        VoucherMetadata.voucherId(voucherSecret),
-                        VoucherMetadata.issuerPublicKey(voucherSecret));
+                        VoucherMetadata.voucherId(checkable),
+                        VoucherMetadata.issuerPublicKey(checkable));
                         throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
                         "Voucher issuer signature verification failed");
             }
             log.debug("Voucher issuer signature verified: voucherId={}",
-                    VoucherMetadata.voucherId(voucherSecret));
+                    VoucherMetadata.voucherId(checkable));
         }
 
         // 3. Check if proof has been used already (double-spend prevention).
@@ -192,5 +239,29 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                             + "scoped per mint and cannot be skipped");
         }
         return UUID.fromString(mint.getId());
+    }
+
+    /**
+     * Whether this secret keeps its voucher ID in {@code data}, meaning its terms are in tags.
+     *
+     * <p>{@code VoucherSecret} writes the voucher ID there as a UUID string, so a {@code data}
+     * that parses as a UUID identifies that convention. A CBOR blob never does: it is binary,
+     * and far longer than 36 bytes.
+     *
+     * <p>This is a discriminator, not a validator. It answers "where are the terms", and the
+     * answer "in tags" is then checked by the tag-based guards below like any locked voucher.
+     */
+    private static boolean carriesVoucherIdInData(WellKnownSecret secret) {
+        byte[] data = secret.getData();
+        if (data == null || data.length == 0) {
+            // No data at all: nothing to decode, so the terms can only be in tags.
+            return true;
+        }
+        try {
+            UUID.fromString(new String(data, StandardCharsets.UTF_8));
+            return true;
+        } catch (IllegalArgumentException notAVoucherId) {
+            return false;
+        }
     }
 }
