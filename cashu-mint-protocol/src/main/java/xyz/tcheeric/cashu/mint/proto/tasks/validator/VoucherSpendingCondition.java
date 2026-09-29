@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
+import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
@@ -19,6 +20,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
@@ -77,26 +79,74 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                 secret instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
         WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) secret : null;
 
+        // Where an unlocked voucher keeps its terms, and why the test is on TAGS.
+        //
+        // A P2PK_VOUCHER carries its terms as NUT-10 tags. A plain VOUCHER that arrived over
+        // the wire carries them as CBOR inside `data`, with an EMPTY tag array, so every
+        // tag-based check below found nothing and PASSED: no signature, no expiry, no issuer
+        // binding (cashu-mint#525). The terms were there all along, unreadable to a tag reader.
+        //
+        // Both forms reach this method, because `VoucherSecret` built in memory holds its terms
+        // as tags and puts the voucher ID in `data`. So the code has to decide which it is
+        // looking at, and WHAT IT ASKS MATTERS.
+        //
+        // An earlier attempt asked about the shape of `data`: a value parsing as a UUID meant
+        // "terms are in tags". A reviewer broke it in one move. `data` is attacker-chosen, so a
+        // bare UUID plus an empty tag array took the tag path and sailed through every guard,
+        // reproducing #525 exactly. `UUID.fromString` is lenient enough that even "1-1-1-1-1"
+        // worked. A discriminator whose answer the attacker picks is not a boundary.
+        //
+        // The question asked instead is whether the secret has any TAGS, and that is sound for
+        // a reason worth stating: the tags are inside what the issuer signed, so a forged tag
+        // set fails verification, while an absent one cannot be faked into presence. An
+        // unlocked voucher HAS no tags by construction, so empty tags means the terms must come
+        // from the blob, and a blob that will not read is refused rather than waved through.
+        WellKnownSecret checkable = voucherSecret;
+        if (voucherSecret != null && voucherSecret.getKind() == WellKnownSecret.Kind.VOUCHER
+                && isTagless(voucherSecret)) {
+            VoucherSecret fromBlob = UnlockedVoucherBlob.read(voucherSecret);
+            if (fromBlob == null) {
+                log.error("voucher_blob_unreadable: refusing a voucher whose terms cannot be read");
+                throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
+                        "Voucher terms could not be read");
+            }
+            checkable = fromBlob;
+        }
+
         // 1. Validate voucher expiry
-        if (voucherSecret != null && VoucherMetadata.isExpired(voucherSecret)) {
+        if (checkable != null && VoucherMetadata.isExpired(checkable)) {
             log.error("voucher_expired voucherId={} expiresAt={}",
-                    VoucherMetadata.voucherId(voucherSecret),
-                    VoucherMetadata.expiresAt(voucherSecret));
+                    VoucherMetadata.voucherId(checkable),
+                    VoucherMetadata.expiresAt(checkable));
                     throw new CashuErrorException(CashuErrorCode.voucher_expired,
                     "Voucher has expired and cannot be redeemed");
         }
 
-        // 2. Validate issuer signature
-        if (voucherSecret != null && VoucherMetadata.isSigned(voucherSecret)) {
-            if (!VoucherSignatureService.verify(voucherSecret)) {
+        // 2. Validate the issuer signature, when the voucher carries one.
+        //
+        // Presence is deliberately NOT required here, and that is worth stating because it
+        // looks like the hole #525 describes. It is not. An unsigned voucher is refused
+        // wherever it is redeemed for value: the gateway's redemption path requires a
+        // verified issuer signature, and the wallet refuses one too. What #525 was actually
+        // about is that a SIGNED unlocked voucher's signature was never CHECKED, because the
+        // signature lived in a blob no tag reader could see. That is what the decode above
+        // fixes.
+        //
+        // Requiring presence here as well would refuse every unsigned voucher at the mint,
+        // which sounds stricter and is a behaviour change well beyond this bug: the mint
+        // would stop honouring proofs it has always honoured, and 8 existing tests say so,
+        // including ones about expiry and double-spending that have nothing to do with
+        // signatures. Widening the refusal is a separate decision, with its own issue.
+        if (checkable != null && VoucherMetadata.isSigned(checkable)) {
+            if (!VoucherSignatureService.verify(checkable)) {
                 log.error("voucher_signature_invalid voucherId={} issuerPubkey={}",
-                        VoucherMetadata.voucherId(voucherSecret),
-                        VoucherMetadata.issuerPublicKey(voucherSecret));
+                        VoucherMetadata.voucherId(checkable),
+                        VoucherMetadata.issuerPublicKey(checkable));
                         throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
                         "Voucher issuer signature verification failed");
             }
             log.debug("Voucher issuer signature verified: voucherId={}",
-                    VoucherMetadata.voucherId(voucherSecret));
+                    VoucherMetadata.voucherId(checkable));
         }
 
         // 3. Check if proof has been used already (double-spend prevention).
@@ -158,9 +208,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             throw new CashuErrorException(CashuErrorCode.verify_proof_failed_error);
         }
 
+        // Logged from `checkable`, not from the raw secret, and that distinction is not
+        // cosmetic. `VoucherMetadata.voucherId` falls back to the raw `data` bytes for an
+        // unlocked voucher, so reading it off the wire secret printed the whole CBOR blob
+        // into the log line: lock key, issuer signature and all. `checkable` names the
+        // decoded voucher, whose id is an id.
         log.info("voucher_proof_verified amount={} voucherId={}",
                 proof.getAmount(),
-                voucherSecret != null ? VoucherMetadata.voucherId(voucherSecret) : "unknown");
+                checkable != null ? VoucherMetadata.voucherId(checkable) : "unknown");
     }
 
     /**
@@ -192,5 +247,19 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                             + "scoped per mint and cannot be skipped");
         }
         return UUID.fromString(mint.getId());
+    }
+
+    /**
+     * Whether this secret carries no NUT-10 tags, so its terms can only be in a {@code data} blob.
+     *
+     * <p>This is the discriminator between the two forms a voucher secret arrives in, and it is
+     * deliberately a question about TAGS rather than about {@code data}. The tags are covered by
+     * the issuer signature, so a forged set fails verification and an absent set cannot be
+     * faked into presence. {@code data} is covered by nothing before it is decoded, so routing
+     * on its shape let an attacker choose the path: see the tests for a bare UUID in
+     * {@code data} with empty tags, which reproduced cashu-mint#525 in full.
+     */
+    private static boolean isTagless(WellKnownSecret secret) {
+        return secret.getTags() == null || secret.getTags().isEmpty();
     }
 }

@@ -4,6 +4,41 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **An unlocked voucher's issuer signature and expiry are now actually checked (#525).** An
+  unlocked voucher reaches the mint as `["VOUCHER", <cbor blob>, nonce, []]`: its terms live in
+  CBOR inside `data` and the tag array is **empty**. Every check in `VoucherSpendingCondition`
+  read tags, so for these vouchers they all found nothing and passed. No signature check, no
+  expiry check, no issuer binding, and a forged signature was never compared against anything.
+  The blob is now decoded with `UnlockedVoucherBlob` and the existing checks run against the
+  voucher it describes, so an unlocked voucher is held to the same terms a locked one already
+  was. Requires cashu-voucher 0.15.0 (imani-bom 0.1.122).
+
+  Telling the two forms apart is the subtle part, and **what the code asks matters**. Both forms
+  reach the mint, because a `VoucherSecret` built in memory holds its terms in tags. The
+  discriminator is whether the secret has any **tags**, not what its `data` looks like: tags are
+  covered by the issuer signature, so a forged set fails verification and an absent set cannot be
+  faked into presence, while `data` is covered by nothing before it is decoded. An unlocked
+  voucher has no tags by construction, so an empty tag set means the terms must come from the
+  blob, and a blob that will not read is refused rather than accepted unchecked.
+
+  An earlier attempt routed on the shape of `data`, treating anything that parsed as a UUID as
+  "terms are in tags". Code review broke it immediately: `data` is attacker-chosen, so a bare
+  UUID with an empty tag array took the tag path and passed every guard, reproducing this bug in
+  full. A discriminator whose answer the attacker picks is not a security boundary.
+
+  Signature *presence* is deliberately not required, only validity when one is present.
+  Requiring presence would refuse every unsigned voucher at the mint, a behaviour change well
+  beyond this bug. Redemption for value already requires a verified issuer signature elsewhere.
+
+### Fixed
+
+- **`voucher_proof_verified` no longer logs an entire voucher blob (#525).** The success line
+  read the voucher id straight off the wire secret, and `VoucherMetadata.voucherId` falls back
+  to the raw `data` bytes for an unlocked voucher, so it printed roughly 700 bytes of CBOR
+  including the lock key and the issuer signature. It now names the decoded voucher's id.
+
 ## [0.40.0] - 2026-09-27
 
 **Breaking for out-of-tree `ProofVaultService` implementations:** `store`, `invalidate`, `archive`
