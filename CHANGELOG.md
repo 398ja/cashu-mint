@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-09-29
+
 ### Security
 
 - **An unlocked voucher's issuer signature and expiry are now actually checked (#525).** An
