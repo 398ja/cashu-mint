@@ -131,10 +131,16 @@
             <scope>test</scope>
         </dependency>
         <!-- Signature verification reaches nostr-java's Schnorr at RUNTIME through
-             cashu-voucher-domain, which does not expose it transitively. Without it a test
-             that verifies a real voucher signature fails with NoClassDefFoundError, which
-             reads as a broken fix rather than a missing test dependency. Test scope only:
-             production gets it from the assembled application. -->
+             cashu-voucher-domain. That module needs it and does not declare it: its published
+             pom declares NO dependencies at all, because a JMH shade plugin rewrites it
+             (cashu-voucher#50). So this is a workaround for a packaging bug, not a normal
+             test-only need, and it should be removed once that is fixed.
+
+             Production does get the class, from cashu-ledger-trace-publisher in
+             cashu-mint-rest, which is verified but uncomfortable: it arrives through a
+             feature-flagged tracing starter that has nothing to do with vouchers, so
+             removing that starter would break voucher verification with a
+             NoClassDefFoundError at the moment a voucher is checked. Tracked in #50. -->
         <dependency>
             <groupId>xyz.tcheeric</groupId>
             <artifactId>nostr-java-core</artifactId>
