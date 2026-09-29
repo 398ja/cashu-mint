@@ -290,4 +290,41 @@ class UnlockedVoucherSpendingConditionTest {
         assertEquals("voucher_signature_invalid", refusal.getErrorCode().name(),
                 "a voucher with no terms anywhere cannot be checked, so it cannot be honoured");
     }
+
+    /**
+     * The exploit that survived the first fix, and the reason the discriminator changed.
+     *
+     * <p>A first attempt routed on the SHAPE of {@code data}: a value that parsed as a UUID was
+     * taken to mean "the terms are in tags". But {@code data} is attacker-controlled, so anyone
+     * could put a bare UUID there with an empty tag array and every tag-based guard would read
+     * nothing and pass. No expiry, no signature, no issuer binding, which is #525 verbatim.
+     *
+     * <p>Two things made it worse than it looked. {@code UUID.fromString} is lenient, so even
+     * {@code "1-1-1-1-1"} qualified, and the fix for the EMPTY-data case had been reasoned out
+     * in the same terms without spotting this door. The lesson is in the shape of the bug: a
+     * discriminator whose answer the attacker chooses cannot be a security boundary.
+     */
+    @Test
+    @DisplayName("a voucher whose data is a bare UUID with empty tags is refused")
+    void uuidShapedDataWithEmptyTagsIsRefused() throws CashuErrorException {
+        String bareUuidAsData = Hex.toHexString(
+                "6f39585b-7826-4493-84e5-2a7e907c0820".getBytes(StandardCharsets.UTF_8));
+
+        CashuErrorException refusal = verifyExpectingRefusal(voucherProofWithData(bareUuidAsData));
+
+        assertEquals("voucher_signature_invalid", refusal.getErrorCode().name(),
+                "an unlocked voucher with no tags must be read from its blob, and this has none");
+    }
+
+    /** The same exploit through the lenient corner of {@code UUID.fromString}. */
+    @Test
+    @DisplayName("a voucher whose data is a short lenient UUID is refused too")
+    void lenientUuidShapedDataIsRefused() throws CashuErrorException {
+        String lenientUuid = Hex.toHexString("1-1-1-1-1".getBytes(StandardCharsets.UTF_8));
+
+        CashuErrorException refusal = verifyExpectingRefusal(voucherProofWithData(lenientUuid));
+
+        assertEquals("voucher_signature_invalid", refusal.getErrorCode().name(),
+                "UUID.fromString accepts this, so a length argument would not have saved us");
+    }
 }

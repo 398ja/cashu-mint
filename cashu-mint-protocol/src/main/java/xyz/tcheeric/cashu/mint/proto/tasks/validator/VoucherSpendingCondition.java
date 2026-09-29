@@ -24,7 +24,6 @@ import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -80,27 +79,31 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                 secret instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
         WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) secret : null;
 
-        // Where an unlocked voucher keeps its terms, and why this is not simply a tag read.
+        // Where an unlocked voucher keeps its terms, and why the test is on TAGS.
         //
         // A P2PK_VOUCHER carries its terms as NUT-10 tags. A plain VOUCHER that arrived over
         // the wire carries them as CBOR inside `data`, with an EMPTY tag array, so every
         // tag-based check below found nothing and PASSED: no signature, no expiry, no issuer
         // binding (cashu-mint#525). The terms were there all along, unreadable to a tag reader.
         //
-        // But `data` does not always hold a blob, and this is the detail that cost two wrong
-        // attempts. `VoucherSecret` itself uses `data` for the voucher ID as a UUID string,
-        // with the terms in tags. The gateway's codec uses it for the CBOR blob, with no tags.
-        // Both forms are real and both arrive here, so the question is not "is `data` set" but
-        // "which convention is this secret using".
+        // Both forms reach this method, because `VoucherSecret` built in memory holds its terms
+        // as tags and puts the voucher ID in `data`. So the code has to decide which it is
+        // looking at, and WHAT IT ASKS MATTERS.
         //
-        // Three cases, and the middle one is the security-relevant one:
-        //   - `data` is a UUID string: the terms are in tags, read them there.
-        //   - `data` is a readable CBOR blob: the terms are in the blob, read them there.
-        //   - `data` is neither, empty included: the terms are unknowable, so refuse. An
-        //     unchecked voucher must not be spendable, which is the hole #525 describes.
+        // An earlier attempt asked about the shape of `data`: a value parsing as a UUID meant
+        // "terms are in tags". A reviewer broke it in one move. `data` is attacker-chosen, so a
+        // bare UUID plus an empty tag array took the tag path and sailed through every guard,
+        // reproducing #525 exactly. `UUID.fromString` is lenient enough that even "1-1-1-1-1"
+        // worked. A discriminator whose answer the attacker picks is not a boundary.
+        //
+        // The question asked instead is whether the secret has any TAGS, and that is sound for
+        // a reason worth stating: the tags are inside what the issuer signed, so a forged tag
+        // set fails verification, while an absent one cannot be faked into presence. An
+        // unlocked voucher HAS no tags by construction, so empty tags means the terms must come
+        // from the blob, and a blob that will not read is refused rather than waved through.
         WellKnownSecret checkable = voucherSecret;
         if (voucherSecret != null && voucherSecret.getKind() == WellKnownSecret.Kind.VOUCHER
-                && !keepsTermsInTags(voucherSecret)) {
+                && isTagless(voucherSecret)) {
             VoucherSecret fromBlob = UnlockedVoucherBlob.read(voucherSecret);
             if (fromBlob == null) {
                 log.error("voucher_blob_unreadable: refusing a voucher whose terms cannot be read");
@@ -247,28 +250,16 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     }
 
     /**
-     * Whether this secret keeps its terms in NUT-10 tags rather than in a {@code data} blob.
+     * Whether this secret carries no NUT-10 tags, so its terms can only be in a {@code data} blob.
      *
-     * <p>{@code VoucherSecret} puts the voucher ID in {@code data} as a UUID string and the
-     * terms in tags, so a {@code data} that parses as a UUID identifies that convention. A
-     * CBOR blob never does: it is binary, and far longer than 36 bytes.
-     *
-     * <p>An EMPTY {@code data} is deliberately not this convention. It means neither form is
-     * present, so the caller sends it to the decode, which fails, which refuses. Answering
-     * "tags" there would hand an empty secret to guards that read nothing and pass it.
-     *
-     * <p>This is a discriminator, not a validator. It answers only "where are the terms".
+     * <p>This is the discriminator between the two forms a voucher secret arrives in, and it is
+     * deliberately a question about TAGS rather than about {@code data}. The tags are covered by
+     * the issuer signature, so a forged set fails verification and an absent set cannot be
+     * faked into presence. {@code data} is covered by nothing before it is decoded, so routing
+     * on its shape let an attacker choose the path: see the tests for a bare UUID in
+     * {@code data} with empty tags, which reproduced cashu-mint#525 in full.
      */
-    private static boolean keepsTermsInTags(WellKnownSecret secret) {
-        byte[] data = secret.getData();
-        if (data == null || data.length == 0) {
-            return false;
-        }
-        try {
-            UUID.fromString(new String(data, StandardCharsets.UTF_8));
-            return true;
-        } catch (IllegalArgumentException notAVoucherId) {
-            return false;
-        }
+    private static boolean isTagless(WellKnownSecret secret) {
+        return secret.getTags() == null || secret.getTags().isEmpty();
     }
 }

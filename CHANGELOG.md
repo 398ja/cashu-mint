@@ -15,11 +15,18 @@ All notable changes to the Cashu Mint will be documented in this file.
   voucher it describes, so an unlocked voucher is held to the same terms a locked one already
   was. Requires cashu-voucher 0.15.0 (imani-bom 0.1.122).
 
-  Telling the two forms apart is the subtle part: `VoucherSecret` uses `data` for the voucher ID
-  as a UUID string with the terms in tags, while the serialised form uses it for the CBOR blob
-  with no tags. Both arrive here, so the discriminator is whether `data` parses as a UUID. A
-  `data` that is neither a UUID nor a readable blob is refused, empty included, because terms
-  that cannot be read cannot be checked.
+  Telling the two forms apart is the subtle part, and **what the code asks matters**. Both forms
+  reach the mint, because a `VoucherSecret` built in memory holds its terms in tags. The
+  discriminator is whether the secret has any **tags**, not what its `data` looks like: tags are
+  covered by the issuer signature, so a forged set fails verification and an absent set cannot be
+  faked into presence, while `data` is covered by nothing before it is decoded. An unlocked
+  voucher has no tags by construction, so an empty tag set means the terms must come from the
+  blob, and a blob that will not read is refused rather than accepted unchecked.
+
+  An earlier attempt routed on the shape of `data`, treating anything that parsed as a UUID as
+  "terms are in tags". Code review broke it immediately: `data` is attacker-chosen, so a bare
+  UUID with an empty tag array took the tag path and passed every guard, reproducing this bug in
+  full. A discriminator whose answer the attacker picks is not a security boundary.
 
   Signature *presence* is deliberately not required, only validity when one is present.
   Requiring presence would refuse every unsigned voucher at the mint, a behaviour change well
