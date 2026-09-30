@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
+import xyz.tcheeric.cashu.mint.proto.util.MintQuoteLock;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
@@ -55,8 +56,11 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
     private final MintQuoteRepository mintQuoteRepository;
     private final String mintUrl;
 
-    /** NUT-20 — the key the quote is locked to, or null for an unlocked quote. */
-    private final String pubkey;
+    /** NUT-20: the key the wallet asked to lock the quote to, or null for an unlocked quote. */
+    private final String requestedPubkey;
+
+    /** The validated {@link #requestedPubkey}, set once {@link #doExecute()} has checked it. */
+    private String pubkey;
 
     public MintQuoteTask(long amount, @NonNull PaymentMethod method) {
         this(amount, method, null, MintProtocolServiceFactory.getInstance(), null, null);
@@ -107,7 +111,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                          MintQuoteRepository mintQuoteRepository,
                          String mintUrl,
                          String pubkey) {
-        this.pubkey = pubkey;
+        this.requestedPubkey = pubkey;
         this.amount = amount;
         this.method = method;
         this.unit = unit;
@@ -125,6 +129,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         if (amount > Integer.MAX_VALUE || amount <= 0) {
             throw new CashuErrorException(CashuErrorCode.invalid_quote_amount);
         }
+        // NUT-20: refuse a key nobody could sign for before anything is written or invoiced.
+        pubkey = MintQuoteLock.lockingKey(requestedPubkey);
         String resolvedUnit = requestedUnit != null ? requestedUnit : resolveDefaultUnit();
         // Issue #390: reject before touching the gateway what /v1/info says this
         // mint will not issue, so the advertised max_amount is the enforced one.

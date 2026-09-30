@@ -111,6 +111,7 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
 
         PostMintQuoteResponse response = PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
+                .pubkey(resolved.pubkey())
                 .request(gateway.getRequest(quoteId))
                 .amount(clampToInt(resolved.amount()))
                 .unit(resolvedUnit)
@@ -177,14 +178,15 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
      *                   the fee for a voucher quote. Reported as {@code charged_amount} on the
      *                   voucher route only; never as a NUT-04 accounting field
      * @param lifecycle  the durable lifecycle mapped to a wire state, or null when unknown
+     * @param pubkey     the NUT-20 key the quote is locked to, or null when it is unlocked
      */
     private record ResolvedQuote(long amount, long charged, String unit, String lifecycle,
-                                 Instant createdAt, Instant updatedAt) {
+                                 Instant createdAt, Instant updatedAt, String pubkey) {
 
         static ResolvedQuote of(MintQuote quote, Optional<IssuanceRecord> issuance) {
             String state = regularState(quote.lifecycleState(), issuance.isPresent());
             return new ResolvedQuote(quote.amount(), quote.amount(), quote.unit(), state,
-                    quote.createdAt(), lastChange(quote, issuance));
+                    quote.createdAt(), lastChange(quote, issuance), quote.pubkey());
         }
 
         /**
@@ -208,11 +210,12 @@ public class MintQuoteStatusTask extends InstrumentedTask<PostMintQuoteResponse>
 
         static ResolvedQuote of(VoucherQuote quote) {
             return new ResolvedQuote(quote.faceValue(), quote.chargedAmount(), quote.unit(),
-                    voucherState(quote.lifecycleState()), quote.createdAt(), quote.updatedAt());
+                    voucherState(quote.lifecycleState()), quote.createdAt(), quote.updatedAt(),
+                    quote.pubkey());
         }
 
         static ResolvedQuote gatewayOnly() {
-            return new ResolvedQuote(0L, 0L, null, null, null, null);
+            return new ResolvedQuote(0L, 0L, null, null, null, null, null);
         }
 
         /** The wire state, falling back to the gateway's payment flag where the row is silent. */
