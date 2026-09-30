@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-09-30
+
 ### Security
 
 - **Voucher mint quotes can be NUT-20 locked (#529).** `POST /v1/mint/quote/voucher/{method}`
