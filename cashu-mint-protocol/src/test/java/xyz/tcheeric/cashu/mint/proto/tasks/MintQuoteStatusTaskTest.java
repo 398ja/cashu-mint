@@ -131,6 +131,22 @@ class MintQuoteStatusTaskTest {
         assertThat(response.getState()).isEqualTo("PAID");
     }
 
+    /** Ensures the regular status route echoes the NUT-20 key a quote is locked to. */
+    @Test
+    void status_regularQuote_echoesItsLockingKey() throws CashuErrorException {
+        // Arrange
+        String lockingKey = "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9";
+        MintQuote quote = regularQuote(8L, LifecycleState.PAID);
+        when(quote.pubkey()).thenReturn(lockingKey);
+        installRegular("qid", quote);
+
+        // Act
+        PostMintQuoteResponse response = status("qid", Kind.REGULAR, service(gateway("qid", true)));
+
+        // Assert
+        assertThat(response.getPubkey()).isEqualTo(lockingKey);
+    }
+
     // An ISSUED regular quote reports ISSUED.
     @Test
     void status_regularQuote_issuedMapsToIssued() throws CashuErrorException {

@@ -161,6 +161,40 @@ class VoucherQuoteLockTest {
         verify(gateway, never()).createMintQuote(anyString(), anyInt(), any());
     }
 
+    /**
+     * Ensures a mint without durable storage refuses to lock a voucher quote with 20009, instead
+     * of echoing a key it never stored and so handing the wallet a bearer quote it thinks locked.
+     */
+    @Test
+    void shouldRefuseToLockAVoucherQuoteWhenNothingCanStoreTheKey() {
+        // Arrange
+        MintIntegrityContext.clear();
+        Gateway gateway = echoingGateway();
+
+        // Act and Assert
+        assertThatThrownBy(() -> newQuote(LOCKING_KEY, gateway).execute())
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(codeOf(thrown))
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+        verify(gateway, never()).createMintQuote(anyString(), anyInt(), any());
+    }
+
+    /** Ensures an uppercase key is stored and echoed in canonical lowercase hex. */
+    @Test
+    void shouldStoreAndEchoTheKeyInLowercase() throws Exception {
+        // Arrange
+        when(voucherQuoteRepo.save(any(VoucherQuote.class))).thenAnswer(call -> call.getArgument(0));
+
+        // Act
+        PostMintQuoteResponse response = newQuote(LOCKING_KEY.toUpperCase()).execute();
+
+        // Assert
+        ArgumentCaptor<VoucherQuote> saved = ArgumentCaptor.forClass(VoucherQuote.class);
+        verify(voucherQuoteRepo).save(saved.capture());
+        assertThat(saved.getValue().pubkey()).isEqualTo(LOCKING_KEY);
+        assertThat(response.getPubkey()).isEqualTo(LOCKING_KEY);
+    }
+
     // ---------------------------------------------------------------
     // Quote status
     // ---------------------------------------------------------------
@@ -187,7 +221,8 @@ class VoucherQuoteLockTest {
 
     /**
      * Ensures a locked voucher quote refuses a mint request with no signature with 20008, and
-     * consumes nothing: the quote stays FUNDED for its rightful holder.
+     * touches nothing: the signature is checked before funding is looked up or attached, and
+     * before the quote advances, so it stays FUNDED for its rightful holder.
      */
     @Test
     void shouldRefuseToMintALockedVoucherQuoteWithoutASignature() throws Exception {
@@ -201,13 +236,13 @@ class VoucherQuoteLockTest {
                 .isInstanceOf(CashuErrorException.class)
                 .satisfies(thrown -> assertThat(codeOf(thrown))
                         .isEqualTo(CashuErrorCode.mint_signature_invalid));
-        verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
-                eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
+        verifyNothingWasResolvedOrConsumed();
     }
 
     /**
      * Ensures someone who learned only the quote id cannot mint a locked voucher quote by signing
-     * with their own key. This is the attack cashu-mint#529 describes.
+     * with their own key. This is the attack cashu-mint#529 describes. The refusal comes before
+     * funding is looked up or attached.
      */
     @Test
     void shouldRefuseToMintALockedVoucherQuoteSignedByAnotherKey() throws Exception {
@@ -222,8 +257,7 @@ class VoucherQuoteLockTest {
                 .isInstanceOf(CashuErrorException.class)
                 .satisfies(thrown -> assertThat(codeOf(thrown))
                         .isEqualTo(CashuErrorCode.mint_signature_invalid));
-        verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
-                eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
+        verifyNothingWasResolvedOrConsumed();
     }
 
     /** Ensures the holder of the locking key can mint the locked voucher quote. */
@@ -308,6 +342,13 @@ class VoucherQuoteLockTest {
                 .thenAnswer(call -> call.getArgument(0, VoucherIssuance.class));
     }
 
+    private void verifyNothingWasResolvedOrConsumed() {
+        verify(voucherFundingRepo, never()).findById(any());
+        verify(voucherQuoteRepo, never()).attachFundingAndAdvance(any(), any());
+        verify(voucherQuoteRepo, never()).casLifecycle(anyString(),
+                eq(VoucherLifecycleState.FUNDED), eq(VoucherLifecycleState.ISSUING));
+    }
+
     private static PostMintRequest<Secret> mintRequest() {
         Secret secret = RandomStringSecret.fromString(
                 "3130c5cd3c69402549fc50df36873251edbeaf7efcec7c618cd8d2955202b518");
@@ -317,7 +358,8 @@ class VoucherQuoteLockTest {
                 output(64, "02d963e52f9d2f9519f8adedc8517389293d8028e0b33c4bc96b5e3cd128c27af2"),
                 output(32, "03a0434d9e47f3c86235477c7b1ae6ae5d3442d49b1943c2b752a68e2a47e247c7"),
                 output(4, "025f9d298d8d9e774c81ee64927a27e6e6b6e18f65447eb6a16808f92b84e44112"));
-        return new PostMintRequest<>(QUOTE_ID, outputs, List.of(secret, secret), List.of(blindingFactor));
+        return new PostMintRequest<>(QUOTE_ID, outputs, List.of(secret, secret, secret),
+                List.of(blindingFactor, blindingFactor, blindingFactor));
     }
 
     private static BlindedMessage output(int amount, String blindedPoint) {

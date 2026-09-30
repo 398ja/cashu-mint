@@ -59,9 +59,6 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
     /** NUT-20: the key the wallet asked to lock the quote to, or null for an unlocked quote. */
     private final String requestedPubkey;
 
-    /** The validated {@link #requestedPubkey}, set once {@link #doExecute()} has checked it. */
-    private String pubkey;
-
     public MintQuoteTask(long amount, @NonNull PaymentMethod method) {
         this(amount, method, null, MintProtocolServiceFactory.getInstance(), null, null);
     }
@@ -130,20 +127,21 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
             throw new CashuErrorException(CashuErrorCode.invalid_quote_amount);
         }
         // NUT-20: refuse a key nobody could sign for before anything is written or invoiced.
-        pubkey = MintQuoteLock.lockingKey(requestedPubkey);
+        String lockingKey = MintQuoteLock.lockingKey(requestedPubkey);
+        MintQuoteLock.requireStorable(lockingKey, mintQuoteRepository != null);
         String resolvedUnit = requestedUnit != null ? requestedUnit : resolveDefaultUnit();
         // Issue #390: reject before touching the gateway what /v1/info says this
         // mint will not issue, so the advertised max_amount is the enforced one.
         AmountLimitContext.policy().requireWithinMintLimits(amount, resolvedUnit);
         Gateway gateway = requestedUnit == null ? mintProtocolService.createGateway(method)
                 : mintProtocolService.createGateway(method, requestedUnit);
-        String quoteId = raiseInvoice(gateway, resolvedUnit);
+        String quoteId = raiseInvoice(gateway, resolvedUnit, lockingKey);
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
 
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
-                .pubkey(pubkey)
+                .pubkey(lockingKey)
                 .request(request)
                 // NUT-04 v1 — modern wallets (cashu-ts >= 4.x) require amount/unit/state
                 // on every mint-quote response; a fresh quote is always UNPAID. The
@@ -188,14 +186,15 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
      * <p>Without the repository (legacy unit-test contexts) nothing is recorded, and the gateway
      * keeps choosing its own id as before.
      */
-    private String raiseInvoice(Gateway gateway, String resolvedUnit) throws CashuErrorException {
+    private String raiseInvoice(Gateway gateway, String resolvedUnit, String lockingKey)
+            throws CashuErrorException {
         if (mintQuoteRepository == null) {
             // Boundary cast: payment-adapter Gateway#createMintQuote takes Integer. The amount is
             // bounded to Integer.MAX_VALUE above.
             return gateway.createMintQuote((int) amount, null);
         }
         String quoteId = UUID.randomUUID().toString();
-        recordQuote(quoteId, resolvedUnit);
+        recordQuote(quoteId, resolvedUnit, lockingKey);
 
         // IRREVERSIBLE FROM HERE. Every precondition that can refuse this quote, including the
         // write above, must stay above this line.
@@ -204,7 +203,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
             invoicedId = gateway.createMintQuote(quoteId, (int) amount, null);
         } catch (UnsupportedOperationException cannotTakeOurId) {
             abandon(quoteId);
-            return raiseInvoiceUnderTheGatewaysId(gateway, resolvedUnit);
+            return raiseInvoiceUnderTheGatewaysId(gateway, resolvedUnit, lockingKey);
         } catch (RuntimeException invoiceFailed) {
             abandon(quoteId);
             throw invoiceFailed;
@@ -238,17 +237,21 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
      * the quote under the id the gateway returned. A failed write here strands a payable invoice,
      * which is why the WARN names the gateway and why the caller-chosen path is preferred.
      */
-    private String raiseInvoiceUnderTheGatewaysId(Gateway gateway, String resolvedUnit)
+    private String raiseInvoiceUnderTheGatewaysId(Gateway gateway, String resolvedUnit, String lockingKey)
             throws CashuErrorException {
         log.warn("mint_quote gateway_cannot_take_quote_id gateway={} order=invoice_then_record",
                 gateway.getClass().getSimpleName());
         String quoteId = gateway.createMintQuote((int) amount, null);
-        recordQuote(quoteId, resolvedUnit);
+        recordQuote(quoteId, resolvedUnit, lockingKey);
         return quoteId;
     }
 
-    /** Writes the {@code UNPAID} quote row, refusing the quote when the write fails. */
-    private void recordQuote(String quoteId, String resolvedUnit) throws CashuErrorException {
+    /**
+     * Writes the {@code UNPAID} quote row, refusing the quote when the write fails.
+     *
+     * @param lockingKey the validated NUT-20 key, or null for an unlocked quote
+     */
+    private void recordQuote(String quoteId, String resolvedUnit, String lockingKey) throws CashuErrorException {
         String resolvedMintUrl = mintUrl != null ? mintUrl : "";
         try {
             mintQuoteRepository.save(new NewQuote(
@@ -261,7 +264,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
                     LifecycleState.UNPAID,
                     requestHash(amount, resolvedUnit, method),
                     Instant.now(),
-                    pubkey));
+                    lockingKey));
         } catch (RuntimeException e) {
             // Fail closed, and before the invoice exists: the client is refused a quote it was
             // never charged for.

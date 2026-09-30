@@ -161,4 +161,25 @@ public class MintQuoteTaskTest {
                         .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
         Mockito.verifyNoInteractions(repository, gateway);
     }
+
+    /**
+     * Ensures a mint without durable storage refuses to lock a regular quote with 20009, rather
+     * than echoing a key it never stored and handing the wallet a bearer quote it thinks locked.
+     */
+    @Test
+    public void quote_RefusesALockWhenNothingCanStoreTheKey() {
+        // Arrange
+        Gateway gateway = Mockito.mock(Gateway.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.MOCK, "sat")).thenReturn(gateway);
+        MintQuoteTask task = new MintQuoteTask(8L, PaymentMethod.MOCK, "sat", service, null, null,
+                "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9");
+
+        // Act and Assert
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(((CashuErrorException) thrown).getErrorCode())
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+        Mockito.verifyNoInteractions(gateway);
+    }
 }

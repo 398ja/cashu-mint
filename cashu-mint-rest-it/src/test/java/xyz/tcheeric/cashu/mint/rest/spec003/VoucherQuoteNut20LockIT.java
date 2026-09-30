@@ -125,9 +125,12 @@ class VoucherQuoteNut20LockIT extends AbstractVoucherDurableIT {
         assertThat(MAPPER.readTree(status.getBody()).path("pubkey").asText()).isEqualTo(LOCKING_KEY);
     }
 
-    /** Ensures a voucher quote request with an invalid pubkey is refused with 20009. */
+    /** Ensures a voucher quote request with an invalid pubkey is refused with 20009 and writes no row. */
     @Test
     void shouldRefuseAVoucherQuoteWithAnInvalidKey() throws Exception {
+        // Arrange
+        long rowsBefore = voucherQuoteJpaRepository.count();
+
         // Act
         ResponseEntity<String> refused = post("/v1/mint/quote/voucher/bolt11",
                 Map.of("amount", 1000, "unit", "sat", "pubkey", "02deadbeef"));
@@ -136,16 +139,19 @@ class VoucherQuoteNut20LockIT extends AbstractVoucherDurableIT {
         assertThat(refused.getStatusCode().is4xxClientError()).as("body=%s", refused.getBody()).isTrue();
         assertThat(MAPPER.readTree(refused.getBody()).path("code").asInt())
                 .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote.getCode());
+        assertThat(voucherQuoteJpaRepository.count()).isEqualTo(rowsBefore);
     }
 
     /**
      * Ensures that someone holding only the id of a funded, locked voucher quote cannot mint it:
-     * the request is refused with 20008 and the quote stays FUNDED for its rightful holder.
+     * the request is refused with 20008 before funding is attached, and the quote stays FUNDED
+     * for its rightful holder.
      */
     @Test
     void shouldRefuseToMintAFundedLockedVoucherQuoteWithoutASignature() throws Exception {
         // Arrange
         String quoteId = seedFundedQuote(LOCKING_KEY);
+        long issuancesBefore = voucherIssuanceJpaRepository.count();
 
         // Act
         ResponseEntity<String> refused = mint(quoteId, null);
@@ -156,6 +162,30 @@ class VoucherQuoteNut20LockIT extends AbstractVoucherDurableIT {
                 .isEqualTo(CashuErrorCode.mint_signature_invalid.getCode());
         assertThat(voucherQuoteJpaRepository.findById(quoteId).orElseThrow().getLifecycleState())
                 .isEqualTo(VoucherLifecycleState.FUNDED);
+        assertThat(voucherIssuanceJpaRepository.count()).isEqualTo(issuancesBefore);
+    }
+
+    /**
+     * Ensures an unfunded locked voucher quote refused for a missing signature is not funded as
+     * a side effect: the signature check runs before any funding row is looked up or attached.
+     */
+    @Test
+    void shouldNotAttachFundingWhenRefusingALockedVoucherQuote() throws Exception {
+        // Arrange
+        String quoteId = UUID.randomUUID().toString();
+        VoucherQuoteEntity quote = VoucherTestSupport.unfundedQuote(quoteId, FACE_VALUE);
+        quote.setPubkey(LOCKING_KEY);
+        voucherQuoteJpaRepository.saveAndFlush(quote);
+
+        // Act
+        ResponseEntity<String> refused = mint(quoteId, null);
+
+        // Assert
+        assertThat(MAPPER.readTree(refused.getBody()).path("code").asInt())
+                .isEqualTo(CashuErrorCode.mint_signature_invalid.getCode());
+        VoucherQuoteEntity after = voucherQuoteJpaRepository.findById(quoteId).orElseThrow();
+        assertThat(after.getFundingId()).isNull();
+        assertThat(after.getLifecycleState()).isEqualTo(VoucherLifecycleState.UNFUNDED);
     }
 
     /** Ensures the holder of the locking key can mint the funded voucher quote. */

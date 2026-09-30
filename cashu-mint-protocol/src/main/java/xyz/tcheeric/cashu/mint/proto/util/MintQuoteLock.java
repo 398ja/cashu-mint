@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.common.nut20.MintQuoteSignature;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * NUT-20 quote locking, shared by regular and voucher mint quotes so both follow one rule.
@@ -30,21 +31,43 @@ public final class MintQuoteLock {
     /**
      * The key a new quote is locked to, or null when the wallet asked for an unlocked quote.
      *
-     * <p>A key the mint could never verify a signature against is refused with 20009 here, when
-     * the quote is requested. Accepting it would create a quote nobody can ever mint once paid.
+     * <p>Only an absent {@code pubkey} asks for an unlocked quote. Anything sent, including an
+     * empty string, is a request to lock, and a key the mint could never verify a signature
+     * against is refused with 20009 ("invalid pubkey"). Silently reading {@code ""} as "unlocked"
+     * would hand back a bearer quote to a wallet that tried to lock it.
      *
-     * @param requestedKey the {@code pubkey} from the quote request, possibly null or blank
+     * <p>The key is returned as lowercase hex, so the stored and echoed forms are canonical.
+     *
+     * @param requestedKey the {@code pubkey} from the quote request, or null when absent
      * @throws CashuErrorException {@code 20009} when the key is not a compressed secp256k1 point
      */
     public static String lockingKey(String requestedKey) throws CashuErrorException {
-        if (isUnlocked(requestedKey)) {
+        if (requestedKey == null) {
             return null;
         }
         if (requestedKey.length() != COMPRESSED_KEY_HEX_LENGTH || !isOnCurve(requestedKey)) {
             throw new CashuErrorException(CashuErrorCode.pubkey_required_for_mint_quote,
                     "pubkey must be a 33-byte compressed secp256k1 public key, hex-encoded");
         }
-        return requestedKey;
+        return requestedKey.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Refuses a lock the mint has nowhere durable to keep.
+     *
+     * <p>Without the durable quote repository the key would be echoed to the wallet but never
+     * stored, so the wallet would believe its quote locked while anyone holding the id could mint
+     * it. Refusing with 20009 fails closed: the wallet learns it cannot lock here.
+     *
+     * @param lockingKey        the validated key, or null for an unlocked quote
+     * @param lockStoreIsWired  whether the durable quote repository that stores the key is wired
+     * @throws CashuErrorException {@code 20009} when a lock was asked for and cannot be stored
+     */
+    public static void requireStorable(String lockingKey, boolean lockStoreIsWired) throws CashuErrorException {
+        if (lockingKey != null && !lockStoreIsWired) {
+            throw new CashuErrorException(CashuErrorCode.pubkey_required_for_mint_quote,
+                    "This mint has no durable quote storage, so it cannot lock a quote to a pubkey");
+        }
     }
 
     /**
@@ -75,7 +98,8 @@ public final class MintQuoteLock {
         }
         if (!MintQuoteSignature.isValid(quoteId, outputs, lockingKey, signature)) {
             log.warn("mint_quote_lock nut20_signature_invalid");
-            throw new CashuErrorException(CashuErrorCode.mint_signature_invalid);
+            throw new CashuErrorException(CashuErrorCode.mint_signature_invalid,
+                    "Mint request signature does not verify against the quote's pubkey");
         }
     }
 

@@ -81,7 +81,9 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                                 String pubkey) {
         this.faceValue = faceValue;
         this.method = method;
-        this.unit = unit;
+        // Blank reads as absent, as on the regular route, so a gateway is never selected by, and
+        // a row never stored with, an empty unit.
+        this.unit = unit == null || unit.isBlank() ? null : unit;
         this.mintProtocolService = mintProtocolService;
         this.requestedPubkey = pubkey;
     }
@@ -99,6 +101,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
 
         // NUT-20: refuse a key nobody could sign for before anything is written or invoiced.
         String lockingKey = MintQuoteLock.lockingKey(requestedPubkey);
+        MintQuoteLock.requireStorable(lockingKey, MintIntegrityContext.voucherQuoteRepository() != null);
 
         // Load fee percentage and floor from configuration
         double feePercentage = VoucherFeeConfig.getFeePercentage();

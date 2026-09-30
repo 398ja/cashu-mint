@@ -62,14 +62,55 @@ class MintQuoteLockTest {
         assertThat(lockingKey).isNull();
     }
 
-    /** Ensures a blank key is read as no key, matching how a blank stored key is read at mint time. */
+    /**
+     * Ensures an explicitly sent empty or blank key is refused with 20009 rather than read as
+     * "unlocked": the wallet asked to lock, and quietly handing it a bearer quote would be worse.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"", "  "})
+    void shouldRefuseAnExplicitlyBlankKey(String requested) {
+        // Act and Assert
+        assertThatThrownBy(() -> MintQuoteLock.lockingKey(requested))
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(codeOf(thrown))
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+    }
+
+    /** Ensures an uppercase key is stored and echoed in canonical lowercase hex. */
     @Test
-    void shouldTreatABlankKeyAsNoKey() throws Exception {
+    void shouldNormaliseTheKeyToLowercase() throws Exception {
         // Act
-        String lockingKey = MintQuoteLock.lockingKey("  ");
+        String lockingKey = MintQuoteLock.lockingKey(PUBLIC_KEY.toUpperCase());
 
         // Assert
-        assertThat(lockingKey).isNull();
+        assertThat(lockingKey).isEqualTo(PUBLIC_KEY);
+    }
+
+    /**
+     * Ensures a lock is refused with 20009 when the mint has nowhere durable to store it, so a
+     * wallet is never told its quote is locked while anyone holding the id could mint it.
+     */
+    @Test
+    void shouldRefuseALockThatCannotBeStored() {
+        // Act and Assert
+        assertThatThrownBy(() -> MintQuoteLock.requireStorable(PUBLIC_KEY, false))
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(codeOf(thrown))
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+    }
+
+    /** Ensures an unlocked quote needs no storage, so mints without JPA keep issuing quotes. */
+    @Test
+    void shouldAllowAnUnlockedQuoteWithoutStorage() {
+        // Act and Assert
+        assertThatCode(() -> MintQuoteLock.requireStorable(null, false)).doesNotThrowAnyException();
+    }
+
+    /** Ensures a lock is accepted when the durable store is wired. */
+    @Test
+    void shouldAllowALockThatCanBeStored() {
+        // Act and Assert
+        assertThatCode(() -> MintQuoteLock.requireStorable(PUBLIC_KEY, true)).doesNotThrowAnyException();
     }
 
     /** Ensures a valid compressed key is accepted and kept exactly as the wallet sent it. */

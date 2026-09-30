@@ -331,7 +331,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
     public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@RequestBody PostMintQuoteRequest request,
                                                                   @PathVariable("method") String method) throws CashuErrorException {
         var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()),
-                null, request.getPubkey());
+                request.getUnit(), request.getPubkey());
         return ResponseEntity.ok(response);
     }
 
