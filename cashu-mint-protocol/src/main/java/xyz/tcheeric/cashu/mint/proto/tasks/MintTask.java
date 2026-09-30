@@ -13,7 +13,6 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.mint.proto.IouKeysets;
-import xyz.tcheeric.cashu.common.nut20.MintQuoteSignature;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherLifecycleState;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecord;
 import xyz.tcheeric.cashu.mint.proto.ports.IssuanceRecordRepository;
@@ -32,6 +31,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
 import xyz.tcheeric.cashu.mint.proto.domain.SignatureSource;
 import xyz.tcheeric.cashu.mint.proto.service.SignatureVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.MintQuoteLock;
 import xyz.tcheeric.cashu.mint.proto.util.OutputsHash;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -259,8 +260,10 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // cold after a restart, so it cannot be the source of truth
             // for write decisions.
             VoucherQuoteRepository voucherClassifier = MintIntegrityContext.voucherQuoteRepository();
-            boolean isVoucherQuote = (voucherClassifier != null
-                    && voucherClassifier.findById(quoteId).isPresent())
+            Optional<VoucherQuote> durableVoucher = voucherClassifier == null
+                    ? Optional.empty()
+                    : voucherClassifier.findById(quoteId);
+            boolean isVoucherQuote = durableVoucher.isPresent()
                     || VoucherQuoteRegistry.isVoucherQuote(quoteId);
             VoucherFundingContext voucherCtx = null;
 
@@ -269,13 +272,16 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             boolean isIouMint = isIouMint(blindedMessages, mint);
 
             if (isVoucherQuote) {
+                // cashu-mint#529: a funded voucher quote is worth its face value to whoever mints
+                // it, so a locked one is unlocked first, before funding is resolved or attached.
+                requireVoucherQuoteSignature(durableVoucher, quoteId, blindedMessages);
                 // Spec 003 FR-002 — vouchers MUST trace to a durable funding row.
                 // The legacy "skip payment check" path is gone when the JPA module
                 // is wired; legacy unit-test contexts (repo == null) keep working
                 // unchanged. resolveVoucherFunding also enforces the CAS gate
                 // (rejects with quote_already_issued / issuance_in_progress when
                 // the durable lifecycle has already advanced past FUNDED).
-                voucherCtx = resolveVoucherFunding(quoteId);
+                voucherCtx = resolveVoucherFunding(quoteId, durableVoucher);
                 if (voucherCtx == null) {
                     log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true (legacy context)", quoteId);
                 } else {
@@ -697,13 +703,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
      * no funding row resolves. Returns {@code null} when the JPA module
      * is not wired (legacy unit-test contexts).
      */
-    private VoucherFundingContext resolveVoucherFunding(String quoteId) throws CashuErrorException {
+    private VoucherFundingContext resolveVoucherFunding(String quoteId, Optional<VoucherQuote> durableVoucher)
+            throws CashuErrorException {
         VoucherQuoteRepository voucherRepo = MintIntegrityContext.voucherQuoteRepository();
         if (voucherRepo == null) {
             return null;
         }
 
-        VoucherQuote quote = voucherRepo.findById(quoteId).orElse(null);
+        VoucherQuote quote = durableVoucher.orElse(null);
         if (quote == null) {
             log.warn("mint_task voucher_quote_missing quote_id={}", quoteId);
             throw new CashuErrorException(CashuErrorCode.voucher_quote_not_found);
@@ -1013,19 +1020,21 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
     private void requireMintQuoteSignature(MintQuote quote,
                                            String quoteId,
                                            List<BlindedMessage> outputs) throws CashuErrorException {
-        String pubkey = quote.pubkey();
-        if (pubkey == null || pubkey.isBlank()) {
-            return;
-        }
-        String signature = postMintRequest.getSignature();
-        if (signature == null || signature.isBlank()) {
-            log.warn("mint_task nut20_signature_missing quote_id={}", quoteId);
-            throw new CashuErrorException(CashuErrorCode.pubkey_required_for_mint_quote);
-        }
-        if (!MintQuoteSignature.isValid(quoteId, outputs, pubkey, signature)) {
-            log.warn("mint_task nut20_signature_invalid quote_id={}", quoteId);
-            throw new CashuErrorException(CashuErrorCode.mint_signature_invalid);
-        }
+        MintQuoteLock.requireUnlockedBy(quote.pubkey(), quoteId, outputs, postMintRequest.getSignature());
+    }
+
+    /**
+     * The voucher-quote counterpart of {@link #requireMintQuoteSignature}: the same NUT-20 rule,
+     * read from the durable voucher quote (cashu-mint#529).
+     *
+     * <p>Without a durable row (legacy unit-test contexts) there is no stored key, so the quote is
+     * unlocked, as every voucher quote was before.
+     */
+    private void requireVoucherQuoteSignature(Optional<VoucherQuote> durableVoucher,
+                                              String quoteId,
+                                              List<BlindedMessage> outputs) throws CashuErrorException {
+        String lockingKey = durableVoucher.map(VoucherQuote::pubkey).orElse(null);
+        MintQuoteLock.requireUnlockedBy(lockingKey, quoteId, outputs, postMintRequest.getSignature());
     }
 
     /**

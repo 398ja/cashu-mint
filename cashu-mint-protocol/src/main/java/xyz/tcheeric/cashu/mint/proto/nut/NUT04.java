@@ -129,6 +129,27 @@ public final class NUT04 {
     }
 
     /**
+     * Create a voucher mint quote, locked to {@code pubkey} when one is supplied (NUT-20).
+     *
+     * <p>A funded voucher quote is worth its face value to whoever mints it. Unlocked, anyone who
+     * learns its id can mint it; locked, only the holder of the matching private key can
+     * (cashu-mint#529).
+     *
+     * @param amount the voucher face value in satoshis
+     * @param method the payment method
+     * @param unit   the unit, or null for the default
+     * @param pubkey the compressed secp256k1 key to lock the quote to, or null for an unlocked quote
+     * @return the mint quote response with fee-based invoice, echoing {@code pubkey}
+     */
+    public static PostMintQuoteResponse quoteVoucher(int amount,
+                                                     @NonNull PaymentMethod method,
+                                                     String unit,
+                                                     String pubkey) throws CashuErrorException {
+        return new VoucherMintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance(), pubkey)
+                .execute();
+    }
+
+    /**
      * Check payment status for a voucher mint quote.
      *
      * <p>Answers only for voucher quotes: a regular quote id is refused with

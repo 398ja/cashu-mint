@@ -87,7 +87,17 @@ processed as a new swap. See [what NUT-19 may claim](../explanations/mint-info-a
 ### `POST /v1/mint/quote/{method}`
 Create a mint quote for a payment method (for example `bolt11`).
 - `method` (path) – payment method name (case-insensitive).
-- Body: `{ "amount": 1000 }`.
+- Body: `{ "amount": 1000, "unit": "sat", "pubkey": "02f9…36f9" }`. `unit` and `pubkey` are optional.
+
+`pubkey` locks the quote under [NUT-20](https://github.com/cashubtc/nuts/blob/main/20.md): a
+33-byte compressed secp256k1 key, hex-encoded. The response echoes it, and the mint then issues
+only against a mint request signed by the matching private key. Anything that is not a
+compressed curve point is refused with `20009` before any invoice is raised, and that includes
+an explicit empty string: only an absent `pubkey` asks for an unlocked quote. The key is stored
+and echoed in lowercase hex. A mint running without durable quote storage
+(`cashu.mint.jpa.enabled=false`) cannot keep the key, so it refuses a locked quote with `20009`
+rather than echo a lock it would never enforce. Without `pubkey` the quote is unlocked, and
+anyone who learns its id can mint it once it is paid.
 
 ### `GET /v1/mint/quote/{method}/{quote_id}`
 Check mint quote status.
@@ -113,6 +123,12 @@ The response carries the NUT-04 fields:
 Create a voucher mint quote that charges a percentage fee (see `voucher.quote.fee-percent`).
 `amount` in the response is the face value; the invoice in `request` charges only the fee.
 
+Takes the same body as the regular route. `unit` selects the gateway and defaults to `sat` when
+absent or blank. `pubkey` follows the same rules and `20009` refusals, and is echoed in
+the response. Lock every voucher quote: a funded voucher quote is worth
+its whole face value to whoever mints it, while its id travels through gateway responses and logs
+(cashu-mint#529).
+
 ### `GET /v1/mint/quote/voucher/{method}/{quote_id}`
 Check voucher mint quote status. Same fields as the regular route, all describing the face value,
 plus one:
@@ -120,6 +136,8 @@ plus one:
 | Field | Meaning |
 |---|---|
 | `charged_amount` | What the quote's invoice charges: the voucher fee, not its face value. Present in every state. |
+
+Both status routes echo the quote's NUT-20 `pubkey`, or `null` when the quote is unlocked.
 
 `amount_paid` is the face value once the quote is paid, not the fee, because NUT-04 requires
 `amount_issued` never to exceed `amount_paid` and mints `amount_paid - amount_issued`
@@ -141,10 +159,14 @@ quotes must poll `GET /v1/mint/quote/voucher/{method}/{quote_id}`, and should co
 Mint tokens after paying a quote.
 - `method` (path) – payment method.
 - Body fields:
-  - `quote_id` – required.
-  - `blinded_messages` – required; each output must include `keyset_id` so the controller can infer the mint id.
+  - `quote` – required.
+  - `outputs` – required; each output must include its keyset `id` so the controller can infer the mint id.
+  - `signature` – required when the quote was locked with a `pubkey`: the BIP-340 signature over
+    the SHA-256 of the NUT-20 `Cashu_MintQuoteSig_v1` message for the quote id and outputs.
 
 Returns `400` when the quote id or outputs are missing; `404` when the mint or quote cannot be resolved.
+A locked quote, regular or voucher, answers a missing or invalid `signature` with `400` and code
+`20008`, and stays mintable by its key holder.
 
 ## Melt quotes
 

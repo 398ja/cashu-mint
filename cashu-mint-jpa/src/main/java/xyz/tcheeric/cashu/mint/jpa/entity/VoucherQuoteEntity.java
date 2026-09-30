@@ -62,6 +62,15 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Column(name = "unit", length = 16, nullable = false)
     private String unit;
 
+    /**
+     * NUT-20: the key this quote is locked to, or null when it is unlocked (cashu-mint#529).
+     *
+     * <p>Immutable once written: re-locking a funded quote to a different key would hand its face
+     * value to whoever made the change.
+     */
+    @Column(name = "pubkey", length = 66, updatable = false)
+    private String pubkey;
+
     @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "merchant_id", length = 255)
     private String merchantId;
@@ -145,6 +154,11 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Override
     public String unit() {
         return unit;
+    }
+
+    @Override
+    public String pubkey() {
+        return pubkey;
     }
 
     @Override

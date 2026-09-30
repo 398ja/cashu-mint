@@ -4,6 +4,45 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **Voucher mint quotes can be NUT-20 locked (#529).** `POST /v1/mint/quote/voucher/{method}`
+  ignored the request's `pubkey`, and the voucher branch of `MintTask` never asked for a
+  signature, so a funded voucher quote was a bearer claim: anyone who learned its id could POST
+  `/v1/mint/{method}` with their own outputs and take the whole face value. Voucher quote ids
+  travel through gateway responses and logs until the voucher is minted. The voucher route now
+  accepts an optional `pubkey`, stores it on `voucher_quote.pubkey` (migration
+  `V20260930_001`, with its `voucher_quote_aud` shadow), echoes it on create and status, and
+  refuses to mint a locked voucher quote without a valid signature from that key. The check runs
+  before funding is resolved and before the `FUNDED -> ISSUING` transition, so a refused request
+  leaves the quote mintable by its holder. An unlocked voucher quote behaves exactly as before;
+  callers should start sending `pubkey`.
+
+- **A mint without durable quote storage no longer echoes a lock it cannot enforce (#529).** With
+  `cashu.mint.jpa.enabled=false` (the default) the `pubkey` of a regular quote was echoed in the
+  response but never stored, so the wallet believed its quote locked while anyone holding the id
+  could mint it. Both quote routes now refuse a `pubkey` with `20009` when there is nowhere to
+  store it. Unlocked quotes are unaffected.
+
+- **An explicit empty `pubkey` is refused rather than read as "unlocked" (#529).** Only an absent
+  `pubkey` asks for an unlocked quote; `""` is an invalid pubkey under NUT-20 and answers `20009`,
+  so a wallet that tried to lock never silently gets a bearer quote. Keys are stored and echoed in
+  lowercase hex.
+
+### Fixed
+
+- **NUT-20 error codes and key validation now follow the spec on both quote routes (#529).** A
+  locked quote minted with no signature answered `20009`; NUT-20 lists that case under `20008`
+  ("no valid signature provided") and keeps `20009` for a missing or invalid `pubkey` at quote
+  time. A missing and a wrong signature are now both `20008`. A `pubkey` that is not a 33-byte
+  compressed secp256k1 point is refused with `20009` before any row is written or invoice raised;
+  it used to be stored, producing a quote nobody could ever mint once paid. Regular and voucher
+  quotes share one implementation, `MintQuoteLock`, so the two routes cannot drift. The regular
+  status route now echoes the quote's `pubkey` too.
+
+- **The voucher quote route honours `unit` from the request body (#529).** It was dropped, so every
+  voucher quote was priced on the default gateway.
+
 ## [0.40.1] - 2026-09-29
 
 ### Security

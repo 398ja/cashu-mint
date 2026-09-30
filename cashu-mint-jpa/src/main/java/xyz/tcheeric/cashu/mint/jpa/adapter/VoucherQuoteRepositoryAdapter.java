@@ -76,6 +76,7 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
         e.setChargedAmount(q.chargedAmount());
         e.setFee(q.fee());
         e.setUnit(q.unit());
+        e.setPubkey(q.pubkey());
         e.setMerchantId(q.merchantId());
         e.setCustomerId(q.customerId());
         e.setFundingId(q.fundingId());

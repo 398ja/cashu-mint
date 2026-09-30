@@ -41,6 +41,7 @@ that backs it).
 | `fee` | The mint's revenue from this purchase | No |
 | `original_token_amount` | Sum of blinded message amounts captured at voucher issuance — the original sat-denominated proof sum. Surfaced via `GET /v1/vouchers/{voucherId}/provenance` so a receiving wallet can compute `issuance_ratio = face_value / original_token_amount` and display the correct value of a partial-spend portion rather than the embedded original face value. Null for rows issued before this column existed. | No |
 | `unit` | Currency (`sat`, etc.) | No |
+| `pubkey` | NUT-20 public key the quote is locked to, supplied by the client that requested the quote. Only a mint request signed by the matching private key can mint the voucher. Stored in the clear because the mint must verify signatures against it. NUT-20 asks wallets to use a fresh key for every quote, so it does not link purchases. Null for an unlocked quote. | No |
 | `customer_id` | **Hashed** version of your npub. Null if you purchased anonymously. Nullified after 90 days regardless. | **Yes (hashed)** |
 | `merchant_id` | **Hashed** version of the merchant's npub. Nullified after 90 days. | **Yes (hashed)** |
 | `funding_id` | Link to the funding-row that backs this voucher | No |

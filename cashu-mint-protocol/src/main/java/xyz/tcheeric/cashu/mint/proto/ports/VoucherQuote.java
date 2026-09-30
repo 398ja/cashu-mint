@@ -51,6 +51,16 @@ public interface VoucherQuote {
         return null;
     }
 
+    /**
+     * NUT-20: the key this quote is locked to, or null when it is unlocked.
+     *
+     * <p>An unlocked voucher quote can be minted by anyone who learns its id once it is funded. A
+     * locked one requires a signature from the matching private key (cashu-mint#529).
+     */
+    default String pubkey() {
+        return null;
+    }
+
     String unit();
 
     /** npub / principal of the merchant when merchant-funded or IOU. */

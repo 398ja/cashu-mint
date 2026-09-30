@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
@@ -15,6 +16,7 @@ import xyz.tcheeric.payment.adapter.core.common.Gateway;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -135,5 +137,49 @@ public class MintQuoteTaskTest {
                 "the 60 s TTL is reported as an absolute timestamp (#494)");
         verify(repository, never()).save(Mockito.any());
         Mockito.verifyNoInteractions(repository);
+    }
+
+    /**
+     * Ensures a regular quote locked to something that is not a compressed secp256k1 key is
+     * refused with 20009 before any row is written or invoice raised, as NUT-20 requires. The
+     * voucher route applies the same rule (cashu-mint#529).
+     */
+    @Test
+    public void quote_RefusesAnInvalidPubkeyBeforeRecordingOrInvoicing() {
+        // Arrange
+        Gateway gateway = Mockito.mock(Gateway.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.MOCK, "sat")).thenReturn(gateway);
+        MintQuoteRepository repository = Mockito.mock(MintQuoteRepository.class);
+        MintQuoteTask task = new MintQuoteTask(8L, PaymentMethod.MOCK, "sat", service, repository,
+                "https://mint.example", "not-a-key");
+
+        // Act and Assert
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(((CashuErrorException) thrown).getErrorCode())
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+        Mockito.verifyNoInteractions(repository, gateway);
+    }
+
+    /**
+     * Ensures a mint without durable storage refuses to lock a regular quote with 20009, rather
+     * than echoing a key it never stored and handing the wallet a bearer quote it thinks locked.
+     */
+    @Test
+    public void quote_RefusesALockWhenNothingCanStoreTheKey() {
+        // Arrange
+        Gateway gateway = Mockito.mock(Gateway.class);
+        MintProtocolService service = Mockito.mock(MintProtocolService.class);
+        when(service.createGateway(PaymentMethod.MOCK, "sat")).thenReturn(gateway);
+        MintQuoteTask task = new MintQuoteTask(8L, PaymentMethod.MOCK, "sat", service, null, null,
+                "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9");
+
+        // Act and Assert
+        assertThatThrownBy(task::execute)
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(thrown -> assertThat(((CashuErrorException) thrown).getErrorCode())
+                        .isEqualTo(CashuErrorCode.pubkey_required_for_mint_quote));
+        Mockito.verifyNoInteractions(gateway);
     }
 }

@@ -320,14 +320,18 @@ public class CashuController<T extends Secret> implements org.springframework.co
      * <p>Example: With 10% fee, a 1000 sat voucher creates a 100 sat invoice.
      * After payment, the user can mint 1000 sat worth of tokens.
      *
-     * @param request the mint quote request with voucher face value
+     * <p>An optional NUT-20 {@code pubkey} locks the quote, so only a mint request signed by the
+     * matching private key can mint it once it is funded (cashu-mint#529).
+     *
+     * @param request the mint quote request with voucher face value and optional {@code pubkey}
      * @param method  the payment method (e.g., "bolt11")
      * @return the mint quote response with fee-based invoice
      */
     @PostMapping("/mint/quote/voucher/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@RequestBody PostMintQuoteRequest request,
                                                                   @PathVariable("method") String method) throws CashuErrorException {
-        var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()));
+        var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()),
+                request.getUnit(), request.getPubkey());
         return ResponseEntity.ok(response);
     }
 

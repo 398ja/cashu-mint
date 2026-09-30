@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuoteRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.MintQuoteLock;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
@@ -55,6 +56,9 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
     private final String unit;
     private final MintProtocolService mintProtocolService;
 
+    /** NUT-20: the key the wallet asked to lock the quote to, or null for an unlocked quote. */
+    private final String requestedPubkey;
+
     public VoucherMintQuoteTask(int faceValue, @NonNull PaymentMethod method) {
         this(faceValue, method, null, MintProtocolServiceFactory.getInstance());
     }
@@ -63,10 +67,25 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                                 @NonNull PaymentMethod method,
                                 String unit,
                                 @NonNull MintProtocolService mintProtocolService) {
+        this(faceValue, method, unit, mintProtocolService, null);
+    }
+
+    /**
+     * NUT-20 constructor: locks the quote to {@code pubkey} when one is supplied, so only the
+     * holder of the matching private key can mint it once it is funded.
+     */
+    public VoucherMintQuoteTask(int faceValue,
+                                @NonNull PaymentMethod method,
+                                String unit,
+                                @NonNull MintProtocolService mintProtocolService,
+                                String pubkey) {
         this.faceValue = faceValue;
         this.method = method;
-        this.unit = unit;
+        // Blank reads as absent, as on the regular route, so a gateway is never selected by, and
+        // a row never stored with, an empty unit.
+        this.unit = unit == null || unit.isBlank() ? null : unit;
         this.mintProtocolService = mintProtocolService;
+        this.requestedPubkey = pubkey;
     }
 
     // Backward-compatible constructor used by tests: no unit parameter
@@ -79,6 +98,10 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
     @Override
     protected PostMintQuoteResponse doExecute() throws CashuErrorException {
         log.info("Creating voucher mint quote: faceValue={}, method={}", faceValue, method);
+
+        // NUT-20: refuse a key nobody could sign for before anything is written or invoiced.
+        String lockingKey = MintQuoteLock.lockingKey(requestedPubkey);
+        MintQuoteLock.requireStorable(lockingKey, MintIntegrityContext.voucherQuoteRepository() != null);
 
         // Load fee percentage and floor from configuration
         double feePercentage = VoucherFeeConfig.getFeePercentage();
@@ -139,7 +162,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         // invoice and needs no owner, where the failure it replaces cost the
         // customer's payment. Staging held zero UNFUNDED rows when this landed.
         String quoteId = UUID.randomUUID().toString();
-        persistVoucherQuote(quoteId, voucherPrice);
+        persistVoucherQuote(quoteId, voucherPrice, lockingKey);
 
         // IRREVERSIBLE FROM HERE. Every precondition that can refuse this
         // quote, including the write above, must stay above this line.
@@ -178,6 +201,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         // narrowing cast is needed.
         return PostMintQuoteResponse.builder()
                 .quoteId(quoteId)
+                .pubkey(lockingKey)
                 .request(request)
                 .amount(faceValue)
                 .unit(unit != null && !unit.isBlank() ? unit : "sat")
@@ -187,7 +211,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                 .build();
     }
 
-    private void persistVoucherQuote(String quoteId, long chargedAmount) throws CashuErrorException {
+    private void persistVoucherQuote(String quoteId, long chargedAmount, String lockingKey)
+            throws CashuErrorException {
         VoucherQuoteRepository repo = MintIntegrityContext.voucherQuoteRepository();
         if (repo == null) {
             // Legacy unit-test context — no JPA repo wired, registry-only.
@@ -210,7 +235,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                     chargedAmount,
                     fee,
                     unit != null ? unit : "sat",
-                    requestHash(quoteId, faceValue, chargedAmount));
+                    requestHash(quoteId, faceValue, chargedAmount),
+                    lockingKey);
             repo.save(record);
             log.info("voucher_quote persisted quote_id={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
                     quoteId, faceValue, chargedAmount, fee);
@@ -257,7 +283,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
             long chargedAmount,
             long fee,
             String unit,
-            String requestHash
+            String requestHash,
+            String pubkey
     ) implements VoucherQuote {
         @Override public String merchantId() { return null; }
         @Override public String customerId() { return null; }
