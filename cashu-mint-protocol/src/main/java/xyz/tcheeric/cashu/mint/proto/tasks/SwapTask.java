@@ -28,6 +28,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -252,7 +253,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
-        new VerifyProofsTask<>(mint, request, service).execute();
+        new VerifyProofsTask<>(mint, request, service, InstalledVoucherIssuerBinding.current()).execute();
 
         // NUT-02: the balance equation is checked before signing, so a rejected swap
         // leaves no blind signature behind for NUT-09 restore to hand back. Voucher

@@ -1,5 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.metrics;
 
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
+
 /**
  * Registry of the typed metric recorder ports, one accessor per domain area —
  * see {@code docs/adr/0001-typed-metric-recorders.md}.
@@ -50,6 +52,14 @@ public final class MetricRecorders {
 
         @Override
         public void rateLimitBreach() {
+        }
+
+        @Override
+        public void issuerUntrusted(VoucherIssuerBindingMode mode) {
+        }
+
+        @Override
+        public void unsignedVoucher(VoucherIssuerBindingMode mode) {
         }
     };
 
