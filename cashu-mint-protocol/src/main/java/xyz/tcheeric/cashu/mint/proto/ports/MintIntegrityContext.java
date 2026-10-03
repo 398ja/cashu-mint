@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.proto.ports;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
 import java.time.Duration;
 
@@ -52,6 +53,28 @@ public final class MintIntegrityContext {
     private static volatile String activeProfile;
     private static volatile SwapHoldRepository swapHoldRepository;
     private static volatile SwapResponseCache swapResponseCache;
+    private static volatile VoucherIssuerBinding voucherIssuerBinding;
+
+    /**
+     * Installs the binding between a voucher's signing key and its issuer (issue #527).
+     * Idempotent.
+     *
+     * <p>Installed by {@code cashu-mint-rest} whether or not the JPA layer is enabled, because a
+     * voucher swap needs it either way.
+     */
+    public static void installVoucherIssuerBinding(VoucherIssuerBinding voucherIssuerBinding) {
+        MintIntegrityContext.voucherIssuerBinding = voucherIssuerBinding;
+    }
+
+    /**
+     * The installed voucher issuer binding, or {@link VoucherIssuerBinding#unconfigured()} when
+     * none is: the configuration property's own default, which allows and reports an untrusted
+     * signer. Never null, so a spending condition needs no null check.
+     */
+    public static VoucherIssuerBinding voucherIssuerBinding() {
+        VoucherIssuerBinding installed = voucherIssuerBinding;
+        return installed != null ? installed : VoucherIssuerBinding.unconfigured();
+    }
 
     /**
      * Installs the NUT-19 swap response cache (issue #482). Idempotent.
@@ -181,6 +204,7 @@ public final class MintIntegrityContext {
         activeProfile = null;
         mintSuspensionRepository = null;
         swapResponseCache = null;
+        voucherIssuerBinding = null;
     }
 
     public static IdentityHasher identityHasher() {

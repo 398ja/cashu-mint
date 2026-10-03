@@ -252,7 +252,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
-        new VerifyProofsTask<>(mint, request, service).execute();
+        new VerifyProofsTask<>(mint, request, service, MintIntegrityContext.voucherIssuerBinding()).execute();
 
         // NUT-02: the balance equation is checked before signing, so a rejected swap
         // leaves no blind signature behind for NUT-09 restore to hand back. Voucher

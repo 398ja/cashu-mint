@@ -139,6 +139,7 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_voucher_funding_reconciled_total` | counter | `outcome` | Paid-but-unfunded voucher quotes resolved by the reconciler, by outcome |
 | `cashu_mint_voucher_iou_issued_total` | counter | — | IOU-funded voucher issuances attempted, whatever the policy outcome |
 | `cashu_mint_voucher_issued_total` | counter | `funding_source` | Vouchers issued, by funding source |
+| `cashu_mint_voucher_issuer_untrusted_total` | counter | `mode` | Signed vouchers whose signing key is not trusted for their issuer, by binding mode |
 | `cashu_mint_voucher_lazy_funding_total` | counter | — | Funding rows lazily created from an accepted webhook event |
 | `cashu_mint_voucher_orphan_issuance` | gauge | — | Issued voucher quotes with no funding row (see VoucherIssuanceJpaRepository#countOrphanIssuance) |
 | `cashu_mint_voucher_paid_unfunded` | gauge | — | Voucher quotes still UNFUNDED despite an accepted payment event (see VoucherQuoteJpaRepository#countPaidUnfunded) |

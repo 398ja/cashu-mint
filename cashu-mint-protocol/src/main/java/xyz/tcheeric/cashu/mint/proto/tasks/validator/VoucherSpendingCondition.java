@@ -1,9 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks.validator;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestClientException;
 import xyz.tcheeric.cashu.common.Mint;
@@ -16,9 +13,11 @@ import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
+import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
@@ -45,19 +44,35 @@ import java.util.UUID;
  * which is scoped per mint, so that state is made unconstructible rather than merely caught at
  * verification time (cashu-mint#488).
  *
+ * <p>A verified issuer signature is then bound to the issuer it names through a
+ * {@link VoucherIssuerBinding} (cashu-mint#527). The shorter constructors take the binding the
+ * running mint installed in {@link MintIntegrityContext}.
+ *
  * @param <T> the secret type (must be VoucherSecret)
  */
-@AllArgsConstructor
 @Slf4j
 public class VoucherSpendingCondition<T extends Secret> implements SpendingCondition<T> {
 
-    @Setter(AccessLevel.NONE)
-    @NonNull
     private final Mint mint;
-    @NonNull
     private final MintProtocolService mintProtocolService;
-    @NonNull
     private final ProofVaultService proofVaultService;
+    private final VoucherIssuerBinding issuerBinding;
+
+    public VoucherSpendingCondition(@NonNull Mint mint,
+                                    @NonNull MintProtocolService mintProtocolService,
+                                    @NonNull ProofVaultService proofVaultService,
+                                    @NonNull VoucherIssuerBinding issuerBinding) {
+        this.mint = mint;
+        this.mintProtocolService = mintProtocolService;
+        this.proofVaultService = proofVaultService;
+        this.issuerBinding = issuerBinding;
+    }
+
+    public VoucherSpendingCondition(@NonNull Mint mint,
+                                    @NonNull MintProtocolService mintProtocolService,
+                                    @NonNull ProofVaultService proofVaultService) {
+        this(mint, mintProtocolService, proofVaultService, MintIntegrityContext.voucherIssuerBinding());
+    }
 
     public VoucherSpendingCondition(@NonNull Mint mint,
                                     @NonNull MintProtocolService mintProtocolService) {
@@ -147,6 +162,13 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             }
             log.debug("Voucher issuer signature verified: voucherId={}",
                     VoucherMetadata.voucherId(checkable));
+
+            // 2b. A verified signature proves only that the key in issuer_pubkey signed, and that
+            //     key is chosen by whoever built the voucher. The binding asks whether it is a
+            //     key the mint trusts for the issuer the voucher names (cashu-mint#527). Only
+            //     reached for a signature that verified, so it never reasons about a forged one,
+            //     and never for an unsigned voucher: presence is a separate decision, see above.
+            issuerBinding.requireTrustedSigner(checkable);
         }
 
         // 3. Check if proof has been used already (double-spend prevention).

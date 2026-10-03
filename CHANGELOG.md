@@ -4,6 +4,29 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **A voucher's signing key is now checked against the issuer it names (#527).** The issuer
+  signature was verified against the `issuer_pubkey` the voucher itself carries. So a voucher
+  signed with any keypair, naming any `issuerId`, verified and could be swapped into ordinary
+  proofs. Once a signature verifies, the mint now asks whether its key is trusted for that issuer:
+  either the key registered under `cashu.mint.voucher.issuer-keys.<issuerId>`, or one of the new
+  `cashu.mint.voucher.trusted-signers`. Those are keys that sign on any issuer's behalf, as
+  gateway-customer does for merchants. Plain and P2PK-locked vouchers are treated alike. The new
+  `cashu.mint.voucher.issuer-binding` sets the outcome: `log` (default) accepts and reports
+  `voucher_issuer_untrusted` with `cashu_mint_voucher_issuer_untrusted_total{mode}`, `enforce`
+  refuses with `voucher_signature_invalid`, and `off` skips the check. The mint refuses to boot
+  in `enforce` with no keys configured. Unsigned vouchers are accepted as before. Rollout:
+  `docs/how-to/bind-voucher-signatures-to-trusted-signers.md`.
+
+### Changed
+
+- **Merchant verification and the swap-path check share one parsed `issuer-keys` map (#527).**
+  The `VoucherIssuerKeys` bean in `VoucherConfiguration` is replaced by
+  `VoucherSignerTrustProperties` and `VoucherSignerTrustList`. Configured keys are normalised to
+  x-only lower case, so a compressed (`02`/`03`) key now matches. A malformed key now stops the
+  boot instead of silently never matching.
+
 ## [0.41.0] - 2026-09-30
 
 ### Security

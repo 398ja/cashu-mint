@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBindingMode;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -31,6 +32,8 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
             new EnumMap<>(VoucherRejectionReason.class);
     private final Map<VoucherFundingSource, Counter> issued =
             new EnumMap<>(VoucherFundingSource.class);
+    private final Map<VoucherIssuerBindingMode, Counter> issuerUntrusted =
+            new EnumMap<>(VoucherIssuerBindingMode.class);
     private final Counter iouIssuanceAttempted;
     private final Counter lazyFundingCreated;
     private final Counter fundingRecovered;
@@ -70,6 +73,23 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
         this.rateLimitBreach = Counter.builder(METRIC_PREFIX + "rate_limit_breach_total")
                 .description("Voucher requests rejected by the per-principal rate limit")
                 .register(registry);
+        registerIssuerUntrusted(registry);
+    }
+
+    /**
+     * One series per mode that can observe an untrusted signer. {@code off} never checks, so it
+     * never counts, and a series that can only read zero would suggest otherwise.
+     */
+    private void registerIssuerUntrusted(MeterRegistry registry) {
+        for (VoucherIssuerBindingMode mode : VoucherIssuerBindingMode.values()) {
+            if (mode == VoucherIssuerBindingMode.OFF) {
+                continue;
+            }
+            issuerUntrusted.put(mode, Counter.builder(METRIC_PREFIX + "issuer_untrusted_total")
+                    .description("Signed vouchers whose signing key is not trusted for their issuer, by binding mode")
+                    .tag("mode", mode.label())
+                    .register(registry));
+        }
     }
 
     @Override
@@ -100,5 +120,13 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
     @Override
     public void rateLimitBreach() {
         rateLimitBreach.increment();
+    }
+
+    @Override
+    public void issuerUntrusted(VoucherIssuerBindingMode mode) {
+        Counter counter = issuerUntrusted.get(mode);
+        if (counter != null) {
+            counter.increment();
+        }
     }
 }

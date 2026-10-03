@@ -111,6 +111,18 @@ Activate the voucher profile with `SPRING_PROFILES_ACTIVE=voucher` to expose `/v
 | `voucher.quote.fee-percent.max` | `100` | Maximum allowed fee percentage. |
 | `voucher.master.secret` | _(auto-generated)_ | Hex-encoded master secret for voucher key derivation. If unset, a secure random secret is generated at startup. Override with `VOUCHER_MASTER_SECRET`. |
 
+## Voucher signer trust
+
+Ties a voucher's signing key (`issuer_pubkey`) to the issuer it names (cashu-mint#527). These apply whether or not `voucher.enabled` is set, because voucher proofs reach `/v1/swap` either way. Keys are hex, x-only (64 characters) or compressed (66, `02`/`03` prefix), in either case. Blank values are ignored. A malformed key stops the mint at boot.
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `cashu.mint.voucher.issuer-binding` | `log` | `off`, `log` or `enforce`. Under `log`, an untrusted signer is accepted but logged as `voucher_issuer_untrusted` and counted in `cashu_mint_voucher_issuer_untrusted_total{mode}`. Under `enforce`, it is refused with `voucher_signature_invalid`. The mint refuses to boot in `enforce` with no keys configured. Override with `CASHU_MINT_VOUCHER_ISSUER_BINDING`. |
+| `cashu.mint.voucher.trusted-signers` | _(empty)_ | Comma-separated keys trusted to sign for **any** issuer, such as the gateway that signs on merchants' behalf. Override with `CASHU_MINT_VOUCHER_TRUSTED_SIGNERS`. |
+| `cashu.mint.voucher.issuer-keys.<issuerId>` | _(none)_ | The key one issuer signs with, trusted only for vouchers naming that issuer (case-insensitive). The same map is merchant verification's trust anchor, parsed once for both. |
+
+Only signed vouchers are checked, and only after their signature verifies. An unsigned voucher is accepted as before. See [Bind voucher signatures to trusted signers](../how-to/bind-voucher-signatures-to-trusted-signers.md) for the rollout.
+
 ## Durable persistence
 
 | Property | Default | Description |
