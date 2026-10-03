@@ -3,7 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.config;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBindingMode;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

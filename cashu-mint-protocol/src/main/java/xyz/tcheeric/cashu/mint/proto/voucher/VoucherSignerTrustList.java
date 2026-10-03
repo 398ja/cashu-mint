@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.voucher;
 
 import lombok.NonNull;
-import xyz.tcheeric.cashu.mint.proto.ports.TrustedVoucherSigners;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -32,6 +31,9 @@ import java.util.Set;
  */
 public final class VoucherSignerTrustList implements TrustedVoucherSigners {
 
+    private static final String ISSUER_KEYS_PROPERTY = "cashu.mint.voucher.issuer-keys";
+    private static final String TRUSTED_SIGNERS_PROPERTY = "cashu.mint.voucher.trusted-signers";
+
     private final Map<String, VoucherSignerKey> issuerKeys;
     private final Set<VoucherSignerKey> trustedSigners;
 
@@ -42,8 +44,21 @@ public final class VoucherSignerTrustList implements TrustedVoucherSigners {
      */
     public VoucherSignerTrustList(@NonNull Map<String, String> issuerKeys,
                                   @NonNull Collection<String> trustedSigners) {
+        this(issuerKeys, trustedSigners, Map.of());
+    }
+
+    /**
+     * @param issuerKeys       issuer id to the key that issuer signs with
+     * @param trustedSigners   keys trusted to sign for any issuer
+     * @param mintOwnSigners   keys the mint itself signs vouchers with, trusted for any issuer;
+     *                         taken from other properties, so named separately in errors
+     * @throws IllegalArgumentException when a non-blank key is not a secp256k1 public key
+     */
+    public VoucherSignerTrustList(@NonNull Map<String, String> issuerKeys,
+                                  @NonNull Collection<String> trustedSigners,
+                                  @NonNull Map<String, String> mintOwnSigners) {
         this.issuerKeys = parseIssuerKeys(issuerKeys);
-        this.trustedSigners = parseTrustedSigners(trustedSigners);
+        this.trustedSigners = parseTrustedSigners(trustedSigners, mintOwnSigners);
     }
 
     /**
@@ -52,7 +67,7 @@ public final class VoucherSignerTrustList implements TrustedVoucherSigners {
      * @return the empty list
      */
     public static VoucherSignerTrustList empty() {
-        return new VoucherSignerTrustList(Map.of(), Set.of());
+        return new VoucherSignerTrustList(Map.of(), Set.of(), Map.of());
     }
 
     @Override
@@ -102,18 +117,28 @@ public final class VoucherSignerTrustList implements TrustedVoucherSigners {
         Map<String, VoucherSignerKey> parsed = new LinkedHashMap<>();
         configured.forEach((issuerId, key) -> {
             if (isConfigured(key)) {
-                parsed.put(normaliseIssuerId(issuerId), VoucherSignerKey.parse(key));
+                parsed.put(normaliseIssuerId(issuerId),
+                        VoucherSignerKey.parse(key, ISSUER_KEYS_PROPERTY + "." + issuerId));
             }
         });
         return Map.copyOf(parsed);
     }
 
-    private static Set<VoucherSignerKey> parseTrustedSigners(Collection<String> configured) {
+    private static Set<VoucherSignerKey> parseTrustedSigners(Collection<String> configured,
+                                                             Map<String, String> mintOwnSigners) {
         Set<VoucherSignerKey> parsed = new LinkedHashSet<>();
-        configured.stream()
-                .filter(VoucherSignerTrustList::isConfigured)
-                .map(VoucherSignerKey::parse)
-                .forEach(parsed::add);
+        int position = 0;
+        for (String key : configured) {
+            if (isConfigured(key)) {
+                parsed.add(VoucherSignerKey.parse(key, TRUSTED_SIGNERS_PROPERTY + "[" + position + "]"));
+            }
+            position++;
+        }
+        mintOwnSigners.forEach((property, key) -> {
+            if (isConfigured(key)) {
+                parsed.add(VoucherSignerKey.parse(key, property));
+            }
+        });
         return Set.copyOf(parsed);
     }
 

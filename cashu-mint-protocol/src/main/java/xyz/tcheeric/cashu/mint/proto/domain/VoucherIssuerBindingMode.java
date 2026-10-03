@@ -1,4 +1,4 @@
-package xyz.tcheeric.cashu.mint.proto.voucher;
+package xyz.tcheeric.cashu.mint.proto.domain;
 
 import java.util.Locale;
 

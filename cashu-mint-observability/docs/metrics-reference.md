@@ -145,6 +145,7 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_voucher_paid_unfunded` | gauge | — | Voucher quotes still UNFUNDED despite an accepted payment event (see VoucherQuoteJpaRepository#countPaidUnfunded) |
 | `cashu_mint_voucher_rate_limit_breach_total` | counter | — | Voucher requests rejected by the per-principal rate limit |
 | `cashu_mint_voucher_rejected_total` | counter | `reason` | Voucher mints refused, by reason |
+| `cashu_mint_voucher_unsigned_total` | counter | `mode` | Voucher proofs carrying no issuer signature, by binding mode |
 | `cashu_mint_webhook_event_total` | counter | `outcome` | Webhook deliveries processed, by outcome (FR-008) |
 
 <!-- END GENERATED METRICS -->

@@ -5,8 +5,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBindingMode;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherSignerTrustList;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ class VoucherSignerTrustConfigurationTest {
 
     @AfterEach
     void clearInstalledBinding() {
-        MintIntegrityContext.clear();
+        InstalledVoucherIssuerBinding.install(null);
     }
 
     /** With nothing configured the mint boots in log mode and installs that binding for the swap path. */
@@ -38,7 +39,7 @@ class VoucherSignerTrustConfigurationTest {
             assertThat(context).hasNotFailed();
             VoucherIssuerBinding binding = context.getBean(VoucherIssuerBinding.class);
             assertThat(binding.mode()).isEqualTo(VoucherIssuerBindingMode.LOG);
-            assertThat(MintIntegrityContext.voucherIssuerBinding()).isSameAs(binding);
+            assertThat(InstalledVoucherIssuerBinding.current()).isSameAs(binding);
         });
     }
 
@@ -109,5 +110,44 @@ class VoucherSignerTrustConfigurationTest {
         contextRunner.withPropertyValues("cashu.mint.voucher.issuer-binding=off")
                 .run(context -> assertThat(context.getBean(VoucherIssuerBinding.class).mode())
                         .isEqualTo(VoucherIssuerBindingMode.OFF));
+    }
+
+    /** Clearing the integrity context, as the JPA installer does on shutdown, must not relax enforce back to log. */
+    @Test
+    void clearingTheIntegrityContextKeepsTheConfiguredMode() {
+        contextRunner.withPropertyValues(
+                        "cashu.mint.voucher.issuer-binding=enforce",
+                        "cashu.mint.voucher.trusted-signers=" + GATEWAY_KEY)
+                .run(context -> {
+                    MintIntegrityContext.clear();
+                    assertThat(InstalledVoucherIssuerBinding.current().mode())
+                            .isEqualTo(VoucherIssuerBindingMode.ENFORCE);
+                });
+    }
+
+    /** The mint's own voucher issuer key is trusted automatically, so enforce boots with only that key. */
+    @Test
+    void trustsTheMintsOwnVoucherIssuerKey() {
+        contextRunner.withPropertyValues(
+                        "cashu.mint.voucher.issuer-binding=enforce",
+                        "voucher.mint.issuerPublicKey=" + MERCHANT_KEY)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(VoucherSignerTrustList.class).trusts("any-issuer", MERCHANT_KEY))
+                            .isTrue();
+                });
+    }
+
+    /** A malformed key is refused without the configured value, which may be a secret pasted by mistake, reaching the error. */
+    @Test
+    void aMalformedKeyIsNamedByPositionNotEchoed() {
+        String misplacedSecret = "nsec1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+        contextRunner.withPropertyValues("cashu.mint.voucher.trusted-signers=" + GATEWAY_KEY + "," + misplacedSecret)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).rootCause()
+                            .hasMessageContaining("cashu.mint.voucher.trusted-signers[1]")
+                            .hasMessageNotContaining(misplacedSecret);
+                });
     }
 }

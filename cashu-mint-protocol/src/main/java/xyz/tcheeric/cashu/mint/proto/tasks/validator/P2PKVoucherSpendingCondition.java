@@ -7,9 +7,9 @@ import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
 /**
@@ -79,7 +79,7 @@ public class P2PKVoucherSpendingCondition<T extends Secret> implements SpendingC
                                         @NonNull MintProtocolService mintProtocolService,
                                         @NonNull P2PKTransaction transaction) {
         this(new VoucherSpendingCondition<>(mint, mintProtocolService, new DefaultProofVaultService(),
-                MintIntegrityContext.voucherIssuerBinding()), transaction);
+                InstalledVoucherIssuerBinding.current()), transaction);
     }
 
     /**

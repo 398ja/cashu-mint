@@ -37,7 +37,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBindingMode;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherSignerTrustList;
 import xyz.tcheeric.cashu.voucher.domain.SignedLockedVoucher;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
@@ -97,7 +97,7 @@ class VoucherIssuerBindingConditionTest {
         Mockito.when(mintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
                 .thenReturn(keysetKey);
 
-        recorder = new RecordingVoucherRecorder(new ArrayList<>());
+        recorder = new RecordingVoucherRecorder(new ArrayList<>(), new ArrayList<>());
         MetricRecorders.registerVoucher(recorder);
         bindingLog = new ListAppender<>();
         bindingLog.start();
@@ -267,13 +267,49 @@ class VoucherIssuerBindingConditionTest {
     @DisplayName("an unsigned voucher")
     class Unsigned {
 
-        /** Signature presence is still not required, so the binding has nothing to bind and the voucher verifies. */
+        /** Stripping the signature must not bypass enforce: an unsigned plain voucher is refused. */
         @Test
-        void verifiesAsBeforeInEnforce() {
+        void plainIsRefusedInEnforce() {
             Proof<VoucherSecret> unsigned = voucherProof(voucherSecret(MERCHANT));
 
-            assertDoesNotThrow(() -> verify(unsigned, binding(VoucherIssuerBindingMode.ENFORCE)));
+            CashuErrorException refusal = assertThrows(CashuErrorException.class,
+                    () -> verify(unsigned, binding(VoucherIssuerBindingMode.ENFORCE)));
+            assertEquals("voucher_signature_invalid", refusal.getErrorCode().name());
+            assertThat(recorder.unsigned()).containsExactly(VoucherIssuerBindingMode.ENFORCE);
+        }
+
+        /** The same holds for a P2PK-locked voucher with its signature stripped but a valid lock witness. */
+        @Test
+        void lockedIsRefusedInEnforce() {
+            Proof<P2PKVoucherSecret> unsigned = unsignedLockedVoucher(MERCHANT);
+
+            CashuErrorException refusal = assertThrows(CashuErrorException.class,
+                    () -> verifyLocked(unsigned, binding(VoucherIssuerBindingMode.ENFORCE)));
+            assertEquals("voucher_signature_invalid", refusal.getErrorCode().name());
+        }
+
+        /** Log mode lets an unsigned voucher through but logs it distinctly and counts it. */
+        @Test
+        void isAllowedAndReportedDistinctlyInLog() {
+            Proof<VoucherSecret> unsigned = voucherProof(voucherSecret(MERCHANT));
+
+            assertDoesNotThrow(() -> verify(unsigned, binding(VoucherIssuerBindingMode.LOG)));
+
+            assertThat(linesStartingWith("voucher_unsigned")).hasSize(1);
+            assertThat(linesStartingWith("voucher_unsigned").get(0)).doesNotContain(MERCHANT);
+            assertThat(untrustedLines()).isEmpty();
+            assertThat(recorder.unsigned()).containsExactly(VoucherIssuerBindingMode.LOG);
             assertThat(recorder.untrusted()).isEmpty();
+        }
+
+        /** Off mode leaves an unsigned voucher exactly as it was before the binding existed. */
+        @Test
+        void isUntouchedInOff() {
+            Proof<VoucherSecret> unsigned = voucherProof(voucherSecret(MERCHANT));
+
+            assertDoesNotThrow(() -> verify(unsigned, binding(VoucherIssuerBindingMode.OFF)));
+            assertThat(linesStartingWith("voucher_unsigned")).isEmpty();
+            assertThat(recorder.unsigned()).isEmpty();
         }
     }
 
@@ -349,6 +385,17 @@ class VoucherIssuerBindingConditionTest {
 
     /** A locked voucher signed by {@code signer} and carrying a valid NUT-11 witness from the holder. */
     private static Proof<P2PKVoucherSecret> lockedVoucher(String issuerId, KeyPair signer) {
+        P2PKVoucherSecret secret = lockedSecret(issuerId);
+        SignedLockedVoucher.createSigned(secret, signer.privateHex(), signer.xOnlyHex());
+        return lockedProof(secret);
+    }
+
+    /** A locked voucher with no issuer signature at all, but a valid lock witness. */
+    private static Proof<P2PKVoucherSecret> unsignedLockedVoucher(String issuerId) {
+        return lockedProof(lockedSecret(issuerId));
+    }
+
+    private static P2PKVoucherSecret lockedSecret(String issuerId) {
         P2PKVoucherSecret secret = new P2PKVoucherSecret(HOLDER.compressed());
         secret.setVoucherId(UUID.randomUUID().toString());
         secret.setIssuerId(issuerId);
@@ -356,8 +403,10 @@ class VoucherIssuerBindingConditionTest {
         secret.setFaceValue(1000L);
         secret.setNSigs(1);
         secret.setSigFlag(P2PKSecret.SignatureFlag.SIG_INPUTS);
-        SignedLockedVoucher.createSigned(secret, signer.privateHex(), signer.xOnlyHex());
+        return secret;
+    }
 
+    private static Proof<P2PKVoucherSecret> lockedProof(P2PKVoucherSecret secret) {
         Witness witness = new Witness();
         witness.addSignature(Hex.toHexString(Schnorr.sign(sha256(secret.toString()), HOLDER.privateKey())));
 
@@ -379,9 +428,13 @@ class VoucherIssuerBindingConditionTest {
     }
 
     private List<String> untrustedLines() {
+        return linesStartingWith("voucher_issuer_untrusted");
+    }
+
+    private List<String> linesStartingWith(String event) {
         return bindingLog.list.stream()
                 .map(ILoggingEvent::getFormattedMessage)
-                .filter(line -> line.startsWith("voucher_issuer_untrusted"))
+                .filter(line -> line.startsWith(event))
                 .toList();
     }
 
@@ -411,7 +464,8 @@ class VoucherIssuerBindingConditionTest {
         }
     }
 
-    private record RecordingVoucherRecorder(List<VoucherIssuerBindingMode> untrusted)
+    private record RecordingVoucherRecorder(List<VoucherIssuerBindingMode> untrusted,
+                                            List<VoucherIssuerBindingMode> unsigned)
             implements VoucherMetricsRecorder {
         @Override public void rejected(VoucherRejectionReason reason) { }
         @Override public void issued(VoucherFundingSource fundingSource) { }
@@ -420,5 +474,6 @@ class VoucherIssuerBindingConditionTest {
         @Override public void fundingReconciled(boolean recovered) { }
         @Override public void rateLimitBreach() { }
         @Override public void issuerUntrusted(VoucherIssuerBindingMode mode) { untrusted.add(mode); }
+        @Override public void unsignedVoucher(VoucherIssuerBindingMode mode) { unsigned.add(mode); }
     }
 }

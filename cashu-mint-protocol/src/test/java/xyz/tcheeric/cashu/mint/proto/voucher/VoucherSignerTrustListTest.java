@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.voucher;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,29 @@ class VoucherSignerTrustListTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new VoucherSignerTrustList(Map.of("cafe", "05" + X_ONLY), List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** The refusal names the property and position but never repeats the value, which might be a private key. */
+    @Test
+    void malformedKeyErrorsNameThePropertyAndWithholdTheValue() {
+        String privateKeyLookalike = "a".repeat(63);
+
+        assertThatThrownBy(() -> new VoucherSignerTrustList(Map.of(), List.of(X_ONLY, privateKeyLookalike)))
+                .hasMessageContaining("cashu.mint.voucher.trusted-signers[1]")
+                .hasMessageNotContaining(privateKeyLookalike);
+        assertThatThrownBy(() -> new VoucherSignerTrustList(Map.of("cafe", privateKeyLookalike), List.of()))
+                .hasMessageContaining("cashu.mint.voucher.issuer-keys.cafe")
+                .hasMessageNotContaining(privateKeyLookalike);
+    }
+
+    /** The mint's own voucher signing key is trusted for any issuer, like a configured trusted signer. */
+    @Test
+    void mintOwnSignerIsTrustedForAnyIssuer() {
+        VoucherSignerTrustList list = new VoucherSignerTrustList(Map.of(), List.of(),
+                Map.of("voucher.mint.issuerPublicKey", X_ONLY));
+
+        assertThat(list.trusts("whatever-merchant", X_ONLY)).isTrue();
+        assertThat(list.isEmpty()).isFalse();
     }
 
     /** Enforce with nothing configured would refuse every signed voucher, so it cannot be built. */

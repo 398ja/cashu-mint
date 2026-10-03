@@ -5,7 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBindingMode;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -33,6 +33,8 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
     private final Map<VoucherFundingSource, Counter> issued =
             new EnumMap<>(VoucherFundingSource.class);
     private final Map<VoucherIssuerBindingMode, Counter> issuerUntrusted =
+            new EnumMap<>(VoucherIssuerBindingMode.class);
+    private final Map<VoucherIssuerBindingMode, Counter> unsignedVoucher =
             new EnumMap<>(VoucherIssuerBindingMode.class);
     private final Counter iouIssuanceAttempted;
     private final Counter lazyFundingCreated;
@@ -73,20 +75,25 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
         this.rateLimitBreach = Counter.builder(METRIC_PREFIX + "rate_limit_breach_total")
                 .description("Voucher requests rejected by the per-principal rate limit")
                 .register(registry);
-        registerIssuerUntrusted(registry);
+        registerPerCheckingMode(registry, issuerUntrusted, "issuer_untrusted_total",
+                "Signed vouchers whose signing key is not trusted for their issuer, by binding mode");
+        registerPerCheckingMode(registry, unsignedVoucher, "unsigned_total",
+                "Voucher proofs carrying no issuer signature, by binding mode");
     }
 
     /**
-     * One series per mode that can observe an untrusted signer. {@code off} never checks, so it
-     * never counts, and a series that can only read zero would suggest otherwise.
+     * One series per mode that checks vouchers. {@code off} never checks, so it never counts,
+     * and a series that can only read zero would suggest otherwise.
      */
-    private void registerIssuerUntrusted(MeterRegistry registry) {
+    private static void registerPerCheckingMode(MeterRegistry registry,
+                                                Map<VoucherIssuerBindingMode, Counter> counters,
+                                                String name, String description) {
         for (VoucherIssuerBindingMode mode : VoucherIssuerBindingMode.values()) {
             if (mode == VoucherIssuerBindingMode.OFF) {
                 continue;
             }
-            issuerUntrusted.put(mode, Counter.builder(METRIC_PREFIX + "issuer_untrusted_total")
-                    .description("Signed vouchers whose signing key is not trusted for their issuer, by binding mode")
+            counters.put(mode, Counter.builder(METRIC_PREFIX + name)
+                    .description(description)
                     .tag("mode", mode.label())
                     .register(registry));
         }
@@ -124,7 +131,17 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
 
     @Override
     public void issuerUntrusted(VoucherIssuerBindingMode mode) {
-        Counter counter = issuerUntrusted.get(mode);
+        incrementIfChecked(issuerUntrusted, mode);
+    }
+
+    @Override
+    public void unsignedVoucher(VoucherIssuerBindingMode mode) {
+        incrementIfChecked(unsignedVoucher, mode);
+    }
+
+    private static void incrementIfChecked(Map<VoucherIssuerBindingMode, Counter> counters,
+                                           VoucherIssuerBindingMode mode) {
+        Counter counter = counters.get(mode);
         if (counter != null) {
             counter.increment();
         }

@@ -117,11 +117,12 @@ Ties a voucher's signing key (`issuer_pubkey`) to the issuer it names (cashu-min
 
 | Property | Default | Description |
 | --- | --- | --- |
-| `cashu.mint.voucher.issuer-binding` | `log` | `off`, `log` or `enforce`. Under `log`, an untrusted signer is accepted but logged as `voucher_issuer_untrusted` and counted in `cashu_mint_voucher_issuer_untrusted_total{mode}`. Under `enforce`, it is refused with `voucher_signature_invalid`. The mint refuses to boot in `enforce` with no keys configured. Override with `CASHU_MINT_VOUCHER_ISSUER_BINDING`. |
+| `cashu.mint.voucher.issuer-binding` | `log` | `off`, `log` or `enforce`. Governs both an untrusted signer and an unsigned voucher. Under `log`, both are accepted, logged as `voucher_issuer_untrusted` / `voucher_unsigned`, and counted in `cashu_mint_voucher_issuer_untrusted_total{mode}` / `cashu_mint_voucher_unsigned_total{mode}`. Under `enforce`, both are refused with `voucher_signature_invalid`. `off` skips both. The mint refuses to boot in `enforce` with no keys configured. Override with `CASHU_MINT_VOUCHER_ISSUER_BINDING`. |
 | `cashu.mint.voucher.trusted-signers` | _(empty)_ | Comma-separated keys trusted to sign for **any** issuer, such as the gateway that signs on merchants' behalf. Override with `CASHU_MINT_VOUCHER_TRUSTED_SIGNERS`. |
 | `cashu.mint.voucher.issuer-keys.<issuerId>` | _(none)_ | The key one issuer signs with, trusted only for vouchers naming that issuer (case-insensitive). The same map is merchant verification's trust anchor, parsed once for both. |
+| `voucher.mint.issuerPublicKey` | _(unset)_ | The mint's own voucher signing key (see above). When set, it is trusted for any issuer automatically. |
 
-Only signed vouchers are checked, and only after their signature verifies. An unsigned voucher is accepted as before. See [Bind voucher signatures to trusted signers](../how-to/bind-voucher-signatures-to-trusted-signers.md) for the rollout.
+The signer check runs only after a signature verifies. A malformed key stops the boot with an error that names the property and position but not the value. See [Bind voucher signatures to trusted signers](../how-to/bind-voucher-signatures-to-trusted-signers.md) for the rollout.
 
 ## Durable persistence
 

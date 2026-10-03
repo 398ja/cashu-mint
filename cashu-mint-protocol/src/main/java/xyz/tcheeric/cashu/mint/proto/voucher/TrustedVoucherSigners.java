@@ -1,4 +1,4 @@
-package xyz.tcheeric.cashu.mint.proto.ports;
+package xyz.tcheeric.cashu.mint.proto.voucher;
 
 /**
  * Answers whether a voucher's signing key is one the mint recognises for the issuer it names

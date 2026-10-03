@@ -13,7 +13,6 @@ import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
-import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKTransaction;
@@ -23,6 +22,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingConditio
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
 import java.util.List;
@@ -134,7 +134,7 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     /** Uses the voucher issuer binding the running mint installed. */
     public VerifyProofsTask(Mint mint, PostSwapRequest<T> request,
                             MintProtocolService mintProtocolService) {
-        this(mint, request, mintProtocolService, MintIntegrityContext.voucherIssuerBinding());
+        this(mint, request, mintProtocolService, InstalledVoucherIssuerBinding.current());
     }
 
     @Override

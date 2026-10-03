@@ -33,15 +33,20 @@ public final class VoucherSignerKey {
     /**
      * Normalises a configured key, refusing anything that is not one.
      *
-     * @param hex x-only or compressed hex, either case
+     * <p>The error names where the key was configured and never repeats the value: a value
+     * that is not a public key may well be a private key pasted into the wrong property, and a
+     * boot exception is printed, logged and shipped.
+     *
+     * @param hex    x-only or compressed hex, either case
+     * @param source where the value was configured, such as a property name and position
      * @return the normalised key
      * @throws IllegalArgumentException when the value is not a 32-byte x-only or 33-byte
      *                                  compressed public key in hex
      */
-    public static VoucherSignerKey parse(@NonNull String hex) {
-        return tryParse(hex).orElseThrow(() -> new IllegalArgumentException(
-                "Not a secp256k1 public key (expected 64 hex x-only or 66 hex compressed): "
-                        + hex));
+    public static VoucherSignerKey parse(@NonNull String hex, @NonNull String source) {
+        return tryParse(hex).orElseThrow(() -> new IllegalArgumentException(source
+                + " is not a secp256k1 public key (expected 64 hex x-only or 66 hex compressed); "
+                + "the value is withheld in case it is a secret"));
     }
 
     /**

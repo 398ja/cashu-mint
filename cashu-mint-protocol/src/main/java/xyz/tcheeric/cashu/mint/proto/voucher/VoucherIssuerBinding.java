@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
-import xyz.tcheeric.cashu.mint.proto.ports.TrustedVoucherSigners;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 
 import java.nio.charset.StandardCharsets;
@@ -21,6 +21,12 @@ import java.util.HexFormat;
  * itself carries, so a voucher signed with an attacker's own key verifies perfectly. This is the
  * second half of that check: is the key that signed one the mint recognises for this issuer?
  * It runs only once the signature has verified, so it never has to reason about a forged one.
+ *
+ * <p>The mode governs presence as well as trust. Binding only the signed vouchers would leave the
+ * obvious way round it open: strip {@code issuer_sig} and {@code issuer_pubkey} and the voucher
+ * has nothing to bind. So in {@code ENFORCE} an unsigned voucher is refused too, and in
+ * {@code LOG} it is reported as {@code voucher_unsigned}, separately from an untrusted signer,
+ * so the logs show whether any legitimate producer still emits unsigned vouchers.
  *
  * <p>What happens to an untrusted signer depends on the {@link VoucherIssuerBindingMode}. A
  * binding in {@code ENFORCE} with nothing trusted cannot be built: it would refuse every signed
@@ -84,6 +90,30 @@ public final class VoucherIssuerBinding {
     /** @return the configured mode */
     public VoucherIssuerBindingMode mode() {
         return mode;
+    }
+
+    /**
+     * Applies the mode to a voucher that carries no issuer signature at all.
+     *
+     * <p>{@code OFF} accepts it silently, as the mint always did. {@code LOG} accepts it and
+     * reports {@code voucher_unsigned}. {@code ENFORCE} refuses it: a voucher without a signature
+     * names an issuer nobody vouched for, which is exactly what a self-made one does.
+     *
+     * @param unsignedVoucher a voucher-carrying secret with no issuer signature
+     * @throws CashuErrorException {@code voucher_signature_invalid} in {@code ENFORCE} mode
+     */
+    public void requireSignature(@NonNull WellKnownSecret unsignedVoucher) throws CashuErrorException {
+        if (mode == VoucherIssuerBindingMode.OFF) {
+            return;
+        }
+        log.warn("voucher_unsigned mode={} voucherId={} issuerHash={}", mode.label(),
+                VoucherMetadata.voucherId(unsignedVoucher),
+                hashPrefix(VoucherMetadata.issuerId(unsignedVoucher)));
+        MetricRecorders.voucher().unsignedVoucher(mode);
+        if (mode == VoucherIssuerBindingMode.ENFORCE) {
+            throw new CashuErrorException(CashuErrorCode.voucher_signature_invalid,
+                    "Voucher carries no issuer signature");
+        }
     }
 
     private boolean isTrusted(WellKnownSecret signedVoucher) {

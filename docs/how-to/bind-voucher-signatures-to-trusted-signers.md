@@ -6,8 +6,9 @@ keys are being collected (cashu-mint#527).
 
 A voucher carries its own `issuer_pubkey`, and the mint verifies the issuer signature against
 that key. Without this check, a voucher signed with any keypair, naming any `issuerId`, verifies
-and can be swapped for ordinary proofs. The check only looks at vouchers that carry a signature,
-and only after that signature has verified.
+and can be swapped for ordinary proofs. The same mode also governs vouchers that carry no
+signature at all, because otherwise stripping `issuer_sig` and `issuer_pubkey` would walk past
+the check.
 
 ## Before you start
 
@@ -18,24 +19,31 @@ and only after that signature has verified.
   merchant is the `issuerId`, while **gateway-customer** signs every voucher with its own Nostr
   identity key (the one kept in its `~/.cashu` volume). So the gateway key goes in
   `trusted-signers`, not under a merchant's `issuer-keys` entry.
+- The mint's own voucher key, `voucher.mint.issuerPublicKey`, is trusted automatically. With
+  `voucher.enabled=true`, `POST /v1/vouchers` signs with that key, so the mint never refuses its
+  own vouchers.
 
 ## 1. Deploy in `log` mode
 
-`log` is the default, so a deploy that sets nothing is already in it. Every signed voucher is
-still accepted. Each one whose signer is not trusted for its issuer is logged and counted:
+`log` is the default, so a deploy that sets nothing is already in it. Every voucher is still
+accepted. Two kinds are logged and counted, each under its own name:
 
 ```text
 WARN  voucher_issuer_untrusted mode=log voucherId=… issuerHash=3f9a0c1d2e4b signerPrefix=79be667ef9dc
+WARN  voucher_unsigned mode=log voucherId=… issuerHash=3f9a0c1d2e4b
 ```
 
+- `voucher_issuer_untrusted` is a signed voucher whose key is not trusted for its issuer. It is
+  counted in `cashu_mint_voucher_issuer_untrusted_total{mode="log"}`.
+- `voucher_unsigned` is a voucher with no issuer signature at all. It is counted in
+  `cashu_mint_voucher_unsigned_total{mode="log"}`.
 - `signerPrefix` is the first 12 hex characters of the signing key.
 - `issuerHash` is a SHA-256 prefix of the `issuerId`. Raw merchant keys are never logged.
-- The counter is `cashu_mint_voucher_issuer_untrusted_total{mode="log"}`.
 
 At boot, the mint logs `voucher_issuer_binding mode=log with no … issuer-keys …` while nothing is
 configured. That warning is expected at this step.
 
-## 2. Collect the signing keys for a week
+## 2. Watch both signals for a week
 
 Group the `voucher_issuer_untrusted` lines by `signerPrefix`. For each prefix, find the full key
 it belongs to:
@@ -45,6 +53,10 @@ it belongs to:
 - **A merchant that signs its own vouchers.** Register its key under that merchant's `issuerId`.
 - **A prefix you cannot account for.** Investigate before going further. It is either a signer you
   did not know about or a self-issued voucher, which is exactly what `enforce` will refuse.
+
+Then look at `voucher_unsigned`. Every legitimate producer in the Imani deployment signs its
+vouchers, so this should stay at zero. If it does not, find the producer (the `issuerHash` groups
+them) and make it sign before you go further. `enforce` refuses every unsigned voucher.
 
 ## 3. Configure the keys
 
@@ -65,10 +77,11 @@ As environment variables:
 CASHU_MINT_VOUCHER_TRUSTED_SIGNERS=<gateway-customer identity pubkey>
 ```
 
-Redeploy, still in `log`, and confirm the counter stops growing:
+Redeploy, still in `log`, and confirm that neither counter grows:
 
 ```promql
 increase(cashu_mint_voucher_issuer_untrusted_total{mode="log"}[24h]) == 0
+and increase(cashu_mint_voucher_unsigned_total{mode="log"}[24h]) == 0
 ```
 
 ## 4. Switch to `enforce`
@@ -77,11 +90,15 @@ increase(cashu_mint_voucher_issuer_untrusted_total{mode="log"}[24h]) == 0
 CASHU_MINT_VOUCHER_ISSUER_BINDING=enforce
 ```
 
-Now a signed voucher from an untrusted signer is refused with `voucher_signature_invalid`, and
-counted under `mode="enforce"`.
+Now a voucher that is unsigned, or signed by an untrusted key, is refused with
+`voucher_signature_invalid` (90019) and counted under `mode="enforce"`.
 
-The mint refuses to start in `enforce` when neither `issuer-keys` nor `trusted-signers` has a
-key. Otherwise it would refuse every signed voucher.
+The mint refuses to start in `enforce` when no key is configured at all: no `issuer-keys`, no
+`trusted-signers` and no `voucher.mint.issuerPublicKey`. Otherwise it would refuse every voucher.
+
+A malformed key also stops the boot. The error names the property and position, for example
+`cashu.mint.voucher.trusted-signers[1]`, and never repeats the value, in case it is a private key
+pasted into the wrong place.
 
 ## Roll back
 
@@ -90,8 +107,6 @@ exists for emergencies only.
 
 ## What this does not cover
 
-- **Unsigned vouchers.** They are still accepted, as before. Whether the mint should require a
-  signature to be present is a separate decision.
 - **Rotating the gateway's identity key.** Add the new key to `trusted-signers` before the gateway
   starts signing with it. Keep the old one listed while vouchers it signed are still circulating.
 

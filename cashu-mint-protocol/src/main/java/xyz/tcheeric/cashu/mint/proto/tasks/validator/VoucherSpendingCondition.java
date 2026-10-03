@@ -13,10 +13,10 @@ import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
-import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
@@ -46,7 +46,7 @@ import java.util.UUID;
  *
  * <p>A verified issuer signature is then bound to the issuer it names through a
  * {@link VoucherIssuerBinding} (cashu-mint#527). The shorter constructors take the binding the
- * running mint installed in {@link MintIntegrityContext}.
+ * running mint installed in {@link InstalledVoucherIssuerBinding}.
  *
  * @param <T> the secret type (must be VoucherSecret)
  */
@@ -71,7 +71,7 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     public VoucherSpendingCondition(@NonNull Mint mint,
                                     @NonNull MintProtocolService mintProtocolService,
                                     @NonNull ProofVaultService proofVaultService) {
-        this(mint, mintProtocolService, proofVaultService, MintIntegrityContext.voucherIssuerBinding());
+        this(mint, mintProtocolService, proofVaultService, InstalledVoucherIssuerBinding.current());
     }
 
     public VoucherSpendingCondition(@NonNull Mint mint,
@@ -137,21 +137,19 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
                     "Voucher has expired and cannot be redeemed");
         }
 
-        // 2. Validate the issuer signature, when the voucher carries one.
+        // 2. Validate the issuer signature, and bind it to the issuer (cashu-mint#527).
         //
-        // Presence is deliberately NOT required here, and that is worth stating because it
-        // looks like the hole #525 describes. It is not. An unsigned voucher is refused
-        // wherever it is redeemed for value: the gateway's redemption path requires a
-        // verified issuer signature, and the wallet refuses one too. What #525 was actually
-        // about is that a SIGNED unlocked voucher's signature was never CHECKED, because the
-        // signature lived in a blob no tag reader could see. That is what the decode above
-        // fixes.
+        // Whether a signature must be PRESENT is the issuer binding's mode, not a fixed rule
+        // here, and the two questions are deliberately answered together. Checking who signed
+        // a signed voucher while waving an unsigned one through would make the check
+        // pointless: strip issuer_sig and issuer_pubkey and there is nothing to bind. So
+        // `enforce` refuses an unsigned voucher as well as an untrusted signer, `log` accepts
+        // both and reports each under its own name, and `off` behaves as the mint always did.
         //
-        // Requiring presence here as well would refuse every unsigned voucher at the mint,
-        // which sounds stricter and is a behaviour change well beyond this bug: the mint
-        // would stop honouring proofs it has always honoured, and 8 existing tests say so,
-        // including ones about expiry and double-spending that have nothing to do with
-        // signatures. Widening the refusal is a separate decision, with its own issue.
+        // `log` is the default because refusing unsigned vouchers outright is a behaviour
+        // change: the mint has always honoured them, and whether any legitimate producer
+        // still emits one is a question the voucher_unsigned log answers before anyone
+        // enforces. Existing tests that build unsigned vouchers run under that default.
         if (checkable != null && VoucherMetadata.isSigned(checkable)) {
             if (!VoucherSignatureService.verify(checkable)) {
                 log.error("voucher_signature_invalid voucherId={} issuerPubkey={}",
@@ -163,12 +161,13 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             log.debug("Voucher issuer signature verified: voucherId={}",
                     VoucherMetadata.voucherId(checkable));
 
-            // 2b. A verified signature proves only that the key in issuer_pubkey signed, and that
-            //     key is chosen by whoever built the voucher. The binding asks whether it is a
-            //     key the mint trusts for the issuer the voucher names (cashu-mint#527). Only
-            //     reached for a signature that verified, so it never reasons about a forged one,
-            //     and never for an unsigned voucher: presence is a separate decision, see above.
+            // A verified signature proves only that the key in issuer_pubkey signed, and that
+            // key is chosen by whoever built the voucher. The binding asks whether it is a key
+            // the mint trusts for the issuer the voucher names. Reached only for a signature
+            // that verified, so it never has to reason about a forged one.
             issuerBinding.requireTrustedSigner(checkable);
+        } else if (checkable != null) {
+            issuerBinding.requireSignature(checkable);
         }
 
         // 3. Check if proof has been used already (double-spend prevention).

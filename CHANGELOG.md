@@ -12,11 +12,15 @@ All notable changes to the Cashu Mint will be documented in this file.
   proofs. Once a signature verifies, the mint now asks whether its key is trusted for that issuer:
   either the key registered under `cashu.mint.voucher.issuer-keys.<issuerId>`, or one of the new
   `cashu.mint.voucher.trusted-signers`. Those are keys that sign on any issuer's behalf, as
-  gateway-customer does for merchants. Plain and P2PK-locked vouchers are treated alike. The new
-  `cashu.mint.voucher.issuer-binding` sets the outcome: `log` (default) accepts and reports
-  `voucher_issuer_untrusted` with `cashu_mint_voucher_issuer_untrusted_total{mode}`, `enforce`
-  refuses with `voucher_signature_invalid`, and `off` skips the check. The mint refuses to boot
-  in `enforce` with no keys configured. Unsigned vouchers are accepted as before. Rollout:
+  gateway-customer does for merchants. The mint's own `voucher.mint.issuerPublicKey` is trusted
+  automatically. Plain, P2PK-locked and wire-format (CBOR blob) vouchers are treated alike.
+
+- **Stripping the signature no longer walks past the check (#527).** The new
+  `cashu.mint.voucher.issuer-binding` governs unsigned vouchers as well as untrusted signers.
+  `log` (default) accepts both, reporting `voucher_issuer_untrusted` and `voucher_unsigned` with
+  `cashu_mint_voucher_issuer_untrusted_total{mode}` and `cashu_mint_voucher_unsigned_total{mode}`.
+  `enforce` refuses both with `voucher_signature_invalid` (90019). `off` behaves as before. The
+  mint refuses to boot in `enforce` with no keys configured. Rollout:
   `docs/how-to/bind-voucher-signatures-to-trusted-signers.md`.
 
 ### Changed
@@ -25,7 +29,8 @@ All notable changes to the Cashu Mint will be documented in this file.
   The `VoucherIssuerKeys` bean in `VoucherConfiguration` is replaced by
   `VoucherSignerTrustProperties` and `VoucherSignerTrustList`. Configured keys are normalised to
   x-only lower case, so a compressed (`02`/`03`) key now matches. A malformed key now stops the
-  boot instead of silently never matching.
+  boot instead of silently never matching. The error names the property and position and never
+  echoes the value.
 
 ## [0.41.0] - 2026-09-30
 
