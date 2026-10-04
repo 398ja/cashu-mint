@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.ledger.trace.publisher.TraceabilityPublisher;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltFailedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMeltQuoteRequestedEvent;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintFailedEvent;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.cashu.mint.rest.event.TraceMintQuoteRequestedEvent;
 
 /**
@@ -85,15 +86,15 @@ public class TraceMintProducer {
             TransactionEvent event = builder.get();
             List<OperationInvariants.Violation> violations = OperationInvariants.validate(event);
             if (!violations.isEmpty()) {
-                log.error("trace_event_invalid kind={} quote_id={} violations={}",
-                        event.kind(), quoteId, violations);
+                log.error("trace_event_invalid kind={} quote_ref={} violations={}",
+                        event.kind(), QuoteRef.of(quoteId), violations);
                 return;
             }
             publisher.publish(event);
         } catch (Exception e) {
             // Log the full exception (stack trace) — a tracing outage must not fail the
             // mint op, but it must be diagnosable in production.
-            log.error("trace_publish_error quote_id={}", quoteId, e);
+            log.error("trace_publish_error quote_ref={}", QuoteRef.of(quoteId), QuoteRef.redact(e, quoteId));
         }
     }
 }

@@ -1,5 +1,9 @@
 package xyz.tcheeric.cashu.mint.observability.interceptor;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -12,6 +16,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -285,5 +290,33 @@ class MetricsHandlerInterceptorTest {
         assertThat(registry.find("cashu_mint_requests_total").tag("status", "3xx").counter().count()).isEqualTo(1.0);
         assertThat(registry.find("cashu_mint_requests_total").tag("status", "4xx").counter().count()).isEqualTo(1.0);
         assertThat(registry.find("cashu_mint_requests_total").tag("status", "5xx").counter().count()).isEqualTo(1.0);
+    }
+
+    // cashu-mint#531: the request trace must name the route, not the raw path, because a quote
+    // status path carries the quote id, which is a bearer claim on a paid unlocked quote.
+    @Test
+    void preHandle_traceLogNamesTheRouteNotTheQuoteId() {
+        // Arrange
+        String quoteId = "9d745270-1405-46de-b5c5-e2762b4f5e00";
+        when(request.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/" + quoteId);
+        when(request.getMethod()).thenReturn("GET");
+        Logger logger = (Logger) LoggerFactory.getLogger(MetricsHandlerInterceptor.class);
+        Level previous = logger.getLevel();
+        ListAppender<ILoggingEvent> captured = new ListAppender<>();
+        captured.start();
+        logger.addAppender(captured);
+        logger.setLevel(Level.TRACE);
+
+        // Act
+        try {
+            interceptor.preHandle(request, response, handler);
+        } finally {
+            logger.detachAppender(captured);
+            logger.setLevel(previous);
+        }
+
+        // Assert
+        assertThat(captured.list).extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly("Request started: GET /v1/mint/quote/{method}/{quote_id}");
     }
 }

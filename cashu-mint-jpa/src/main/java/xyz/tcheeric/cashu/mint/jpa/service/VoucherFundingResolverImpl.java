@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherQuote;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -92,8 +93,8 @@ public class VoucherFundingResolverImpl implements VoucherFundingResolver {
 
         try {
             CustomerPaymentFundingEntity saved = fundingJpa.save(funding);
-            log.info("voucher_funding lazy_create funding_id={} quote_id={} provider={} provider_event_id={}",
-                    saved.getFundingId(), quote.quoteId(), provider, providerEventId);
+            log.info("voucher_funding lazy_create funding_id={} quote_ref={} provider={} provider_event_id={}",
+                    saved.getFundingId(), QuoteRef.of(quote.quoteId()), provider, providerEventId);
             MetricRecorders.voucher().lazyFundingCreated();
             return saved;
         } catch (DataIntegrityViolationException conflict) {
@@ -106,8 +107,8 @@ public class VoucherFundingResolverImpl implements VoucherFundingResolver {
             CustomerPaymentFundingEntity winner = fundingJpa
                     .findByProviderEventId(provider, providerEventId)
                     .orElseThrow(() -> conflict);
-            log.info("voucher_funding lazy_create_race_lost funding_id={} quote_id={} provider={} provider_event_id={}",
-                    winner.getFundingId(), quote.quoteId(), provider, providerEventId);
+            log.info("voucher_funding lazy_create_race_lost funding_id={} quote_ref={} provider={} provider_event_id={}",
+                    winner.getFundingId(), QuoteRef.of(quote.quoteId()), provider, providerEventId);
             return winner;
         }
     }

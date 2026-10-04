@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 /**
  * REST controller for receiving payment webhooks from payment-adapter.
@@ -117,15 +118,16 @@ public final class PaymentWebhookController {
                     .body(WebhookResponse.error("Missing paymentMethod"));
         }
 
-        log.info("Received payment webhook: quoteId={}, method={}, idempotencyKey={}",
-                notification.getQuoteId(), notification.getPaymentMethod(), idempotencyKey);
+        log.info("Received payment webhook: quote_ref={}, method={}, idempotencyKey={}",
+                QuoteRef.of(notification.getQuoteId()), notification.getPaymentMethod(),
+                QuoteRef.redact(idempotencyKey, notification.getQuoteId()));
 
         try {
             WebhookOutcome outcome = quoteStatusUpdater.record(notification);
             return switch (outcome.outcome()) {
                 case accepted -> {
-                    log.info("Payment webhook processed: quoteId={}, amount={}",
-                            notification.getQuoteId(), notification.getAmount());
+                    log.info("Payment webhook processed: quote_ref={}, amount={}",
+                            QuoteRef.of(notification.getQuoteId()), notification.getAmount());
                     yield ResponseEntity.ok(WebhookResponse.success("Payment recorded"));
                 }
                 case duplicate -> ResponseEntity.ok(WebhookResponse.success("Duplicate ignored"));
@@ -158,8 +160,8 @@ public final class PaymentWebhookController {
             // from this depth names internal classes, SQL, and sometimes the values that caused
             // it; the sender can do nothing with any of that, and a caller who is probing rather
             // than integrating learns about the internals for free.
-            log.error("Failed to process payment webhook: quoteId={}",
-                    notification.getQuoteId(), e);
+            log.error("Failed to process payment webhook: quote_ref={}",
+                    QuoteRef.of(notification.getQuoteId()), QuoteRef.redact(e, notification.getQuoteId()));
             return ResponseEntity.internalServerError()
                     .body(WebhookResponse.error("Processing failed"));
         }

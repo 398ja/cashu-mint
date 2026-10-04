@@ -101,8 +101,8 @@ public final class QuoteExpiry {
         try {
             return Optional.ofNullable(gateway.getCreatedAt(quoteId));
         } catch (RuntimeException unavailable) {
-            log.warn("quote_expiry created_at_unavailable quote_id={} gateway={} reason={}",
-                    quoteId, gateway.getClass().getSimpleName(), unavailable.toString());
+            log.warn("quote_expiry created_at_unavailable quote_ref={} gateway={} reason={}",
+                    QuoteRef.of(quoteId), gateway.getClass().getSimpleName(), QuoteRef.redact(unavailable.toString(), quoteId));
             return Optional.empty();
         }
     }

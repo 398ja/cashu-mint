@@ -2,6 +2,7 @@ package xyz.tcheeric.cashu.mint.proto.util;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -52,9 +53,9 @@ public final class VoucherQuoteRegistry {
     private static final Cache<String, Long> faceValues = Caffeine.newBuilder()
             .expireAfterWrite(DEFAULT_TTL)
             .maximumSize(DEFAULT_MAX_SIZE)
-            .evictionListener((key, value, cause) ->
-                    log.warn("Voucher face value evicted: quoteId={}, faceValue={}, cause={}",
-                            key, value, cause))
+            .evictionListener((String key, Long value, RemovalCause cause) ->
+                    log.warn("Voucher face value evicted: quote_ref={}, faceValue={}, cause={}",
+                            QuoteRef.of(key), value, cause))
             .recordStats()
             .build();
 
@@ -69,7 +70,7 @@ public final class VoucherQuoteRegistry {
      */
     public static void storeFaceValue(String quoteId, long faceValue) {
         faceValues.put(quoteId, faceValue);
-        log.debug("Stored voucher face value for quote {}: {} sats", quoteId, faceValue);
+        log.debug("Stored voucher face value for quote {}: {} sats", QuoteRef.of(quoteId), faceValue);
     }
 
     /**
@@ -93,7 +94,7 @@ public final class VoucherQuoteRegistry {
      */
     public static void removeFaceValue(String quoteId) {
         faceValues.asMap().computeIfPresent(quoteId, (key, value) -> {
-            log.debug("Removed voucher face value for quote {}: {} sats", key, value);
+            log.debug("Removed voucher face value for quote {}: {} sats", QuoteRef.of(key), value);
             return null;  // Return null to remove the entry
         });
     }

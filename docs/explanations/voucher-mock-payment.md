@@ -58,7 +58,7 @@ In `MintTask.java`:
 boolean isVoucherQuote = VoucherQuoteRegistry.isVoucherQuote(quoteId);
 
 if (isVoucherQuote) {
-    log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true", quoteId);
+    log.info("mint_task voucher_quote_detected quote_ref={} mock_payment=true", QuoteRef.of(quoteId));
     // Vouchers are merchant IOUs - skip payment verification
 } else {
     // Regular tokens require real Lightning payment per NUT-04
@@ -185,7 +185,7 @@ See `VoucherMasterSecretConfig` for implementation details.
 All voucher quote detections are logged for audit purposes:
 
 ```
-INFO mint_task voucher_quote_detected quote_id=abc123 mock_payment=true
+INFO mint_task voucher_quote_detected quote_ref=q:6ca13d52ca70 mock_payment=true
 INFO mint_task voucher_quote amount=100 output_validation=skipped
 ```
 

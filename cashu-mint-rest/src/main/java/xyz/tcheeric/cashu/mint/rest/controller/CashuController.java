@@ -62,6 +62,7 @@ import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.cashu.mint.rest.service.CrossMintCheckStateMerger;
 import xyz.tcheeric.cashu.mint.rest.service.Nut17EventPublisher;
 import xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import org.springframework.lang.Nullable;
 import org.springframework.validation.FieldError;
@@ -377,7 +378,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
         }
         PaymentMethod paymentMethod = PaymentMethod.valueOf(method.toUpperCase());
         if (log.isDebugEnabled()) {
-            log.debug("Delegating mint: mintId={} method={} quoteId={}", mintId, paymentMethod, request.getQuoteId());
+            log.debug("Delegating mint: mintId={} method={} quote_ref={}", mintId, paymentMethod, QuoteRef.of(request.getQuoteId()));
         }
         PostMintResponse response;
         try {
@@ -498,8 +499,8 @@ public class CashuController<T extends Secret> implements org.springframework.co
                     payload.setExpiry((long) quoteStatus.getExpiry());
                 }
             } catch (Exception e) {
-                log.debug("melt_quote_enrichment_skipped quote_id={} reason={}",
-                        request.getQuoteId(), e.getMessage());
+                log.debug("melt_quote_enrichment_skipped quote_ref={} reason={}",
+                        QuoteRef.of(request.getQuoteId()), QuoteRef.redact(e.getMessage(), request.getQuoteId()));
             }
 
             eventPublisher.publishMeltQuoteState(request.getQuoteId(), payload);
@@ -681,7 +682,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
         try {
             eventPublisher.publishMintQuoteState(NUT04.quotePaymentStatus(quoteId, paymentMethod));
         } catch (Exception e) {
-            log.debug("mint_quote_state_publish_skipped quote_id={} reason={}", quoteId, e.getMessage());
+            log.debug("mint_quote_state_publish_skipped quote_ref={} reason={}", QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
         }
     }
 

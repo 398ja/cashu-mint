@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaTransition;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.util.List;
 import java.util.Map;
@@ -77,8 +78,8 @@ public class MeltSagaAdminController {
         String actor = body.getOrDefault("actor", "operator:unknown");
         String reason = body.getOrDefault("reason", "marked resolved by operator");
 
-        log.warn("[melt-saga][operator] mark_resolved saga_id={} quote_id={} from_state={} actor={}",
-                meltSagaId, saga.quoteId(), saga.currentState(), actor);
+        log.warn("[melt-saga][operator] mark_resolved saga_id={} quote_ref={} from_state={} actor={}",
+                meltSagaId, QuoteRef.of(saga.quoteId()), saga.currentState(), actor);
 
         // Spec 002 § operator reconciliation contract: resolution is an
         // append-only transition — we do NOT overwrite current_state from

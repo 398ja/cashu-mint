@@ -89,7 +89,9 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
         request.setAttribute(START_TIME_ATTR, System.nanoTime());
 
         if (log.isTraceEnabled()) {
-            log.trace("Request started: {} {}", request.getMethod(), request.getRequestURI());
+            // The normalised endpoint, never the raw URI: a quote status path carries the quote
+            // id, a bearer claim on a paid unlocked quote (cashu-mint#531).
+            log.trace("Request started: {} {}", request.getMethod(), normalizeEndpoint(request.getRequestURI()));
         }
 
         return true;

@@ -6,6 +6,18 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Security
 
+- **The mint no longer logs raw quote ids (#531).** A NUT-04 quote id is a bearer claim: whoever
+  holds the id of a paid quote that is not NUT-20 locked can mint its ecash. Staging logged 296
+  such lines in 21 minutes after the 0.41.0 deploy. Every log line, at every level, that named a
+  mint, melt or voucher quote now carries `quote_ref=q:<12 hex>` (the first 6 bytes of SHA-256 of
+  the id) instead of `quote_id=` / `quoteId=`. It is byte-for-byte the `quote_ref` that
+  imani-wallet-lib's `QuoteRef` and imani-gateway-customer log, so one quote still correlates
+  across services. Exception messages and logged throwables that quote the id, the
+  `bolt11:<id>` webhook idempotency key and the request-trace path in `MetricsHandlerInterceptor`
+  are redacted the same way. The mint has no MDC entries and no access log, so neither carried
+  the id. Dashboards or alerts that grep logs for `quote_id=` must switch to `quote_ref=` and
+  compute the ref from the id (`printf %s "$ID" | sha256sum | cut -c1-12`).
+
 - **A voucher's signing key is now checked against the issuer it names (#527).** The issuer
   signature was verified against the `issuer_pubkey` the voucher itself carries. So a voucher
   signed with any keypair, naming any `issuerId`, verified and could be swapped into ordinary

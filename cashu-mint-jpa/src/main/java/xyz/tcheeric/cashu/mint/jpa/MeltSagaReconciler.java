@@ -12,6 +12,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSaga;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -147,8 +148,8 @@ public class MeltSagaReconciler {
                     // when the saga entered PAYMENT_UNKNOWN; on resolve they
                     // MUST advance with the saga or they'll be stuck.
                     settleProofs(saga.meltSagaId(), MeltSagaState.COMPLETED, /*spent*/ true);
-                    log.info("[melt-saga] reconciled_completed saga_id={} quote_id={}",
-                            saga.meltSagaId(), saga.quoteId());
+                    log.info("[melt-saga] reconciled_completed saga_id={} quote_ref={}",
+                            saga.meltSagaId(), QuoteRef.of(saga.quoteId()));
                 }
             } else if (outcome instanceof PaymentOutcome.DefinitiveFailure failure) {
                 int updated = sagaRepository.casState(
@@ -160,8 +161,8 @@ public class MeltSagaReconciler {
                             MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.FAILED,
                             "reconciled " + failure.reason() + ":" + failure.providerCode(), "poll");
                     settleProofs(saga.meltSagaId(), MeltSagaState.FAILED, /*spent*/ false);
-                    log.info("[melt-saga] reconciled_failed saga_id={} quote_id={} reason={}",
-                            saga.meltSagaId(), saga.quoteId(), failure.reason());
+                    log.info("[melt-saga] reconciled_failed saga_id={} quote_ref={} reason={}",
+                            saga.meltSagaId(), QuoteRef.of(saga.quoteId()), failure.reason());
                 }
             } else {
                 // Still Unknown. Append a no-op timeline entry so operators
@@ -171,8 +172,8 @@ public class MeltSagaReconciler {
                         MeltSagaState.PAYMENT_UNKNOWN, MeltSagaState.PAYMENT_UNKNOWN,
                         "poll: still unknown", "poll");
                 if (saga.createdAt() != null && saga.createdAt().isBefore(ttlBoundary)) {
-                    log.error("[melt-saga][alert] payment_unknown_ttl_exceeded saga_id={} quote_id={} age={} ttl={}",
-                            saga.meltSagaId(), saga.quoteId(),
+                    log.error("[melt-saga][alert] payment_unknown_ttl_exceeded saga_id={} quote_ref={} age={} ttl={}",
+                            saga.meltSagaId(), QuoteRef.of(saga.quoteId()),
                             Duration.between(saga.createdAt(), Instant.now()),
                             paymentUnknownTtl);
                 }
@@ -264,8 +265,8 @@ public class MeltSagaReconciler {
                 // means — including writing the proof_settled marker the
                 // MeltSagaTerminalUnsettled gauge reads.
                 settleProofs(saga.meltSagaId(), MeltSagaState.FAILED, /*spent*/ false);
-                log.warn("[melt-saga][alert] proofs_held_ttl_expired saga_id={} quote_id={} age={} ttl={}",
-                        saga.meltSagaId(), saga.quoteId(),
+                log.warn("[melt-saga][alert] proofs_held_ttl_expired saga_id={} quote_ref={} age={} ttl={}",
+                        saga.meltSagaId(), QuoteRef.of(saga.quoteId()),
                         Duration.between(saga.createdAt(), Instant.now()),
                         proofsHeldTtl);
             }
