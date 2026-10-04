@@ -7,11 +7,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 /**
  * HTTP request metrics interceptor for Cashu Mint REST endpoints.
@@ -23,12 +23,13 @@ import java.util.regex.Pattern;
  *   <li>Error count per endpoint and error type</li>
  * </ul>
  *
- * <p>Endpoint paths are normalized to prevent high cardinality:
- * <ul>
- *   <li>{@code /v1/keys/abc123} → {@code /v1/keys/{keyset_id}}</li>
- *   <li>{@code /v1/mint/quote/bolt11/uuid} → {@code /v1/mint/quote/{method}/{quote_id}}</li>
- *   <li>{@code /v1/melt/quote/bolt11/uuid} → {@code /v1/melt/quote/{method}/{quote_id}}</li>
- * </ul>
+ * <p>The {@code endpoint} tag is the route pattern Spring MVC matched
+ * ({@link HandlerMapping#BEST_MATCHING_PATTERN_ATTRIBUTE}), for example
+ * {@code /v1/mint/quote/{method}/{quote_id}}, never the raw path. A request no route matched is
+ * tagged {@value #UNMATCHED}. The raw path is unbounded (one series per id) and a quote status
+ * path carries the quote id, a bearer claim on a paid unlocked quote (cashu-mint#531). The
+ * regexes this used to normalise the path with were {@code $}-anchored, so a trailing slash
+ * ({@code /v1/mint/quote/bolt11/<id>/}) slipped past them and put the id into the tag.
  *
  * <p>All metrics follow the naming convention: {@code cashu_mint_requests_*}
  */
@@ -37,6 +38,8 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
 
     private static final String METRIC_PREFIX = "cashu_mint_requests_";
     private static final String START_TIME_ATTR = "cashu.metrics.startTime";
+    /** The endpoint tag of a request that matched no route: a 404 probe, a static resource. */
+    static final String UNMATCHED = "unmatched";
 
     /**
      * Bucket boundaries for the request latency histogram. Without
@@ -55,16 +58,6 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
      * every breach it fired on.
      */
     private static final Duration MAXIMUM_EXPECTED_DURATION = Duration.ofSeconds(30);
-
-    // Patterns for normalizing variable path segments
-    // Pattern to match keyset endpoints: /v1/keys/{keyset_id} or /v1/keys/keyset/{keyset_id}
-    private static final Pattern KEYSET_ID_PATTERN = Pattern.compile("/v1/keys(/keyset)?/[^/]+$");
-    // Pattern to match voucher quote: /v1/mint/quote/voucher/{method}/{quote_id}
-    private static final Pattern VOUCHER_QUOTE_ID_PATTERN = Pattern.compile("/v1/mint/quote/voucher/([^/]+)/[^/]+$");
-    // Pattern to match mint quote: /v1/mint/quote/{method}/{quote_id}
-    private static final Pattern MINT_QUOTE_ID_PATTERN = Pattern.compile("/v1/mint/quote/([^/]+)/[^/]+$");
-    // Pattern to match melt quote: /v1/melt/quote/{method}/{quote_id}
-    private static final Pattern MELT_QUOTE_ID_PATTERN = Pattern.compile("/v1/melt/quote/([^/]+)/[^/]+$");
 
     private final MeterRegistry registry;
 
@@ -89,7 +82,9 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
         request.setAttribute(START_TIME_ATTR, System.nanoTime());
 
         if (log.isTraceEnabled()) {
-            log.trace("Request started: {} {}", request.getMethod(), request.getRequestURI());
+            // The matched route, never the raw URI: a quote status path carries the quote id, a
+            // bearer claim on a paid unlocked quote (cashu-mint#531).
+            log.trace("Request started: {} {}", request.getMethod(), endpointOf(request));
         }
 
         return true;
@@ -105,7 +100,7 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
         }
 
         long durationNanos = System.nanoTime() - startTime;
-        String endpoint = normalizeEndpoint(request.getRequestURI());
+        String endpoint = endpointOf(request);
         String method = request.getMethod();
         int status = response.getStatus();
         String statusGroup = getStatusGroup(status);
@@ -129,51 +124,12 @@ public class MetricsHandlerInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * Normalizes an endpoint path to prevent high cardinality.
-     *
-     * <p>Variable path segments (IDs, UUIDs) are replaced with placeholders.
-     *
-     * @param uri the raw request URI
-     * @return normalized endpoint path
+     * The route pattern Spring MVC matched for {@code request}, or {@value #UNMATCHED}. Interceptors
+     * run after handler mapping, so the attribute is set for every request a controller handles.
      */
-    String normalizeEndpoint(String uri) {
-        if (uri == null || uri.isEmpty()) {
-            return "/";
-        }
-
-        String normalized = uri;
-
-        // Normalize voucher quote ID (must be before mint quote)
-        // /v1/mint/quote/voucher/bolt11/uuid -> /v1/mint/quote/voucher/{method}/{quote_id}
-        if (VOUCHER_QUOTE_ID_PATTERN.matcher(normalized).find()) {
-            normalized = VOUCHER_QUOTE_ID_PATTERN.matcher(normalized)
-                    .replaceAll("/v1/mint/quote/voucher/{method}/{quote_id}");
-            return normalized;
-        }
-
-        // Normalize mint quote ID: /v1/mint/quote/bolt11/uuid -> /v1/mint/quote/{method}/{quote_id}
-        if (MINT_QUOTE_ID_PATTERN.matcher(normalized).find()) {
-            normalized = MINT_QUOTE_ID_PATTERN.matcher(normalized)
-                    .replaceAll("/v1/mint/quote/{method}/{quote_id}");
-            return normalized;
-        }
-
-        // Normalize melt quote ID: /v1/melt/quote/bolt11/uuid -> /v1/melt/quote/{method}/{quote_id}
-        if (MELT_QUOTE_ID_PATTERN.matcher(normalized).find()) {
-            normalized = MELT_QUOTE_ID_PATTERN.matcher(normalized)
-                    .replaceAll("/v1/melt/quote/{method}/{quote_id}");
-            return normalized;
-        }
-
-        // Normalize keyset ID: /v1/keys/abc123 -> /v1/keys/{keyset_id}
-        // Also handles: /v1/keys/keyset/abc123 -> /v1/keys/keyset/{keyset_id}
-        if (normalized.startsWith("/v1/keys/keyset/")) {
-            normalized = "/v1/keys/keyset/{keyset_id}";
-        } else if (KEYSET_ID_PATTERN.matcher(normalized).find()) {
-            normalized = "/v1/keys/{keyset_id}";
-        }
-
-        return normalized;
+    static String endpointOf(HttpServletRequest request) {
+        Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        return pattern instanceof String route && !route.isBlank() ? route : UNMATCHED;
     }
 
     /**

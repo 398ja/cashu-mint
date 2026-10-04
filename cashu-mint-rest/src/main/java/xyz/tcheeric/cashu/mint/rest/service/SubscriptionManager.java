@@ -19,6 +19,7 @@ import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
@@ -279,7 +280,7 @@ public final class SubscriptionManager {
             sendNotification(session, notificationFor.apply(subId));
         }
 
-        log.debug("quote_state_published kind={} quote_id={} subscriber_count={}", kind, quoteId, subIds.size());
+        log.debug("quote_state_published kind={} quote_ref={} subscriber_count={}", kind, QuoteRef.of(quoteId), subIds.size());
     }
 
     /**
@@ -403,8 +404,8 @@ public final class SubscriptionManager {
             for (CompletableFuture<Optional<PostMintQuoteResponse>> future : futures) {
                 future.getNow(Optional.empty()).ifPresent(quote -> {
                     sendNotification(session, NUT17.mintQuoteStateNotification(subId, quote));
-                    log.debug("current_mint_quote_state_sent sub_id={} quote_id={} state={}",
-                            subId, quote.getQuoteId(), quote.getState());
+                    log.debug("current_mint_quote_state_sent sub_id={} quote_ref={} state={}",
+                            subId, QuoteRef.of(quote.getQuoteId()), quote.getState());
                 });
             }
         }
@@ -422,10 +423,10 @@ public final class SubscriptionManager {
         try {
             return Optional.of(NUT04.quotePaymentStatus(quoteId, PaymentMethod.BOLT11));
         } catch (CashuErrorException refused) {
-            log.info("current_mint_quote_state_refused quote_id={} reason={}", quoteId, refused.getMessage());
+            log.info("current_mint_quote_state_refused quote_ref={} reason={}", QuoteRef.of(quoteId), QuoteRef.redact(refused.getMessage(), quoteId));
             return Optional.empty();
         } catch (Exception e) {
-            log.error("current_mint_quote_state_error quote_id={} error={}", quoteId, e.getMessage());
+            log.error("current_mint_quote_state_error quote_ref={} error={}", QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
             return Optional.empty();
         }
     }
@@ -460,8 +461,8 @@ public final class SubscriptionManager {
                 if (result != null && result.payload() != null) {
                     JsonRpcNotification notification = NUT17.quoteStateNotification(subId, result.payload());
                     sendNotification(session, notification);
-                    log.debug("current_melt_quote_state_sent sub_id={} quote_id={} paid={}",
-                            subId, result.quoteId(), result.payload().getPaid());
+                    log.debug("current_melt_quote_state_sent sub_id={} quote_ref={} paid={}",
+                            subId, QuoteRef.of(result.quoteId()), result.payload().getPaid());
                 }
             }
         }
@@ -480,7 +481,7 @@ public final class SubscriptionManager {
 
             return new QuoteStateResult(quoteId, payload, null);
         } catch (Exception e) {
-            log.error("current_melt_quote_state_error quote_id={} error={}", quoteId, e.getMessage());
+            log.error("current_melt_quote_state_error quote_ref={} error={}", QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
             return new QuoteStateResult(quoteId, null, e);
         }
     }

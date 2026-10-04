@@ -6,6 +6,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.mint.rest.event.MintQuoteStateChangeEvent;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.cashu.mint.rest.event.QuoteStateChangeEvent;
 
 /**
@@ -40,10 +41,10 @@ public class QuoteStatePublisher {
                     event.getPayload()
             );
         } catch (Exception e) {
-            log.error("quote_state_publish_error kind={} quote_id={} error={}",
+            log.error("quote_state_publish_error kind={} quote_ref={} error={}",
                     event.getKind(),
-                    event.getQuoteId(),
-                    e.getMessage());
+                    QuoteRef.of(event.getQuoteId()),
+                    QuoteRef.redact(e.getMessage(), event.getQuoteId()));
         }
     }
 
@@ -57,8 +58,9 @@ public class QuoteStatePublisher {
         try {
             subscriptionManager.publishMintQuoteState(event.getQuote());
         } catch (Exception e) {
-            log.error("mint_quote_state_publish_error quote_id={} error={}",
-                    event.getQuote().getQuoteId(), e.getMessage());
+            log.error("mint_quote_state_publish_error quote_ref={} error={}",
+                    QuoteRef.of(event.getQuote().getQuoteId()),
+                    QuoteRef.redact(e.getMessage(), event.getQuote().getQuoteId()));
         }
     }
 }

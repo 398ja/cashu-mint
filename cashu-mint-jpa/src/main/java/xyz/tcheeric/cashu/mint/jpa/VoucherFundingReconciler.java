@@ -11,6 +11,7 @@ import xyz.tcheeric.cashu.mint.jpa.repository.VoucherQuoteJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -145,9 +146,9 @@ public class VoucherFundingReconciler {
         try {
             VoucherFunding funding = fundingResolver.resolveForQuote(quote).orElse(null);
             if (funding == null) {
-                log.error("[voucher-funding][alert] VOUCHER_FUNDING_UNRESOLVED quote_id={} "
+                log.error("[voucher-funding][alert] VOUCHER_FUNDING_UNRESOLVED quote_ref={} "
                                 + "— accepted payment with no resolvable funding row",
-                        quote.getQuoteId());
+                        QuoteRef.of(quote.getQuoteId()));
                 MetricRecorders.voucher().fundingReconciled(false);
                 return;
             }
@@ -155,16 +156,16 @@ public class VoucherFundingReconciler {
             if (attached == 0) {
                 // A concurrent webhook or client mint attached first. The CAS
                 // holding is the point; nothing to recover.
-                log.info("voucher_funding_reconcile race_lost quote_id={}", quote.getQuoteId());
+                log.info("voucher_funding_reconcile race_lost quote_ref={}", QuoteRef.of(quote.getQuoteId()));
                 return;
             }
-            log.warn("voucher_funding_reconcile recovered quote_id={} funding_id={} "
+            log.warn("voucher_funding_reconcile recovered quote_ref={} funding_id={} "
                             + "reason=paid_but_never_funded",
-                    quote.getQuoteId(), funding.fundingId());
+                    QuoteRef.of(quote.getQuoteId()), funding.fundingId());
             MetricRecorders.voucher().fundingReconciled(true);
         } catch (RuntimeException e) {
-            log.error("[voucher-funding][alert] VOUCHER_FUNDING_RECONCILE_FAILED quote_id={}",
-                    quote.getQuoteId(), e);
+            log.error("[voucher-funding][alert] VOUCHER_FUNDING_RECONCILE_FAILED quote_ref={}",
+                    QuoteRef.of(quote.getQuoteId()), QuoteRef.redact(e, quote.getQuoteId()));
             MetricRecorders.voucher().fundingReconciled(false);
         }
     }

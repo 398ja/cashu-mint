@@ -21,6 +21,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEvent.Outcome;
 import xyz.tcheeric.cashu.mint.proto.ports.WebhookEventRepository;
 import xyz.tcheeric.cashu.mint.proto.service.PaymentStatusChecker;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,7 +82,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
                 .weigher((String key, PaymentNotification value) -> estimateSize(key, value))
                 .recordStats()
                 .evictionListener((key, value, cause) ->
-                        log.debug("Quote evicted from cache: key={}, cause={}", key, cause))
+                        log.debug("Quote evicted from cache: quote_ref={}, cause={}", QuoteRef.of(key), cause))
                 .build();
 
         this.processedNotifications = Caffeine.newBuilder()
@@ -132,8 +133,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         // caller and we'd burn a (provider, provider_event_id) slot for
         // garbage data.
         if (notification.getAmount() == null || notification.getAmount() <= 0) {
-            log.warn("webhook_event invalid_amount provider_event_id={} quote_id={} amount={}",
-                    notification.getProviderEventId(), notification.getQuoteId(), notification.getAmount());
+            log.warn("webhook_event invalid_amount provider_event_id={} quote_ref={} amount={}",
+                    notification.getProviderEventId(), QuoteRef.of(notification.getQuoteId()), notification.getAmount());
             // invalid_amount, NOT amount_mismatch (#469). A non-positive amount
             // is not a disagreement about size, it is the absence of a charge,
             // and the two have different owners: a mismatch is a
@@ -251,8 +252,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             return null;
         }
         if (amount != voucher.chargedAmount()) {
-            log.warn("webhook_event voucher_amount_mismatch quote_id={} expected_charged={} actual={}",
-                    notification.getQuoteId(), voucher.chargedAmount(), amount);
+            log.warn("webhook_event voucher_amount_mismatch quote_ref={} expected_charged={} actual={}",
+                    QuoteRef.of(notification.getQuoteId()), voucher.chargedAmount(), amount);
             return persist(provider, providerEventId, notification, amount, voucher.unit(), Outcome.amount_mismatch);
         }
         // The voucher_quote row stores no payment_method (the gateway is
@@ -287,7 +288,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         try {
             VoucherFunding funding = voucherFundingResolver.resolveForQuote(voucher).orElse(null);
             if (funding == null) {
-                log.warn("voucher_funding webhook_attach_unresolved quote_id={}", voucher.quoteId());
+                log.warn("voucher_funding webhook_attach_unresolved quote_ref={}", QuoteRef.of(voucher.quoteId()));
                 return;
             }
             // CAS: 0 means a concurrent client mint request attached first,
@@ -295,19 +296,19 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             int attached = voucherQuoteRepository
                     .attachFundingAndAdvance(voucher.quoteId(), funding.fundingId());
             if (attached == 0) {
-                log.info("voucher_funding webhook_attach_race_lost quote_id={} funding_id={}",
-                        voucher.quoteId(), funding.fundingId());
+                log.info("voucher_funding webhook_attach_race_lost quote_ref={} funding_id={}",
+                        QuoteRef.of(voucher.quoteId()), funding.fundingId());
                 return;
             }
-            log.info("voucher_funding webhook_attached quote_id={} funding_id={} lifecycle=FUNDED",
-                    voucher.quoteId(), funding.fundingId());
+            log.info("voucher_funding webhook_attached quote_ref={} funding_id={} lifecycle=FUNDED",
+                    QuoteRef.of(voucher.quoteId()), funding.fundingId());
         } catch (RuntimeException e) {
             // The throwable is logged, not just its message: getMessage() is null
             // for a NullPointerException, and "cause=null" on the one path that
             // silently leaves money unfunded is not enough to debug from.
-            log.error("voucher_funding webhook_attach_failed quote_id={} "
+            log.error("voucher_funding webhook_attach_failed quote_ref={} "
                             + "— payment recorded, reconciler will retry",
-                    voucher.quoteId(), e);
+                    QuoteRef.of(voucher.quoteId()), QuoteRef.redact(e, voucher.quoteId()));
         }
     }
 
@@ -318,13 +319,13 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         boolean sameMethod = equalsCaseInsensitive(existing.paymentMethod(), notification.getPaymentMethod());
         if (sameQuote && sameAmount && sameMethod) {
             incrementCounter(Outcome.duplicate);
-            log.info("webhook_event duplicate provider={} provider_event_id={} quote_id={}",
-                    provider, providerEventId, notification.getQuoteId());
+            log.info("webhook_event duplicate provider={} provider_event_id={} quote_ref={}",
+                    provider, providerEventId, QuoteRef.of(notification.getQuoteId()));
             return WebhookOutcome.of(Outcome.duplicate);
         }
         incrementCounter(Outcome.tamper);
-        log.warn("webhook_event tamper_signal provider={} provider_event_id={} stored_quote={} new_quote={} stored_amount={} new_amount={}",
-                provider, providerEventId, existing.quoteId(), notification.getQuoteId(),
+        log.warn("webhook_event tamper_signal provider={} provider_event_id={} stored_quote_ref={} new_quote_ref={} stored_amount={} new_amount={}",
+                provider, providerEventId, QuoteRef.of(existing.quoteId()), QuoteRef.of(notification.getQuoteId()),
                 existing.amount(), amount);
         return WebhookOutcome.of(Outcome.tamper);
     }
@@ -340,8 +341,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             return classifyReplay(dup.existing(), notification, amount, provider, providerEventId);
         }
         incrementCounter(outcome);
-        log.warn("webhook_event outcome={} provider={} provider_event_id={} quote_id={} amount={} unit={}",
-                outcome, provider, providerEventId, notification.getQuoteId(), amount, unit);
+        log.warn("webhook_event outcome={} provider={} provider_event_id={} quote_ref={} amount={} unit={}",
+                outcome, provider, providerEventId, QuoteRef.of(notification.getQuoteId()), amount, unit);
         return WebhookOutcome.of(outcome);
     }
 
@@ -355,8 +356,8 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
             return classifyReplay(dup.existing(), notification, amount, provider, providerEventId);
         }
         incrementCounter(Outcome.accepted);
-        log.info("webhook_event accepted provider={} provider_event_id={} quote_id={} amount={} unit={}",
-                provider, providerEventId, notification.getQuoteId(), amount, unit);
+        log.info("webhook_event accepted provider={} provider_event_id={} quote_ref={} amount={} unit={}",
+                provider, providerEventId, QuoteRef.of(notification.getQuoteId()), amount, unit);
         return WebhookOutcome.accepted();
     }
 
@@ -365,12 +366,12 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
         String idempotencyKey = notification.getIdempotencyKey();
         Boolean existing = processedNotifications.asMap().putIfAbsent(idempotencyKey, Boolean.TRUE);
         if (existing != null) {
-            log.debug("Duplicate notification ignored: {}", idempotencyKey);
+            log.debug("Duplicate notification ignored: {}", QuoteRef.redact(idempotencyKey, notification.getQuoteId()));
             return WebhookOutcome.of(Outcome.duplicate);
         }
         paidQuotes.put(notification.getQuoteId(), notification);
-        log.info("Quote marked as paid via webhook: quoteId={}, method={}, amount={}",
-                notification.getQuoteId(), notification.getPaymentMethod(), notification.getAmount());
+        log.info("Quote marked as paid via webhook: quote_ref={}, method={}, amount={}",
+                QuoteRef.of(notification.getQuoteId()), notification.getPaymentMethod(), notification.getAmount());
         return WebhookOutcome.accepted();
     }
 
@@ -422,7 +423,7 @@ public class QuoteStatusUpdater implements PaymentStatusChecker {
     public PaymentNotification consumeQuote(String quoteId) {
         PaymentNotification removed = paidQuotes.asMap().remove(quoteId);
         if (removed != null) {
-            log.debug("Quote consumed after minting: quoteId={}", quoteId);
+            log.debug("Quote consumed after minting: quote_ref={}", QuoteRef.of(quoteId));
         }
         return removed;
     }

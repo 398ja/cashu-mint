@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.common.nut17.SubscriptionKind;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
 import xyz.tcheeric.cashu.mint.rest.event.MintQuoteStateChangeEvent;
 import xyz.tcheeric.cashu.mint.rest.event.ProofStateChangeEvent;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.cashu.mint.rest.event.QuoteStateChangeEvent;
 
 import java.util.List;
@@ -83,7 +84,7 @@ public class Nut17EventPublisher {
      * @param quote the quote as the bolt11 status route reports it
      */
     public void publishMintQuoteState(PostMintQuoteResponse quote) {
-        log.debug("nut17_event_publish mint_quote quote_id={} state={}", quote.getQuoteId(), quote.getState());
+        log.debug("nut17_event_publish mint_quote quote_ref={} state={}", QuoteRef.of(quote.getQuoteId()), quote.getState());
         eventPublisher.publishEvent(new MintQuoteStateChangeEvent(this, quote));
     }
 
@@ -94,7 +95,7 @@ public class Nut17EventPublisher {
      * @param payload the quote state payload
      */
     public void publishMeltQuoteState(String quoteId, QuoteStatePayload payload) {
-        log.debug("nut17_event_publish melt_quote quote_id={} state={}", quoteId, payload.getState());
+        log.debug("nut17_event_publish melt_quote quote_ref={} state={}", QuoteRef.of(quoteId), payload.getState());
         eventPublisher.publishEvent(new QuoteStateChangeEvent(
                 this, SubscriptionKind.bolt11_melt_quote, quoteId, payload));
     }

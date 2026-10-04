@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.AmountLimitContext;
 import xyz.tcheeric.cashu.mint.proto.util.MintQuoteLock;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.io.IOException;
@@ -209,8 +210,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
             throw invoiceFailed;
         }
         if (!quoteId.equals(invoicedId)) {
-            log.error("mint_quote gateway_changed_quote_id recorded={} invoiced={} gateway={}",
-                    quoteId, invoicedId, gateway.getClass().getSimpleName());
+            log.error("mint_quote gateway_changed_quote_id recorded_ref={} invoiced_ref={} gateway={}",
+                    QuoteRef.of(quoteId), QuoteRef.of(invoicedId), gateway.getClass().getSimpleName());
             abandon(quoteId);
             throw new CashuErrorException(CashuErrorCode.internal_error,
                     "Payment gateway raised the invoice under a different quote id");
@@ -228,7 +229,7 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         try {
             mintQuoteRepository.casLifecycle(quoteId, LifecycleState.UNPAID, LifecycleState.FAILED);
         } catch (RuntimeException e) {
-            log.warn("mint_quote abandon_failed quote_id={} reason={}", quoteId, e.toString());
+            log.warn("mint_quote abandon_failed quote_ref={} reason={}", QuoteRef.of(quoteId), QuoteRef.redact(e.toString(), quoteId));
         }
     }
 
@@ -268,8 +269,8 @@ public class MintQuoteTask extends InstrumentedTask<PostMintQuoteResponse> {
         } catch (RuntimeException e) {
             // Fail closed, and before the invoice exists: the client is refused a quote it was
             // never charged for.
-            log.error("mint_quote_persist_failed quote_id={} amount={} unit={}",
-                    quoteId, amount, resolvedUnit, e);
+            log.error("mint_quote_persist_failed quote_ref={} amount={} unit={}",
+                    QuoteRef.of(quoteId), amount, resolvedUnit, QuoteRef.redact(e, quoteId));
             throw new CashuErrorException(CashuErrorCode.internal_error, "Mint quote could not be persisted");
         }
     }

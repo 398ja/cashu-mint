@@ -42,6 +42,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.time.Instant;
 
@@ -229,8 +230,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
                 Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
                 if (Instant.now().isAfter(expiresAt) && !alreadyPaid(expiryGateway, quoteId)) {
-                    log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
-                            quoteId, createdAt, ttlSeconds, expiresAt);
+                    log.info("mint_task quote_expired quote_ref={} created_at={} ttl_seconds={} expires_at={}",
+                            QuoteRef.of(quoteId), createdAt, ttlSeconds, expiresAt);
                     MetricRecorders.issuance().quoteExpired();
                     throw new CashuErrorException(CashuErrorCode.quote_expired);
                 }
@@ -238,8 +239,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         } catch (CashuErrorException ce) {
             throw ce;
         } catch (RuntimeException e) {
-            log.warn("mint_task expiry_check_skipped quote_id={} reason={}",
-                    quoteId, e.getMessage());
+            log.warn("mint_task expiry_check_skipped quote_ref={} reason={}",
+                    QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
         }
 
         // Per-quote lock: serializes concurrent requests for the same quote
@@ -283,10 +284,10 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 // the durable lifecycle has already advanced past FUNDED).
                 voucherCtx = resolveVoucherFunding(quoteId, durableVoucher);
                 if (voucherCtx == null) {
-                    log.info("mint_task voucher_quote_detected quote_id={} mock_payment=true (legacy context)", quoteId);
+                    log.info("mint_task voucher_quote_detected quote_ref={} mock_payment=true (legacy context)", QuoteRef.of(quoteId));
                 } else {
-                    log.info("mint_task voucher_quote_funded quote_id={} funding_id={} source={}",
-                            quoteId, voucherCtx.funding.fundingId(), voucherCtx.funding.fundingSource());
+                    log.info("mint_task voucher_quote_funded quote_ref={} funding_id={} source={}",
+                            QuoteRef.of(quoteId), voucherCtx.funding.fundingId(), voucherCtx.funding.fundingSource());
                 }
             } else if (isIouMint) {
                 // Dalia Phase 9: zero-value IOU issuance is payment-exempt and quote-less (nothing to
@@ -294,14 +295,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 // gated only by the (engine-only, rate-limited) /v1/mint endpoint. The Dalia trust
                 // layer must not treat an IOU marker as proof of anything beyond "the mint blind-signed
                 // this"; authorization/anti-spam is the engine's + rate limiter's responsibility.
-                log.info("mint_task iou_issuance quote_id={} zero_value=true", quoteId);
+                log.info("mint_task iou_issuance quote_ref={} zero_value=true", QuoteRef.of(quoteId));
             } else {
                 // Regular tokens require real Lightning payment per NUT-04
                 // First check webhook cache (instant), then fall back to gateway polling
                 boolean paid;
 
                 if (paymentStatusChecker != null && paymentStatusChecker.isPaid(quoteId)) {
-                    log.debug("Payment confirmed via webhook cache: quoteId={}", quoteId);
+                    log.debug("Payment confirmed via webhook cache: quote_ref={}", QuoteRef.of(quoteId));
                     paid = true;
                 } else {
                     // Fall back to gateway polling
@@ -309,7 +310,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             : mintProtocolService.createGateway(method, unit);
                     paid = gateway.checkPaymentStatus(quoteId);
                     if (log.isDebugEnabled()) {
-                        log.debug("Payment status from gateway for quoteId={} paid={}", quoteId, paid);
+                        log.debug("Payment status from gateway for quote_ref={} paid={}", QuoteRef.of(quoteId), paid);
                     }
                 }
 
@@ -329,7 +330,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             if (!isVoucherQuote && !isIouMint && mintQuoteRepository != null) {
                 durableQuote = mintQuoteRepository.findById(quoteId).orElse(null);
                 if (durableQuote == null) {
-                    log.warn("mint_task missing_durable_quote quote_id={}", quoteId);
+                    log.warn("mint_task missing_durable_quote quote_ref={}", QuoteRef.of(quoteId));
                     throw new CashuErrorException(CashuErrorCode.quote_not_found);
                 }
                 requireMintQuoteSignature(durableQuote, quoteId, blindedMessages);
@@ -337,8 +338,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                         .mapToLong(BlindedMessage::getAmount)
                         .sum();
                 if (requestedTotal != durableQuote.amount()) {
-                    log.warn("mint_task amount_mismatch quote_id={} expected={} requested={}",
-                            quoteId, durableQuote.amount(), requestedTotal);
+                    log.warn("mint_task amount_mismatch quote_ref={} expected={} requested={}",
+                            QuoteRef.of(quoteId), durableQuote.amount(), requestedTotal);
                     MetricRecorders.issuance().amountMismatch();
                     throw new CashuErrorException(CashuErrorCode.amount_mismatch,
                                     "Sum of blinded output amounts must equal the quote amount");
@@ -363,8 +364,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     if (ttlSeconds != null && ttlSeconds > 0 && createdAt != null) {
                         Instant expiresAt = createdAt.plusSeconds(ttlSeconds.longValue());
                         if (Instant.now().isAfter(expiresAt) && !alreadyPaid(crossCheckGateway, quoteId)) {
-                            log.info("mint_task quote_expired quote_id={} created_at={} ttl_seconds={} expires_at={}",
-                                    quoteId, createdAt, ttlSeconds, expiresAt);
+                            log.info("mint_task quote_expired quote_ref={} created_at={} ttl_seconds={} expires_at={}",
+                                    QuoteRef.of(quoteId), createdAt, ttlSeconds, expiresAt);
                             MetricRecorders.issuance().quoteExpired();
                             throw new CashuErrorException(CashuErrorCode.quote_expired);
                         }
@@ -379,21 +380,21 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                     // the gateway is uncooperative; the contract's gateway-
                     // side ClientMintExpiryJob remains the canonical
                     // authority.
-                    log.warn("mint_task expiry_check_skipped quote_id={} reason={}",
-                            quoteId, e.getMessage());
+                    log.warn("mint_task expiry_check_skipped quote_ref={} reason={}",
+                            QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
                 }
 
                 Integer gatewayAmount;
                 try {
                     gatewayAmount = crossCheckGateway.getAmount(quoteId);
                 } catch (RuntimeException e) {
-                    log.error("mint_task gateway_cross_check_failed quote_id={}", quoteId, e);
+                    log.error("mint_task gateway_cross_check_failed quote_ref={}", QuoteRef.of(quoteId), QuoteRef.redact(e, quoteId));
                     MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(CashuErrorCode.quote_amount_cross_check_failed);
                 }
                 if (gatewayAmount == null || gatewayAmount.longValue() != durableQuote.amount()) {
-                    log.error("mint_task gateway_cross_check_mismatch quote_id={} durable={} gateway={}",
-                            quoteId, durableQuote.amount(), gatewayAmount);
+                    log.error("mint_task gateway_cross_check_mismatch quote_ref={} durable={} gateway={}",
+                            QuoteRef.of(quoteId), durableQuote.amount(), gatewayAmount);
                     MetricRecorders.issuance().crossCheckFailure();
                     throw new CashuErrorException(CashuErrorCode.quote_amount_cross_check_failed);
                 }
@@ -441,13 +442,13 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                         .sum();
 
                 if (totalBlindedAmount != voucherFaceValue) {
-                    log.error("Voucher mint amount mismatch: quoteId={} expected={} actual={}",
-                            quoteId, voucherFaceValue, totalBlindedAmount);
+                    log.error("Voucher mint amount mismatch: quote_ref={} expected={} actual={}",
+                            QuoteRef.of(quoteId), voucherFaceValue, totalBlindedAmount);
                     VoucherQuoteRegistry.removeFaceValue(quoteId); // Clean up on error
                     throw new CashuErrorException(CashuErrorCode.mint_amount_mismatch);
                 }
 
-                log.info("Voucher mint validated: quoteId={} faceValue={}", quoteId, voucherFaceValue);
+                log.info("Voucher mint validated: quote_ref={} faceValue={}", QuoteRef.of(quoteId), voucherFaceValue);
             }
 
             // Spec 007 — only now (after the deterministic face-value output-sum
@@ -518,7 +519,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // Clean up voucher quote registry after successful minting
             if (voucherFaceValue != null) {
                 VoucherQuoteRegistry.removeFaceValue(quoteId);
-                log.debug("Cleaned up voucher quote from registry: quoteId={}", quoteId);
+                log.debug("Cleaned up voucher quote from registry: quote_ref={}", QuoteRef.of(quoteId));
             }
 
             // FR-002 / FR-011 — persist the ledger row and finish the lifecycle
@@ -536,7 +537,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 issuanceRecordRepository.insertIfAbsent(row);
                 int closed = mintQuoteRepository.casLifecycle(quoteId, LifecycleState.ISSUING, LifecycleState.ISSUED);
                 if (closed == 0) {
-                    log.warn("mint_task lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                    log.warn("mint_task lifecycle_close_failed quote_ref={} expected_state=ISSUING", QuoteRef.of(quoteId));
                 }
             }
 
@@ -584,10 +585,10 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                             .sum();
                     int closed = voucherRepo.recordIssuance(quoteId, originalTokenAmount);
                     if (closed == 0) {
-                        log.warn("mint_task voucher_lifecycle_close_failed quote_id={} expected_state=ISSUING", quoteId);
+                        log.warn("mint_task voucher_lifecycle_close_failed quote_ref={} expected_state=ISSUING", QuoteRef.of(quoteId));
                     } else {
-                        log.info("mint_task voucher_issued quote_id={} face_value={} original_token_amount={}",
-                                quoteId, voucherCtx.quote.faceValue(), originalTokenAmount);
+                        log.info("mint_task voucher_issued quote_ref={} face_value={} original_token_amount={}",
+                                QuoteRef.of(quoteId), voucherCtx.quote.faceValue(), originalTokenAmount);
                     }
                 }
 
@@ -622,8 +623,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
                 }
                 IssuanceRecord existing = issuanceRecordRepository.findById(quoteId).orElse(null);
                 if (existing != null && existing.outputsHash().equals(outputsHash)) {
-                    log.info("[mint][replay] quote_id={} outputs_hash={} attempt={}",
-                            quoteId, outputsHash, attempt);
+                    log.info("[mint][replay] quote_ref={} outputs_hash={} attempt={}",
+                            QuoteRef.of(quoteId), outputsHash, attempt);
                     MetricRecorders.issuance().idempotentReplay();
                     return decodeSignatures(existing.signaturesJson());
                 }
@@ -712,7 +713,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
 
         VoucherQuote quote = durableVoucher.orElse(null);
         if (quote == null) {
-            log.warn("mint_task voucher_quote_missing quote_id={}", quoteId);
+            log.warn("mint_task voucher_quote_missing quote_ref={}", QuoteRef.of(quoteId));
             throw new CashuErrorException(CashuErrorCode.voucher_quote_not_found);
         }
 
@@ -722,15 +723,15 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // vouchers is a future enhancement; today we reject.
         VoucherLifecycleState state = quote.lifecycleState();
         if (state == VoucherLifecycleState.ISSUED) {
-            log.info("mint_task voucher_quote_already_issued quote_id={}", quoteId);
+            log.info("mint_task voucher_quote_already_issued quote_ref={}", QuoteRef.of(quoteId));
             throw new CashuErrorException(CashuErrorCode.quote_already_issued);
         }
         if (state == VoucherLifecycleState.ISSUING) {
-            log.info("mint_task voucher_issuance_in_progress quote_id={}", quoteId);
+            log.info("mint_task voucher_issuance_in_progress quote_ref={}", QuoteRef.of(quoteId));
             throw new CashuErrorException(CashuErrorCode.issuance_in_progress);
         }
         if (state == VoucherLifecycleState.EXPIRED || state == VoucherLifecycleState.FAILED) {
-            log.info("mint_task voucher_quote_unavailable quote_id={} state={}", quoteId, state);
+            log.info("mint_task voucher_quote_unavailable quote_ref={} state={}", QuoteRef.of(quoteId), state);
             throw new CashuErrorException(CashuErrorCode.quote_expired);
         }
 
@@ -756,7 +757,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         }
 
         if (funding == null) {
-            log.warn("mint_task voucher_funding_required quote_id={}", quoteId);
+            log.warn("mint_task voucher_funding_required quote_ref={}", QuoteRef.of(quoteId));
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FUNDING_REQUIRED);
             throw new CashuErrorException(CashuErrorCode.funding_required);
         }
@@ -798,8 +799,8 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // Re-read and reject — we MUST NOT sign (single-issuance invariant).
             VoucherQuote refreshed = voucherRepo.findById(quoteId).orElse(quote);
             VoucherLifecycleState newState = refreshed.lifecycleState();
-            log.info("mint_task voucher_lifecycle_advance_lost quote_id={} observed_state={}",
-                    quoteId, newState);
+            log.info("mint_task voucher_lifecycle_advance_lost quote_ref={} observed_state={}",
+                    QuoteRef.of(quoteId), newState);
             if (newState == VoucherLifecycleState.ISSUED) {
                 throw new CashuErrorException(CashuErrorCode.quote_already_issued);
             }
@@ -850,9 +851,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
 
             // Any other voucher type does expect collateral, and a fee-payment is not it.
-            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
+            log.warn("[voucher][alert] face_value_not_backed quote_ref={} funding_source=CUSTOMER_PAYMENT "
                             + "voucher_type={} face_value={} funding_amount={}",
-                    quoteId, quote.voucherType(), quote.faceValue(), funding.amount());
+                    QuoteRef.of(quoteId), quote.voucherType(), quote.faceValue(), funding.amount());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
@@ -864,14 +865,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             // on denied attempts too (the deny path throws below). The
             // policy-specific subset is the IOU_NOT_PERMITTED reason on
             // cashu_mint_voucher_rejected_total.
-            log.warn("voucher_issuance MERCHANT_IOU quote_id={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
-                    quoteId, funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
+            log.warn("voucher_issuance MERCHANT_IOU quote_ref={} funding_id={} merchant_id={} iou_id={} policy_profile={}",
+                    QuoteRef.of(quoteId), funding.fundingId(), funding.merchantId(), funding.iouId(), funding.policyProfile());
             MetricRecorders.voucher().iouIssuanceAttempted();
             // FR-006 — enforce the configured IOU policy (default DENY).
             String iouPolicy = MintIntegrityContext.voucherIouPolicy();
             if (!"ALLOW".equalsIgnoreCase(iouPolicy)) {
-                log.error("[voucher][alert] iou_not_permitted quote_id={} funding_id={} policy={}",
-                        quoteId, funding.fundingId(), iouPolicy);
+                log.error("[voucher][alert] iou_not_permitted quote_ref={} funding_id={} policy={}",
+                        QuoteRef.of(quoteId), funding.fundingId(), iouPolicy);
                 MetricRecorders.voucher().rejected(VoucherRejectionReason.IOU_NOT_PERMITTED);
                 throw new CashuErrorException(CashuErrorCode.iou_not_permitted);
             }
@@ -881,9 +882,9 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
         // cover the full face value in the quote's unit.
         if (funding.amount() < quote.faceValue()
                 || !java.util.Objects.equals(funding.unit(), quote.unit())) {
-            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source={} "
+            log.warn("[voucher][alert] face_value_not_backed quote_ref={} funding_source={} "
                             + "face_value={} funding_amount={} quote_unit={} funding_unit={}",
-                    quoteId, source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
+                    QuoteRef.of(quoteId), source, quote.faceValue(), funding.amount(), quote.unit(), funding.unit());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
@@ -1057,7 +1058,7 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             }
             return gateway.checkPaymentStatus(quoteId);
         } catch (RuntimeException e) {
-            log.warn("mint_task expiry_paid_check_failed quote_id={} reason={}", quoteId, e.getMessage());
+            log.warn("mint_task expiry_paid_check_failed quote_ref={} reason={}", QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
             return false;
         }
     }
@@ -1081,14 +1082,14 @@ public class MintTask<T extends Secret> extends InstrumentedTask<PostMintRespons
             throws CashuErrorException {
         long owed = quote.chargedAmount();
         if (funding.amount() < owed || !java.util.Objects.equals(funding.unit(), quote.unit())) {
-            log.warn("[voucher][alert] face_value_not_backed quote_id={} funding_source=CUSTOMER_PAYMENT "
+            log.warn("[voucher][alert] face_value_not_backed quote_ref={} funding_source=CUSTOMER_PAYMENT "
                             + "reason=underpaid charged_amount={} funding_amount={} quote_unit={} funding_unit={}",
-                    quoteId, owed, funding.amount(), quote.unit(), funding.unit());
+                    QuoteRef.of(quoteId), owed, funding.amount(), quote.unit(), funding.unit());
             MetricRecorders.voucher().rejected(VoucherRejectionReason.FACE_VALUE_NOT_BACKED);
             throw new CashuErrorException(CashuErrorCode.face_value_not_backed);
         }
-        log.info("voucher_backing customer_paid_accepted quote_id={} charged_amount={} funding_amount={} unit={}",
-                quoteId, owed, funding.amount(), quote.unit());
+        log.info("voucher_backing customer_paid_accepted quote_ref={} charged_amount={} funding_amount={} unit={}",
+                QuoteRef.of(quoteId), owed, funding.amount(), quote.unit());
     }
 
 }

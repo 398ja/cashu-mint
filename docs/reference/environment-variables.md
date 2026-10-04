@@ -12,6 +12,7 @@ This reference lists the environment variables used to configure the Cashu mint 
 | `LOG_LEVEL_ROOT` | `INFO` | Root log level |
 | `LOG_LEVEL_SPRING` | `INFO` | Spring framework log level |
 | `LOG_LEVEL_CASHU` | `DEBUG` | Project log level |
+| `LOG_LEVEL_PAYMENT_ADAPTER` | `WARN` | In-process payment-adapter log level. Interim WARN because its INFO lines log raw quote ids until payment-adapter#254 ships (cashu-mint#531) |
 | `CASHU_MINT_MANAGEMENT_PORT` | `9000` | Actuator port (health, metrics, prometheus); never the API port |
 | `MINT_ADMIN_USERNAME` | `admin` | Operator user for `/admin/**` and the authenticated actuator endpoints |
 | `MINT_ADMIN_PASSWORD` | _(none)_ | Operator password; bcrypt hash outside `local`, `$` doubled in compose. Unset means 401 everywhere, including Prometheus scrapes |

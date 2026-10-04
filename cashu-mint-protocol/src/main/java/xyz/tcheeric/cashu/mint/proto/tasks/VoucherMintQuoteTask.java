@@ -16,6 +16,7 @@ import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.security.MessageDigest;
@@ -176,8 +177,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         // it reports the breach rather than preventing it: the prevention is
         // the gateway's own contract, pinned by PhoenixdGatewayTest.
         if (!quoteId.equals(invoicedId)) {
-            log.error("voucher_quote gateway_changed_quote_id recorded={} invoiced={} gateway={}",
-                    quoteId, invoicedId, gateway.getClass().getSimpleName());
+            log.error("voucher_quote gateway_changed_quote_id recorded_ref={} invoiced_ref={} gateway={}",
+                    QuoteRef.of(quoteId), QuoteRef.of(invoicedId), gateway.getClass().getSimpleName());
             throw new CashuErrorException("{\"error\":\"voucher_quote_id_mismatch\"}");
         }
 
@@ -187,8 +188,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         String request = gateway.getRequest(quoteId);
         Integer expiry = gateway.getPaymentExpiry(quoteId);
 
-        log.debug("Voucher mint quote created: quoteId={}, request={}, expiry={}",
-            quoteId, request, expiry);
+        log.debug("Voucher mint quote created: quote_ref={}, request={}, expiry={}",
+            QuoteRef.of(quoteId), request, expiry);
 
         // NUT-04 v1 — modern wallets require amount/unit/state on the response.
         // The mintable amount for a voucher quote is the voucher FACE VALUE (what
@@ -238,15 +239,15 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                     requestHash(quoteId, faceValue, chargedAmount),
                     lockingKey);
             repo.save(record);
-            log.info("voucher_quote persisted quote_id={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
-                    quoteId, faceValue, chargedAmount, fee);
+            log.info("voucher_quote persisted quote_ref={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
+                    QuoteRef.of(quoteId), faceValue, chargedAmount, fee);
         } catch (RuntimeException e) {
             // Fail closed. This runs before the invoice is raised (#469), so a
             // failure here refuses the quote while nothing is yet payable: the
             // client retries a quote it was never charged for. Before the
             // reorder the same failure arrived after a payable invoice already
             // existed, which is how twelve paid quotes were stranded.
-            log.error("voucher_quote persist_failed quote_id={}", quoteId, e);
+            log.error("voucher_quote persist_failed quote_ref={}", QuoteRef.of(quoteId), QuoteRef.redact(e, quoteId));
             throw new CashuErrorException(
                     "{\"error\":\"voucher_quote_persist_failed\"}");
         }

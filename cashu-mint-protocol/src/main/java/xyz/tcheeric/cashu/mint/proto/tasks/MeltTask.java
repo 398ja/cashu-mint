@@ -43,6 +43,7 @@ import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -279,7 +280,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                     .sum();
             if (log.isDebugEnabled()) {
                 log.debug("Processing melt quote {} for request {} with invoice={} lightningReserve={} inputFees={} proofSum={}",
-                        quoteId, request, invoiceAmount,
+                        QuoteRef.of(quoteId), request, invoiceAmount,
                         feeReserve.getLightningReserve(), feeReserve.getInputFees(), proofSum);
             }
 
@@ -323,8 +324,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         // FR-005: reject duplicate non-terminal melts.
         MeltSaga existing = meltSagaRepository.findByQuoteId(quoteId).orElse(null);
         if (existing != null && !existing.currentState().isTerminal()) {
-            log.warn("melt_in_progress quote_id={} saga_id={} state={}",
-                    quoteId, existing.meltSagaId(), existing.currentState());
+            log.warn("melt_in_progress quote_ref={} saga_id={} state={}",
+                    QuoteRef.of(quoteId), existing.meltSagaId(), existing.currentState());
             throw new CashuErrorException(CashuErrorCode.melt_in_progress);
         }
 
@@ -342,8 +343,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         try {
             meltSagaRepository.save(seed);
         } catch (org.springframework.dao.DataIntegrityViolationException race) {
-            log.warn("melt_in_progress race_lost quote_id={} attempted_saga_id={} cause={}",
-                    quoteId, sagaId, race.getMessage());
+            log.warn("melt_in_progress race_lost quote_ref={} attempted_saga_id={} cause={}",
+                    QuoteRef.of(quoteId), sagaId, QuoteRef.redact(race.getMessage(), quoteId));
             throw new CashuErrorException(CashuErrorCode.melt_in_progress);
         }
         meltSagaRepository.recordTransition(sagaId, null, MeltSagaState.PROOFS_HELD,
@@ -362,7 +363,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         try {
             normalizedProofs = buildNormalizedProofEntities(proofsToMelt);
         } catch (CashuErrorException | RuntimeException e) {
-            log.error("melt_saga proof_normalize_failed quote_id={} saga_id={}", quoteId, sagaId, e);
+            log.error("melt_saga proof_normalize_failed quote_ref={} saga_id={}", QuoteRef.of(quoteId), sagaId, QuoteRef.redact(e, quoteId));
             // No vault write happened yet — nothing to release. Fail closed
             // with the spec-005 terminal error before any payment.
             releaseAndFailClosed(sagaId, quoteId);
@@ -377,7 +378,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // be bound; release them and fail closed BEFORE payment. Always
             // surface proofs_not_bound (the spec-005 terminal contract);
             // the original cause is logged here.
-            log.error("melt_saga proof_pending_failed quote_id={} saga_id={}", quoteId, sagaId, e);
+            log.error("melt_saga proof_pending_failed quote_ref={} saga_id={}", QuoteRef.of(quoteId), sagaId, QuoteRef.redact(e, quoteId));
             releaseAndFailClosed(sagaId, quoteId);
             throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
@@ -385,8 +386,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // FR-006 fail-closed: insufficient durable hold (a proof was
             // already SPENT or held by another saga). Release any partial
             // claim and bail out BEFORE lightningPaymentPort.pay is reached.
-            log.warn("[melt-saga] proofs_not_bound quote_id={} saga_id={} expected={} bound={}",
-                    quoteId, sagaId, proofsToMelt.size(), bound);
+            log.warn("[melt-saga] proofs_not_bound quote_ref={} saga_id={} expected={} bound={}",
+                    QuoteRef.of(quoteId), sagaId, proofsToMelt.size(), bound);
             releaseAndFailClosed(sagaId, quoteId);
             throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
         }
@@ -418,10 +419,10 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // already left at this point, so this is exactly the situation an operator must see,
             // and the sibling paths (SwapTask's stranded hold, PAYMENT_SENT_BURN_FAILED below)
             // both abort loudly rather than continue.
-            log.error("[melt-saga][alert] CAS_FAILED_AFTER_PAYMENT quote_id={} saga_id={} "
+            log.error("[melt-saga][alert] CAS_FAILED_AFTER_PAYMENT quote_ref={} saga_id={} "
                             + "expected=PROOFS_HELD preimage={} - payment has been sent but the "
                             + "saga could not be advanced; operator intervention required",
-                    quoteId, sagaId, success.paymentHash());
+                    QuoteRef.of(quoteId), sagaId, success.paymentHash());
             meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
                     MeltSagaState.PAYMENT_SENT,
                     "cas_failed_after_payment preimage=" + success.paymentHash(), "system");
@@ -451,8 +452,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // FR-011 — operator-visible alert: payment is gone but the burn
             // commit failed. Saga lands in PAYMENT_SENT_BURN_FAILED and
             // stays there until operator intervention.
-            log.error("[melt-saga][alert] PAYMENT_SENT_BURN_FAILED quote_id={} saga_id={} preimage={}",
-                    quoteId, sagaId, success.paymentHash(), invalidateError);
+            log.error("[melt-saga][alert] PAYMENT_SENT_BURN_FAILED quote_ref={} saga_id={} preimage={}",
+                    QuoteRef.of(quoteId), sagaId, success.paymentHash(), QuoteRef.redact(invalidateError, quoteId));
             meltSagaRepository.casState(sagaId, MeltSagaState.PAYMENT_SENT,
                     MeltSagaState.PAYMENT_SENT_BURN_FAILED);
             meltSagaRepository.recordTransition(sagaId, MeltSagaState.PAYMENT_SENT,
@@ -480,8 +481,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         } catch (CashuErrorException | RuntimeException changeError) {
             // Change return is best-effort post-COMPLETED. The saga is
             // terminal; the operator alert surfaces the gap.
-            log.error("[melt-saga][alert] nut08_change_issuance_failed saga_id={} quote_id={} cause={}",
-                    sagaId, quoteId, changeError.getMessage());
+            log.error("[melt-saga][alert] nut08_change_issuance_failed saga_id={} quote_ref={} cause={}",
+                    sagaId, QuoteRef.of(quoteId), QuoteRef.redact(changeError.getMessage(), quoteId));
         }
 
         cacheTerminalResponse(sagaId, response);
@@ -588,8 +589,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             log.warn("nut08_change response_cache_write_failed saga_id={} cause={}",
                     sagaId, e.getMessage());
         }
-        log.info("[melt-saga] nut08_change_issued saga_id={} quote_id={} overpaid={} signed={}",
-                sagaId, quoteId, overpaid, changeSignatures.size());
+        log.info("[melt-saga] nut08_change_issued saga_id={} quote_ref={} overpaid={} signed={}",
+                sagaId, QuoteRef.of(quoteId), overpaid, changeSignatures.size());
     }
 
     /**
@@ -626,8 +627,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
                                                 List<Proof<T>> proofsToMelt,
                                                 PaymentOutcome.DefinitiveFailure failure)
             throws CashuErrorException {
-        log.warn("[melt-saga] payment_failed quote_id={} saga_id={} reason={} provider_code={}",
-                quoteId, sagaId, failure.reason(), failure.providerCode());
+        log.warn("[melt-saga] payment_failed quote_ref={} saga_id={} reason={} provider_code={}",
+                QuoteRef.of(quoteId), sagaId, failure.reason(), failure.providerCode());
         meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                 failure.reason() + ":" + failure.providerCode(), "system");
@@ -646,16 +647,16 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         try {
             int refunded = proofVaultService.refundForHold(sagaId);
             refundConfirmed = true;
-            log.info("[melt-saga] proof_refund saga_id={} quote_id={} refunded={}",
-                    sagaId, quoteId, refunded);
+            log.info("[melt-saga] proof_refund saga_id={} quote_ref={} refunded={}",
+                    sagaId, QuoteRef.of(quoteId), refunded);
         } catch (CashuErrorException | RuntimeException refundError) {
             // Best-effort: log + alert if the vault is unreachable. The
             // PROOFS_HELD TTL sweep in MeltSagaReconciler is the safety
             // net for stuck-in-PENDING proofs (though here the saga is
             // already terminal FAILED, the sweep won't trigger; operator
             // tooling addresses this case).
-            log.error("[melt-saga][alert] proof_refund_failed quote_id={} saga_id={} cause={}",
-                    quoteId, sagaId, refundError.getMessage());
+            log.error("[melt-saga][alert] proof_refund_failed quote_ref={} saga_id={} cause={}",
+                    QuoteRef.of(quoteId), sagaId, QuoteRef.redact(refundError.getMessage(), quoteId));
         }
         // Distinguish a confirmed release from an unconfirmed one. Only the
         // confirmed path is a clean "payment failed, proofs released" outcome
@@ -674,8 +675,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
     private PostMeltResponse parkInUnknown(String sagaId, String quoteId,
                                            PaymentOutcome.Unknown unknown)
             throws CashuErrorException {
-        log.error("[melt-saga][alert] PAYMENT_UNKNOWN quote_id={} saga_id={} reason={}",
-                quoteId, sagaId, unknown.reason());
+        log.error("[melt-saga][alert] PAYMENT_UNKNOWN quote_ref={} saga_id={} reason={}",
+                QuoteRef.of(quoteId), sagaId, unknown.reason());
         meltSagaRepository.casState(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.PAYMENT_UNKNOWN);
         meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD,
                 MeltSagaState.PAYMENT_UNKNOWN, unknown.reason(), "system");
@@ -732,7 +733,7 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             }
             spendHeldInputs(holdId, bound);
         } catch (CashuErrorException | RuntimeException e) {
-            log.error("Failed to spend the inputs of legacy melt quote {}", quoteId, e);
+            log.error("Failed to spend the inputs of legacy melt quote {}", QuoteRef.of(quoteId), QuoteRef.redact(e, quoteId));
             throw new CashuErrorException(CashuErrorCode.melt_proof_pending_error);
         }
     }
@@ -771,8 +772,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // The payment has already succeeded; a gateway hiccup reading back
             // its own quote must not turn that into a failure for the wallet.
             // The required fields are still present, just less informative.
-            log.warn("melt_response_quote_detail_unavailable quote_id={} cause={}",
-                    quoteId, gatewayError.getMessage());
+            log.warn("melt_response_quote_detail_unavailable quote_ref={} cause={}",
+                    QuoteRef.of(quoteId), QuoteRef.redact(gatewayError.getMessage(), quoteId));
         }
         response.setUnit(unit == null ? "sat" : unit);
         return response;
@@ -914,9 +915,9 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             proofVaultService.refundForHold(sagaId);
             refunded = true;
         } catch (CashuErrorException | RuntimeException refundError) {
-            log.error("[melt-saga][alert] proofs_not_bound refund_failed quote_id={} saga_id={} cause={} "
+            log.error("[melt-saga][alert] proofs_not_bound refund_failed quote_ref={} saga_id={} cause={} "
                             + "— leaving saga PROOFS_HELD for reconciler sweep",
-                    quoteId, sagaId, refundError.getMessage());
+                    QuoteRef.of(quoteId), sagaId, QuoteRef.redact(refundError.getMessage(), quoteId));
             refunded = false;
         }
         if (!refunded) {
@@ -930,8 +931,8 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             meltSagaRepository.recordTransition(sagaId, MeltSagaState.PROOFS_HELD, MeltSagaState.FAILED,
                     "proofs_not_bound", "system");
         } catch (RuntimeException e) {
-            log.warn("[melt-saga] proofs_not_bound transition_write_failed quote_id={} saga_id={} cause={}",
-                    quoteId, sagaId, e.getMessage());
+            log.warn("[melt-saga] proofs_not_bound transition_write_failed quote_ref={} saga_id={} cause={}",
+                    QuoteRef.of(quoteId), sagaId, QuoteRef.redact(e.getMessage(), quoteId));
         }
         cacheTerminalError(sagaId, ErrorResponse.of(CashuErrorCode.proofs_not_bound));
     }

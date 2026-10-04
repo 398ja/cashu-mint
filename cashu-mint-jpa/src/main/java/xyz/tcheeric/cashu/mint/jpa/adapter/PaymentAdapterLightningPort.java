@@ -9,6 +9,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.PaymentOutcome;
 import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
+import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
 
 import java.time.Duration;
@@ -89,8 +90,8 @@ public class PaymentAdapterLightningPort implements LightningPaymentPort {
             String response = gateway.pay(quoteId);
             return classifyAfterPay(gateway, quoteId, response);
         } catch (RuntimeException e) {
-            log.warn("lightning_payment_unknown quote_id={} reason=pay_threw cause={}",
-                    quoteId, e.getMessage());
+            log.warn("lightning_payment_unknown quote_ref={} reason=pay_threw cause={}",
+                    QuoteRef.of(quoteId), QuoteRef.redact(e.getMessage(), quoteId));
             return new PaymentOutcome.Unknown("pay_threw: " + e.getClass().getSimpleName());
         }
     }

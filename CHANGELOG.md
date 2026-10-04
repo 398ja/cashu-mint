@@ -6,6 +6,42 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Security
 
+- **The mint no longer logs raw quote ids (#531).** A NUT-04 quote id is a bearer claim: whoever
+  holds the id of a paid quote that is not NUT-20 locked can mint its ecash. Staging logged 296
+  such lines in 21 minutes after the 0.41.0 deploy. Every log line, at every level, that named a
+  mint, melt or voucher quote now carries `quote_ref=q:<12 hex>` (the first 6 bytes of SHA-256 of
+  the id) instead of `quote_id=` / `quoteId=`. It is byte-for-byte the `quote_ref` that
+  imani-wallet-lib's `QuoteRef` and imani-gateway-customer log, so one quote still correlates
+  across services. Exception messages and logged throwables that quote the id, the
+  `bolt11:<id>` webhook idempotency key and the request-trace path in `MetricsHandlerInterceptor`
+  are redacted the same way. The mint has no MDC entries and no access log, so neither carried
+  the id. Dashboards or alerts that grep logs for `quote_id=` must switch to `quote_ref=` and
+  compute the ref from the id (`printf %s "$ID" | sha256sum | cut -c1-12`).
+  - A payment-gateway I/O failure (`RestClientException`, such as a timeout on the quote status
+    poll `GET /v1/mint/quote/{method}/{id}` or on `POST /v1/mint`) is now handled by
+    `CashuController` instead of reaching Tomcat, which logged Spring's "I/O error on GET request
+    for .../findByQuoteId?quoteId=<id>" at ERROR. It logs one `payment_backend_error` line with the
+    route and `quote_ref` and answers 500 `internal_error` "Payment backend unavailable", the same
+    status as before.
+  - `QuoteRef.redact` also replaces any quote id in the shapes the mint's HTTP clients produce
+    (`quoteId=` / `quote_id=`, JSON `"quote":"..."`, `/quote/<method>/<id>`), not only the one
+    id the caller names. Redacted exception chains keep their suppressed exceptions and are no
+    longer cut after 16 links.
+  - The `errorMessage` of the `MINT_FAILED` / `MELT_FAILED` ledger trace events is redacted
+    (for example `Payment record not found for quote <id>`). The events still carry the quote id
+    in their own `quoteId` field by design: the ledger is a data store keyed by quote, not a log.
+  - The `endpoint` tag of `cashu_mint_requests_*` is now the route pattern Spring MVC matched,
+    or `unmatched`. The old `$`-anchored path regexes let `/v1/mint/quote/bolt11/<id>/` (trailing
+    slash) through as the raw path, putting the id into the tag and making one series per quote.
+  - **Interim:** `logging.level.xyz.tcheeric.payment.adapter` defaults to `WARN`
+    (`LOG_LEVEL_PAYMENT_ADAPTER`). payment-adapter's `PhoenixdGateway` and REST clients run inside
+    the mint and still log raw quote ids at INFO until payment-adapter#254 ships and the mint
+    bumps `payment-adapter.version`. Operators lose those INFO lines meanwhile: `Creating/Created
+    mint quote`, `Creating/Created melt quote`, `Paying quote`, `Payment sent: paymentId=`, and the
+    clients' `Sending request` / `Received response` / `GET byEntityId` URL and body lines.
+    payment-adapter's WARN and ERROR lines (`quote_lookup_failed`, `payment_missing`, gateway
+    failures) still print. Set `LOG_LEVEL_PAYMENT_ADAPTER=INFO` to restore them while debugging.
+
 - **A voucher's signing key is now checked against the issuer it names (#527).** The issuer
   signature was verified against the `issuer_pubkey` the voucher itself carries. So a voucher
   signed with any keypair, naming any `issuerId`, verified and could be swapped into ordinary
