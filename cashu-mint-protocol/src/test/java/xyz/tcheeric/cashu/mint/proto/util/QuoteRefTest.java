@@ -68,4 +68,79 @@ class QuoteRefTest {
         assertThat(QuoteRef.redact(error, QUOTE_ID)).isSameAs(error);
         assertThat(QuoteRef.redact((Throwable) null, QUOTE_ID)).isNull();
     }
+
+    // Ids the caller did not name are still caught by shape: the gateway lookup URL Spring quotes in
+    // an I/O error, a JSON quote member and a quote status path. Already-redacted text is left alone.
+    @Test
+    void redactsAnyIdInTheKnownShapesWithoutBeingTold() {
+        // Arrange
+        String other = "0b6b3a8e-2f4c-4d0e-9a51-7c3f1e2d4b6a";
+        String text = "I/O error on GET request for \"http://gw/search/findByQuoteId?quoteId=" + other + "&x=1\""
+                + " body {\"quote\":\"" + other + "\"} at /v1/mint/quote/bolt11/" + other + "/";
+
+        // Act
+        String redacted = QuoteRef.redact(text);
+
+        // Assert
+        String ref = QuoteRef.of(other);
+        assertThat(redacted).doesNotContain(other)
+                .contains("quoteId=" + ref + "&x=1", "\"quote\":\"" + ref + "\"", "/quote/bolt11/" + ref + "/");
+        assertThat(QuoteRef.redact(redacted)).isEqualTo(redacted);
+    }
+
+    // An id in a suppressed exception, for example from a failed close in try-with-resources, is
+    // redacted too, and the suppressed exception is kept rather than dropped.
+    @Test
+    void keepsAndRedactsSuppressedExceptions() {
+        // Arrange
+        IllegalStateException error = new IllegalStateException("mint failed");
+        error.addSuppressed(new IOException("close failed for quoteId=" + QUOTE_ID));
+
+        // Act
+        Throwable redacted = QuoteRef.redact(error);
+
+        // Assert
+        assertThat(redacted.getSuppressed()).singleElement().satisfies(suppressed -> assertThat(suppressed.getMessage())
+                .isEqualTo("java.io.IOException: close failed for quoteId=q:ef738801934d"));
+    }
+
+    // A chain deeper than 16 links used to be cut there, silently dropping its root cause. Every
+    // link of a realistic deep chain is kept, and the id is gone from the deepest one too.
+    @Test
+    void keepsEveryLinkOfADeepChain() {
+        // Arrange
+        Throwable chain = new IOException("root for quoteId=" + QUOTE_ID);
+        for (int i = 0; i < 40; i++) {
+            chain = new IllegalStateException("wrap " + i, chain);
+        }
+
+        // Act
+        Throwable redacted = QuoteRef.redact(chain);
+
+        // Assert
+        int links = 0;
+        Throwable deepest = redacted;
+        for (Throwable link = redacted; link != null; link = link.getCause()) {
+            links++;
+            deepest = link;
+        }
+        assertThat(links).isEqualTo(41);
+        assertThat(deepest.getMessage()).isEqualTo("java.io.IOException: root for quoteId=q:ef738801934d");
+    }
+
+    // A cause chain that loops back on itself is redacted without looping forever.
+    @Test
+    void cutsACyclicChainWhereItWouldRepeat() {
+        // Arrange
+        IllegalStateException first = new IllegalStateException("a " + QUOTE_ID);
+        IllegalArgumentException second = new IllegalArgumentException("b", first);
+        first.initCause(second);
+
+        // Act
+        Throwable redacted = QuoteRef.redact(first, QUOTE_ID);
+
+        // Assert
+        assertThat(redacted.getMessage()).doesNotContain(QUOTE_ID);
+        assertThat(redacted.getCause().getCause()).isNull();
+    }
 }

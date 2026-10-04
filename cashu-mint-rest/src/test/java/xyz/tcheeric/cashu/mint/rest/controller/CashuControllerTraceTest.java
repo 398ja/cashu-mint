@@ -267,6 +267,30 @@ class CashuControllerTraceTest {
         assertThat(ev.getInputs().get(0).y()).isEqualTo("02" + "a".repeat(64));
     }
 
+    // mint() catch: the gateway's InvoiceNotPaidException says "Payment record not found for quote
+    // <id>". The MINT_FAILED event keeps the id in its quoteId field, as the ledger expects, but its
+    // free-text errorMessage must not carry a second copy of it (cashu-mint#531).
+    @Test
+    void mint_invoiceNotPaidFromGateway_redactsTheIdInTheTraceMessage() throws Exception {
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        CashuController<Secret> c = controllerWith(publisher, loaderWithKeyset());
+        xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException ex =
+                new xyz.tcheeric.payment.adapter.core.common.InvoiceNotPaidException(
+                        "q-mint", "Payment record not found for quote q-mint");
+
+        try (MockedStatic<NUT04> nut04 = mockStatic(NUT04.class)) {
+            nut04.when(() -> NUT04.mint(any(), any(), any(), any(), any(), any(), any())).thenThrow(ex);
+            assertThatThrownBy(() -> c.mint(mintRequest(), "bolt11")).isSameAs(ex);
+        }
+
+        ArgumentCaptor<ApplicationEvent> captor = ArgumentCaptor.forClass(ApplicationEvent.class);
+        verify(publisher).publishEvent(captor.capture());
+        TraceMintFailedEvent ev = (TraceMintFailedEvent) captor.getValue();
+        assertThat(ev.getQuoteId()).isEqualTo("q-mint");
+        assertThat(ev.getErrorMessage()).doesNotContain("q-mint")
+                .isEqualTo("Payment record not found for quote " + xyz.tcheeric.cashu.mint.proto.util.QuoteRef.of("q-mint"));
+    }
+
     // melt() catch: a validation error rethrows but publishes nothing.
     @Test
     void melt_validationError_rethrowsWithoutEmitting() throws Exception {

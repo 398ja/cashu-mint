@@ -17,6 +17,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.servlet.HandlerMapping;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -66,7 +67,7 @@ class MetricsHandlerInterceptorTest {
     void afterCompletion_recordsSuccessfulRequest() {
         // Given a successful request
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(System.nanoTime() - 50_000_000L);
-        when(request.getRequestURI()).thenReturn("/v1/swap");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/swap");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(200);
 
@@ -95,7 +96,7 @@ class MetricsHandlerInterceptorTest {
     void afterCompletion_recordsClientError() {
         // Given a client error response
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(System.nanoTime() - 10_000_000L);
-        when(request.getRequestURI()).thenReturn("/v1/mint/bolt11");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/mint/bolt11");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(400);
 
@@ -123,7 +124,7 @@ class MetricsHandlerInterceptorTest {
     void afterCompletion_recordsServerError() {
         // Given a server error response
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(System.nanoTime() - 10_000_000L);
-        when(request.getRequestURI()).thenReturn("/v1/melt/bolt11");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/melt/bolt11");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(500);
 
@@ -142,7 +143,7 @@ class MetricsHandlerInterceptorTest {
     void afterCompletion_recordsException() {
         // Given a request that threw an exception
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(System.nanoTime() - 10_000_000L);
-        when(request.getRequestURI()).thenReturn("/v1/swap");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/swap");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(500);
         RuntimeException ex = new RuntimeException("Test error");
@@ -172,34 +173,57 @@ class MetricsHandlerInterceptorTest {
         assertThat(registry.find("cashu_mint_requests_total").counter()).isNull();
     }
 
+    // The endpoint tag is the route Spring matched, so every variable segment (keyset id, method,
+    // quote id) is already a placeholder and the tag has one value per route.
     @ParameterizedTest
     @CsvSource({
-            "/v1/keys/abc123, /v1/keys/{keyset_id}",
-            "/v1/keys/keyset/abc123, /v1/keys/keyset/{keyset_id}",
-            "/v1/mint/quote/bolt11/uuid-123-456, /v1/mint/quote/{method}/{quote_id}",
-            "/v1/melt/quote/bolt11/uuid-789, /v1/melt/quote/{method}/{quote_id}",
-            "/v1/mint/quote/voucher/bolt11/uuid-abc, /v1/mint/quote/voucher/{method}/{quote_id}",
-            "/v1/swap, /v1/swap",
-            "/v1/mint/bolt11, /v1/mint/bolt11",
-            "/v1/melt/bolt11, /v1/melt/bolt11",
-            "/v1/keysets, /v1/keysets",
-            "/v1/info, /v1/info",
-            "/v1/checkstate, /v1/checkstate",
-            "/v1/restore, /v1/restore"
+            "/v1/keys/{keyset_id}",
+            "/v1/mint/quote/{method}/{quote_id}",
+            "/v1/mint/quote/voucher/{method}/{quote_id}",
+            "/v1/melt/quote/{method}/{quote_id}",
+            "/v1/swap"
     })
-    void normalizeEndpoint_normalizesVariablePaths(String input, String expected) {
-        // When normalizing endpoint
-        String result = interceptor.normalizeEndpoint(input);
+    void endpointOf_isTheMatchedRoutePattern(String route) {
+        // Arrange
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn(route);
 
-        // Then it matches expected pattern
-        assertThat(result).isEqualTo(expected);
+        // Act and Assert
+        assertThat(MetricsHandlerInterceptor.endpointOf(request)).isEqualTo(route);
     }
 
+    // A request no route matched (a 404 probe, a scanner) is tagged "unmatched", never with its raw
+    // path, which would be one series per probe and could carry a quote id.
     @Test
-    void normalizeEndpoint_handlesNullAndEmpty() {
-        // When normalizing null or empty
-        assertThat(interceptor.normalizeEndpoint(null)).isEqualTo("/");
-        assertThat(interceptor.normalizeEndpoint("")).isEqualTo("/");
+    void endpointOf_isUnmatchedWhenNoRouteMatched() {
+        // Arrange
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn(null);
+
+        // Act and Assert
+        assertThat(MetricsHandlerInterceptor.endpointOf(request)).isEqualTo("unmatched");
+    }
+
+    // The review's case: a quote status poll with a trailing slash. The old $-anchored regexes let
+    // it through as the raw path, putting the quote id into the endpoint tag. Spring still matches
+    // the route, and the tag is the route.
+    @Test
+    void afterCompletion_trailingSlashQuotePollIsTaggedWithTheRouteNotTheId() {
+        // Arrange
+        String quoteId = "9d745270-1405-46de-b5c5-e2762b4f5e00";
+        when(request.getAttribute("cashu.metrics.startTime")).thenReturn(System.nanoTime() - 1_000_000L);
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))
+                .thenReturn("/v1/mint/quote/{method}/{quote_id}");
+        org.mockito.Mockito.lenient().when(request.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/" + quoteId + "/");
+        when(request.getMethod()).thenReturn("GET");
+        when(response.getStatus()).thenReturn(200);
+
+        // Act
+        interceptor.afterCompletion(request, response, handler, null);
+
+        // Assert
+        assertThat(registry.getMeters()).flatExtracting(meter -> meter.getId().getTags())
+                .noneMatch(tag -> tag.getValue().contains(quoteId));
+        assertThat(registry.find("cashu_mint_requests_total")
+                .tag("endpoint", "/v1/mint/quote/{method}/{quote_id}").counter()).isNotNull();
     }
 
     @Test
@@ -207,7 +231,7 @@ class MetricsHandlerInterceptorTest {
         // Given multiple requests to the same endpoint
         long startTime = System.nanoTime();
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(startTime - 10_000_000L);
-        when(request.getRequestURI()).thenReturn("/v1/swap");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/swap");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(200);
 
@@ -237,13 +261,13 @@ class MetricsHandlerInterceptorTest {
 
         // Request to /v1/swap
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(startTime);
-        when(request.getRequestURI()).thenReturn("/v1/swap");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/swap");
         when(request.getMethod()).thenReturn("POST");
         when(response.getStatus()).thenReturn(200);
         interceptor.afterCompletion(request, response, handler, null);
 
         // Request to /v1/info
-        when(request.getRequestURI()).thenReturn("/v1/info");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/info");
         when(request.getMethod()).thenReturn("GET");
         interceptor.afterCompletion(request, response, handler, null);
 
@@ -266,7 +290,7 @@ class MetricsHandlerInterceptorTest {
         // Given requests with different status codes
         long startTime = System.nanoTime() - 10_000_000L;
         when(request.getAttribute("cashu.metrics.startTime")).thenReturn(startTime);
-        when(request.getRequestURI()).thenReturn("/v1/test");
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)).thenReturn("/v1/test");
         when(request.getMethod()).thenReturn("GET");
 
         // 2xx response
@@ -298,7 +322,9 @@ class MetricsHandlerInterceptorTest {
     void preHandle_traceLogNamesTheRouteNotTheQuoteId() {
         // Arrange
         String quoteId = "9d745270-1405-46de-b5c5-e2762b4f5e00";
-        when(request.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/" + quoteId);
+        when(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))
+                .thenReturn("/v1/mint/quote/{method}/{quote_id}");
+        org.mockito.Mockito.lenient().when(request.getRequestURI()).thenReturn("/v1/mint/quote/bolt11/" + quoteId);
         when(request.getMethod()).thenReturn("GET");
         Logger logger = (Logger) LoggerFactory.getLogger(MetricsHandlerInterceptor.class);
         Level previous = logger.getLevel();

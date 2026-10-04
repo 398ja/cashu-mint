@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.servlet.HandlerMapping;
 import xyz.tcheeric.cashu.common.ActiveKeySet;
 import xyz.tcheeric.cashu.common.BlindedMessage;
 import xyz.tcheeric.cashu.common.KeySet;
@@ -617,7 +619,10 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 amount,
                 null,
                 errorCode,
-                errorMessage,
+                // The message is the gateway's text ("Payment record not found for quote <id>", or a
+                // lookup URL). The ledger keeps the id in its own quoteId field by design; the free
+                // text must not carry a second, unlabelled copy (cashu-mint#531).
+                QuoteRef.redact(errorMessage, request.getQuoteId()),
                 java.time.Instant.now()));
     }
 
@@ -649,7 +654,7 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 null,
                 inputs,
                 errorCode,
-                errorMessage,
+                QuoteRef.redact(errorMessage, request.getQuoteId()),
                 java.time.Instant.now()));
     }
 
@@ -904,6 +909,41 @@ public class CashuController<T extends Secret> implements org.springframework.co
     @ExceptionHandler(InvoiceNotPaidException.class)
     public ResponseEntity<ErrorResponse> handleInvoiceNotPaid(InvoiceNotPaidException ex) {
         return respond(CashuErrorCode.mint_invoice_not_paid_error);
+    }
+
+    /**
+     * A payment backend the mint could not reach or that answered with an unhandled error, for
+     * example a gateway timeout on the quote status poll ({@code GET /v1/mint/quote/{method}/{id}})
+     * or on {@code POST /v1/mint}.
+     *
+     * <p>Without this the exception reached Tomcat, which logged it at ERROR with Spring's message
+     * "I/O error on GET request for .../findByQuoteId?quoteId=&lt;id&gt;": the raw quote id, a bearer
+     * claim on a paid unlocked quote (cashu-mint#531). It is logged here instead, with the route
+     * pattern rather than the raw path, and with every quote id in the cause chain replaced by its
+     * ref. The status stays 500, as before: the fault is ours, not the request's.
+     * {@link HttpClientErrorException.NotFound} keeps its own, more specific handler above.
+     */
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentBackendFailure(RestClientException ex,
+                                                                     jakarta.servlet.http.HttpServletRequest request) {
+        String quoteId = quoteIdOf(request);
+        Object route = request == null ? null : request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        log.error("payment_backend_error route={} quote_ref={} error={}",
+                route == null ? "unmatched" : route, QuoteRef.of(quoteId),
+                QuoteRef.redact(ex.getMessage(), quoteId), QuoteRef.redact(ex, quoteId));
+        return respond(CashuErrorCode.internal_error, "Payment backend unavailable");
+    }
+
+    /** The {@code quote_id} path variable of the matched route, or null when it has none. */
+    private static String quoteIdOf(jakarta.servlet.http.HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object variables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+        if (variables instanceof java.util.Map<?, ?> map && map.get("quote_id") instanceof String id) {
+            return id;
+        }
+        return null;
     }
 
     private static ResponseEntity<ErrorResponse> respond(CashuErrorCode code) {
