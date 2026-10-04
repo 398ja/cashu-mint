@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-04
+
 ### Security
 
 - **The mint no longer logs raw quote ids (#531).** A NUT-04 quote id is a bearer claim: whoever
