@@ -26,7 +26,7 @@ HTTP request metrics following the RED (Rate, Errors, Duration) pattern.
 
 ### Labels
 
-- `endpoint`: Normalized endpoint path (e.g., `/v1/swap`, `/v1/mint/quote/{method}/{quote_id}`)
+- `endpoint`: The route pattern Spring MVC matched (e.g., `/v1/swap`, `/v1/mint/quote/{method}/{quote_id}`), or `unmatched` when no route matched. Never the raw path, which would carry quote ids.
 - `method`: HTTP method (GET, POST, etc.)
 - `status`: Status group (2xx, 3xx, 4xx, 5xx)
 - `error_type`: Exception class name or `http_{status_code}`
