@@ -8,6 +8,9 @@ import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut11.P2PKSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
+import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
 /**
  * Spending condition for a {@code P2PK_VOUCHER} proof: a voucher that is also P2PK-locked.
@@ -75,7 +78,33 @@ public class P2PKVoucherSpendingCondition<T extends Secret> implements SpendingC
     public P2PKVoucherSpendingCondition(@NonNull Mint mint,
                                         @NonNull MintProtocolService mintProtocolService,
                                         @NonNull P2PKTransaction transaction) {
-        this.voucherCondition = new VoucherSpendingCondition<>(mint, mintProtocolService);
+        this(new VoucherSpendingCondition<>(mint, mintProtocolService, new DefaultProofVaultService(),
+                InstalledVoucherIssuerBinding.current()), transaction);
+    }
+
+    /**
+     * @param mint                the mint whose keyset signs the proof
+     * @param mintProtocolService resolves the private key for BDHKE verification
+     * @param transaction         the surrounding swap or melt
+     * @param issuerBinding       binds the voucher's verified signer to its issuer (#527); the
+     *                            same binding an unlocked voucher gets, so the two kinds cannot
+     *                            drift apart
+     */
+    public P2PKVoucherSpendingCondition(@NonNull Mint mint,
+                                        @NonNull MintProtocolService mintProtocolService,
+                                        @NonNull P2PKTransaction transaction,
+                                        @NonNull VoucherIssuerBinding issuerBinding) {
+        this(new VoucherSpendingCondition<>(mint, mintProtocolService, new DefaultProofVaultService(),
+                issuerBinding), transaction);
+    }
+
+    /**
+     * @param voucherCondition the voucher half, already built with its collaborators
+     * @param transaction      the surrounding swap or melt, for the P2PK half
+     */
+    public P2PKVoucherSpendingCondition(@NonNull VoucherSpendingCondition<T> voucherCondition,
+                                        @NonNull P2PKTransaction transaction) {
+        this.voucherCondition = voucherCondition;
         this.p2pkCondition = new P2PKSpendingCondition(transaction);
     }
 

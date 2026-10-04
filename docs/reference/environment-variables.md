@@ -88,6 +88,8 @@ Read by `cashu-mint-observability/docker/docker-compose.observability.yml`.
 |----------|---------|-------------|
 | `VOUCHER_QUOTE_FEE_PERCENT` | `10` | Percentage fee for voucher mint quotes |
 | `VOUCHER_MASTER_SECRET` | _(auto-generated)_ | Hex master secret for voucher key derivation |
+| `CASHU_MINT_VOUCHER_ISSUER_BINDING` | `log` | `off`, `log` or `enforce`: what to do with a voucher that is unsigned or whose signer is not trusted for its issuer. `enforce` refuses to boot with no keys configured. |
+| `CASHU_MINT_VOUCHER_TRUSTED_SIGNERS` | _(empty)_ | Comma-separated hex keys trusted to sign vouchers for any issuer (x-only or compressed) |
 
 ## Admin
 

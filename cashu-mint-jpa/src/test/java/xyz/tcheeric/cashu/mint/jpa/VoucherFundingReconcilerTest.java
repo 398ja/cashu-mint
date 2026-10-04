@@ -13,6 +13,7 @@ import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFunding;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherFundingResolver;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -297,5 +298,7 @@ class VoucherFundingReconcilerTest {
         @Override public void lazyFundingCreated() { }
         @Override public void fundingReconciled(boolean recovered) { outcomes.add(recovered); }
         @Override public void rateLimitBreach() { }
+        @Override public void issuerUntrusted(VoucherIssuerBindingMode mode) { }
+        @Override public void unsignedVoucher(VoucherIssuerBindingMode mode) { }
     }
 }

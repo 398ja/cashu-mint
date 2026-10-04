@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,5 +57,46 @@ class MicrometerVoucherMetricsRecorderTest {
 
         assertThat(registry.get("cashu_mint_voucher_rate_limit_breach_total")
                 .counter().getId().getTag("principal")).isNull();
+    }
+
+    /** Untrusted voucher signers count per binding mode, with no issuer or key label (#527). */
+    @Test
+    void untrustedSignersCountByModeOnly() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        VoucherMetricsRecorder recorder = new MicrometerVoucherMetricsRecorder(registry);
+
+        recorder.issuerUntrusted(VoucherIssuerBindingMode.LOG);
+        recorder.issuerUntrusted(VoucherIssuerBindingMode.LOG);
+        recorder.issuerUntrusted(VoucherIssuerBindingMode.ENFORCE);
+        recorder.issuerUntrusted(VoucherIssuerBindingMode.OFF);
+
+        assertThat(registry.get("cashu_mint_voucher_issuer_untrusted_total")
+                .tag("mode", "log").counter().count()).isEqualTo(2.0);
+        assertThat(registry.get("cashu_mint_voucher_issuer_untrusted_total")
+                .tag("mode", "enforce").counter().count()).isEqualTo(1.0);
+        assertThat(registry.find("cashu_mint_voucher_issuer_untrusted_total")
+                .tag("mode", "off").counter()).isNull();
+        assertThat(registry.get("cashu_mint_voucher_issuer_untrusted_total")
+                .tag("mode", "log").counter().getId().getTags()).hasSize(1);
+    }
+
+    /** Unsigned voucher proofs count per binding mode, separately from untrusted signers (#527). */
+    @Test
+    void unsignedVouchersCountByModeOnly() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        VoucherMetricsRecorder recorder = new MicrometerVoucherMetricsRecorder(registry);
+
+        recorder.unsignedVoucher(VoucherIssuerBindingMode.LOG);
+        recorder.unsignedVoucher(VoucherIssuerBindingMode.ENFORCE);
+        recorder.unsignedVoucher(VoucherIssuerBindingMode.OFF);
+
+        assertThat(registry.get("cashu_mint_voucher_unsigned_total")
+                .tag("mode", "log").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("cashu_mint_voucher_unsigned_total")
+                .tag("mode", "enforce").counter().count()).isEqualTo(1.0);
+        assertThat(registry.find("cashu_mint_voucher_unsigned_total")
+                .tag("mode", "off").counter()).isNull();
+        assertThat(registry.get("cashu_mint_voucher_issuer_untrusted_total")
+                .tag("mode", "log").counter().count()).isZero();
     }
 }

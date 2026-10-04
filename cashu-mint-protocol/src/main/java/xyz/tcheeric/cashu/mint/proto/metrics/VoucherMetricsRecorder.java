@@ -1,6 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.metrics;
 
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 
 /**
  * Typed recorder port for the voucher domain area — see
@@ -83,4 +84,30 @@ public interface VoucherMetricsRecorder {
      * principal label; see the class Javadoc.
      */
     void rateLimitBreach();
+
+    /**
+     * A voucher's issuer signature verified, but under a key the mint does not trust for the
+     * issuer the voucher names (issue #527). Emits
+     * {@code cashu_mint_voucher_issuer_untrusted_total{mode="log|enforce"}}.
+     *
+     * <p>Under {@code log} the voucher was allowed, so this is the rollout signal: it should fall
+     * to zero once every legitimate signer is configured, and only then is {@code enforce} safe.
+     * Under {@code enforce} the voucher was refused. No issuer or key label: both are unbounded,
+     * and the log line carries enough to identify them.
+     *
+     * @param mode the binding mode in force when the signer was found untrusted
+     */
+    void issuerUntrusted(VoucherIssuerBindingMode mode);
+
+    /**
+     * A voucher-carrying secret arrived with no issuer signature at all (issue #527). Emits
+     * {@code cashu_mint_voucher_unsigned_total{mode="log|enforce"}}.
+     *
+     * <p>Counted separately from {@link #issuerUntrusted}, because the rollout question differs:
+     * an untrusted signer means a key still to provision, while an unsigned voucher means a
+     * producer that does not sign at all, and {@code enforce} refuses both.
+     *
+     * @param mode the binding mode in force when the unsigned voucher was seen
+     */
+    void unsignedVoucher(VoucherIssuerBindingMode mode);
 }
