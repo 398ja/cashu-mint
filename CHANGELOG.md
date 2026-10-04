@@ -33,14 +33,8 @@ All notable changes to the Cashu Mint will be documented in this file.
   - The `endpoint` tag of `cashu_mint_requests_*` is now the route pattern Spring MVC matched,
     or `unmatched`. The old `$`-anchored path regexes let `/v1/mint/quote/bolt11/<id>/` (trailing
     slash) through as the raw path, putting the id into the tag and making one series per quote.
-  - **Interim:** `logging.level.xyz.tcheeric.payment.adapter` defaults to `WARN`
-    (`LOG_LEVEL_PAYMENT_ADAPTER`). payment-adapter's `PhoenixdGateway` and REST clients run inside
-    the mint and still log raw quote ids at INFO until payment-adapter#254 ships and the mint
-    bumps `payment-adapter.version`. Operators lose those INFO lines meanwhile: `Creating/Created
-    mint quote`, `Creating/Created melt quote`, `Paying quote`, `Payment sent: paymentId=`, and the
-    clients' `Sending request` / `Received response` / `GET byEntityId` URL and body lines.
-    payment-adapter's WARN and ERROR lines (`quote_lookup_failed`, `payment_missing`, gateway
-    failures) still print. Set `LOG_LEVEL_PAYMENT_ADAPTER=INFO` to restore them while debugging.
+  - The in-process payment-adapter (`PhoenixdGateway` and its REST clients) logs `quote_ref` too,
+    from payment-adapter 0.17.2 (see Changed).
 
 - **A voucher's signing key is now checked against the issuer it names (#527).** The issuer
   signature was verified against the `issuer_pubkey` the voucher itself carries. So a voucher
@@ -60,6 +54,10 @@ All notable changes to the Cashu Mint will be documented in this file.
   `docs/how-to/bind-voucher-signatures-to-trusted-signers.md`.
 
 ### Changed
+
+- **`payment-adapter` 0.17.0 -> 0.17.2** (payment-adapter#254). Its in-process gateway and REST
+  clients log `quote_ref` instead of raw quote ids, completing #531, and a transient phoenixd quote
+  lookup failure is reported as unknown rather than unpaid (payment-adapter#253).
 
 - **Merchant verification and the swap-path check share one parsed `issuer-keys` map (#527).**
   The `VoucherIssuerKeys` bean in `VoucherConfiguration` is replaced by

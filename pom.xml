@@ -72,8 +72,10 @@
              0.17.0: the intervening releases touch the adapter service's own tables and
              migrations (V7-V12), which the mint never runs, since its Flyway scans only
              db/migration/spec001. The embedded library surface the mint calls is unchanged
-             apart from the added method. -->
-        <payment-adapter.version>0.17.0</payment-adapter.version>
+             apart from the added method.
+             0.17.2 (#531, payment-adapter#254): its in-process gateway and clients log quote_ref,
+             not raw quote ids. 0.17.1's V13 is again the adapter service's own table. -->
+        <payment-adapter.version>0.17.2</payment-adapter.version>
         <!-- Own modules. Bound to the project version rather than written out, because a
              written-out value drifts: it sat at 0.38.4 while the project reached 0.39.0, and
              that was not latent. cashu-mint-rest-it takes cashu-mint-protocol transitively,
