@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-10-05
+
 ### Fixed
 
 - **Mint quote status no longer answers 500 for every unpaid RECEIVE quote's lookup.** The embedded
