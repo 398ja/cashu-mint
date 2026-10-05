@@ -4,6 +4,16 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mint quote status no longer answers 500 for every unpaid RECEIVE quote's lookup.** The embedded
+  payment-adapter 0.17.2 decodes a RECEIVE quote's invoice through phoenixd `/decodeinvoice` and
+  looks the payment up by its hash, but phoenixd-java 0.3.0 (pinned here, overriding the adapter)
+  dropped `paymentHash` (`@JsonIgnore`). Every such lookup failed as `phoenixd_lookup_failed` and the
+  mint answered 500, against real phoenixd as well as the mock. Now payment-adapter 0.17.3
+  (payment-adapter#256) and phoenixd-java / phoenixd-mock 0.3.3 (phoenixd-java#68).
+  `PhoenixdDecodeInvoiceClasspathTest` guards the phoenixd model on the mint's own classpath.
+
 ## [0.42.0] - 2026-10-04
 
 ### Security
