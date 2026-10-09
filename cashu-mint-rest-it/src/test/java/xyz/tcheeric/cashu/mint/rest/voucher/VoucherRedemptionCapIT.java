@@ -205,10 +205,13 @@ class VoucherRedemptionCapIT extends VoucherRedemptionFixtures {
     ResponseEntity<String> otherVoucher =
         redeem(UUID.randomUUID().toString(), 10, voucherProofs(blob, 8, 2));
     ResponseEntity<String> tooMany = redeem(voucherId, 11, voucherProofs(blob, 8, 2));
+    ResponseEntity<String> exactlyOneMore = redeem(voucherId, 5, voucherProofs(blob, 4));
     ResponseEntity<String> plainInputs = redeem(voucherId, 8, plainProofs(8));
 
     assertThat(otherVoucher.getStatusCode().is4xxClientError()).isTrue();
     assertThat(tooMany.getStatusCode().is4xxClientError()).isTrue();
+    assertThat(exactlyOneMore.getStatusCode().is4xxClientError())
+        .as("one sat more than the inputs carry is refused, body=%s", exactlyOneMore.getBody()).isTrue();
     assertThat(plainInputs.getStatusCode().is4xxClientError()).isTrue();
     assertThat(redeemed(voucherId)).isZero();
   }

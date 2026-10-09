@@ -22,6 +22,21 @@ class VoucherRedemptionTermsTest {
         assertEquals(4L, VoucherTerms.cap(10L, 3.0));
     }
 
+    /**
+     * Float noise must not add a sat. EUR 0.17 on 7 sats gives a ratio whose quotient is
+     * 7.000000000000001, and a bare ceil would make the cap 8. Pins ROUNDING_SLACK.
+     */
+    @Test
+    void floatNoiseInTheRatioDoesNotRaiseTheCap() {
+        assertEquals(7L, VoucherTerms.cap(17L, 17.0 / 7));
+        assertEquals(7L, VoucherTerms.cap(34L, 34.0 / 7));
+        for (long sats = 1; sats <= 20_000; sats++) {
+            for (long face : new long[] {1, 7, 17, 99, 500, 1234, 99_999}) {
+                assertEquals(sats, VoucherTerms.cap(face, (double) face / sats), face + "/" + sats);
+            }
+        }
+    }
+
     @Test
     void anUnstatedOrNonsenseCapIsUnknown() {
         assertNull(VoucherTerms.cap(null, 1.0));
