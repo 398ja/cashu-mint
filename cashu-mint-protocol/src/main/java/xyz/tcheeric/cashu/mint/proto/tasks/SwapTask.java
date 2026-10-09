@@ -29,6 +29,10 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherTerms;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,6 +76,33 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final SwapHoldRepository swapHoldRepository;
     private final SwapResponseCache swapResponseCache;
     private final InFlightReplayWait inFlightReplayWait;
+
+    /** A redeemer's declaration that this swap credits a voucher (cashu-mint#540), or null. */
+    private VoucherRedemptionDeclaration redemption;
+    private String redeemerToken;
+    private VoucherRedemptionCap redemptionCap;
+
+    /** Whether any output of this swap has been signed: a claim is only given back if not. */
+    private boolean signedAnything;
+
+    /**
+     * Attaches a redeemer's declaration that this swap credits a voucher (cashu-mint#540).
+     *
+     * @param declaration   the declaration, or null for an ordinary swap
+     * @param redeemerToken the token the redeemer presented, or null
+     * @return this task
+     */
+    public SwapTask<T> declaringRedemption(VoucherRedemptionDeclaration declaration, String redeemerToken) {
+        this.redemption = declaration;
+        this.redeemerToken = redeemerToken;
+        return this;
+    }
+
+    /** For tests: the cap to apply instead of the installed one. */
+    SwapTask<T> withRedemptionCap(VoucherRedemptionCap cap) {
+        this.redemptionCap = cap;
+        return this;
+    }
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -250,6 +281,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
         }
 
+        // cashu-mint#540: a redeemer's declaration is checked against its inputs before anything
+        // else, so a malformed or unauthorised one costs nothing.
+        VoucherRedemptionCap cap = redemptionCap != null ? redemptionCap : InstalledVoucherRedemptionCap.current();
+        Optional<VoucherTerms> redeemed = cap.admit(redemption, redeemerToken, proofsToSwap);
+
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
@@ -262,7 +298,18 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             new VerifyFeesTask<>(request, keySets).execute();
         }
 
-        return signAgainstHeldInputs(mint, proofsToSwap, service, hold);
+        // cashu-mint#540: the claim is the last check, after every rule that could refuse the swap
+        // for another reason, and is given back if signing then fails with nothing signed. It is a
+        // single conditional UPDATE, so it is atomic per voucher across instances.
+        boolean claimed = redeemed.isPresent() && cap.claim(redemption, redeemed.get());
+        try {
+            return signAgainstHeldInputs(mint, proofsToSwap, service, hold);
+        } catch (CashuErrorException | RuntimeException failure) {
+            if (claimed && !signedAnything) {
+                cap.release(redemption, redeemed.get());
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -291,9 +338,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             hold.markSigning();
             signOutputs(mint, service, blindSignatures);
         } catch (CashuErrorException | RuntimeException signingFailure) {
+            signedAnything = !blindSignatures.isEmpty();
             resolveTheHoldAfterFailedSigning(hold, blindSignatures);
             throw signingFailure;
         }
+        signedAnything = true;
 
         commitOrStrandTheHold(hold);
         return new PostSwapResponse(blindSignatures);

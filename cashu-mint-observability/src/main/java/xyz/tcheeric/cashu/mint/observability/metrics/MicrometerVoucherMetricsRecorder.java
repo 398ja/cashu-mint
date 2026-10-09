@@ -6,6 +6,7 @@ import xyz.tcheeric.cashu.mint.proto.domain.VoucherFundingSource;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherMetricsRecorder;
 import xyz.tcheeric.cashu.mint.proto.metrics.VoucherRejectionReason;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherRedemptionCapMode;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -36,6 +37,9 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
             new EnumMap<>(VoucherIssuerBindingMode.class);
     private final Map<VoucherIssuerBindingMode, Counter> unsignedVoucher =
             new EnumMap<>(VoucherIssuerBindingMode.class);
+    private final Map<VoucherRedemptionCapMode, Counter> overspend =
+            new EnumMap<>(VoucherRedemptionCapMode.class);
+    private final Map<String, Counter> redemptionDeclared = new java.util.HashMap<>();
     private final Counter iouIssuanceAttempted;
     private final Counter lazyFundingCreated;
     private final Counter fundingRecovered;
@@ -79,6 +83,39 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
                 "Signed vouchers whose signing key is not trusted for their issuer, by binding mode");
         registerPerCheckingMode(registry, unsignedVoucher, "unsigned_total",
                 "Voucher proofs carrying no issuer signature, by binding mode");
+        // cashu-mint#540. One series per checking mode: log counts would-refuse, enforce counts
+        // refusals. The alert fires on either, so a log-mode hit is seen before enforce.
+        for (VoucherRedemptionCapMode mode : VoucherRedemptionCapMode.values()) {
+            if (mode == VoucherRedemptionCapMode.OFF) {
+                continue;
+            }
+            overspend.put(mode, Counter.builder(METRIC_PREFIX + "overspend_refused_total")
+                    .description("Declared voucher redemptions over the coupon's issued sats, by cap mode")
+                    .tag("mode", mode.label())
+                    .register(registry));
+        }
+        for (String outcome : new String[] {"accepted", "refused", "cap_unknown"}) {
+            redemptionDeclared.put(outcome, Counter.builder(METRIC_PREFIX + "redemption_declared_total")
+                    .description("Voucher redemptions declared by a redeemer, by outcome")
+                    .tag("outcome", outcome)
+                    .register(registry));
+        }
+    }
+
+    @Override
+    public void overspend(VoucherRedemptionCapMode mode) {
+        Counter counter = overspend.get(mode);
+        if (counter != null) {
+            counter.increment();
+        }
+    }
+
+    @Override
+    public void redemptionDeclared(String outcome) {
+        Counter counter = redemptionDeclared.get(outcome);
+        if (counter != null) {
+            counter.increment();
+        }
     }
 
     /**

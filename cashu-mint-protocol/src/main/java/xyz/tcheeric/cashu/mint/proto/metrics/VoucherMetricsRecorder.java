@@ -110,4 +110,22 @@ public interface VoucherMetricsRecorder {
      * @param mode the binding mode in force when the unsigned voucher was seen
      */
     void unsignedVoucher(VoucherIssuerBindingMode mode);
+
+    /**
+     * A declared redemption that would credit more of a coupon than was issued for it
+     * (cashu-mint#540). Counted in {@code log} as a would-refuse and in {@code enforce} as a
+     * refusal: {@code cashu_mint_voucher_overspend_refused_total{mode}}.
+     *
+     * @param mode the redemption cap mode in force
+     */
+    default void overspend(xyz.tcheeric.cashu.mint.proto.domain.VoucherRedemptionCapMode mode) {
+    }
+
+    /**
+     * A declared redemption reached the ledger: {@code cashu_mint_voucher_redemption_declared_total{outcome}}.
+     *
+     * @param outcome {@code accepted}, {@code refused} or {@code cap_unknown}
+     */
+    default void redemptionDeclared(String outcome) {
+    }
 }

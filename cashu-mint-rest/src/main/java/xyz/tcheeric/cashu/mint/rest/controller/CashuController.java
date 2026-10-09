@@ -50,6 +50,7 @@ import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreResponse;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
@@ -272,8 +273,17 @@ public class CashuController<T extends Secret> implements org.springframework.co
         log.debug("swap_controller mint_resolved request_id={} mint_id={}", requestId, mintId);
 
         try {
+            // cashu-mint#540: a redeemer crediting a voucher says so in headers; the body stays NUT-03.
+            VoucherRedemptionDeclaration redemption;
+            try {
+                redemption = VoucherRedemptionDeclaration.parse(
+                        httpRequest.getHeader(VoucherRedemptionDeclaration.HEADER)).orElse(null);
+            } catch (IllegalArgumentException malformed) {
+                throw new CashuErrorException(CashuErrorCode.voucher_not_accepted, malformed.getMessage());
+            }
             PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService,
-                    mintVaultService, proofVaultService);
+                    mintVaultService, proofVaultService, redemption,
+                    httpRequest.getHeader(VoucherRedemptionDeclaration.REDEEMER_HEADER));
             long duration = System.currentTimeMillis() - startTime;
 
             if (response == null) {

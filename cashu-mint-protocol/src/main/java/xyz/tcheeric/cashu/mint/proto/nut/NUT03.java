@@ -8,6 +8,7 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.SwapTask;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -62,8 +63,28 @@ public final class NUT03 {
                                                            @NonNull SignatureVaultService signatureVaultService,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
+        return swap(mintId, postSwapRequest, mintLoadService, signatureVaultService, mintVaultService,
+                proofVaultService, null, null);
+    }
+
+    /**
+     * Swaps, carrying a redeemer's declaration that the swap credits a voucher (cashu-mint#540).
+     *
+     * @param redemption    the declaration, or null for an ordinary swap
+     * @param redeemerToken the redeemer's token, or null
+     */
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
+                                                           @NonNull PostSwapRequest<T> postSwapRequest,
+                                                           @NonNull MintLoadService mintLoadService,
+                                                           @NonNull SignatureVaultService signatureVaultService,
+                                                           @NonNull MintVaultService mintVaultService,
+                                                           @NonNull ProofVaultService proofVaultService,
+                                                           VoucherRedemptionDeclaration redemption,
+                                                           String redeemerToken) throws CashuErrorException {
         return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
-                mintVaultService, proofVaultService).execute();
+                mintVaultService, proofVaultService)
+                .declaringRedemption(redemption, redeemerToken)
+                .execute();
     }
 
 }
