@@ -4,6 +4,24 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-10
+
+### Security
+
+- **A coupon's declared redemptions are capped at its issued sats (#540, #541).** An unlocked
+  coupon's signed blob could be copied onto fresh plain sats, so one coupon could be credited
+  without limit. A redeemer now declares the credit on the swap that takes the coupon
+  (`X-Cashu-Voucher-Redemption: <voucher_id>:<sats>`, authorised by `X-Cashu-Voucher-Redeemer`).
+  The mint keeps a per-voucher ledger (`voucher_redemption`, V20261009_001 and V20261010_001) and,
+  in enforce mode, refuses a claim that would take a coupon past `ceil(face_value / issuance_ratio)`.
+  The claim is one conditional UPDATE, given back if nothing was signed. A redeemer can release its
+  own declaration after a refund (`VoucherRedemptionReleaseController`).
+- **Ships in watch-only mode.** `cashu.mint.voucher.redemption-cap` defaults to `log`
+  (`CASHU_MINT_VOUCHER_REDEMPTION_CAP`): accepted, logged as `voucher_overspend` and counted in
+  `cashu_mint_voucher_overspend_refused_total{mode}`. Log and off never refuse a swap. `enforce`
+  refuses to boot unless `issuer-binding=enforce`. Alerts `VoucherOverspendLogged` /
+  `VoucherOverspendRefused`. How-to: `docs/how-to/integrate-a-voucher-redeemer.md`.
+
 ## [0.42.1] - 2026-10-05
 
 ### Fixed
