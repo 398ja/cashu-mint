@@ -4,6 +4,21 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **mint-admin no longer re-provisions decommissioned mints forever (imani-deploy#135).** A
+  `CREATED` outbox message whose mint had since been decommissioned was retried every backoff
+  cycle (~16 min at the 30 s base): each attempt re-put all of the mint's keys into Vault, then threw
+  `Cannot transition from DECOMMISSIONED to PROVISION_FAILED. State is terminal`, so the message was
+  rescheduled. On staging that rewrote 22 archived keys with a new `created_at` thousands of times
+  and broke the Vault cutover's digest check. `VaultProvisioningOutboxHandler` now provisions only a
+  mint that is `PROVISIONING`; in any other state (or for an unknown mint) the message completes
+  without touching Vault. A mint that leaves `PROVISIONING` while a vault call is in flight is not
+  transitioned either. `PROVISION_FAILED` had the same loop shape and is covered too.
+- **Re-provisioning an identical key is a no-op.** `VaultProvisioningAdapter` reads each key before
+  writing it: a key already stored with the same private key is left alone, so its KV version and
+  `created_at` are kept. A key stored with a different private key is refused, never overwritten.
+
 ## [0.43.0] - 2026-10-10
 
 ### Security
