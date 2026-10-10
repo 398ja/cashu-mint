@@ -110,13 +110,41 @@ class SwapTaskRedemptionGiveBackTest {
         assertThat(ledger.claims.get()).as("the cap is never consulted without the inputs held").isZero();
     }
 
+    /**
+     * Re-review: log mode must never refuse a swap. A ledger that fails (database outage, lock
+     * timeout, a node whose voucher_redemption_claim migration has not run) must not turn a credited
+     * swap into an outage in log. In enforce it still refuses (an unknown claim).
+     */
+    @Test
+    void logModeDoesNotRefuseASwapWhenTheLedgerFails() throws Exception {
+        capMode = VoucherRedemptionCapMode.LOG;
+        executeRedemption(brokenLedger(), UUID.randomUUID(), Integer.MAX_VALUE);
+    }
+
+    @Test
+    void enforceStillRefusesWhenTheLedgerFails() {
+        assertThatThrownBy(() -> executeRedemption(brokenLedger(), UUID.randomUUID(), Integer.MAX_VALUE))
+                .isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+    }
+
+    private static CountingLedger brokenLedger() {
+        return new CountingLedger(16L) {
+            @Override
+            public synchronized Claim claim(ClaimRequest request) {
+                throw new org.springframework.dao.DataAccessResourceFailureException("ledger down");
+            }
+        };
+    }
+
+    private VoucherRedemptionCapMode capMode = VoucherRedemptionCapMode.ENFORCE;
+
     /** How many inputs the vault binds to a hold; -1 binds them all. */
     private int holdsBound = -1;
 
     // --- harness ---------------------------------------------------------------------------
 
     /** An in-memory ledger with the adapter's semantics, for one voucher. */
-    private static final class CountingLedger implements VoucherRedemptionLedger {
+    private static class CountingLedger implements VoucherRedemptionLedger {
         final AtomicLong redeemed = new AtomicLong();
         final AtomicInteger claims = new AtomicInteger();
         final java.util.Map<String, Long> standing = new java.util.HashMap<>();
@@ -209,7 +237,7 @@ class SwapTaskRedemptionGiveBackTest {
 
             new SwapTask<>(UUID.randomUUID(), voucherRequest(voucherId), mintLoadService(),
                     Mockito.mock(SignatureVaultService.class), mintVault, proofVault, new NoopHolds())
-                    .withRedemptionCap(new VoucherRedemptionCap(VoucherRedemptionCapMode.ENFORCE, ledger,
+                    .withRedemptionCap(new VoucherRedemptionCap(capMode, ledger,
                             List.of(TOKEN)))
                     .declaringRedemption(voucherId + ":16", TOKEN)
                     .execute();

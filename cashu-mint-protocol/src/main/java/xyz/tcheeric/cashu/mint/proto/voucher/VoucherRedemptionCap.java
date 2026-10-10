@@ -201,9 +201,25 @@ public final class VoucherRedemptionCap {
             return false;
         }
         boolean enforce = mode == VoucherRedemptionCapMode.ENFORCE;
-        VoucherRedemptionLedger.Claim claim = ledger.claim(new VoucherRedemptionLedger.ClaimRequest(
-                terms.voucherId(), terms.capSats(), declaration.sats(), enforce, requestFingerprint,
-                authorised.redeemerDigest(), holdId));
+        VoucherRedemptionLedger.Claim claim;
+        try {
+            claim = ledger.claim(new VoucherRedemptionLedger.ClaimRequest(
+                    terms.voucherId(), terms.capSats(), declaration.sats(), enforce, requestFingerprint,
+                    authorised.redeemerDigest(), holdId));
+        } catch (RuntimeException ledgerFailure) {
+            // Re-review: log never refuses a swap, and that includes the ledger being unreachable
+            // (database outage, lock timeout, a node whose migration has not run). In enforce the
+            // failure refuses, as an unknown claim must: the caller gives back whatever may have
+            // been recorded and releases the hold.
+            if (enforce) {
+                throw ledgerFailure;
+            }
+            MetricRecorders.voucher().redemptionDeclared("ignored");
+            log.error("[alert] voucher_redemption_ledger_failed voucherId={} mode={} outcome=ignored request={} "
+                            + "cause={}", declaration.voucherIdPrefix(), mode.label(), prefix(requestFingerprint),
+                    ledgerFailure.getClass().getSimpleName());
+            return false;
+        }
         String redeemer = authorised.redeemerLabel();
 
         switch (claim.outcome()) {
