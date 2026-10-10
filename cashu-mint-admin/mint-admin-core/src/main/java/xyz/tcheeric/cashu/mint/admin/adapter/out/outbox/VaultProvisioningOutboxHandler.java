@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import xyz.tcheeric.cashu.mint.admin.application.port.out.VaultProvisioningPort;
 import xyz.tcheeric.cashu.mint.admin.application.service.ExecuteOperationalControlsInteractor;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.ConfigurationSet;
+import xyz.tcheeric.cashu.mint.admin.domain.LifecycleState;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.domain.MintId;
 import xyz.tcheeric.cashu.mint.admin.domain.OutboxMessage;
@@ -126,6 +128,27 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
         final MintId mintId = parseMintId(message);
         final UUID mintUuid = UUID.fromString(mintId.asString());
 
+        // A CREATED message only has work to do while the mint is PROVISIONING. In every other
+        // state the saga is already over (PROVISIONED, ACTIVE, SUSPENDED), an operator owns the
+        // next step (PROVISION_FAILED -> PROVISIONING is an operator retry with sign-off), or the
+        // mint is gone for good (DECOMMISSIONED, terminal). Provisioning anyway re-put every key
+        // of the mint into Vault and then threw on the state transition, so the dispatcher
+        // rescheduled the message forever: staging retried two decommissioned mints every ~16 min
+        // for weeks, rewriting 22 archived keys each time (imani-deploy#135 rollback). Completing
+        // the message is the only outcome that stops that.
+        final Optional<MintAggregate> current = mintRepository.findById(mintId);
+        if (current.isEmpty()) {
+            log.warn("Vault provisioning skipped for mint {}: no such mint; completing the message",
+                mintId.asString());
+            return;
+        }
+        final LifecycleState.State state = current.get().lifecycleState().value();
+        if (state != LifecycleState.State.PROVISIONING) {
+            log.info("Vault provisioning skipped for mint {}: it is {} rather than PROVISIONING; "
+                + "completing the message", mintId.asString(), state);
+            return;
+        }
+
         final String unit = resolveUnit(mintId);
         final List<Integer> denominations = resolveDenominations(mintId);
 
@@ -217,6 +240,13 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
         final MintAggregate aggregate = mintRepository.findById(mintId)
             .orElseThrow(() -> new OutboxMessageHandlingException(
                 "Mint not found during provisioning: " + mintId.asString()));
+        if (aggregate.lifecycleState().value() != LifecycleState.State.PROVISIONING) {
+            // Moved on (typically decommissioned) while the vault call was in flight. The keys
+            // are written either way; there is no transition left for this saga to make.
+            log.info("Mint {} became {} during provisioning; not marking it PROVISIONED",
+                mintId.asString(), aggregate.lifecycleState().value());
+            return;
+        }
         final AuditMetadata audit = new AuditMetadata("system", "Vault provisioned", clock.instant());
         final MintAggregate provisioned = aggregate.markProvisioned(audit);
         mintRepository.save(provisioned);
@@ -239,6 +269,13 @@ public class VaultProvisioningOutboxHandler implements OutboxMessageHandler {
         }
 
         final MintAggregate aggregate = mintRepository.findById(mintId).orElse(null);
+        if (aggregate != null && aggregate.lifecycleState().value() != LifecycleState.State.PROVISIONING) {
+            // PROVISION_FAILED is only reachable from PROVISIONING. Attempting it from a terminal
+            // DECOMMISSIONED threw "State is terminal", and the message was retried forever.
+            log.warn("Mint {} became {} during provisioning; not marking it PROVISION_FAILED",
+                mintId.asString(), aggregate.lifecycleState().value());
+            return;
+        }
         if (aggregate != null) {
             final AuditMetadata audit = new AuditMetadata("system", "Vault provisioning failed", clock.instant());
             final MintAggregate failed = aggregate.markProvisionFailed(audit);
