@@ -8,7 +8,6 @@ import xyz.tcheeric.cashu.entities.annotation.Nut;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.mint.proto.tasks.SwapTask;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
 import xyz.tcheeric.cashu.mint.proto.service.MintVaultService;
@@ -64,14 +63,16 @@ public final class NUT03 {
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
         return swap(mintId, postSwapRequest, mintLoadService, signatureVaultService, mintVaultService,
-                proofVaultService, null, null);
+                proofVaultService, null, null, null);
     }
 
     /**
      * Swaps, carrying a redeemer's declaration that the swap credits a voucher (cashu-mint#540).
      *
-     * @param redemption    the declaration, or null for an ordinary swap
-     * @param redeemerToken the redeemer's token, or null
+     * @param rawRedemption the raw {@code X-Cashu-Voucher-Redemption} header, or null
+     * @param redeemerToken the raw {@code X-Cashu-Voucher-Redeemer} header, or null
+     * @param receipt       receives the declared swap's receipt (its NUT-19 request fingerprint)
+     *                      when the swap holds a standing claim; may be null
      */
     public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
                                                            @NonNull PostSwapRequest<T> postSwapRequest,
@@ -79,12 +80,18 @@ public final class NUT03 {
                                                            @NonNull SignatureVaultService signatureVaultService,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService,
-                                                           VoucherRedemptionDeclaration redemption,
-                                                           String redeemerToken) throws CashuErrorException {
-        return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
+                                                           String rawRedemption,
+                                                           String redeemerToken,
+                                                           java.util.function.Consumer<String> receipt)
+            throws CashuErrorException {
+        SwapTask<T> task = new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
                 mintVaultService, proofVaultService)
-                .declaringRedemption(redemption, redeemerToken)
-                .execute();
+                .declaringRedemption(rawRedemption, redeemerToken);
+        PostSwapResponse response = task.execute();
+        if (receipt != null) {
+            task.redemptionReceipt().ifPresent(receipt);
+        }
+        return response;
     }
 
 }

@@ -5,9 +5,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherRedemptionCapMode;
 import xyz.tcheeric.cashu.mint.proto.ports.VoucherRedemptionLedger;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionCap;
 
 import java.util.Arrays;
@@ -25,8 +27,8 @@ import java.util.Locale;
  *       say who declared.</li>
  * </ul>
  *
- * <p>{@code enforce} without the durable store or without a token refuses to boot, as #527's
- * issuer binding does: it would otherwise either refuse every declaration or refuse nothing.
+ * <p>{@code enforce} without the durable store, without a token, or under an issuer binding that
+ * is not itself {@code enforce} refuses to boot.
  */
 @Slf4j
 @Configuration
@@ -36,8 +38,17 @@ public class VoucherRedemptionCapConfiguration {
     public VoucherRedemptionCap voucherRedemptionCap(
             @Value("${cashu.mint.voucher.redemption-cap:log}") String mode,
             @Value("${cashu.mint.voucher.redeemer-tokens:}") String redeemerTokens,
-            ObjectProvider<VoucherRedemptionLedger> ledger) {
+            ObjectProvider<VoucherRedemptionLedger> ledger,
+            VoucherIssuerBinding issuerBinding) {
         VoucherRedemptionCapMode parsed = VoucherRedemptionCapMode.valueOf(mode.strip().toUpperCase(Locale.ROOT));
+        // Review §1.2b: the cap is read from the coupon's signed terms, which bind nothing unless
+        // the signer is bound. Under issuer-binding=log any self-signed blob naming a victim's
+        // voucher id reaches the ledger and can claim or contradict its cap.
+        if (parsed == VoucherRedemptionCapMode.ENFORCE && issuerBinding.mode() != VoucherIssuerBindingMode.ENFORCE) {
+            throw new IllegalStateException("cashu.mint.voucher.redemption-cap=enforce needs "
+                    + "cashu.mint.voucher.issuer-binding=enforce: the cap is read from the voucher's signed "
+                    + "terms, which only bind when the signer is bound. Use redemption-cap=log until then.");
+        }
         List<String> tokens = Arrays.stream(redeemerTokens.split(","))
                 .map(String::strip)
                 .filter(t -> !t.isEmpty())
@@ -48,7 +59,7 @@ public class VoucherRedemptionCapConfiguration {
         if (parsed != VoucherRedemptionCapMode.OFF && (store == null || tokens.isEmpty())) {
             log.warn("voucher_redemption_cap mode={} ledger={} redeemerTokens={}: declarations will be "
                     + "{} until both are configured", parsed.label(), store != null, tokens.size(),
-                    tokens.isEmpty() ? "refused as unauthorised" : "unrecorded");
+                    tokens.isEmpty() ? "ignored as unauthorised" : "unrecorded");
         }
         log.info("voucher_redemption_cap installed mode={} ledger={} redeemerTokens={}",
                 parsed.label(), store != null, tokens.size());

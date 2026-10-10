@@ -94,7 +94,11 @@ public class MicrometerVoucherMetricsRecorder implements VoucherMetricsRecorder 
                     .tag("mode", mode.label())
                     .register(registry));
         }
-        for (String outcome : new String[] {"accepted", "refused", "cap_unknown"}) {
+        // accepted, refused, cap_unknown: what a trusted declaration did. reused: a NUT-19 retry
+        // found its own claim standing (review §2a). ignored: log mode dropped a malformed,
+        // untrusted or mismatched declaration (review §1.2d). released: a redeemer gave a
+        // declaration back because its credit was undone (review §1.2a).
+        for (String outcome : new String[] {"accepted", "refused", "cap_unknown", "reused", "ignored", "released"}) {
             redemptionDeclared.put(outcome, Counter.builder(METRIC_PREFIX + "redemption_declared_total")
                     .description("Voucher redemptions declared by a redeemer, by outcome")
                     .tag("outcome", outcome)

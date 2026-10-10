@@ -27,8 +27,17 @@ public record VoucherRedemptionDeclaration(@NonNull String voucherId, long sats)
     /** The header carrying the declaration. */
     public static final String HEADER = "X-Cashu-Voucher-Redemption";
 
-    /** The header carrying the redeemer's token. */
+    /**
+     * The header carrying the redeemer's token. A secret: never logged by the mint, and to be
+     * redacted by every proxy and APM on the path (see the design's token handling section).
+     */
     public static final String REDEEMER_HEADER = "X-Cashu-Voucher-Redeemer";
+
+    /**
+     * The response header on a declared swap holding a standing claim: the swap's NUT-19 request
+     * fingerprint. The redeemer keeps it to release the declaration if the credit is undone.
+     */
+    public static final String RECEIPT_HEADER = "X-Cashu-Voucher-Redemption-Receipt";
 
     private static final Pattern VOUCHER_ID = Pattern.compile("[A-Za-z0-9-]{1,64}");
 

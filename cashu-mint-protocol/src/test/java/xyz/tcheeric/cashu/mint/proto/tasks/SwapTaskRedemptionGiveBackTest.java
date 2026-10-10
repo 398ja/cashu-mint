@@ -29,7 +29,6 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.SignatureTestData;
 import xyz.tcheeric.cashu.mint.proto.util.SwapRequestFingerprint;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionCap;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 
 import java.util.ArrayList;
@@ -116,10 +115,11 @@ class SwapTaskRedemptionGiveBackTest {
 
     // --- harness ---------------------------------------------------------------------------
 
-    /** An in-memory ledger with the adapter's semantics. */
+    /** An in-memory ledger with the adapter's semantics, for one voucher. */
     private static final class CountingLedger implements VoucherRedemptionLedger {
         final AtomicLong redeemed = new AtomicLong();
         final AtomicInteger claims = new AtomicInteger();
+        final java.util.Map<String, Long> standing = new java.util.HashMap<>();
         final long cap;
 
         CountingLedger(long cap) {
@@ -127,17 +127,36 @@ class SwapTaskRedemptionGiveBackTest {
         }
 
         @Override
-        public synchronized Claim claim(String voucherId, Long capSats, long sats, boolean refuseOverCap) {
+        public synchronized Claim claim(ClaimRequest request) {
             claims.incrementAndGet();
-            if (refuseOverCap && redeemed.get() + sats > cap) {
-                return new Claim(false, redeemed.get(), cap);
+            if (standing.containsKey(request.requestFingerprint())) {
+                return new Claim(ClaimOutcome.REUSED, redeemed.get(), cap, false);
             }
-            return new Claim(true, redeemed.addAndGet(sats), cap);
+            if (request.refuseOverCap() && redeemed.get() + request.sats() > cap) {
+                return new Claim(ClaimOutcome.REFUSED_OVER_CAP, redeemed.get(), cap, false);
+            }
+            standing.put(request.requestFingerprint(), request.sats());
+            return new Claim(ClaimOutcome.ACCEPTED, redeemed.addAndGet(request.sats()), cap, false);
         }
 
         @Override
-        public synchronized void release(String voucherId, long sats) {
+        public synchronized boolean giveBack(String requestFingerprint) {
+            Long sats = standing.remove(requestFingerprint);
+            if (sats == null) {
+                return false;
+            }
             redeemed.set(Math.max(0, redeemed.get() - sats));
+            return true;
+        }
+
+        @Override
+        public int giveBackForHold(String holdId) {
+            return 0;
+        }
+
+        @Override
+        public Release release(String requestFingerprint, String voucherId, String redeemerDigest, Long sats) {
+            return new Release(ReleaseOutcome.NOT_FOUND, 0, 0);
         }
     }
 
@@ -192,7 +211,7 @@ class SwapTaskRedemptionGiveBackTest {
                     Mockito.mock(SignatureVaultService.class), mintVault, proofVault, new NoopHolds())
                     .withRedemptionCap(new VoucherRedemptionCap(VoucherRedemptionCapMode.ENFORCE, ledger,
                             List.of(TOKEN)))
-                    .declaringRedemption(new VoucherRedemptionDeclaration(voucherId.toString(), 16L), TOKEN)
+                    .declaringRedemption(voucherId + ":16", TOKEN)
                     .execute();
         }
     }

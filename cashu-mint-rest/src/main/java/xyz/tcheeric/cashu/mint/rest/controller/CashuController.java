@@ -274,16 +274,15 @@ public class CashuController<T extends Secret> implements org.springframework.co
 
         try {
             // cashu-mint#540: a redeemer crediting a voucher says so in headers; the body stays NUT-03.
-            VoucherRedemptionDeclaration redemption;
-            try {
-                redemption = VoucherRedemptionDeclaration.parse(
-                        httpRequest.getHeader(VoucherRedemptionDeclaration.HEADER)).orElse(null);
-            } catch (IllegalArgumentException malformed) {
-                throw new CashuErrorException(CashuErrorCode.voucher_not_accepted, malformed.getMessage());
-            }
+            // Passed raw: the cap's mode decides whether they are read at all (not in off) and what
+            // a malformed or untrusted one does (only enforce refuses). The redeemer token is never
+            // logged here or downstream.
+            String[] receipt = new String[1];
             PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService,
-                    mintVaultService, proofVaultService, redemption,
-                    httpRequest.getHeader(VoucherRedemptionDeclaration.REDEEMER_HEADER));
+                    mintVaultService, proofVaultService,
+                    httpRequest.getHeader(VoucherRedemptionDeclaration.HEADER),
+                    httpRequest.getHeader(VoucherRedemptionDeclaration.REDEEMER_HEADER),
+                    r -> receipt[0] = r);
             long duration = System.currentTimeMillis() - startTime;
 
             if (response == null) {
@@ -299,6 +298,9 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 eventPublisher.publishProofsSpent(request.getInputs());
             }
 
+            if (receipt[0] != null) {
+                return ResponseEntity.ok().header(VoucherRedemptionDeclaration.RECEIPT_HEADER, receipt[0]).body(response);
+            }
             return ResponseEntity.ok(response);
         } catch (CashuErrorException e) {
             long duration = System.currentTimeMillis() - startTime;

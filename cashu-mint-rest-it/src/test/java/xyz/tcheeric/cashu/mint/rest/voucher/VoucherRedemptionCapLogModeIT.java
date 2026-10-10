@@ -7,7 +7,11 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
 import xyz.tcheeric.cashu.mint.proto.metrics.MetricRecorders;
@@ -88,6 +92,29 @@ class VoucherRedemptionCapLogModeIT extends VoucherRedemptionFixtures {
   private double ignoredCount() {
     return meterRegistry.find("cashu_mint_voucher_redemption_declared_total").tag("outcome", "ignored")
         .counters().stream().mapToDouble(c -> c.count()).sum();
+  }
+
+  /**
+   * Review §1.2c: the redeemer token is a bearer secret. The mint never writes it, nor a wrong one,
+   * to its logs, on a declaration, a refusal or a release: only an 8-hex prefix of its digest.
+   */
+  @Test
+  @ExtendWith(OutputCaptureExtension.class)
+  void theRedeemerTokenNeverReachesTheLogs(CapturedOutput output) throws Exception {
+    String voucherId = UUID.randomUUID().toString();
+    String blob = signedBlobHex(voucherId);
+    String wrongToken = "leak-canary-" + UUID.randomUUID();
+
+    ResponseEntity<String> declared = redeem(voucherId, 10, voucherProofs(blob, 8, 2));
+    swap(voucherProofs(blob, 8, 2), outputs(8, 2), voucherId + ":10", wrongToken);
+    String receipt = declared.getHeaders().getFirst("X-Cashu-Voucher-Redemption-Receipt");
+    HttpHeaders headers = new HttpHeaders();
+    headers.add("X-Cashu-Voucher-Redeemer", REDEEMER);
+    post("/v1/voucher-redemptions/release", "{\"voucher_id\":\"" + voucherId
+        + "\",\"request_fingerprint\":\"" + receipt + "\"}", headers);
+
+    assertThat(output.getAll()).as("the declaration was logged at all").contains("voucher_redemption_claimed");
+    assertThat(output.getAll()).doesNotContain(REDEEMER).doesNotContain(wrongToken);
   }
 
   @Test

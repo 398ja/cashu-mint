@@ -124,7 +124,8 @@ public interface VoucherMetricsRecorder {
     /**
      * A declared redemption reached the ledger: {@code cashu_mint_voucher_redemption_declared_total{outcome}}.
      *
-     * @param outcome {@code accepted}, {@code refused} or {@code cap_unknown}
+     * @param outcome {@code accepted}, {@code refused}, {@code cap_unknown}, {@code reused},
+     *                {@code ignored} (log mode only) or {@code released}
      */
     default void redemptionDeclared(String outcome) {
     }

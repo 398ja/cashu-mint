@@ -152,7 +152,9 @@ class VoucherRedemptionRecoveryIT extends VoucherRedemptionFixtures {
         public Object postProcessAfterInitialization(Object bean, String name) {
           if (bean instanceof VoucherRedemptionLedger ledger) {
             return proxy(VoucherRedemptionLedger.class, ledger, (method, args, call) -> {
-              if (method.equals("release") && FAIL_NEXT_GIVE_BACK.getAndSet(false)) {
+              // The mint's own give-back: "release" before the review fix, "giveBack" after it.
+              if ((method.equals("release") || method.equals("giveBack"))
+                  && FAIL_NEXT_GIVE_BACK.getAndSet(false)) {
                 throw new DataAccessResourceFailureException("give-back lost: database gone");
               }
               Object result = call.call();
