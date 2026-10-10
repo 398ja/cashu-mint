@@ -29,6 +29,9 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.MintProtocolServiceFactory;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherTerms;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,6 +75,48 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private final SwapHoldRepository swapHoldRepository;
     private final SwapResponseCache swapResponseCache;
     private final InFlightReplayWait inFlightReplayWait;
+
+    /** The raw {@code X-Cashu-Voucher-Redemption} header (cashu-mint#540), or null. */
+    private String rawRedemption;
+    private String redeemerToken;
+    private VoucherRedemptionCap redemptionCap;
+
+    /** Whether any output of this swap has been signed: a claim is only given back if not. */
+    private boolean signedAnything;
+
+    /** The request fingerprint of a declared swap whose claim stands, once it has succeeded. */
+    private String redemptionReceipt;
+
+    /**
+     * Attaches a redeemer's declaration that this swap credits a voucher (cashu-mint#540). The
+     * headers are passed raw: whether they are read, and what a malformed or untrusted one does,
+     * depends on the cap's mode.
+     *
+     * @param rawDeclaration the {@code X-Cashu-Voucher-Redemption} header, or null
+     * @param redeemerToken  the {@code X-Cashu-Voucher-Redeemer} header, or null
+     * @return this task
+     */
+    public SwapTask<T> declaringRedemption(String rawDeclaration, String redeemerToken) {
+        this.rawRedemption = rawDeclaration;
+        this.redeemerToken = redeemerToken;
+        return this;
+    }
+
+    /**
+     * The receipt of a declared redemption: the swap's NUT-19 request fingerprint, which the
+     * redeemer presents to release the declaration if the credit is later undone.
+     *
+     * @return the receipt, or empty when this swap made no standing claim
+     */
+    public Optional<String> redemptionReceipt() {
+        return Optional.ofNullable(redemptionReceipt);
+    }
+
+    /** For tests: the cap to apply instead of the installed one. */
+    SwapTask<T> withRedemptionCap(VoucherRedemptionCap cap) {
+        this.redemptionCap = cap;
+        return this;
+    }
 
     public SwapTask(@NonNull UUID mintId,
                     @NonNull PostSwapRequest<T> request,
@@ -177,11 +222,16 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             // It must come before validation, which would refuse the replay's spent inputs.
             Optional<PostSwapResponse> previous = replay.previousResponse();
             if (previous.isPresent()) {
+                if (rawRedemption != null) {
+                    // A declared redemption's replay answers with the same receipt, so a redeemer
+                    // that lost the first reply can still release the declaration later.
+                    redemptionReceipt = replay.fingerprint().hex();
+                }
                 return previous.get();
             }
 
             try {
-                PostSwapResponse response = validateAndSign(mint, proofsToSwap, hold);
+                PostSwapResponse response = validateAndSign(mint, proofsToSwap, hold, replay);
                 replay.remember(response);
                 return response;
             } catch (CashuErrorException refusal) {
@@ -222,7 +272,8 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     /**
      * Validates the swap and, only if every rule passes, signs its outputs against held inputs.
      */
-    private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap, SwapProofHold hold)
+    private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap, SwapProofHold hold,
+                                             SwapResponseReplay replay)
             throws CashuErrorException {
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
@@ -250,6 +301,14 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             validateVoucherSwapAmounts(proofsToSwap, request.getBlindedMessages());
         }
 
+        // cashu-mint#540: a redeemer's declaration is checked before anything else, so a malformed
+        // or unauthorised one costs nothing. Only enforce refuses; log ignores and counts it.
+        VoucherRedemptionCap cap = redemptionCap != null ? redemptionCap : InstalledVoucherRedemptionCap.current();
+        Optional<VoucherRedemptionCap.Authorised> declared = cap.authorise(rawRedemption, redeemerToken);
+        Optional<VoucherTerms> redeemed = declared.isPresent()
+                ? cap.match(declared.get(), proofsToSwap)
+                : Optional.empty();
+
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
@@ -262,7 +321,15 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             new VerifyFeesTask<>(request, keySets).execute();
         }
 
-        return signAgainstHeldInputs(mint, proofsToSwap, service, hold);
+        Redemption redemption = redeemed.isPresent()
+                ? new Redemption(cap, declared.get(), redeemed.get(), replay.fingerprint().hex())
+                : null;
+        return signAgainstHeldInputs(mint, proofsToSwap, service, hold, redemption);
+    }
+
+    /** A declared redemption to claim once the inputs are held (cashu-mint#540). */
+    private record Redemption(VoucherRedemptionCap cap, VoucherRedemptionCap.Authorised declared,
+                              VoucherTerms terms, String requestFingerprint) {
     }
 
     /**
@@ -282,21 +349,56 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
     private PostSwapResponse signAgainstHeldInputs(Mint mint,
                                                    List<Proof<T>> proofsToSwap,
                                                    MintProtocolService service,
-                                                   SwapProofHold hold)
+                                                   SwapProofHold hold,
+                                                   Redemption redemption)
             throws CashuErrorException {
         hold.claim(proofsToSwap);
+
+        // cashu-mint#540: the claim is taken only while this request holds the inputs (review
+        // §2b). A racing replay of the same request on another instance is refused by the hold
+        // above with proofs_not_bound and waits for the original, rather than meeting the cap and
+        // being told 90025 for a swap that succeeded. The claim is recorded under the request
+        // fingerprint and this hold (review §2a): a retry of the same request reuses it, and the
+        // hold sweeper gives it back if this process dies before signing begins.
+        if (redemption != null) {
+            claimOrReleaseTheHold(redemption, hold);
+        }
 
         List<BlindSignature> blindSignatures = new ArrayList<>(request.getBlindedMessages().size());
         try {
             hold.markSigning();
             signOutputs(mint, service, blindSignatures);
         } catch (CashuErrorException | RuntimeException signingFailure) {
+            signedAnything = !blindSignatures.isEmpty();
+            if (!signedAnything && redemption != null) {
+                redemption.cap().giveBack(redemption.requestFingerprint());
+            }
             resolveTheHoldAfterFailedSigning(hold, blindSignatures);
             throw signingFailure;
+        }
+        signedAnything = true;
+        if (redemption != null) {
+            redemptionReceipt = redemption.requestFingerprint();
         }
 
         commitOrStrandTheHold(hold);
         return new PostSwapResponse(blindSignatures);
+    }
+
+    /**
+     * Claims the declaration against the coupon's cap. A refusal, or a claim whose outcome is
+     * unknown (the database reply was lost), releases the hold and gives back whatever may have
+     * been recorded, then rethrows: nothing has been signed.
+     */
+    private void claimOrReleaseTheHold(Redemption redemption, SwapProofHold hold) throws CashuErrorException {
+        try {
+            redemption.cap().claim(redemption.declared(), redemption.terms(), redemption.requestFingerprint(),
+                    hold.holdId());
+        } catch (CashuErrorException | RuntimeException refusedOrUnknown) {
+            redemption.cap().giveBack(redemption.requestFingerprint());
+            hold.release();
+            throw refusedOrUnknown;
+        }
     }
 
     /**

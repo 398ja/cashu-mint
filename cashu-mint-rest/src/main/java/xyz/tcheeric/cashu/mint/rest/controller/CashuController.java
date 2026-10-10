@@ -50,6 +50,7 @@ import xyz.tcheeric.cashu.entities.rest.nut09.PostRestoreResponse;
 import xyz.tcheeric.cashu.common.nut17.QuoteStatePayload;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT02;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT03;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionDeclaration;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT04;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT05;
 import xyz.tcheeric.cashu.mint.proto.nut.NUT06;
@@ -272,8 +273,16 @@ public class CashuController<T extends Secret> implements org.springframework.co
         log.debug("swap_controller mint_resolved request_id={} mint_id={}", requestId, mintId);
 
         try {
+            // cashu-mint#540: a redeemer crediting a voucher says so in headers; the body stays NUT-03.
+            // Passed raw: the cap's mode decides whether they are read at all (not in off) and what
+            // a malformed or untrusted one does (only enforce refuses). The redeemer token is never
+            // logged here or downstream.
+            String[] receipt = new String[1];
             PostSwapResponse response = NUT03.swap(mintId, request, mintLoadService, signatureVaultService,
-                    mintVaultService, proofVaultService);
+                    mintVaultService, proofVaultService,
+                    httpRequest.getHeader(VoucherRedemptionDeclaration.HEADER),
+                    httpRequest.getHeader(VoucherRedemptionDeclaration.REDEEMER_HEADER),
+                    r -> receipt[0] = r);
             long duration = System.currentTimeMillis() - startTime;
 
             if (response == null) {
@@ -289,6 +298,9 @@ public class CashuController<T extends Secret> implements org.springframework.co
                 eventPublisher.publishProofsSpent(request.getInputs());
             }
 
+            if (receipt[0] != null) {
+                return ResponseEntity.ok().header(VoucherRedemptionDeclaration.RECEIPT_HEADER, receipt[0]).body(response);
+            }
             return ResponseEntity.ok(response);
         } catch (CashuErrorException e) {
             long duration = System.currentTimeMillis() - startTime;

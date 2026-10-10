@@ -149,6 +149,29 @@ groups:
           description: "An IOU-backed voucher was issued in the last 15 minutes. Operator review required."
           runbook_url: "https://github.com/398ja/cashu-mint/blob/master/docs/runbooks/voucher-data-minimisation.md"
 
+      # cashu-mint#540 — a redeemer declared a coupon credit beyond the sats issued for it: copied
+      # voucher metadata relabelled onto plain sats, or a coupon credited twice. In log mode it
+      # was accepted (warn, investigate before enforce); in enforce it was refused (page: someone
+      # is attacking, or an honest flow is being refused).
+      - alert: VoucherOverspendLogged
+        expr: increase(cashu_mint_voucher_overspend_refused_total{mode="log"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          route: slack-vouchers-ops
+        annotations:
+          summary: "Voucher credited beyond its issued sats (log mode, accepted)"
+          description: "grep voucher_overspend in the mint logs for the voucher id prefix. Must be zero or explained before redemption-cap=enforce."
+      - alert: VoucherOverspendRefused
+        expr: increase(cashu_mint_voucher_overspend_refused_total{mode="enforce"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          route: pagerduty
+        annotations:
+          summary: "Voucher redemption refused over its issued sats (enforce)"
+          description: "A relabelled or twice-credited coupon was refused. grep voucher_overspend in the mint logs."
+
       # FR-008 — sustained rate-limit breaches mean a buggy / abusive
       # client. Single 429 is fine; sustained 10/min is not.
       - alert: VoucherRateLimitBreachSustained

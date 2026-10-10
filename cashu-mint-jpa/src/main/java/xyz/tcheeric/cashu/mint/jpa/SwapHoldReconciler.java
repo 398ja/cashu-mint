@@ -10,6 +10,7 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.mint.proto.domain.SwapHoldPhase;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHold;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.VoucherRedemptionLedger;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 
 import java.time.Duration;
@@ -43,14 +44,25 @@ public class SwapHoldReconciler {
   private final SwapHoldRepository holds;
   private final ProofVaultService proofVaultService;
   private final Duration holdTtl;
+  private final VoucherRedemptionLedger redemptions;
 
   public SwapHoldReconciler(
       @Autowired(required = false) SwapHoldRepository holds,
       @Autowired(required = false) ProofVaultService proofVaultService,
       @Value("${cashu.mint.swap.hold-ttl:PT5M}") Duration holdTtl) {
+    this(holds, proofVaultService, holdTtl, null);
+  }
+
+  @Autowired
+  public SwapHoldReconciler(
+      @Autowired(required = false) SwapHoldRepository holds,
+      @Autowired(required = false) ProofVaultService proofVaultService,
+      @Value("${cashu.mint.swap.hold-ttl:PT5M}") Duration holdTtl,
+      @Autowired(required = false) VoucherRedemptionLedger redemptions) {
     this.holds = holds;
     this.proofVaultService = proofVaultService;
     this.holdTtl = holdTtl;
+    this.redemptions = redemptions;
   }
 
   @Scheduled(fixedDelayString = "${cashu.mint.swap.reconcile-interval:PT60S}")
@@ -117,16 +129,26 @@ public class SwapHoldReconciler {
     }
   }
 
-  /** Returns the inputs of a hold that never reached signing, so the wallet can spend them again. */
+  /**
+   * Returns the inputs of a hold that never reached signing, so the wallet can spend them again,
+   * and gives back any voucher redemption claimed under it (cashu-mint#540 review §2a): nothing was
+   * signed, so nothing was credited by this swap. A hold in {@code SIGNING} keeps its claim, for the
+   * same reason it keeps its inputs spent.
+   */
   private void releaseNothingWasSigned(SwapHold hold) {
     try {
+      // The claim first: if giving it back fails, the hold stays HELD and the next sweep retries
+      // both, rather than releasing the inputs and losing track of the claim.
+      int givenBack = redemptions == null ? 0 : redemptions.giveBackForHold(hold.holdId());
       int refunded = proofVaultService.refundForHold(hold.holdId());
       holds.advance(hold.holdId(), SwapHoldPhase.RELEASED);
       log.info(
-          "swap_hold_reconcile released hold_id={} inputs={} refunded={} reason=stranded_before_signing",
+          "swap_hold_reconcile released hold_id={} inputs={} refunded={} redemptions_given_back={} "
+              + "reason=stranded_before_signing",
           hold.holdId(),
           hold.inputCount(),
-          refunded);
+          refunded,
+          givenBack);
     } catch (CashuErrorException | RuntimeException e) {
       log.error(
           "[swap-hold][alert] SWAP_HOLD_RELEASE_FAILED hold_id={} cause={} — inputs stay held",

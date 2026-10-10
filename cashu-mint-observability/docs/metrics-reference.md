@@ -142,8 +142,10 @@ mvn -pl cashu-mint-observability test -Dtest=MetricsReferenceContractTest -Dmetr
 | `cashu_mint_voucher_issuer_untrusted_total` | counter | `mode` | Signed vouchers whose signing key is not trusted for their issuer, by binding mode |
 | `cashu_mint_voucher_lazy_funding_total` | counter | — | Funding rows lazily created from an accepted webhook event |
 | `cashu_mint_voucher_orphan_issuance` | gauge | — | Issued voucher quotes with no funding row (see VoucherIssuanceJpaRepository#countOrphanIssuance) |
+| `cashu_mint_voucher_overspend_refused_total` | counter | `mode` | Declared voucher redemptions over the coupon's issued sats, by cap mode |
 | `cashu_mint_voucher_paid_unfunded` | gauge | — | Voucher quotes still UNFUNDED despite an accepted payment event (see VoucherQuoteJpaRepository#countPaidUnfunded) |
 | `cashu_mint_voucher_rate_limit_breach_total` | counter | — | Voucher requests rejected by the per-principal rate limit |
+| `cashu_mint_voucher_redemption_declared_total` | counter | `outcome` | Voucher redemptions declared by a redeemer, by outcome |
 | `cashu_mint_voucher_rejected_total` | counter | `reason` | Voucher mints refused, by reason |
 | `cashu_mint_voucher_unsigned_total` | counter | `mode` | Voucher proofs carrying no issuer signature, by binding mode |
 | `cashu_mint_webhook_event_total` | counter | `outcome` | Webhook deliveries processed, by outcome (FR-008) |

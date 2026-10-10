@@ -62,8 +62,36 @@ public final class NUT03 {
                                                            @NonNull SignatureVaultService signatureVaultService,
                                                            @NonNull MintVaultService mintVaultService,
                                                            @NonNull ProofVaultService proofVaultService) throws CashuErrorException {
-        return new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
-                mintVaultService, proofVaultService).execute();
+        return swap(mintId, postSwapRequest, mintLoadService, signatureVaultService, mintVaultService,
+                proofVaultService, null, null, null);
+    }
+
+    /**
+     * Swaps, carrying a redeemer's declaration that the swap credits a voucher (cashu-mint#540).
+     *
+     * @param rawRedemption the raw {@code X-Cashu-Voucher-Redemption} header, or null
+     * @param redeemerToken the raw {@code X-Cashu-Voucher-Redeemer} header, or null
+     * @param receipt       receives the declared swap's receipt (its NUT-19 request fingerprint)
+     *                      when the swap holds a standing claim; may be null
+     */
+    public static <T extends Secret> PostSwapResponse swap(@NonNull UUID mintId,
+                                                           @NonNull PostSwapRequest<T> postSwapRequest,
+                                                           @NonNull MintLoadService mintLoadService,
+                                                           @NonNull SignatureVaultService signatureVaultService,
+                                                           @NonNull MintVaultService mintVaultService,
+                                                           @NonNull ProofVaultService proofVaultService,
+                                                           String rawRedemption,
+                                                           String redeemerToken,
+                                                           java.util.function.Consumer<String> receipt)
+            throws CashuErrorException {
+        SwapTask<T> task = new SwapTask<>(mintId, postSwapRequest, mintLoadService, signatureVaultService,
+                mintVaultService, proofVaultService)
+                .declaringRedemption(rawRedemption, redeemerToken);
+        PostSwapResponse response = task.execute();
+        if (receipt != null) {
+            task.redemptionReceipt().ifPresent(receipt);
+        }
+        return response;
     }
 
 }
