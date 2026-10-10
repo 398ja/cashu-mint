@@ -39,7 +39,6 @@ import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.crypto.Schnorr;
 import xyz.tcheeric.cashu.mint.jpa.repository.SwapHoldJpaRepository;
 import xyz.tcheeric.cashu.mint.jpa.repository.SwapResponseCacheJpaRepository;
 import xyz.tcheeric.cashu.mint.proto.service.MintLoadService;
@@ -66,7 +65,13 @@ abstract class VoucherRedemptionFixtures extends AbstractMintDurableIT {
   static final String KEYSET_ID = "004cf8cba2f93266";
   static final UUID MINT_UUID = UUID.fromString("00000001-0000-0000-0000-000000000540");
   static final String STALL = "5a11".repeat(16);
-  static final byte[] ISSUER_KEY = Schnorr.generatePrivateKey();
+  /**
+   * The gateway's signing key. Fixed (the scalar 1) so its x-only public key, the curve's generator,
+   * is a compile-time constant the ITs can trust in {@code cashu.mint.voucher.trusted-signers}:
+   * {@code redemption-cap=enforce} needs {@code issuer-binding=enforce} (review §1.2b).
+   */
+  static final byte[] ISSUER_KEY = Hex.decode("00".repeat(31) + "01");
+  static final String ISSUER_PUB_X = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
   /**
    * The coupon: EUR 5.05 with MINIMAL-style backing of 10 sats, so 50.5 cents per sat.
@@ -97,6 +102,17 @@ abstract class VoucherRedemptionFixtures extends AbstractMintDurableIT {
   final RestTemplate restTemplate = new RestTemplate();
   static MintProtocolService originalProtocolService;
 
+  /** Set to make the next output signing die with an {@link Error}, as a killed process would. */
+  static final java.util.concurrent.atomic.AtomicBoolean DIE_ON_NEXT_SIGNING =
+      new java.util.concurrent.atomic.AtomicBoolean();
+
+  /** Stands in for the JVM dying mid-swap: an Error, which no give-back path catches. */
+  static final class SimulatedCrash extends Error {
+    SimulatedCrash() {
+      super("simulated process death between the claim and the signature");
+    }
+  }
+
   @BeforeAll
   static void stubSigningKeys() throws Exception {
     originalProtocolService = MintProtocolServiceFactory.getInstance();
@@ -106,8 +122,12 @@ abstract class VoucherRedemptionFixtures extends AbstractMintDurableIT {
     Mockito.doReturn(gateway).when(stub).createGateway(any(PaymentMethod.class), anyString());
     Mockito.doAnswer(invocation -> privateKeyFor(invocation.getArgument(1, Integer.class)))
         .when(stub).getPrivateKey(anyString(), anyInt(), any(Mint.class));
-    Mockito.doAnswer(invocation -> privateKeyFor(invocation.getArgument(1, Integer.class)))
-        .when(stub).getPrivateKeyForSigning(anyString(), anyInt(), any(Mint.class));
+    Mockito.doAnswer(invocation -> {
+      if (DIE_ON_NEXT_SIGNING.getAndSet(false)) {
+        throw new SimulatedCrash();
+      }
+      return privateKeyFor(invocation.getArgument(1, Integer.class));
+    }).when(stub).getPrivateKeyForSigning(anyString(), anyInt(), any(Mint.class));
     MintProtocolServiceFactory.setInstance(stub);
   }
 
@@ -123,7 +143,10 @@ abstract class VoucherRedemptionFixtures extends AbstractMintDurableIT {
     JdbcTemplate jdbc = new JdbcTemplate(dataSource);
     // Absent on a mint without the #540 migration; the red run tolerates that.
     jdbc.execute("DO $$ BEGIN IF to_regclass('voucher_redemption') IS NOT NULL THEN "
-        + "DELETE FROM voucher_redemption; END IF; END $$");
+        + "DELETE FROM voucher_redemption; END IF; "
+        + "IF to_regclass('voucher_redemption_claim') IS NOT NULL THEN "
+        + "DELETE FROM voucher_redemption_claim; END IF; END $$");
+    DIE_ON_NEXT_SIGNING.set(false);
     wireKeySet();
     stubVault();
   }
@@ -144,7 +167,7 @@ abstract class VoucherRedemptionFixtures extends AbstractMintDurableIT {
       return 0L; // a mint without the #540 ledger records nothing
     }
     List<Long> rows = jdbc.queryForList(
-        "SELECT redeemed_sats FROM voucher_redemption WHERE voucher_id = ?", Long.class, voucherId);
+        "SELECT COALESCE(SUM(redeemed_sats), 0) FROM voucher_redemption WHERE voucher_id = ?", Long.class, voucherId);
     return rows.isEmpty() ? 0L : rows.get(0);
   }
 

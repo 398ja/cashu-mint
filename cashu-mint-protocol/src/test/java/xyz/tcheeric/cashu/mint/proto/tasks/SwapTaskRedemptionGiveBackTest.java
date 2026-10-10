@@ -92,6 +92,28 @@ class SwapTaskRedemptionGiveBackTest {
         assertThat(ledger.redeemed.get()).isEqualTo(16L);
     }
 
+    /**
+     * Review §2b: the claim is taken only while this request holds the inputs. A request whose
+     * inputs are held by another (a racing replay of the original on another instance) is refused
+     * by the hold with {@code proofs_not_bound}, which makes it wait for the original, and never
+     * reaches the cap. Claiming first would answer it 90025 for a swap that succeeded.
+     */
+    @Test
+    void noClaimIsMadeWhenTheInputsCannotBeHeld() throws Exception {
+        CountingLedger ledger = new CountingLedger(16L);
+        holdsBound = 0;
+
+        assertThatThrownBy(() -> executeRedemption(ledger, UUID.randomUUID(), Integer.MAX_VALUE))
+                .isInstanceOf(CashuErrorException.class)
+                .satisfies(e -> assertThat(((CashuErrorException) e).getErrorCode())
+                        .isEqualTo(CashuErrorCode.proofs_not_bound));
+
+        assertThat(ledger.claims.get()).as("the cap is never consulted without the inputs held").isZero();
+    }
+
+    /** How many inputs the vault binds to a hold; -1 binds them all. */
+    private int holdsBound = -1;
+
     // --- harness ---------------------------------------------------------------------------
 
     /** An in-memory ledger with the adapter's semantics. */
@@ -136,7 +158,7 @@ class SwapTaskRedemptionGiveBackTest {
             throws CashuErrorException {
         ProofVaultService proofVault = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
         Mockito.when(proofVault.insertOrClaimForHold(any(), anyString(), any()))
-                .thenAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
+                .thenAnswer(invocation -> holdsBound >= 0 ? holdsBound : ((List<?>) invocation.getArgument(0)).size());
         Mockito.when(proofVault.commitSpentForHold(anyString())).thenReturn(1);
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         MintVaultService mintVault = Mockito.mock(MintVaultService.class);

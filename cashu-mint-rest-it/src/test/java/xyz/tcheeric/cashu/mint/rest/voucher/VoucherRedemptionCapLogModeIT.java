@@ -3,6 +3,7 @@ package xyz.tcheeric.cashu.mint.rest.voucher;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,36 @@ class VoucherRedemptionCapLogModeIT extends VoucherRedemptionFixtures {
     assertThat(overspent(voucherId)).isTrue();
     assertThat(overspendCount("log") - before).isEqualTo(1.0);
     assertThat(overspendCount("enforce")).isZero();
+  }
+
+  /**
+   * Review §1.2d: log mode must change no outcome. A redeemer that ships the header before the mint
+   * has its token (or with a typo, or one side rotated) must not turn every credited swap into an
+   * outage. An untrusted, missing or malformed declaration is logged, counted and ignored, and the
+   * swap goes through.
+   */
+  @Test
+  void anUnauthorisedOrMalformedDeclarationIsIgnoredInLogMode() throws Exception {
+    String voucherId = UUID.randomUUID().toString();
+    String blob = signedBlobHex(voucherId);
+    double ignoredBefore = ignoredCount();
+
+    ResponseEntity<String> noToken = swap(voucherProofs(blob, 8, 2), outputs(8, 2), voucherId + ":10", null);
+    ResponseEntity<String> wrongToken = swap(voucherProofs(blob, 8, 2), outputs(8, 2), voucherId + ":10", "guess");
+    ResponseEntity<String> malformed = swap(voucherProofs(blob, 8, 2), outputs(8, 2), voucherId + ":ten", REDEEMER);
+    ResponseEntity<String> otherVoucher =
+        swap(voucherProofs(blob, 8, 2), outputs(8, 2), UUID.randomUUID() + ":10", REDEEMER);
+
+    for (ResponseEntity<String> r : List.of(noToken, wrongToken, malformed, otherVoucher)) {
+      assertThat(r.getStatusCode().is2xxSuccessful()).as("log mode refuses nothing, body=%s", r.getBody()).isTrue();
+    }
+    assertThat(redeemed(voucherId)).as("an ignored declaration is not recorded").isZero();
+    assertThat(ignoredCount() - ignoredBefore).isEqualTo(4.0);
+  }
+
+  private double ignoredCount() {
+    return meterRegistry.find("cashu_mint_voucher_redemption_declared_total").tag("outcome", "ignored")
+        .counters().stream().mapToDouble(c -> c.count()).sum();
   }
 
   @Test

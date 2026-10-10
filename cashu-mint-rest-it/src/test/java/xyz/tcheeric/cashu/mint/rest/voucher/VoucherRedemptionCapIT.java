@@ -14,6 +14,7 @@ import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -32,6 +33,8 @@ import org.springframework.test.context.TestPropertySource;
  */
 @TestPropertySource(properties = {
     "cashu.mint.voucher.redemption-cap=enforce",
+    "cashu.mint.voucher.issuer-binding=enforce",
+    "cashu.mint.voucher.trusted-signers=" + VoucherRedemptionFixtures.ISSUER_PUB_X,
     "cashu.mint.voucher.redeemer-tokens=" + VoucherRedemptionCapIT.REDEEMER_TOKEN + ",other-service-token",
 })
 class VoucherRedemptionCapIT extends VoucherRedemptionFixtures {
@@ -232,6 +235,44 @@ class VoucherRedemptionCapIT extends VoucherRedemptionFixtures {
     assertThat(redeemed(voucherId)).as("the refused swap's claim is given back").isZero();
 
     assertThat(redeem(voucherId, 10, voucherProofs(blob, 8, 2)).getStatusCode().is2xxSuccessful()).isTrue();
+  }
+
+  /** In enforce, and only in enforce, a malformed declaration refuses the swap. */
+  @Test
+  void aMalformedDeclarationIsRefusedInEnforce() throws Exception {
+    String voucherId = UUID.randomUUID().toString();
+    ResponseEntity<String> malformed = swap(voucherProofs(signedBlobHex(voucherId), 8, 2), outputs(8, 2),
+        voucherId + ":ten", REDEEMER_TOKEN);
+    assertThat(malformed.getStatusCode().is4xxClientError()).as("body=%s", malformed.getBody()).isTrue();
+    assertThat(redeemed(voucherId)).isZero();
+  }
+
+  /**
+   * Review §1.2b: the cap is fixed by the coupon's signed terms. A coupon first seen with no stated
+   * cap (NULL) takes the real cap the first time a declaration states it, rather than staying
+   * uncapped for ever; and in enforce a declaration whose terms derive a different cap than the one
+   * on record is refused, so a mismatched blob can neither lock in nor use a wrong value.
+   */
+  @Test
+  void anUnknownCapIsUpgradedAndAMismatchedCapIsRefused() throws Exception {
+    String voucherId = UUID.randomUUID().toString();
+    JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+    jdbc.update("INSERT INTO voucher_redemption (voucher_id, cap_sats, redeemed_sats) VALUES (?, NULL, 0)",
+        voucherId);
+
+    assertThat(redeem(voucherId, 10, voucherProofs(signedBlobHex(voucherId), 8, 2)).getStatusCode()
+        .is2xxSuccessful()).isTrue();
+    assertThat(jdbc.queryForObject("SELECT cap_sats FROM voucher_redemption WHERE voucher_id = ?",
+        Long.class, voucherId)).as("NULL upgraded to the signed cap").isEqualTo(CAP_SATS);
+    ResponseEntity<String> over = redeem(voucherId, 1, voucherProofs(signedBlobHex(voucherId), 1));
+    assertThat(over.getStatusCode().is4xxClientError()).as("now capped, body=%s", over.getBody()).isTrue();
+
+    String other = UUID.randomUUID().toString();
+    jdbc.update("INSERT INTO voucher_redemption (voucher_id, cap_sats, redeemed_sats) VALUES (?, 500, 0)", other);
+    ResponseEntity<String> mismatched = redeem(other, 2, voucherProofs(signedBlobHex(other), 2));
+    assertThat(mismatched.getStatusCode().is4xxClientError())
+        .as("terms deriving 10 against a recorded 500 are refused, body=%s", mismatched.getBody()).isTrue();
+    assertThat(redeemed(other)).isZero();
   }
 
   /** A NUT-19 replay of a redemption is answered from the cache and not counted twice. */
