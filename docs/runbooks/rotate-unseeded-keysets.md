@@ -145,7 +145,7 @@ echo "stop point passed"
 ```
 
 Expected: `seed_length=64`, `current_version=1`, `stop point passed`, exit 0. Anything else
-(the script then prints `STOP` and exits 1) (`0` means an empty seed, a version
+(the script then prints `STOP` and exits 1; `0` means an empty seed, a version
 above 1 means more than one write): **stop**, go to *Recovery: bad seed written* below, and do not
 re-baseline or deploy.
 
@@ -215,14 +215,20 @@ docker image inspect "$(docker inspect -f '{{.Image}}' mint-admin)" --format '{{
    else (or nothing), **stop**: the rollback target is not what `build-refs.env` says; resolve
    that first and use the printed registry digest as the rollback target in the ticket.
 
-d. Back up `.env.staging`, then deploy the fixed release pinned by digest, recreating only
+d. Back up `.env.staging` **outside the repository**, then deploy the fixed release pinned by digest, recreating only
    mint-admin (`--no-deps`: the mint, Vault and vault-keys-guard are not recreated). Set
    `FIXED_IMAGE` in **this** shell from the release ticket
    (`docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:` plus the 64-hex digest of the fixed
    release); the guard refuses to run if it is unset or empty.
+   The backup goes to `~/env-backups/` (directory 0700, file 0600), the convention of imani-deploy's
+   `rotate-staging-secrets-after-env-backup-leak.md`. Never write a backup inside the checkout:
+   imani-deploy master's `.gitignore` covers `.env*-bak*`, `.env*.bak` and `.env*.bak.*` but **not**
+   a name like `.env.staging.bak-<date>`, and a tracked env backup is exactly how imani-deploy#134
+   leaked every staging credential.
 
 ```sh
-cp -p .env.staging ".env.staging.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 700 ~/env-backups
+install -m 600 .env.staging ~/env-backups/.env.staging.$(date -u +%Y%m%dT%H%M%SZ)
 MINT_ADMIN_REST_IMAGE="${FIXED_IMAGE:?set FIXED_IMAGE to the fixed release digest}" \
   docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps mint-admin
 ```
@@ -238,19 +244,32 @@ docker image inspect "$(docker inspect -f '{{.Image}}' mint-admin)" --format '{{
 Check: `Keyset master seed loaded from Vault ... (fingerprint <16 hex>)`. Record the fingerprint in
 the ticket; it is a one-way tag, not the seed. If it refuses to start, the message names the reason
 (missing, unreadable, malformed or weak seed, or a 403 from a stale token). Never bypass it
-(no `ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT`, no second seed).
+(no `ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT`, no second seed). **Ignore the command suggested in the
+refusal message** (`seed="$(openssl rand -hex 32)"`): the seed is created only by step 1 and its
+STOP POINT (the message is fixed in cashu-mint#550).
+
+> **⚠ IRREVERSIBLE once e passes and anything is provisioned or rotated.** From the first mint
+> provisioned or rotated by the fixed mint-admin, keys are derived from this seed, so the seed is
+> **permanent**: it can never be replaced, and *Recovery: bad seed written* no longer applies.
+> **Still undoable after this point:** the mint-admin deploy (rollback below, by literal digest) and
+> the durable pin (step f). **Not undoable:** the seed itself and any keyset derived from it.
 
 f. **Only after the stop point passes**, make the pin durable, so the next routine `up` by anyone
-   does not fall back to `:latest`. Set `MINT_ADMIN_REST_IMAGE=<FIXED_IMAGE value>` in
-   `.env.staging` **on the host and in the operator's local copy**, both backed up first and kept
-   byte-equal for that line (`grep '^MINT_ADMIN_REST_IMAGE=' .env.staging` on each must print the
-   same line). Then record it in imani-deploy `build-refs.env` (its own commit, next to the 0.43.1
+   does not fall back to `:latest`. Run f in a **fresh shell**: an exported `MINT_ADMIN_REST_IMAGE`
+   in the operator's shell overrides the env file (an exported empty value gives `:latest`).
+   Set `MINT_ADMIN_REST_IMAGE=<FIXED_IMAGE value>` in `.env.staging` **on the host and in the
+   operator's local copy**, both backed up first to `~/env-backups/` exactly as in d (`install -m 600`,
+   never inside the checkout) and kept byte-equal for that line: `grep '^MINT_ADMIN_REST_IMAGE='
+   .env.staging` on each must print exactly `MINT_ADMIN_REST_IMAGE=` followed by the `FIXED_IMAGE`
+   value, and nothing else. Then record it in imani-deploy `build-refs.env` (its own commit, next to the 0.43.1
    entry: version, digest, redeploy number, date, "cashu-mint#545 seeded keysets, mint-admin only").
    Check the durable pin resolves to the same image without recreating anything:
 
 ```sh
 docker compose -f docker-compose.staging.yml --env-file .env.staging config --images | grep cashu-mint-admin-rest
 ```
+
+   It must print exactly the `FIXED_IMAGE` value (the same line as e's third command), nothing else.
 
 **Rollback of the deploy** (mint-admin fails closed, or any doubt at the stop point). The digest
 is written out; nothing depends on a variable from an earlier shell.
@@ -267,7 +286,7 @@ docker inspect mint-admin --format '{{.State.Status}} restarts={{.RestartCount}}
 literal digest in place of the 0.43.1 one.)
 
 - If step f already ran, put the **0.43.1** digest back as `MINT_ADMIN_REST_IMAGE` in
-  `.env.staging` (host and local, backed up first, kept equal) and record the rollback in
+  `.env.staging` (host and local, backed up first to `~/env-backups/` with `install -m 600`, kept equal) and record the rollback in
   `build-refs.env`, so a later `up` does not redeploy the fixed release.
 - The seed stays in Vault. It is harmless: 0.43.1 never reads it, and the #135 baseline that
   includes it stays valid.
@@ -282,10 +301,48 @@ literal digest in place of the 0.43.1 one.)
 For each mint and unit whose SIGNING keyset is unseeded:
 
 - The mint must be registered in mint-admin to be rotated through it. Staging's active keyset
-  was seeded by the mint's `VaultPreloadSeeder` from a fixture, not provisioned by mint-admin;
-  register that mint id in mint-admin first (as `KeyRotationE2EIT` does), with the same unit
-  and denomination ladder, and confirm it reaches `PROVISIONED` without writing keys (the
-  existing active keyset is left in place).
+  was seeded by the mint's `VaultPreloadSeeder` from a fixture, not provisioned by mint-admin,
+  so register that mint id in mint-admin first. **Do not copy the body from `KeyRotationE2EIT`:**
+  it registers an 11-amount ladder (1 to 1024), and the ladder registered here decides the
+  *rotated* keyset. The staging fixture (`imani-deploy/config/test/preload-test-data.json`) has
+  mint id `1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae`, unit `sat`, fee 0 and **24** amounts,
+  1 to 8388608 (powers of two), which equals `VaultProvisioningOutboxHandler.DEFAULT_DENOMINATIONS`.
+  The literal request (no secrets in it; authenticate with your own admin session):
+
+```
+POST /admin/lifecycle/mints
+Cookie: cashu_admin_session=<your NAP admin session>     (needs the MINT_LIFECYCLE permission)
+Content-Type: application/json
+
+{
+  "mintId": "1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae",
+  "metadata": { "displayName": "staging mint", "description": "cashu-mint#545 registration of the fixture-seeded mint", "tags": ["cashu-mint#545"] },
+  "configuration": {
+    "versionTag": "v1",
+    "cashu.unit": "sat",
+    "cashu.denominations": "1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,1048576,2097152,4194304,8388608"
+  }
+}
+```
+
+  No fee key (fee 0 is the default). **Registration STOP POINT:** `GET /admin/lifecycle/mints/1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae`
+  shows `lifecycleState` = `PROVISIONED`; the mint-admin log has
+  `Mint 1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae already holds active keyset <id> for unit sat; leaving it in place`
+  (`VaultProvisioningAdapter`), with `<id>` the inventoried active keyset id; and `/v1/keysets` on the
+  mint is unchanged from the inventory (same ids, same `active` flags). Anything else: **stop**.
+  **If the registration is wrong** (wrong unit or ladder, or keys were written): do **not** rotate.
+  The registration alone has not changed the mint's keys, so nothing is lost by stopping; escalate
+  rather than improvising a fix (retiring the record through `POST /admin/lifecycle/mints/{mintId}/retire`
+  is not proven safe for a served mint).
+
+> **⚠ IRREVERSIBLE: from the rotation request below.** Once the rotation runs, the old keyset is
+> archived and must **never** be reinstated (rotating back would reinstate a forgeable keyset), and
+> the seed is permanent (*Recovery: bad seed written* no longer applies). **Still undoable:** the
+> mint-admin deploy (rollback by literal digest) and a bad *new* keyset (rotate again: a fresh
+> rotation id yields a fresh seeded keyset). **Not undoable:** archiving the old keyset, and the
+> seed. Old proofs keep redeeming throughout, so no wallet value is lost.
+
+Rotation request (same session cookie, `Content-Type: application/json`):
 
 ```
 POST /admin/operations/mints/{mintId}/keys/rotate   {"reason": "cashu-mint#545 seeded rotation", "durationMinutes": 5}
@@ -329,8 +386,8 @@ just after the rotation) before checking that `/v1/keysets` shows the new id `ac
 (66 hex chars, `01` prefix) and the old id `active: false`; a test mint of a few sats and a swap
 of those proofs succeed on the new keyset. For staging, run the local gate first (below),
 including a rehearsal of "register the fixture-seeded mint in mint-admin" with a copy of
-`imani-deploy/config/test/preload-test-data.json`: a wrong unit or ladder there derives a
-different keyset.
+`imani-deploy/config/test/preload-test-data.json`. Registration leaves the existing active keyset
+in place either way; a wrong unit or ladder there decides a different **rotated** keyset.
 
 ## Step 3: migration window
 
