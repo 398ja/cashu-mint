@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -330,6 +331,9 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                     final UUID keyId = keyGenerator.deterministicId(mintId, unit, keyIdSource);
                     final String privateKeyHex =
                         keyGenerator.derivePrivateKeyHex(mintId, unit, amount, rotationId);
+                    if (alreadyStored(keyId, privateKeyHex, amount, mintId)) {
+                        return;
+                    }
                     final KeyEntity keyEntity = new KeyEntity();
                     keyEntity.setId(keyId);
                     keyEntity.setAmount(BigInteger.valueOf(amount));
@@ -351,7 +355,50 @@ public class VaultProvisioningAdapter implements VaultProvisioningPort {
                     }
                 }, executor))
                 .toList();
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            try {
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            } catch (final CompletionException e) {
+                if (e.getCause() instanceof RuntimeException cause) {
+                    throw cause;
+                }
+                throw e;
+            }
         }
+    }
+
+    /**
+     * Whether this key already exists with exactly this private key, in which case it is left
+     * alone (imani-deploy#135 retry).
+     *
+     * <p>The HashiCorp backend stores {@code created_at} beside the private key, so writing an
+     * identical key again is not a no-op: it creates a new KV version with a new timestamp. A
+     * provisioning retry on staging did exactly that to 22 archived keys every ~16 minutes, which
+     * moved the Vault digest a cutover compared. Reading first keeps the original version and
+     * {@code created_at}.
+     *
+     * <p>A key that exists with a DIFFERENT private key is refused rather than overwritten.
+     * Deterministic derivation means that cannot happen honestly, and overwriting would silently
+     * change the key behind proofs the mint has already signed.
+     *
+     * <p>A key that is absent, or whose row exists but whose secret is missing, is written: the
+     * material is deterministic, so writing it restores exactly what was there.
+     */
+    private boolean alreadyStored(final UUID keyId, final String privateKeyHex, final int amount,
+                                  final UUID mintId) {
+        final KeyEntity existing;
+        try {
+            existing = keyVaultSupplier.get().retrieve(keyId.toString());
+        } catch (final CashuErrorException | HttpClientErrorException.NotFound e) {
+            return false;
+        }
+        if (existing == null || existing.getPrivateKey() == null) {
+            return false;
+        }
+        if (existing.getPrivateKey().equalsIgnoreCase(privateKeyHex)) {
+            log.debug("Key for amount {} of mint {} already stored; leaving it unchanged", amount, mintId);
+            return true;
+        }
+        throw new IllegalStateException("Key for amount " + amount + " of mint " + mintId
+            + " is already stored with a different private key; refusing to overwrite it");
     }
 }

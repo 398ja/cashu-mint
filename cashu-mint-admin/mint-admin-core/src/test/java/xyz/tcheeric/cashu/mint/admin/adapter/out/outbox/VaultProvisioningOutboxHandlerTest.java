@@ -227,6 +227,102 @@ class VaultProvisioningOutboxHandlerTest {
         assertThat(controlRepository.records.get(controlId).outcome()).contains("250");
     }
 
+    @Test
+    // The staging loop (imani-deploy#135 retry): a CREATED message still pending for a mint that
+    // was decommissioned. Provisioning it re-put every archived key into Vault with a new
+    // created_at and then failed on the terminal state, so the message was retried every ~16 min
+    // forever. A decommissioned mint is not provisioned at all and the message completes.
+    void shouldSkipProvisioningForADecommissionedMint() {
+        storeMintIn(LifecycleState.State.DECOMMISSIONED);
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.provisionedMints).isEmpty();
+        assertThat(vaultPort.compensatedMints).isEmpty();
+        assertThat(mintRepository.lastSaved).isNull();
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    @Test
+    // Same message after its retries were exhausted: it must still complete, not throw "Cannot
+    // transition from DECOMMISSIONED to PROVISION_FAILED" and be rescheduled again.
+    void shouldCompleteADecommissionedMintsMessageAfterRetriesAreExhausted() {
+        storeMintIn(LifecycleState.State.DECOMMISSIONED);
+        vaultPort.shouldFail = true;
+
+        handler.handle(createdMessage(5));
+
+        assertThat(vaultPort.provisionedMints).isEmpty();
+        assertThat(mintRepository.lastSaved).isNull();
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = LifecycleState.State.class,
+        names = {"PROVISIONED", "PROVISION_FAILED", "ACTIVE", "SUSPENDED", "DECOMMISSIONED"})
+    // A CREATED message only means something while the mint is PROVISIONING. In any other state
+    // the saga is over (or an operator owns the next step), so the message completes without
+    // writing keys again, saving the mint or publishing an event. PROVISION_FAILED had the same
+    // loop shape as DECOMMISSIONED: it cannot move to PROVISIONED, so a successful re-provision
+    // threw and was retried forever.
+    void shouldCompleteWithoutProvisioningWhenTheMintIsNotProvisioning(final LifecycleState.State state) {
+        storeMintIn(state);
+
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.provisionedMints).isEmpty();
+        assertThat(vaultPort.compensatedMints).isEmpty();
+        assertThat(mintRepository.lastSaved).isNull();
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    @Test
+    // A CREATED message for a mint the admin has no record of cannot be provisioned into a
+    // lifecycle; it completes (with a warning) rather than writing keys for an unknown mint.
+    void shouldCompleteWithoutProvisioningWhenTheMintIsUnknown() {
+        handler.handle(createdMessage(0));
+
+        assertThat(vaultPort.provisionedMints).isEmpty();
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    @Test
+    // The mint is decommissioned while its last provisioning attempt is in flight. Marking it
+    // PROVISION_FAILED is impossible from a terminal state; the handler must finish the message
+    // rather than throw and loop.
+    void shouldFinishWhenTheMintWasDecommissionedDuringTheLastAttempt() {
+        storeProvisioningMint();
+        vaultPort.shouldFail = true;
+        vaultPort.duringProvision = () -> {
+            final MintAggregate current = mintRepository.findById(MINT_ID).orElseThrow();
+            mintRepository.save(current.decommission(new AuditMetadata("ops", "decommission", CLOCK.instant())));
+            mintRepository.lastSaved = null;
+        };
+
+        handler.handle(createdMessage(2));
+
+        assertThat(mintRepository.findById(MINT_ID).orElseThrow().lifecycleState().value())
+            .isEqualTo(LifecycleState.State.DECOMMISSIONED);
+        assertThat(mintRepository.lastSaved).isNull();
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    private void storeMintIn(final LifecycleState.State state) {
+        storeProvisioningMint();
+        final AuditMetadata audit = new AuditMetadata("ops", "transition", CLOCK.instant());
+        MintAggregate aggregate = mintRepository.findById(MINT_ID).orElseThrow();
+        aggregate = switch (state) {
+            case PROVISIONING -> aggregate;
+            case PROVISIONED -> aggregate.markProvisioned(audit);
+            case PROVISION_FAILED -> aggregate.markProvisionFailed(audit);
+            case ACTIVE -> aggregate.markProvisioned(audit).activate(audit);
+            case SUSPENDED -> aggregate.markProvisioned(audit).activate(audit).suspend(audit);
+            case DECOMMISSIONED -> aggregate.decommission(audit);
+        };
+        mintRepository.save(aggregate);
+        mintRepository.lastSaved = null;
+    }
+
     private void storeConfiguration(final Map<String, String> parameters) {
         configSetRepository.save(MINT_ID, new ConfigurationSet(ConfigurationRevisionId.of(1),
             parameters, new AuditMetadata("op", "config", CLOCK.instant())));
@@ -347,6 +443,7 @@ class VaultProvisioningOutboxHandlerTest {
         final List<UUID> archivedMints = new ArrayList<>();
         final List<UUID> compensatedMints = new ArrayList<>();
         boolean shouldFail = false;
+        Runnable duringProvision;
         String lastUnit;
         List<Integer> lastDenominations;
 
@@ -368,6 +465,7 @@ class VaultProvisioningOutboxHandlerTest {
         @Override
         public void provision(final UUID mintId, final String unit, final List<Integer> denominations,
                               final int inputFeePpk) {
+            if (duringProvision != null) duringProvision.run();
             if (shouldFail) throw new RuntimeException("vault unavailable");
             provisionedMints.add(mintId);
             lastUnit = unit;
