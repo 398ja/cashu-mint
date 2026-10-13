@@ -59,24 +59,82 @@ Write the inventory to the change ticket as counts and keyset ids only.
 
 ## Step 1: create the seed (once per environment)
 
-```bash
-# On the Vault host, inside the Vault container. Never echo a token or the seed. MOUNT=cashu.
-# 1. A create-only policy for exactly the seed path (no read, no update):
-vault policy write mint-admin-seed-create - <<'HCL'
-path "cashu/data/seeds/mint-admin/keyset-master-seed" { capabilities = ["create"] }
-HCL
-# 2. A short-lived child token with only that policy. Authenticate this one command with the
-#    CURRENT root token read from .env.staging (rotated 2026-10-13); do not reuse an old value.
-#    The built-in `default` policy stays attached: it grants no secrets, only what the CLI needs
-#    (KV v2 mount preflight, token self-lookup/revoke).
-STEP1_TOKEN=$(vault token create -policy=mint-admin-seed-create -ttl=15m -use-limit=5 \
-  -field=token)
-# 3. Create the seed with CAS 0, under the child token only.
-VAULT_TOKEN=$STEP1_TOKEN vault kv put -cas=0 "$MOUNT/seeds/mint-admin/keyset-master-seed" \
-  seed="$(openssl rand -hex 32)" >/dev/null
-# 4. Revoke it at once; unset it.
-VAULT_TOKEN=$STEP1_TOKEN vault token revoke -self; unset STEP1_TOKEN
+Run this from the imani-deploy checkout on the Vault host, as one script (`sh step1.sh`), **not**
+pasted into a shell inside the container. The root token is read from `.env.staging` *now* and
+reaches the container only on stdin through `docker exec -i`, the same way `vault-kv.py` does it.
+It never goes in `-e`, argv or shell history. The seed is generated inside the container
+(the `hashicorp/vault` image has **no `openssl`**, so `$(openssl rand -hex 32)` would silently write
+an empty seed), checked to be 64 hex before anything is written, and passed to `vault kv put` on
+stdin (argv is visible in `ps`). Nothing is printed except status lines.
+
+```sh
+# Run on the Vault host from the imani-deploy checkout. Prints status lines only.
+set -eu
+VC=${VC:-hashicorp-vault-server}
+ENV_FILE=${ENV_FILE:-.env.staging}
+ROOT=$(grep -m1 '^VAULT_HASHI_ROOT_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d "\"'")
+[ -n "$ROOT" ] || { echo "no VAULT_HASHI_ROOT_TOKEN in $ENV_FILE" >&2; exit 1; }
+printf '%s\n' "$ROOT" | docker exec -i "$VC" sh -c '
+set -eu
+IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+P=cashu/seeds/mint-admin/keyset-master-seed
+# 0. Refuse to start if the path was ever written (any version, even deleted).
+if vault read cashu/metadata/seeds/mint-admin/keyset-master-seed >/dev/null 2>&1; then
+  echo "seed path already exists: STOP, see Recovery" >&2; exit 1; fi
+# 1. Generate first (the image has no openssl). Abort before any write unless 64 hex.
+S=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d " \n")
+[ ${#S} -eq 64 ] || { echo "seed generation failed, nothing written" >&2; exit 1; }
+# 2. Create-only policy for exactly the seed path.
+printf "%s\n" "path \"cashu/data/seeds/mint-admin/keyset-master-seed\" { capabilities = [\"create\"] }" \
+  | vault policy write mint-admin-seed-create - >/dev/null
+# 3. Short-lived create-only child token; keep its accessor for the revocation check.
+T=$(vault token create -policy=mint-admin-seed-create -ttl=15m -use-limit=5 -field=token)
+ACC=$(printf %s "$T" | vault write -field=accessor auth/token/lookup token=-)
+cleanup() {
+  vault token revoke -accessor "$ACC" >/dev/null 2>&1 || true
+  vault policy delete mint-admin-seed-create >/dev/null 2>&1 || true
+}
+# 4. CAS-0 write under the child token, value on stdin (never argv).
+if ! printf "{\"seed\":\"%s\"}" "$S" | VAULT_TOKEN=$T vault kv put -cas=0 "$P" - >/dev/null; then
+  unset S T; cleanup; echo "write refused: token revoked, policy deleted" >&2; exit 1; fi
+unset S
+echo "seed written (CAS 0)"
+# 5. Revoke, prove it is gone (accessor lookup must fail), delete the policy.
+VAULT_TOKEN=$T vault token revoke -self >/dev/null; unset T
+if vault token lookup -accessor "$ACC" >/dev/null 2>&1; then echo "child token still valid" >&2; exit 1; fi
+echo "child token revoked (accessor lookup refused)"
+vault policy delete mint-admin-seed-create >/dev/null
+echo "policy mint-admin-seed-create deleted"
+'
 ```
+
+The script refuses to start if the seed path was ever written, aborts before any write if
+generation fails, and on a refused write it revokes the child token and deletes the policy itself.
+The revocation check uses the token **accessor** (`vault token lookup -accessor`), which succeeds
+before revoke and fails after, so it cannot pass vacuously. Deleting `mint-admin-seed-create` is
+part of the script, not optional.
+
+**STOP POINT (required before the re-baseline).** Check with the root token: length and version only,
+never the value.
+
+```sh
+# STOP POINT. Root token on stdin. Prints only a length and a version, never the value.
+set -eu
+VC=${VC:-hashicorp-vault-server}
+ENV_FILE=${ENV_FILE:-.env.staging}
+ROOT=$(grep -m1 '^VAULT_HASHI_ROOT_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d "\"'")
+printf '%s\n' "$ROOT" | docker exec -i "$VC" sh -c '
+set -eu
+IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+V=$(vault kv get -field=seed cashu/seeds/mint-admin/keyset-master-seed)
+echo "seed_length=$(printf %s "$V" | wc -c)"; unset V
+echo "current_version=$(vault read -field=current_version cashu/metadata/seeds/mint-admin/keyset-master-seed)"
+'
+```
+
+Expected: `seed_length=64` and `current_version=1`. Anything else (`0` means an empty seed, a version
+above 1 means more than one write): **stop**, go to *Recovery: bad seed written* below, and do not
+re-baseline or deploy.
 
 - `-cas=0` succeeds only if the path has never been written, so a seed can never be replaced
   by mistake. **Never** rotate or overwrite the seed: replacing it changes the keys of any
@@ -91,8 +149,6 @@ VAULT_TOKEN=$STEP1_TOKEN vault token revoke -self; unset STEP1_TOKEN
   under the same controls. Losing the seed does not lose existing keys (they are stored in
   Vault), but it makes provisioning of an in-flight message non-reproducible. Take a fresh
   export after the re-baseline below.
-- Confirm the step-1 token is gone (`vault token lookup <accessor>` fails) and the policy
-  `mint-admin-seed-create` can be deleted (`vault policy delete mint-admin-seed-create`).
 
 **Re-baseline the #135 fingerprint (staging) right after the write.** `vault-kv.py fingerprint`
 digests every secret under `cashu/` (a non-key secret counts by the SHA-256 of its whole value),
@@ -108,17 +164,50 @@ python3 scripts/vault-server/vault-kv.py fingerprint --container <hashicorp-vaul
   --env-file .env.staging --out /dev/shm/fp-after-seed.json
 ```
 
-Check: `secrets` = pre-seed count **+ 1** (staging today: 57 -> 58), `key_secrets` unchanged,
+Check: `secrets` = pre-seed count **+ 1** (the pre-seed baseline count from precondition 2, plus 1; do not reuse an old number), `key_secrets` unchanged,
 `secrets_without_private_key` +1, `digest` differs from the pre-seed one. Record in the
 ticket and in the #135 evidence: date, digest prefix, `secrets`, `key_secrets`, and "re-baselined
 after cashu-mint#545 seed write". From here on every `--expect-digest` (custody restore checks,
 the #135 runbook) uses the **new** digest.
 
-**Then deploy the fixed mint-admin. Check:** it starts and logs
-`Keyset master seed loaded from Vault ... (fingerprint <16 hex>)`. Record the fingerprint in the
-ticket; it is a one-way tag, not the seed. If mint-admin refuses to start, the message names
-the reason (missing, unreadable, malformed or weak seed, or a 403 from a stale token); fix that,
-never bypass it. Re-run the PROVISIONING count (precondition 5) immediately before the deploy.
+**Then deploy the fixed mint-admin (staging), with a stop point and a rollback.**
+
+```sh
+# imani-deploy checkout on the staging host.
+C="docker compose -f docker-compose.staging.yml --env-file .env.staging"
+# a. Freeze mint creation: no POST /admin/lifecycle/mints until step 2 is checked.
+# b. PROVISIONING must be 0 (precondition 5), immediately before the deploy.
+# c. Record the running image as the rollback target (0.43.1 today):
+docker inspect mint-admin --format '{{.Config.Image}} {{.Image}}'   # write both into the ticket
+PREV_IMAGE=docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:<previous digest from c>
+# d. Deploy the fixed release pinned by digest, recreating only mint-admin
+#    (--no-deps: the mint, Vault and vault-keys-guard are not recreated):
+MINT_ADMIN_REST_IMAGE=docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:<fixed release digest> \
+  $C up -d --no-deps mint-admin
+# e. STOP POINT: within 2 minutes it must log the seed fingerprint and stay up.
+docker logs mint-admin 2>&1 | grep 'Keyset master seed loaded from Vault'
+docker inspect mint-admin --format '{{.State.Status}} restarts={{.RestartCount}}'   # running restarts=0
+```
+
+Check: `Keyset master seed loaded from Vault ... (fingerprint <16 hex>)`. Record the fingerprint in
+the ticket; it is a one-way tag, not the seed. If it refuses to start, the message names the reason
+(missing, unreadable, malformed or weak seed, or a 403 from a stale token). Never bypass it
+(no `ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT`, no second seed).
+
+**Rollback of the deploy** (mint-admin fails closed, or any doubt at the stop point):
+
+```sh
+MINT_ADMIN_REST_IMAGE=$PREV_IMAGE $C up -d --no-deps mint-admin
+docker inspect mint-admin --format '{{.Config.Image}} {{.State.Status}}'   # previous digest, running
+```
+
+- The seed stays in Vault. It is harmless: 0.43.1 never reads it, and the #135 baseline that
+  includes it stays valid.
+- While rolled back: **no mint provisioning and no rotation** (0.43.1 derives unseeded keys). Keep
+  mint creation frozen until the fixed release is running.
+- Fix the named cause (a 403 means recreate mint-admin with the current root token; a seed
+  problem means the stop point above was skipped, go to *Recovery: bad seed written*), then
+  redo the deploy from step c.
 
 ## Step 2: rotate every unseeded active keyset
 
@@ -138,9 +227,28 @@ POST /admin/operations/mints/{mintId}/keys/rotate   {"reason": "cashu-mint#545 s
   provisions the new one (the vault allows one active keyset per unit), and reinstates the old
   one if provisioning fails.
 - Archived keysets stay advertised by `/v1/keysets` with `active: false` and keep verifying and
-  redeeming, per NUT-02. Wallets that refresh `/v1/keysets` before transacting (imani-wallet,
-  cashu-wallet `KeysetDirectory`, gateway-core `DefaultMintSwapService`) pick up the new active
-  keyset with no change.
+  redeeming as **inputs**, per NUT-02. They no longer sign: a request whose **outputs** name an
+  archived keyset is refused with `12002 keyset_inactive`
+  (`ValidateTransactionTask.rejectInactiveOutputKeysets`).
+- **Client impact.** Fresh requests are fine: imani-wallet reads `/v1/keysets` on each call
+  (`src/lib/mintTransport.ts:118` `activeKeysetId`) and gateway-core
+  `DefaultMintSwapService.getActiveKeysetId` does the same, so they pick up the new keyset once the
+  mint's 60 s keyset cache has expired. Not fine: outputs blinded **before** the rotation and sent
+  after it. imani-wallet resumes a pending receive with its stored `keysetId` and outputs
+  (`src/lib/receiveSwap.ts:220-231`, for NUT-19 byte-identical replay; also `recoverInterruptedSwaps`,
+  line 305ff) and has **no handling for 12002** (imani-wallet 0.22.0, `2cd19fb`: 0 hits), so such a
+  receive fails on every retry. The intent is kept, so no value is lost, but it is stuck until the
+  wallet re-blinds: **follow-up imani-wallet#248** (re-blind on 12002 when no signatures were
+  returned). cashu-wallet `KeysetDirectory.refresh()` has no caller in the library; the
+  consuming app decides when to refresh.
+- **Mitigation.** Rotate at low traffic. Just before, check for in-flight work and let it drain
+  (no pending receive intents or swaps on the operator's own wallets; no quotes in progress on
+  the mint). After the rotation, a `12002` for an output keyset that was active a minute ago is the
+  expected refusal, not an incident. Until #248 ships, a receive caught across the rotation stays
+  pending with its value kept, and completes once the wallet runs a build with #248; record any
+  such case in the ticket.
+- **One mint at a time:** rotate one mint, run the per-mint check below, then stop before the next.
+  Staging is expected to have a single mint; say so in the ticket if it does.
 
 **Check per mint:** the control reaches `KEY_ROTATION_COMPLETED`; its outcome names the new
 keyset and the one it replaced; then **wait more than 60 s** (the mint caches keysets for
@@ -186,10 +294,41 @@ is the only mitigation.
 
 ## Rollback
 
-- Step 1 has no rollback and needs none: an unused seed is harmless.
+- Step 1: a **good** unused seed is harmless and is left in place (also when the deploy is
+  rolled back). A **bad** seed (empty, wrong length, more than one version) must be removed
+  before anything uses it: see *Recovery: bad seed written*.
+- Deploy: roll back to the recorded previous mint-admin digest (0.43.1), see step 1.
 - Step 2: rotating back would reinstate a forgeable keyset, so do not. If the new keyset
   misbehaves, rotate again (a fresh rotation id yields a fresh seeded keyset). The old keyset
   keeps redeeming throughout.
+
+## Recovery: bad seed written (DESTRUCTIVE)
+
+Only when the step-1 STOP POINT shows `seed_length` other than 64 or `current_version` other than 1.
+This deletes every version and the metadata of exactly one path. It is safe **only if no keyset
+was derived from that seed yet**, so check first, and stop and escalate if any check fails:
+
+1. The fixed mint-admin has **never** run against this Vault since the write: `docker inspect
+   mint-admin --format '{{.Config.Image}}'` is still the previous release, and its log has no
+   `Keyset master seed loaded from Vault` line.
+2. No mint was provisioned or rotated since the write (`GET /admin/lifecycle/mints` and the
+   keysets per mint match the inventory; PROVISIONING = 0).
+
+Then, root token on stdin as in step 1, delete exactly that path and redo step 1 and its STOP POINT:
+
+```sh
+set -eu
+ROOT=$(grep -m1 '^VAULT_HASHI_ROOT_TOKEN=' .env.staging | cut -d= -f2- | tr -d "\"'")
+printf '%s\n' "$ROOT" | docker exec -i hashicorp-vault-server sh -c '
+set -eu
+IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
+vault kv metadata delete cashu/seeds/mint-admin/keyset-master-seed
+vault policy delete mint-admin-seed-create >/dev/null 2>&1 || true
+'
+```
+
+Record the deletion in the ticket and in the #135 evidence (the fingerprint must be re-baselined
+again after the new write).
 
 ## Local gate (before step 2 on staging)
 
