@@ -16,6 +16,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.vault.core.VaultTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,9 +66,39 @@ public class OutboxSchedulerConfiguration {
     @Bean
     public Supplier<KeysetMasterSeed> keysetMasterSeed(
             final ObjectProvider<VaultTemplate> vaultTemplate,
+            final Environment environment,
             @Value("${vault.hashi.engine.mount:cashu}") final String mount,
-            @Value("${admin.keyset-seed.path:mint-admin/keyset-master-seed}") final String path,
-            @Value("${admin.keyset-seed.generate-if-absent:false}") final boolean generateIfAbsent) {
+            @Value("${admin.keyset-seed.path:seeds/mint-admin/keyset-master-seed}") final String path,
+            @Value("${admin.keyset-seed.generate-if-absent:false}") final boolean generateIfAbsent,
+            @Value("${admin.keyset-seed.ephemeral:false}") final boolean ephemeral) {
+        if (ephemeral) {
+            return ephemeralSeed(environment);
+        }
+        return vaultSeed(vaultTemplate, mount, path, generateIfAbsent);
+    }
+
+    /**
+     * A random in-memory seed for Spring contexts under test, which have no Vault.
+     *
+     * <p>Not derivable (it is CSPRNG output) but not persistent either, so keys provisioned with it
+     * cannot be re-derived after a restart. Honoured only with the {@code test} profile active, so a
+     * stray {@code admin.keyset-seed.ephemeral=true} in a real deployment fails startup instead.
+     */
+    static Supplier<KeysetMasterSeed> ephemeralSeed(final Environment environment) {
+        if (!environment.acceptsProfiles(Profiles.of("test"))) {
+            throw new IllegalStateException("admin.keyset-seed.ephemeral=true is only allowed with the "
+                + "'test' Spring profile. A real mint-admin must read its keyset master seed from Vault.");
+        }
+        final byte[] bytes = new byte[KeysetMasterSeed.LENGTH];
+        new java.security.SecureRandom().nextBytes(bytes);
+        final KeysetMasterSeed seed = KeysetMasterSeed.fromHex(java.util.HexFormat.of().formatHex(bytes));
+        log.warn("Using an EPHEMERAL keyset master seed (test profile). Keys will not survive a restart.");
+        return () -> seed;
+    }
+
+    static Supplier<KeysetMasterSeed> vaultSeed(final ObjectProvider<VaultTemplate> vaultTemplate,
+                                                final String mount, final String path,
+                                                final boolean generateIfAbsent) {
         final VaultTemplate template = vaultTemplate.getIfAvailable();
         if (template == null) {
             throw new IllegalStateException("mint-admin provisions keysets but no HashiCorp Vault is "

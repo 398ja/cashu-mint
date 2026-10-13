@@ -29,7 +29,7 @@ import org.springframework.vault.support.Versioned;
 class VaultKeysetSeedSourceTest {
 
     private static final String MOUNT = "cashu";
-    private static final String PATH = "mint-admin/keyset-master-seed";
+    private static final String PATH = "seeds/mint-admin/keyset-master-seed";
 
     private static String randomHex() {
         final byte[] b = new byte[32];
@@ -128,8 +128,27 @@ class VaultKeysetSeedSourceTest {
     void refusesWithoutVault() {
         @SuppressWarnings("unchecked")
         final ObjectProvider<VaultTemplate> none = mock(ObjectProvider.class);
-        assertThatThrownBy(() -> new OutboxSchedulerConfiguration().keysetMasterSeed(none, MOUNT, PATH, true))
+        assertThatThrownBy(() -> new OutboxSchedulerConfiguration()
+                .keysetMasterSeed(none, new org.springframework.mock.env.MockEnvironment(), MOUNT, PATH, true, false))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("vault.hashi.enabled=false");
+    }
+
+    @Test
+    @DisplayName("an ephemeral seed is refused outside the test profile")
+    void ephemeralSeedNeedsTheTestProfile() {
+        @SuppressWarnings("unchecked")
+        final ObjectProvider<VaultTemplate> none = mock(ObjectProvider.class);
+        final org.springframework.mock.env.MockEnvironment prod = new org.springframework.mock.env.MockEnvironment();
+        prod.setActiveProfiles("prod");
+        assertThatThrownBy(() -> new OutboxSchedulerConfiguration()
+                .keysetMasterSeed(none, prod, MOUNT, PATH, false, true))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("only allowed with the 'test'");
+
+        final org.springframework.mock.env.MockEnvironment test = new org.springframework.mock.env.MockEnvironment();
+        test.setActiveProfiles("test");
+        assertThat(new OutboxSchedulerConfiguration()
+                .keysetMasterSeed(none, test, MOUNT, PATH, false, true).get().fingerprint()).hasSize(16);
     }
 }

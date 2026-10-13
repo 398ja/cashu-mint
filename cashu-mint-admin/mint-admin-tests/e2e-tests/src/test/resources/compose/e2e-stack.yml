@@ -211,7 +211,8 @@ services:
       # fixed keyset from JSON instead, and KeyRotationE2EIT cannot see a rotation.
       MINT_PRELOAD_ENABLED: "false"
       # Still read, by VaultPreloadSeeder, which seeds this keyset into the vault at
-      # startup so the suite has a keyset to rotate.
+      # startup so the suite has a keyset to rotate. Generated per run by PreloadFixture
+      # (random mint id, CSPRNG keys); never committed (cashu-mint#545).
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: 7777
       SERVER_ADDRESS: 0.0.0.0
@@ -247,7 +248,7 @@ services:
       phoenixd-mock:
         condition: service_started
     volumes:
-      - ./preload-test-data.json:/app/scripts/preload-test-data.json:ro
+      - ${PRELOAD_JSON:?PreloadFixture supplies the generated preload JSON}:/app/scripts/preload-test-data.json:ro
     healthcheck:
       test: ["CMD-SHELL", "URL=http://localhost:9000/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
       interval: 10s
@@ -282,6 +283,10 @@ services:
       VAULT_HASHI_AUTH_METHOD: token
       VAULT_HASHI_AUTH_TOKEN: e2e-root-token
       VAULT_HASHI_ENGINE_MOUNT: secret
+      # The keyset master seed (cashu-mint#545). This stack's dev-mode Vault starts empty, so
+      # mint-admin creates the seed on first boot (check-and-set 0: it can never replace one).
+      # Disposable stacks only; staging and production create the seed by hand.
+      ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT: "true"
     depends_on:
       cashu-vault-jpa:
         condition: service_healthy

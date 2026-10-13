@@ -73,3 +73,8 @@ cashu-mint-admin/mint-admin-web/node/
 
 # Local production secrets (see .env.example)
 .env
+
+# Preload fixtures hold private keys: generate them, never commit them (cashu-mint#545).
+scripts/preload-test-data.json
+scripts/iou-preload-test-data.json
+scripts/preload-test-data.sql

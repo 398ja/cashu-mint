@@ -74,8 +74,9 @@ docker compose -f docker-compose.dev.yml ps
 # View logs
 docker compose -f docker-compose.dev.yml logs -f cashu-mint-rest-dev
 
-# Seed test data into vault database
-docker compose exec -T cashu-vault-db psql -U postgres -d cashu_vault < scripts/preload-test-data.sql
+# Generate the dev preload keyset (fresh random keys; git-ignored, never commit it, cashu-mint#545).
+# The mint's VaultPreloadSeeder seeds it into the vault at startup.
+./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java -Dmint.preload.mint-id=$(uuidgen)
 
 # Stop services
 docker compose -f docker-compose.dev.yml down
@@ -721,9 +722,9 @@ cd cashu-mint-rest && mvn jib:build
 - Will be resolved in future Mockito releases
 
 **Test data not loading:**
-- Generate preload data: `./mvnw -q -pl cashu-mint-tools -Ppreload-all validate`
+- Generate preload data: `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java -Dmint.preload.mint-id=$(uuidgen)`
 - Verify vault database is up before seeding
-- Check `scripts/preload-test-data.sql` exists
+- Check `scripts/preload-test-data.json` exists (it is generated and git-ignored, cashu-mint#545)
 
 ## Active Technologies
 - PostgreSQL 16. New tables `voucher_quote`, (003-voucher-its)

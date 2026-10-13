@@ -1,8 +1,10 @@
 # Tools Reference
 
-The `cashu-mint-tools` module generates deterministic preload data: a reproducible
-mint id, keyset and set of private keys, derived from a fixed algorithm so the same
-inputs always yield the same keyset id.
+The `cashu-mint-tools` module generates preload data for local stacks: a mint id, a
+keyset and its private keys. The private keys are fresh CSPRNG output on every run
+(cashu-mint#545): they used to be `SHA-256(mintId|unit|amount)`, which let anyone who
+knew the mint id recompute them. Because the output holds private keys, it is
+git-ignored and must never be committed or copied into a deployment.
 
 ## Generating preload JSON
 

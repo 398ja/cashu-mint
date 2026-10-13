@@ -4,6 +4,31 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **mint-admin derives keyset keys from a secret seed held in Vault (#545).** Keys were a plain hash
+  of public identifiers; they are now `HMAC-SHA256(seed, length-prefixed mint|unit|amount|rotation)`,
+  rejection-sampled into `[1, n-1]`. The 32-byte seed is read from Vault KV
+  (`admin.keyset-seed.path`, default `seeds/mint-admin/keyset-master-seed`, field `seed`) at startup.
+  Derivation stays deterministic, so outbox redelivery is still idempotent. NUT-02 v2 keyset ids are
+  unchanged in form (`01` + 32 bytes, computed from the public keys).
+- **Fail closed.** mint-admin refuses to start when the seed is missing, unreadable, malformed or
+  weak (fewer than 16 distinct bytes), or when no HashiCorp Vault is configured. There is no unseeded
+  fallback. `ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT=true` lets a disposable stack create its seed with
+  check-and-set 0 (it can never replace one); it is off by default.
+- **Existing keysets are not changed.** A mint already holding an active keyset keeps it; replacing
+  one is an explicit rotation. See `docs/runbooks/rotate-unseeded-keysets.md`.
+- **Preload fixtures use CSPRNG keys and are no longer committed.** `MintPreloadDataGenerator` draws
+  random keys; the e2e suite generates its preload keyset per run. `scripts/preload-test-data.*` and
+  the e2e fixture are removed and git-ignored.
+
+### Upgrade
+
+- **Create the seed before deploying this release**, or mint-admin will not start:
+  `vault kv put -cas=0 <mount>/seeds/mint-admin/keyset-master-seed seed="$(openssl rand -hex 32)"`.
+- Local dev: generate the preload JSON with
+  `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java`.
+
 ## [0.43.1] - 2026-10-13
 
 ### Fixed

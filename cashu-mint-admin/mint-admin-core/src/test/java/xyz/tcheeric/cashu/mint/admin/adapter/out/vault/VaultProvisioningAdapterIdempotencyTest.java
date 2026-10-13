@@ -91,6 +91,23 @@ class VaultProvisioningAdapterIdempotencyTest {
         assertEquals("ff".repeat(32), one.getPrivateKey());
     }
 
+    /**
+     * cashu-mint#545: a mint provisioned before the fix holds an active keyset whose keys came from the
+     * unseeded derivation. Redelivering its provisioning message after the upgrade derives a DIFFERENT
+     * keyset id (the seed changed the keys), and that must not silently replace or re-key the keyset
+     * the mint is signing with. Existing keysets are replaced only by an explicit rotation.
+     */
+    @Test
+    @DisplayName("An existing pre-fix keyset is left in place, and no key is written over it")
+    void existingUnseededKeysetIsNotSilentlyChanged() {
+        final InMemoryKeyVault keys = new InMemoryKeyVault();
+        final KeySetEntity legacy = keySet("00legacyunseeded0", false);
+
+        adapter(new ArchivedKeySetClient(legacy), keys).provision(MINT_ID, UNIT, DENOMINATIONS, 0);
+
+        assertTrue(keys.writes.isEmpty(), "no key may be written: " + keys.writes.size() + " writes");
+    }
+
     private void seedAll(final InMemoryKeyVault keys, final KeySetEntity keySet, final Integer skip) {
         for (final int amount : DENOMINATIONS) {
             if (skip != null && skip == amount) {

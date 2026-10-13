@@ -118,7 +118,7 @@ public final class MintPreloadDataGenerator {
                 ? Path.of("scripts/preload-test-data.json")
                 : Path.of(outputArg);
         String mintIdArg = args.length > 1 ? args[1] : null;
-        UUID mintId = (mintIdArg == null || mintIdArg.isBlank())
+        UUID mintId = (mintIdArg == null || mintIdArg.isBlank() || "random".equalsIgnoreCase(mintIdArg))
                 ? UUID.randomUUID()
                 : UUID.fromString(mintIdArg);
 

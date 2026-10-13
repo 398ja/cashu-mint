@@ -33,8 +33,12 @@ import xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure.AdminE2EClient;
  */
 class KeyRotationE2EIT extends AbstractAdminE2EIT {
 
-  /** The mint id the stack preloads, and the one these tests rotate. */
-  private static final String SERVED_MINT_ID = "1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae";
+  /**
+   * The mint id the stack preloads, and the one these tests rotate. Random per run: the preload
+   * fixture is generated rather than committed (cashu-mint#545).
+   */
+  private static final String SERVED_MINT_ID =
+      xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure.PreloadFixture.shared().mintId();
 
   /** The unit that mint's keyset serves; the vault may hold others. */
   private static final String UNIT = "sat";

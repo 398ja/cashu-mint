@@ -31,5 +31,9 @@ public class PostgresContainerExtension implements BeforeAllCallback {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.flyway.enabled", () -> true);
+        // No Vault in these contexts, so the keyset master seed is an in-memory CSPRNG value
+        // (cashu-mint#545). mint-admin honours that only under the 'test' profile.
+        registry.add("spring.profiles.active", () -> "test");
+        registry.add("admin.keyset-seed.ephemeral", () -> true);
     }
 }
