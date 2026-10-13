@@ -63,8 +63,8 @@ Run this from the imani-deploy checkout on the Vault host, as one script (`sh st
 pasted into a shell inside the container. The root token is read from `.env.staging` *now* and
 reaches the container only on stdin through `docker exec -i`, the same way `vault-kv.py` does it.
 It never goes in `-e`, argv or shell history. The seed is generated inside the container
-(the `hashicorp/vault` image has **no `openssl`**, so `$(openssl rand -hex 32)` would silently write
-an empty seed), checked to be 64 hex before anything is written, and passed to `vault kv put` on
+(the `hashicorp/vault` image has **no `openssl`**, so generating the seed with openssl inside it
+would silently write an empty seed), checked to be 64 hex before anything is written, and passed to `vault kv put` on
 stdin (argv is visible in `ps`). Nothing is printed except status lines.
 
 ```sh
@@ -78,6 +78,12 @@ printf '%s\n' "$ROOT" | docker exec -i "$VC" sh -c '
 set -eu
 IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
 P=cashu/seeds/mint-admin/keyset-master-seed
+ACC=
+# Any exit after this point (set -e included) revokes the child token and deletes the policy.
+cleanup() {
+  if [ -n "$ACC" ]; then vault token revoke -accessor "$ACC" >/dev/null 2>&1 || true; fi
+  vault policy delete mint-admin-seed-create >/dev/null 2>&1 || true
+}
 # 0. Refuse to start if the path was ever written (any version, even deleted).
 if vault read cashu/metadata/seeds/mint-admin/keyset-master-seed >/dev/null 2>&1; then
   echo "seed path already exists: STOP, see Recovery" >&2; exit 1; fi
@@ -89,14 +95,11 @@ printf "%s\n" "path \"cashu/data/seeds/mint-admin/keyset-master-seed\" { capabil
   | vault policy write mint-admin-seed-create - >/dev/null
 # 3. Short-lived create-only child token; keep its accessor for the revocation check.
 T=$(vault token create -policy=mint-admin-seed-create -ttl=15m -use-limit=5 -field=token)
+trap cleanup EXIT
 ACC=$(printf %s "$T" | vault write -field=accessor auth/token/lookup token=-)
-cleanup() {
-  vault token revoke -accessor "$ACC" >/dev/null 2>&1 || true
-  vault policy delete mint-admin-seed-create >/dev/null 2>&1 || true
-}
 # 4. CAS-0 write under the child token, value on stdin (never argv).
 if ! printf "{\"seed\":\"%s\"}" "$S" | VAULT_TOKEN=$T vault kv put -cas=0 "$P" - >/dev/null; then
-  unset S T; cleanup; echo "write refused: token revoked, policy deleted" >&2; exit 1; fi
+  unset S T; echo "write refused: token revoked, policy deleted" >&2; exit 1; fi
 unset S
 echo "seed written (CAS 0)"
 # 5. Revoke, prove it is gone (accessor lookup must fail), delete the policy.
@@ -109,10 +112,16 @@ echo "policy mint-admin-seed-create deleted"
 ```
 
 The script refuses to start if the seed path was ever written, aborts before any write if
-generation fails, and on a refused write it revokes the child token and deletes the policy itself.
+generation fails, and on **any** exit (a refused write, a failed revocation check, any `set -e`
+stop) the `EXIT` trap revokes the child token by accessor and deletes the policy, so nothing is
+left behind.
 The revocation check uses the token **accessor** (`vault token lookup -accessor`), which succeeds
 before revoke and fails after, so it cannot pass vacuously. Deleting `mint-admin-seed-create` is
 part of the script, not optional.
+
+Before step 1 and again after the fingerprint below, check the Vault container did not restart
+or run out of memory (it runs with a 384m limit): `docker inspect hashicorp-vault-server
+--format 'restarts={{.RestartCount}} oom={{.State.OOMKilled}}'` must stay the same, `oom=false`.
 
 **STOP POINT (required before the re-baseline).** Check with the root token: length and version only,
 never the value.
@@ -127,12 +136,16 @@ printf '%s\n' "$ROOT" | docker exec -i "$VC" sh -c '
 set -eu
 IFS= read -r VAULT_TOKEN; export VAULT_TOKEN VAULT_ADDR=http://127.0.0.1:8200
 V=$(vault kv get -field=seed cashu/seeds/mint-admin/keyset-master-seed)
-echo "seed_length=$(printf %s "$V" | wc -c)"; unset V
-echo "current_version=$(vault read -field=current_version cashu/metadata/seeds/mint-admin/keyset-master-seed)"
+L=$(printf %s "$V" | wc -c | tr -d " "); unset V
+N=$(vault read -field=current_version cashu/metadata/seeds/mint-admin/keyset-master-seed)
+echo "seed_length=$L"; echo "current_version=$N"
+[ "$L" = 64 ] && [ "$N" = 1 ] || { echo "STOP: expected 64 / 1, see Recovery" >&2; exit 1; }
+echo "stop point passed"
 '
 ```
 
-Expected: `seed_length=64` and `current_version=1`. Anything else (`0` means an empty seed, a version
+Expected: `seed_length=64`, `current_version=1`, `stop point passed`, exit 0. Anything else
+(the script then prints `STOP` and exits 1) (`0` means an empty seed, a version
 above 1 means more than one write): **stop**, go to *Recovery: bad seed written* below, and do not
 re-baseline or deploy.
 
@@ -160,7 +173,7 @@ new baseline:
 # imani-deploy checkout at master c6008ee or later, on the staging host. The script reads the
 # token from the env file itself (current VAULT_HASHI_ROOT_TOKEN); nothing is printed but counts
 # and a 16-hex digest prefix.
-python3 scripts/vault-server/vault-kv.py fingerprint --container <hashicorp-vault-server container> \
+python3 scripts/vault-server/vault-kv.py fingerprint --container hashicorp-vault-server \
   --env-file .env.staging --out /dev/shm/fp-after-seed.json
 ```
 
@@ -172,21 +185,54 @@ the #135 runbook) uses the **new** digest.
 
 **Then deploy the fixed mint-admin (staging), with a stop point and a rollback.**
 
+Every command below is self-contained: it uses the full compose command (no alias) and either a
+literal digest or a variable guarded with `${VAR:?}`, which aborts the command with
+`VAR: set ...` instead of running with an empty value. This matters because compose reads
+`image: ${MINT_ADMIN_REST_IMAGE:-...cashu-mint-admin-rest:latest}`: an **empty**
+`MINT_ADMIN_REST_IMAGE` (even an empty shell variable, which overrides `.env.staging`) silently
+deploys `:latest`.
+
+Known rollback target, **0.43.1** (imani-deploy `build-refs.env`, redeploy 18, 2026-10-13):
+
+```
+docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:e70e1a3f4b6d186df6e483b3ffb1553005dd4c82624bedebfdf74deaf132f00c
+```
+
+a. Freeze mint creation: no `POST /admin/lifecycle/mints` until step 2 is checked.
+
+b. PROVISIONING must be 0 (precondition 5), immediately before the deploy.
+
+c. Cross-check that the running mint-admin is that 0.43.1 digest. This prints the **registry
+   digest** (`RepoDigests`), which is pullable. `{{.Image}}` alone is the local image ID and
+   cannot be pulled (`No such image: ...@sha256:<image id>`), so never use it for a rollback.
+
 ```sh
 # imani-deploy checkout on the staging host.
-C="docker compose -f docker-compose.staging.yml --env-file .env.staging"
-# a. Freeze mint creation: no POST /admin/lifecycle/mints until step 2 is checked.
-# b. PROVISIONING must be 0 (precondition 5), immediately before the deploy.
-# c. Record the running image as the rollback target (0.43.1 today):
-docker inspect mint-admin --format '{{.Config.Image}} {{.Image}}'   # write both into the ticket
-PREV_IMAGE=docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:<previous digest from c>
-# d. Deploy the fixed release pinned by digest, recreating only mint-admin
-#    (--no-deps: the mint, Vault and vault-keys-guard are not recreated):
-MINT_ADMIN_REST_IMAGE=docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:<fixed release digest> \
-  $C up -d --no-deps mint-admin
-# e. STOP POINT: within 2 minutes it must log the seed fingerprint and stay up.
+docker image inspect "$(docker inspect -f '{{.Image}}' mint-admin)" --format '{{index .RepoDigests 0}}'
+```
+
+   It must print exactly the 0.43.1 line above. Write it into the ticket. If it prints anything
+   else (or nothing), **stop**: the rollback target is not what `build-refs.env` says; resolve
+   that first and use the printed registry digest as the rollback target in the ticket.
+
+d. Back up `.env.staging`, then deploy the fixed release pinned by digest, recreating only
+   mint-admin (`--no-deps`: the mint, Vault and vault-keys-guard are not recreated). Set
+   `FIXED_IMAGE` in **this** shell from the release ticket
+   (`docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:` plus the 64-hex digest of the fixed
+   release); the guard refuses to run if it is unset or empty.
+
+```sh
+cp -p .env.staging ".env.staging.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+MINT_ADMIN_REST_IMAGE="${FIXED_IMAGE:?set FIXED_IMAGE to the fixed release digest}" \
+  docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps mint-admin
+```
+
+e. STOP POINT: within 2 minutes it must log the seed fingerprint and stay up.
+
+```sh
 docker logs mint-admin 2>&1 | grep 'Keyset master seed loaded from Vault'
 docker inspect mint-admin --format '{{.State.Status}} restarts={{.RestartCount}}'   # running restarts=0
+docker image inspect "$(docker inspect -f '{{.Image}}' mint-admin)" --format '{{index .RepoDigests 0}}'   # = FIXED_IMAGE
 ```
 
 Check: `Keyset master seed loaded from Vault ... (fingerprint <16 hex>)`. Record the fingerprint in
@@ -194,13 +240,35 @@ the ticket; it is a one-way tag, not the seed. If it refuses to start, the messa
 (missing, unreadable, malformed or weak seed, or a 403 from a stale token). Never bypass it
 (no `ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT`, no second seed).
 
-**Rollback of the deploy** (mint-admin fails closed, or any doubt at the stop point):
+f. **Only after the stop point passes**, make the pin durable, so the next routine `up` by anyone
+   does not fall back to `:latest`. Set `MINT_ADMIN_REST_IMAGE=<FIXED_IMAGE value>` in
+   `.env.staging` **on the host and in the operator's local copy**, both backed up first and kept
+   byte-equal for that line (`grep '^MINT_ADMIN_REST_IMAGE=' .env.staging` on each must print the
+   same line). Then record it in imani-deploy `build-refs.env` (its own commit, next to the 0.43.1
+   entry: version, digest, redeploy number, date, "cashu-mint#545 seeded keysets, mint-admin only").
+   Check the durable pin resolves to the same image without recreating anything:
 
 ```sh
-MINT_ADMIN_REST_IMAGE=$PREV_IMAGE $C up -d --no-deps mint-admin
-docker inspect mint-admin --format '{{.Config.Image}} {{.State.Status}}'   # previous digest, running
+docker compose -f docker-compose.staging.yml --env-file .env.staging config --images | grep cashu-mint-admin-rest
 ```
 
+**Rollback of the deploy** (mint-admin fails closed, or any doubt at the stop point). The digest
+is written out; nothing depends on a variable from an earlier shell.
+
+```sh
+# imani-deploy checkout on the staging host.
+MINT_ADMIN_REST_IMAGE=docker.398ja.xyz/staging/cashu-mint-admin-rest@sha256:e70e1a3f4b6d186df6e483b3ffb1553005dd4c82624bedebfdf74deaf132f00c \
+  docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps mint-admin
+docker image inspect "$(docker inspect -f '{{.Image}}' mint-admin)" --format '{{index .RepoDigests 0}}'   # the 0.43.1 digest
+docker inspect mint-admin --format '{{.State.Status}} restarts={{.RestartCount}}'                         # running
+```
+
+(If step c printed a different registry digest and the ticket names it as the target, use that
+literal digest in place of the 0.43.1 one.)
+
+- If step f already ran, put the **0.43.1** digest back as `MINT_ADMIN_REST_IMAGE` in
+  `.env.staging` (host and local, backed up first, kept equal) and record the rollback in
+  `build-refs.env`, so a later `up` does not redeploy the fixed release.
 - The seed stays in Vault. It is harmless: 0.43.1 never reads it, and the #135 baseline that
   includes it stays valid.
 - While rolled back: **no mint provisioning and no rotation** (0.43.1 derives unseeded keys). Keep
@@ -237,16 +305,20 @@ POST /admin/operations/mints/{mintId}/keys/rotate   {"reason": "cashu-mint#545 s
   after it. imani-wallet resumes a pending receive with its stored `keysetId` and outputs
   (`src/lib/receiveSwap.ts:220-231`, for NUT-19 byte-identical replay; also `recoverInterruptedSwaps`,
   line 305ff) and has **no handling for 12002** (imani-wallet 0.22.0, `2cd19fb`: 0 hits), so such a
-  receive fails on every retry. The intent is kept, so no value is lost, but it is stuck until the
-  wallet re-blinds: **follow-up imani-wallet#248** (re-blind on 12002 when no signatures were
-  returned). cashu-wallet `KeysetDirectory.refresh()` has no caller in the library; the
+  receive fails on every retry **within the same app session**. The intent is kept, so no value is
+  lost. It clears at the **next app start**: the start-up sweep (`App.tsx`) runs
+  `recoverInterruptedSwaps`, which uses NUT-09 restore (no keyset-active check, so no 12002); if the
+  mint never signed, restore returns nothing, the intent is dropped and the next receive blinds
+  fresh against the active keyset. If the mint did sign, the byte-identical replay is answered from
+  the NUT-19 cache before validation, also without 12002. **Follow-up imani-wallet#248** (re-blind on
+  12002 when no signatures were returned) removes the need for a restart. Today the only live
+  caller of this path is "swap back to sats" (`swapBackToSats`). cashu-wallet `KeysetDirectory.refresh()` has no caller in the library; the
   consuming app decides when to refresh.
 - **Mitigation.** Rotate at low traffic. Just before, check for in-flight work and let it drain
   (no pending receive intents or swaps on the operator's own wallets; no quotes in progress on
   the mint). After the rotation, a `12002` for an output keyset that was active a minute ago is the
   expected refusal, not an incident. Until #248 ships, a receive caught across the rotation stays
-  pending with its value kept, and completes once the wallet runs a build with #248; record any
-  such case in the ticket.
+  pending with its value kept until the user restarts the app; record any such case in the ticket.
 - **One mint at a time:** rotate one mint, run the per-mint check below, then stop before the next.
   Staging is expected to have a single mint; say so in the ticket if it does.
 
@@ -297,7 +369,8 @@ is the only mitigation.
 - Step 1: a **good** unused seed is harmless and is left in place (also when the deploy is
   rolled back). A **bad** seed (empty, wrong length, more than one version) must be removed
   before anything uses it: see *Recovery: bad seed written*.
-- Deploy: roll back to the recorded previous mint-admin digest (0.43.1), see step 1.
+- Deploy: roll back to the literal 0.43.1 digest (and put it back in `.env.staging` and
+  `build-refs.env` if the pin was made durable), see step 1.
 - Step 2: rotating back would reinstate a forgeable keyset, so do not. If the new keyset
   misbehaves, rotate again (a fresh rotation id yields a fresh seeded keyset). The old keyset
   keeps redeeming throughout.

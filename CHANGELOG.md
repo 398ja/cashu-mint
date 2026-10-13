@@ -24,9 +24,11 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ### Upgrade
 
-- **Create the seed before deploying this release**, or mint-admin will not start:
-  `vault kv put -cas=0 <mount>/seeds/mint-admin/keyset-master-seed seed="$(openssl rand -hex 32)"`,
-  with a short-lived create-only child token (runbook step 1), not the root token.
+- **Create the seed before deploying this release**, or mint-admin will not start: run
+  `docs/runbooks/rotate-unseeded-keysets.md` step 1 as written (seed generated inside the Vault
+  container and passed on stdin, a short-lived create-only child token, CAS 0) and its STOP POINT.
+  Do not use `openssl` in the Vault container (it has none, which writes an empty seed) or put the
+  seed in argv.
 - **Vault access for mint-admin.** mint-admin needs read on that one path. Staging: it uses the
   Vault root token today (no AppRole). Production: `docker-compose.prod.yml` gives
   `cashu-mint-admin-rest` no Vault configuration, so this release **will not start there** until
