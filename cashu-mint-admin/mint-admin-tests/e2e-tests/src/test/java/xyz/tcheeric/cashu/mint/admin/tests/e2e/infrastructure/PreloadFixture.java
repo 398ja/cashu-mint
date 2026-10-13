@@ -30,6 +30,20 @@ public final class PreloadFixture {
     private final Path path;
 
     private PreloadFixture() {
+        // External mode (E2E_USE_EXTERNAL=true): whoever started the stack generated the fixture and
+        // mounted it, so read that one instead of generating a second, unrelated keyset.
+        final String external = System.getenv("E2E_PRELOAD_JSON");
+        if (external != null && !external.isBlank()) {
+            this.path = Path.of(external);
+            try {
+                this.data = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .findAndRegisterModules()
+                    .readValue(path.toFile(), MintPreloadData.class);
+            } catch (final IOException e) {
+                throw new UncheckedIOException("could not read E2E_PRELOAD_JSON", e);
+            }
+            return;
+        }
         final UUID mintId = UUID.randomUUID();
         final MintPreloadDataGenerator generator = new MintPreloadDataGenerator(mintId, "sat", DENOMINATIONS);
         this.data = generator.data();

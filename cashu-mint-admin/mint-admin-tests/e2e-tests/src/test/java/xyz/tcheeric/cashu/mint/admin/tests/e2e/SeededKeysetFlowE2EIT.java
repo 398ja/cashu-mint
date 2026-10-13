@@ -87,7 +87,8 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
 
     // The mint itself must advertise it, with one public key per denomination.
     Awaitility.await()
-        .atMost(Duration.ofSeconds(60))
+        // The mint caches keysets for mint.keyset-cache.ttl-seconds (60 s by default).
+        .atMost(Duration.ofSeconds(120))
         .pollInterval(Duration.ofSeconds(2))
         .untilAsserted(() -> assertThat(mintApiClient().get("/v1/keys/" + keysetId).getStatusCode().value())
             .isEqualTo(200));
