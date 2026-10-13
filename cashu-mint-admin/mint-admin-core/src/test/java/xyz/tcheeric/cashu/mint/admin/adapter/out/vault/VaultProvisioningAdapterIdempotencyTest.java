@@ -46,7 +46,7 @@ class VaultProvisioningAdapterIdempotencyTest {
     private static final List<Integer> DENOMINATIONS = List.of(1, 2, 4, 8);
     private static final Instant ORIGINAL = Instant.parse("2026-05-01T00:00:00Z");
 
-    private final DeterministicKeyGenerator generator = new DeterministicKeyGenerator();
+    private final DeterministicKeyGenerator generator = TestSeeds.generator();
 
     @Test
     @DisplayName("Keys already stored with the same private key are not written again")

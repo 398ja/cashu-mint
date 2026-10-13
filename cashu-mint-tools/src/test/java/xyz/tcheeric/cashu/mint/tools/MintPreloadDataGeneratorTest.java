@@ -71,16 +71,24 @@ class MintPreloadDataGeneratorTest {
     }
 
     /**
-     * Confirms the default generator yields deterministic JSON for identical inputs.
+     * cashu-mint#545: default fixture keys are random, so they are neither reproducible across runs
+     * nor recomputable from the mint id written beside them.
      */
     @Test
-    void defaultGeneratorProducesDeterministicResults() {
+    void defaultGeneratorKeysAreRandomAndNotDerivableFromTheMintId() throws Exception {
         UUID mintId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         List<Integer> denominations = List.of(1, 2, 4, 8);
 
-        MintPreloadDataGenerator first = new MintPreloadDataGenerator(mintId, "sat", denominations);
-        MintPreloadDataGenerator second = new MintPreloadDataGenerator(mintId, "sat", denominations);
+        MintPreloadData first = new MintPreloadDataGenerator(mintId, "sat", denominations).data();
+        MintPreloadData second = new MintPreloadDataGenerator(mintId, "sat", denominations).data();
 
-        assertEquals(first.buildJson(), second.buildJson());
+        assertTrue(!first.keySetId().equals(second.keySetId()), "two generations must not share keys");
+        java.security.MessageDigest sha = java.security.MessageDigest.getInstance("SHA-256");
+        for (MintPreloadData.DenominationKey key : first.keys()) {
+            String unseeded = java.util.HexFormat.of().formatHex(sha.digest(
+                    (mintId + "|sat|" + key.amount()).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            assertTrue(!unseeded.equalsIgnoreCase(key.privateKeyHex()),
+                    "key for " + key.amount() + " must not be SHA-256(mintId|unit|amount) (values withheld)");
+        }
     }
 }

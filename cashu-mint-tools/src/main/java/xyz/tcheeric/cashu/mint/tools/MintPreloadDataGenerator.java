@@ -14,8 +14,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -24,8 +23,8 @@ import java.util.UUID;
 import java.util.function.Function;
 
 /**
- * Generates deterministic mint preload data and emits it as JSON so that other tooling can
- * translate it into SQL fixtures.
+ * Generates mint preload data, with fresh random private keys, and emits it as JSON so that other
+ * tooling can translate it into SQL fixtures. The output holds private keys: never commit it.
  */
 @Slf4j
 public final class MintPreloadDataGenerator {
@@ -62,6 +61,9 @@ public final class MintPreloadDataGenerator {
     public static final List<Integer> IOU_DENOMINATIONS = List.of(0);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final BigInteger SECP256K1_N = new BigInteger(
+            "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", 16);
 
     private final UUID mintId;
     private final String unit;
@@ -158,17 +160,25 @@ public final class MintPreloadDataGenerator {
         if (provided != null && !provided.isBlank()) {
             return provided;
         }
-        return deriveDeterministicPrivateKey(amount);
+        return randomPrivateKey();
     }
 
-    private String deriveDeterministicPrivateKey(Integer amount) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            String material = mintId + "|" + unit + "|" + amount;
-            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm not available", e);
+    /**
+     * A fresh CSPRNG scalar in {@code [1, n-1]} (cashu-mint#545).
+     *
+     * <p>This used to be {@code SHA-256(mintId|unit|amount)}, so anyone holding the mint id of a
+     * preloaded keyset (it is written into the JSON beside the keys) could recompute every private
+     * key and forge that mint's ecash. Fixture keys are now random on every generation; nothing
+     * public determines them.
+     */
+    private static String randomPrivateKey() {
+        byte[] bytes = new byte[32];
+        while (true) {
+            RANDOM.nextBytes(bytes);
+            BigInteger k = new BigInteger(1, bytes);
+            if (k.signum() > 0 && k.compareTo(SECP256K1_N) < 0) {
+                return bytesToHex(bytes);
+            }
         }
     }
 

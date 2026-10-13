@@ -314,6 +314,12 @@ class VaultProvisioningAdapterRotationTest {
     /** Derives keyset ids without deriving real key material. */
     private static final class StubKeyGenerator extends DeterministicKeyGenerator {
 
+        private static final KeysetMasterSeed SEED = TestSeeds.random();
+
+        StubKeyGenerator() {
+            super(() -> SEED);
+        }
+
         @Override
         public String deriveKeySetId(final UUID mintId, final String unit,
                                      final List<Integer> denominations, final String rotationId) {

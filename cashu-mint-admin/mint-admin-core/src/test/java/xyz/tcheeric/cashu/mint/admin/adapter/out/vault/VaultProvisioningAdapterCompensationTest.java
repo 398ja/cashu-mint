@@ -94,7 +94,7 @@ class VaultProvisioningAdapterCompensationTest {
 
     private static VaultProvisioningAdapter adapter(final KeySetVaultClient keySets,
                                                     final RecordingMintVaultClient mints) {
-        return new VaultProvisioningAdapter(new DeterministicKeyGenerator(), () -> keySets,
+        return new VaultProvisioningAdapter(TestSeeds.generator(), () -> keySets,
             () -> {
                 throw new AssertionError("compensation never writes keys");
             },
