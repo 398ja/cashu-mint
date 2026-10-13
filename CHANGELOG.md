@@ -25,7 +25,15 @@ All notable changes to the Cashu Mint will be documented in this file.
 ### Upgrade
 
 - **Create the seed before deploying this release**, or mint-admin will not start:
-  `vault kv put -cas=0 <mount>/seeds/mint-admin/keyset-master-seed seed="$(openssl rand -hex 32)"`.
+  `vault kv put -cas=0 <mount>/seeds/mint-admin/keyset-master-seed seed="$(openssl rand -hex 32)"`,
+  with a short-lived create-only child token (runbook step 1), not the root token.
+- **Vault access for mint-admin.** mint-admin needs read on that one path. Staging: it uses the
+  Vault root token today (no AppRole). Production: `docker-compose.prod.yml` gives
+  `cashu-mint-admin-rest` no Vault configuration, so this release **will not start there** until
+  #550 (dedicated least-privilege policy + AppRole) lands. The `cashu-vault` AppRole's `seeds/*`
+  grant belongs to cashu-vault-jpa and does not cover mint-admin.
+- On staging, writing the seed adds one secret to `cashu/` and moves the imani-deploy#135
+  `vault-kv.py fingerprint` digest: re-baseline it right after (runbook step 1).
 - Local dev: generate the preload JSON with
   `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java`.
 

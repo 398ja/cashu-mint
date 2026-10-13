@@ -107,6 +107,10 @@ public final class DockerComposeE2EStack {
                 // against, so a skew shows up as a build change rather than a
                 // runtime failure against an unexpected schema.
                 imageVersions.put("CASHU_VAULT_VERSION", requiredVersion("cashu-vault.version"));
+                final String vaultJpaImage = System.getenv("CASHU_VAULT_JPA_IMAGE");
+                if (vaultJpaImage != null && !vaultJpaImage.isBlank()) {
+                    imageVersions.put("CASHU_VAULT_JPA_IMAGE", vaultJpaImage);
+                }
                 imageVersions.put("PAYMENT_ADAPTER_VERSION", requiredVersion("payment-adapter.version"));
                 // The preload keyset is generated for this run (random mint id, CSPRNG keys) and
                 // never committed: a committed fixture is a published private key (cashu-mint#545).

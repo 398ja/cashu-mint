@@ -130,7 +130,10 @@ services:
       - cashu
 
   cashu-vault-jpa:
-    image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION}
+    # Pinned to the vault-jpa staging runs (imani-deploy scripts/local-terminal-gate/versions.env,
+    # master c6008ee): the cashu-vault.version tag (0.12.1) rejects 66-char NUT-02 v2 keyset ids
+    # with "KeySet ID exceeds maximum length", so the seeded keysets cannot be stored (cashu-mint#545).
+    image: ${CASHU_VAULT_JPA_IMAGE}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       DATASOURCE_USERNAME: postgres

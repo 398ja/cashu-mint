@@ -80,6 +80,34 @@ class SeededKeyDerivationTest {
     }
 
     @Test
+    @DisplayName("one seed, two mints: every key differs, so one mint's keys say nothing about another's")
+    void differentMintsGetDifferentKeysUnderOneSeed() {
+        final DeterministicKeyGenerator generator = generator(randomSeed());
+        final UUID mintA = UUID.randomUUID();
+        final UUID mintB = UUID.randomUUID();
+        for (final int amount : LADDER) {
+            assertDiffer(generator.derivePrivateKeyHex(mintA, UNIT, amount, null),
+                generator.derivePrivateKeyHex(mintB, UNIT, amount, null), "key for " + amount + " across mints");
+        }
+        assertThat(generator.deriveKeySetId(mintA, UNIT, LADDER, null, 0))
+            .isNotEqualTo(generator.deriveKeySetId(mintB, UNIT, LADDER, null, 0));
+    }
+
+    @Test
+    @DisplayName("each rotation derives a fresh keyset, distinct from the provisioned one and from other rotations")
+    void eachRotationGetsAFreshKeyset() {
+        final DeterministicKeyGenerator generator = generator(randomSeed());
+        assertThat(List.of(
+            generator.deriveKeySetId(MINT_ID, UNIT, LADDER, null, 0),
+            generator.deriveKeySetId(MINT_ID, UNIT, LADDER, "ctl-1", 0),
+            generator.deriveKeySetId(MINT_ID, UNIT, LADDER, "ctl-2", 0))).doesNotHaveDuplicates();
+        for (final int amount : LADDER) {
+            assertDiffer(generator.derivePrivateKeyHex(MINT_ID, UNIT, amount, "ctl-1"),
+                generator.derivePrivateKeyHex(MINT_ID, UNIT, amount, "ctl-2"), "key for " + amount + " across rotations");
+        }
+    }
+
+    @Test
     @DisplayName("a keyset id computed from public values alone does not match the provisioned one")
     void keysetIdIsNotReproducibleWithoutTheSeed() {
         final String provisioned = generator(randomSeed()).deriveKeySetId(MINT_ID, UNIT, LADDER, null, 0);

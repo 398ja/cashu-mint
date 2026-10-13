@@ -93,8 +93,10 @@ public final class VaultKeysetSeedSource implements Supplier<KeysetMasterSeed> {
             log.warn("Generated a NEW keyset master seed at Vault {}/{} because "
                 + "admin.keyset-seed.generate-if-absent=true. This is for disposable stacks only.", mount, path);
         } catch (final RuntimeException e) {
-            // A concurrent writer won the CAS, which is fine: the re-read takes its seed.
-            log.info("Keyset master seed was created concurrently at Vault {}/{}; using it", mount, path);
+            // Usually a concurrent writer won the CAS, and the re-read takes its seed. Any other failure
+            // (403, network) also lands here; the re-read then fails closed. Name the cause, never the value.
+            log.warn("Could not create the keyset master seed at Vault {}/{} ({}); re-reading it, "
+                + "which succeeds only if another writer created it concurrently", mount, path, e.getClass().getName());
         } finally {
             java.util.Arrays.fill(bytes, (byte) 0);
         }
