@@ -44,7 +44,7 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
   private static final String UNIT = "sat";
 
   /** Names the keyset a completed rotation produced, as recorded on the control. */
-  private static final Pattern ROTATION_OUTCOME = Pattern.compile("Keyset (\\w+) replaces");
+  private static final Pattern ROTATION_OUTCOME = Pattern.compile("Keyset (\\w+) (?:at \\d+ ppk )?replaces");
 
   /** Names the first keyset a completed rotation retired. */
   private static final Pattern RETIRED_KEYSET = Pattern.compile("replaces \\[(\\w+)");
@@ -114,7 +114,7 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
     // this test does not own.
     final String outcome = rotationControl(controlId).path("outcome").asText();
     assertThat(outcome).contains(replacement);
-    assertThat(outcome).matches("Keyset \\w+ replaces \\[\\w+.*\\]");
+    assertThat(outcome).matches("Keyset \\w+ (?:at \\d+ ppk )?replaces \\[\\w+.*\\]");
   }
 
   // Verifies a second rotation is a distinct rotation rather than a repeat: each
@@ -131,9 +131,15 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
         .as("each rotation is keyed on its own control id, so neither reuses the other's keyset")
         .isNotEqualTo(afterFirst);
 
-    assertThat(keysetIds())
-        .as("every keyset ever active must remain advertised for redemption")
-        .contains(original, afterFirst, afterSecond);
+    // Awaited: the mint caches keysets for up to 60 s, so a rotation is not advertised at once.
+    Awaitility.await()
+        .atMost(Duration.ofSeconds(90))
+        .pollInterval(Duration.ofSeconds(2))
+        .untilAsserted(
+            () ->
+                assertThat(keysetIds())
+                    .as("every keyset ever active must remain advertised for redemption")
+                    .contains(original, afterFirst, afterSecond));
   }
 
   private void registerServedMint() {
