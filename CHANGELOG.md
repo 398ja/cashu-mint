@@ -4,9 +4,11 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-10-13
+
 ### Fixed
 
-- **mint-admin no longer re-provisions decommissioned mints forever (imani-deploy#135).** A
+- **mint-admin no longer re-provisions decommissioned mints forever (imani-deploy#135, #544).** A
   `CREATED` outbox message whose mint had since been decommissioned was retried every backoff
   cycle (~16 min at the 30 s base): each attempt re-put all of the mint's keys into Vault, then threw
   `Cannot transition from DECOMMISSIONED to PROVISION_FAILED. State is terminal`, so the message was
@@ -18,6 +20,12 @@ All notable changes to the Cashu Mint will be documented in this file.
 - **Re-provisioning an identical key is a no-op.** `VaultProvisioningAdapter` reads each key before
   writing it: a key already stored with the same private key is left alone, so its KV version and
   `created_at` are kept. A key stored with a different private key is refused, never overwritten.
+
+### Changed
+
+- **Release images carry only the version tag (#546).** The jib config for `cashu-mint-rest` and
+  `mint-admin-rest` pushes `<repo>:${project.version}` and no longer moves `:latest`, which staging
+  pulls; redeploys retag `:latest` explicitly by digest.
 
 ## [0.43.0] - 2026-10-10
 
