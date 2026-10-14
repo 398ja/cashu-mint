@@ -4,6 +4,17 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-10-14
+
+### Fixed
+
+- **Melt works on active vault-backed mints (#548, #554).** `MeltTokensTask` loaded the operating
+  mint with `load(mintId, true)`, which `DBMintVault` treats as "archived only", so every melt on a
+  live mint failed with 500 / 90008. Melt now loads the mint through
+  `MintLoadService.loadForRedemption`, the same call swap has always made. Proofs from inactive
+  keysets melt (their input fee applies), change is signed on the active keyset only (12002 for an
+  inactive one), and a vault-archived mint is still refused. Swap is unchanged.
+
 ## [0.44.0] - 2026-10-14
 
 ### Security
