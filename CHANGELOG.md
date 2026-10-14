@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-14
+
 ### Security
 
 - **mint-admin derives keyset keys from a secret seed held in Vault (#545).** Keys were a plain hash
