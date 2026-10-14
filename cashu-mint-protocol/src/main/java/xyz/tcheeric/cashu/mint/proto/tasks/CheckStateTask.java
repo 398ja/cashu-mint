@@ -68,17 +68,40 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
             if (proofEntity == null) {
                 state.setState(NUT07.UNSPENT);
             } else {
-                if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
-                    state.setState(NUT07.PENDING);
-                } else {
-                    state.setState(NUT07.SPENT);
+                String nut07State = toNut07State(proofEntity.getState());
+                state.setState(nut07State);
+                // Only a spend records a witness a wallet needs; a refunded row carries none.
+                if (!NUT07.UNSPENT.equals(nut07State)) {
+                    state.setWitness(proofEntity.getWitness());
                 }
-                state.setWitness(proofEntity.getWitness());
             }
             response.addResponseState(state);
         }
 
         return response;
+    }
+
+    /**
+     * Maps a stored proof state to its NUT-07 answer, one to one.
+     *
+     * <p>A row is not proof of a spend: a failed melt hold or a refused swap hold inserts its input
+     * rows and then refunds them to {@code UNSPENT} (#556). Reporting such a row as {@code SPENT}
+     * tells a wallet to discard coins it still owns, so every stored value is mapped explicitly and
+     * an unknown one fails loudly rather than defaulting to either answer.
+     *
+     * @throws IllegalStateException on a state the vault is not known to store
+     */
+    public static String toNut07State(String storedState) {
+        if (ProofEntity.STATE_UNSPENT.equals(storedState)) {
+            return NUT07.UNSPENT;
+        }
+        if (ProofEntity.STATE_PENDING.equals(storedState)) {
+            return NUT07.PENDING;
+        }
+        if (ProofEntity.STATE_SPENT.equals(storedState)) {
+            return NUT07.SPENT;
+        }
+        throw new IllegalStateException("Unknown stored proof state: " + storedState);
     }
 
     /**

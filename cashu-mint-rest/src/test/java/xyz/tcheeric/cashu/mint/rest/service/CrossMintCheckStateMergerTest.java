@@ -50,6 +50,18 @@ class CrossMintCheckStateMergerTest {
     }
 
     @Test
+    @DisplayName("Refuses to rank an unknown state rather than treating it as UNSPENT")
+    // #556: the merge must be exhaustive, like CheckStateTask; an unknown state fails loudly.
+    void refusesToRankAnUnknownState() {
+        CrossMintCheckStateMerger.ProofState unspent = CrossMintCheckStateMerger.ProofState.unspent();
+        CrossMintCheckStateMerger.ProofState bogus = new CrossMintCheckStateMerger.ProofState("REFUNDED", null);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> unspent.mostAuthoritative(bogus))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(unspent.mostAuthoritative(CrossMintCheckStateMerger.ProofState.unspent()).getState())
+                .isEqualTo(NUT07.UNSPENT);
+    }
+
+    @Test
     @DisplayName("Consults archived mints even when an active mint answered")
     // A proof spent at an archived mint must not read UNSPENT just because an active mint knows another Y.
     void consultsArchivedMintsEvenWhenAnActiveMintAnswered() throws CashuErrorException {

@@ -140,4 +140,44 @@ public class CheckStateTaskTest {
         assertEquals(CashuErrorCode.too_many_inputs, thrown.getErrorCode());
         verifyNoInteractions(proofVaultService, mintVaultService);
     }
+
+    private static PostCheckStateResponse.ResponseState stateFor(String storedState, String witness)
+            throws CashuErrorException {
+        PostCheckStateRequest request = Mockito.mock(PostCheckStateRequest.class);
+        HashToCurveSecret secret = HashToCurveSecret.fromString("02599b9ea0a1ad4143706c2a5a4a568ce442dd4313e1cf1f7f0b58a317c1a355ee");
+        when(request.getHashToCurveSecrets()).thenReturn(List.of(secret));
+        MintProtocolService mintProtocolService = Mockito.mock(MintProtocolService.class);
+        when(mintProtocolService.toMintEntity(any(Mint.class))).thenReturn(Mockito.mock(MintEntity.class));
+        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
+        ProofEntity proofEntity = Mockito.mock(ProofEntity.class);
+        when(proofVaultService.retrieveProof(StorageKey.of(secret))).thenReturn(proofEntity);
+        when(proofEntity.getState()).thenReturn(storedState);
+        when(proofEntity.getWitness()).thenReturn(witness);
+        return new CheckStateTask(UUID.randomUUID(), request, mintProtocolService, proofVaultService,
+                Mockito.mock(MintVaultService.class)).execute().getStates().get(0);
+    }
+
+    // #556: a row a failed melt or refused swap hold refunded to UNSPENT (hold NULL) was never
+    // spent. It must not read as SPENT, or a NUT-07 wallet discards coins it still owns.
+    @Test
+    public void refundedUnspentRowReportsUnspent() throws CashuErrorException {
+        PostCheckStateResponse.ResponseState state = stateFor(ProofEntity.STATE_UNSPENT, null);
+        assertEquals(NUT07.UNSPENT, state.getState());
+        assertNull(state.getWitness());
+    }
+
+    // #556: a spent row still reads SPENT, with the witness that spent it.
+    @Test
+    public void spentRowReportsSpentWithWitness() throws CashuErrorException {
+        PostCheckStateResponse.ResponseState state = stateFor(ProofEntity.STATE_SPENT, "wit");
+        assertEquals(NUT07.SPENT, state.getState());
+        assertEquals("wit", state.getWitness());
+    }
+
+    // #556: an unknown stored state fails loudly instead of defaulting to any answer.
+    @Test
+    public void unknownStoredStateFailsLoudly() {
+        assertThrows(IllegalStateException.class, () -> stateFor("REFUNDED", null));
+        assertThrows(IllegalStateException.class, () -> stateFor(null, null));
+    }
 }
