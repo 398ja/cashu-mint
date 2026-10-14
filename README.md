@@ -75,7 +75,9 @@ curl http://localhost:7777/v1/keysets
 
 The dev stack seeds itself: at startup `VaultPreloadSeeder` writes the keyset in
 `scripts/preload-test-data.json` into the shared vault, with the private keys going
-to HashiCorp. The mint then reads its keysets back from that vault rather than from
+to HashiCorp. That file holds private keys, so it is not committed: generate it once
+with `./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java -Dmint.preload.mint-id=$(uuidgen)`
+(fresh CSPRNG keys each run). The mint then reads its keysets back from that vault rather than from
 the file, so a mint the admin provisions — and every rotation of its keyset — shows
 up at `/v1/keysets`. Set `MINT_PRELOAD_ENABLED=true` to serve the file directly
 instead, which decouples the mint from the admin and is rarely what you want.

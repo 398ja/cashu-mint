@@ -8,10 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -259,7 +259,9 @@ class VaultProvisioningAdapterRotationTest {
     /** Collects the keys a rotation writes, without touching a real vault. */
     private static final class RecordingKeyVault implements KeyVault {
 
-        private final List<KeyEntity> stored = Collections.synchronizedList(new ArrayList<>());
+        // Keys are stored from parallel virtual threads while others read (#544 read-before-write):
+        // a synchronizedList streamed without its lock threw ConcurrentModificationException now and then.
+        private final List<KeyEntity> stored = new CopyOnWriteArrayList<>();
 
         @Override
         public KeyEntity store(final KeyEntity entity) {
@@ -313,6 +315,12 @@ class VaultProvisioningAdapterRotationTest {
 
     /** Derives keyset ids without deriving real key material. */
     private static final class StubKeyGenerator extends DeterministicKeyGenerator {
+
+        private static final KeysetMasterSeed SEED = TestSeeds.random();
+
+        StubKeyGenerator() {
+            super(() -> SEED);
+        }
 
         @Override
         public String deriveKeySetId(final UUID mintId, final String unit,

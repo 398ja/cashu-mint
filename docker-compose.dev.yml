@@ -238,7 +238,9 @@ services:
       # Still read, by VaultPreloadSeeder: it seeds this keyset into the vault at
       # startup so a clean stack has something to serve. Seeding is separate from
       # serving precisely so disabling preload above does not take the dev data
-      # with it.
+      # with it. The file holds private keys, so it is generated locally, never
+      # committed (cashu-mint#545):
+      #   ./mvnw -q -pl cashu-mint-tools -Ppreload-json exec:java -Dmint.preload.mint-id=$(uuidgen)
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
@@ -352,6 +354,10 @@ services:
       VAULT_HASHI_AUTH_METHOD: TOKEN
       VAULT_HASHI_AUTH_TOKEN: dev-root-token
       VAULT_HASHI_ENGINE_MOUNT: cashu
+      # Keyset keys are derived from a secret seed held in Vault (cashu-mint#545). The dev
+      # Vault is disposable, so mint-admin creates the seed on first boot (CAS 0: it can
+      # never replace one). Staging and production create the seed by hand and leave this off.
+      ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT: "true"
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
     depends_on:

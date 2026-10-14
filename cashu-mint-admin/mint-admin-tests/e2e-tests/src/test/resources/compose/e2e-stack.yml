@@ -64,6 +64,23 @@ services:
     networks:
       - cashu
 
+  # The mint's own database (melt saga, swap holds, signatures). The mint refuses to start
+  # without it outside the local and test profiles, as on staging.
+  mint-db:
+    image: postgres:${POSTGRES_VERSION}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cashu_mint
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_mint"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - cashu
+
   payment-adapter-db-init:
     image: postgres:${POSTGRES_VERSION}
     depends_on:
@@ -113,7 +130,10 @@ services:
       - cashu
 
   cashu-vault-jpa:
-    image: docker.398ja.xyz/cashu-vault-jpa:${CASHU_VAULT_VERSION}
+    # Pinned to the vault-jpa staging runs (imani-deploy scripts/local-terminal-gate/versions.env,
+    # master c6008ee): the cashu-vault.version tag (0.12.1) rejects 66-char NUT-02 v2 keyset ids
+    # with "KeySet ID exceeds maximum length", so the seeded keysets cannot be stored (cashu-mint#545).
+    image: ${CASHU_VAULT_JPA_IMAGE}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault
       DATASOURCE_USERNAME: postgres
@@ -132,6 +152,9 @@ services:
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
       CASHU_VAULT_PORT: 3333
+      # cashu-vault-jpa refuses to start without a bearer token. A throwaway value for this
+      # disposable stack; the mint and mint-admin present the same one.
+      VAULT_API_TOKEN: e2e-vault-api-token
       SERVER_PORT: 3333
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
@@ -155,6 +178,9 @@ services:
     environment:
       PHOENIXD_PORT: 9740
       SERVER_ADDRESS: 0.0.0.0
+      # Where the mock reports a settled invoice, as on staging. Its built-in default
+      # (cashu-gateway-rest) exists nowhere, so auto-settled quotes never became PAID.
+      PHOENIXD_WEBHOOK_BASE_URL: http://payment-adapter-rest:8080
     networks:
       cashu:
         aliases:
@@ -187,6 +213,10 @@ services:
       WEBHOOK_URL: http://cashu-mint-rest:7777/webhook/payment
       WEBHOOK_SECRET: e2e-webhook-secret
       WEBHOOK_ENABLED: "true"
+      # The names payment-adapter reads today (staging's), beside the legacy ones above.
+      MINT_WEBHOOK_ENABLED: "true"
+      MINT_WEBHOOK_URL: http://cashu-mint-rest:7777/webhook/payment
+      MINT_WEBHOOK_SECRET: e2e-webhook-secret
     depends_on:
       payment-adapter-db-init:
         condition: service_completed_successfully
@@ -211,7 +241,8 @@ services:
       # fixed keyset from JSON instead, and KeyRotationE2EIT cannot see a rotation.
       MINT_PRELOAD_ENABLED: "false"
       # Still read, by VaultPreloadSeeder, which seeds this keyset into the vault at
-      # startup so the suite has a keyset to rotate.
+      # startup so the suite has a keyset to rotate. Generated per run by PreloadFixture
+      # (random mint id, CSPRNG keys); never committed (cashu-mint#545).
       MINT_PRELOAD_JSON_INPUT: file:/app/scripts/preload-test-data.json
       SERVER_PORT: 7777
       SERVER_ADDRESS: 0.0.0.0
@@ -226,10 +257,19 @@ services:
       VAULT_HASHI_ENGINE_MOUNT: secret
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:3333
       VAULT_BASE_URL: http://cashu-vault-jpa:3333
+      VAULT_API_TOKEN: e2e-vault-api-token
+      CASHU_MINT_JPA_ENABLED: "true"
+      MINT_DB_URL: jdbc:postgresql://mint-db:5432/cashu_mint
+      MINT_DB_USER: postgres
+      MINT_DB_PASSWORD: postgres
+      # Required outside local/test since the mint stopped guessing (throwaway values).
+      CASHU_MINT_VOUCHER_IDENTITY_SALT: e2e-voucher-identity-salt-not-secret
+      CASHU_MINT_CORS_ALLOWED_ORIGINS: http://localhost
+      CASHU_MINT_GRAFANA_RO_PASSWORD: e2e-grafana-ro
       PAYMENT_ADAPTER_BASE_URL: http://payment-adapter-rest:8080
       GATEWAY_API_BASE_URL: http://payment-adapter-rest:8080
-      GATEWAY_BOLT11_SAT: xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
-      GATEWAY_BOLT11: xyz.tcheeric.gateway.phoenixd.PhoenixdGateway
+      # No GATEWAY_BOLT11* override: the default gateway (payment-adapter) is what staging
+      # runs. The old xyz.tcheeric.gateway.phoenixd.PhoenixdGateway is not on the classpath.
       PHOENIXD_BASE_URL: http://phoenixd-mock:9740
       PHOENIXD_API_TOKEN: local-token
       PHOENIXD_LNADDRESS: off
@@ -244,10 +284,12 @@ services:
         condition: service_completed_successfully
       payment-adapter-rest:
         condition: service_healthy
+      mint-db:
+        condition: service_healthy
       phoenixd-mock:
         condition: service_started
     volumes:
-      - ./preload-test-data.json:/app/scripts/preload-test-data.json:ro
+      - ${PRELOAD_JSON:?PreloadFixture supplies the generated preload JSON}:/app/scripts/preload-test-data.json:ro
     healthcheck:
       test: ["CMD-SHELL", "URL=http://localhost:9000/actuator/health/readiness; if command -v curl >/dev/null 2>&1; then curl -fsS \"$$URL\" >/dev/null; elif command -v wget >/dev/null 2>&1; then wget -qO- \"$$URL\" >/dev/null; else echo 'no http client for healthcheck' >&2; exit 1; fi"]
       interval: 10s
@@ -277,11 +319,16 @@ services:
       # The vault client reads VAULT_BASE_URL; without it the admin falls back to
       # localhost and provisioning fails with connection refused.
       VAULT_BASE_URL: "http://cashu-vault-jpa:3333"
+      VAULT_API_TOKEN: e2e-vault-api-token
       VAULT_HASHI_ENABLED: "true"
       VAULT_HASHI_URI: http://vault:8200
       VAULT_HASHI_AUTH_METHOD: token
       VAULT_HASHI_AUTH_TOKEN: e2e-root-token
       VAULT_HASHI_ENGINE_MOUNT: secret
+      # The keyset master seed (cashu-mint#545). This stack's dev-mode Vault starts empty, so
+      # mint-admin creates the seed on first boot (check-and-set 0: it can never replace one).
+      # Disposable stacks only; staging and production create the seed by hand.
+      ADMIN_KEYSET_SEED_GENERATE_IF_ABSENT: "true"
     depends_on:
       cashu-vault-jpa:
         condition: service_healthy

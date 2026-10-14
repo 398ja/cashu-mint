@@ -13,7 +13,7 @@ class DeterministicKeyGeneratorTest {
     private static final String UNIT = "sat";
     private static final List<Integer> DENOMINATIONS = List.of(1, 2, 4, 8, 16, 32, 64, 128);
 
-    private final DeterministicKeyGenerator generator = new DeterministicKeyGenerator();
+    private final DeterministicKeyGenerator generator = TestSeeds.generator();
 
     @Test
     // Ensures the same input always produces the same private key hex.
