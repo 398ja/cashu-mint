@@ -4,6 +4,17 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.44.2] - 2026-10-14
+
+### Fixed
+
+- **NUT-07 and NUT-17 report refunded proofs as UNSPENT (#556, #561).** A proof whose hold was
+  refunded (a failed melt or swap that signed and paid nothing) is stored as UNSPENT, but checkstate
+  and the NUT-17 first message mapped every non-PENDING stored state to SPENT, so wallets wrote off
+  spendable proofs. Stored states now map exhaustively (UNSPENT, PENDING, SPENT); an unknown stored
+  state fails the request instead of being reported as SPENT, and UNSPENT carries no witness. No
+  writer changed.
+
 ## [0.44.1] - 2026-10-14
 
 ### Fixed
