@@ -196,7 +196,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         SecurityLimits.requireWithinInputLimit("swap_task", inputProofs);
         SecurityLimits.requireWithinOutputLimit("swap_task", outputMessages);
 
-        Mint mint = mintLoadService.load(mintId, false);
+        Mint mint = MintLoadService.loadForRedemption(mintLoadService, mintId);
         if (mint == null) {
             log.error("Mint not found");
             throw new CashuErrorException(CashuErrorCode.swap_mint_not_found);

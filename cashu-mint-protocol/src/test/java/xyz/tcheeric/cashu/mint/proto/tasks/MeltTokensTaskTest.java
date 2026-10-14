@@ -88,4 +88,91 @@ import static org.mockito.Mockito.when;
         PostMeltResponse resp = task.execute();
         assertTrue(resp.isPaid());
     }
+
+    // cashu-mint#548: an ACTIVE vault-backed mint melts. Before the fix MeltTokensTask asked for
+    // load(mintId, true), which the vault refuses for every mint whose archived flag is false.
+    @Test
+    void meltsOnAnActiveVaultBackedMint() throws CashuErrorException {
+        assertTrue(meltOn(UUID.randomUUID(), false, false).isPaid());
+    }
+
+    // NUT-02: a proof from a keyset retired by rotation still melts on the live mint.
+    @Test
+    void meltsAProofFromARotatedKeyset() throws CashuErrorException {
+        assertTrue(meltOn(UUID.randomUUID(), false, true).isPaid());
+    }
+
+    // Policy, same as swap: a mint that is itself archived (decommissioned) refuses to melt.
+    @Test
+    void refusesToMeltOnAnArchivedMint() {
+        org.junit.jupiter.api.Assertions.assertThrows(CashuErrorException.class,
+                () -> meltOn(UUID.randomUUID(), true, false));
+    }
+
+    private PostMeltResponse meltOn(UUID mintId, boolean mintArchived, boolean proofKeySetRotated) throws CashuErrorException {
+        Proof<RandomStringSecret> proof = new RSSProof();
+        PrivateKey testPrivateKey = PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5");
+        RandomStringSecret secret = RandomStringSecret.create();
+        proof.setSecret(secret);
+        proof.setAmount(16);
+        proof.setKeySetId("ks1");
+        // Build a valid C = hash_to_curve(secret) * k so BDHKE verification succeeds without static mocks
+        byte[] yBytes = xyz.tcheeric.cashu.crypto.BDHKEUtils.hashToCurve(secret.toString());
+        ECPoint Y = new SecP256K1Curve().decodePoint(yBytes);
+        ECPoint C = Y.multiply(new BigInteger(1, testPrivateKey.getBytes()));
+        proof.setUnblindedSignature(Signature.fromBytes(C.getEncoded(true)));
+
+        PostMeltRequest<RandomStringSecret> request = new PostMeltRequest();
+        request.setQuoteId("qid");
+        request.setInputs(List.of(proof));
+
+        Gateway gateway = Mockito.mock(Gateway.class);
+        when(gateway.getAmount("qid")).thenReturn(16);
+        when(gateway.getFeeReserve("qid")).thenReturn(0);
+        when(gateway.checkPaymentStatus("qid")).thenReturn(true);
+
+        MintProtocolService protocolService = Mockito.mock(MintProtocolService.class);
+        when(protocolService.createGateway(PaymentMethod.MOCK)).thenReturn(gateway);
+        when(protocolService.getPrivateKey(anyString(), anyInt(), any())).thenReturn(testPrivateKey);
+
+        KeySet keySet = KeySet.builder().id("ks1").unit("sat").build();
+        KeySet current = KeySet.builder().id("ks-current").unit("sat").build();
+        // DBMintVault's contract (cashu-mint#548): load(id, archive) throws unless the MINT's own
+        // archived flag equals archive; each list generation holds only that generation's keysets.
+        MintLoadService loadService = Mockito.mock(MintLoadService.class);
+        Mint mint = new Mint(mintId.toString());
+        when(loadService.load(any(UUID.class), Mockito.anyBoolean())).thenAnswer(inv -> {
+            if ((boolean) inv.getArgument(1) != mintArchived) {
+                throw new CashuErrorException("Mint with ID " + mintId + " not found or not archived");
+            }
+            Mint loaded = new Mint(mintId.toString());
+            loaded.addKeySet(proofKeySetRotated ? current : keySet);
+            return loaded;
+        });
+        Mint activeGeneration = new Mint(mintId.toString());
+        activeGeneration.addKeySet(proofKeySetRotated ? current : keySet);
+        Mint retiredGeneration = new Mint(mintId.toString());
+        if (proofKeySetRotated) {
+            retiredGeneration.addKeySet(keySet);
+        }
+        when(loadService.load(false)).thenReturn(List.of(activeGeneration));
+        when(loadService.load(true)).thenReturn(List.of(retiredGeneration));
+        // Input fees are priced from each input's own keyset, resolved through the one
+        // KeySetDirectory the melt shares, which reads the active and archived generations.
+        when(loadService.keySets(false)).thenReturn(List.copyOf(activeGeneration.getKeySets()));
+        when(loadService.keySets(true)).thenReturn(List.copyOf(retiredGeneration.getKeySets()));
+
+        MintVaultService mintVaultService = Mockito.mock(MintVaultService.class);
+        when(mintVaultService.retrieveMint(mint.getId())).thenReturn(new MintEntity());
+        ProofVaultService proofVaultService = ProofVaultServiceMocks.keyingProofsByIssuanceKey();
+        // The melt spends its one input through a hold: the vault claims it, then the commit
+        // spends it.
+        when(proofVaultService.insertOrClaimForHold(any(), anyString(), any(UUID.class))).thenReturn(1);
+        when(proofVaultService.commitSpentForHold(anyString())).thenReturn(1);
+
+        MeltTokensTask<RandomStringSecret> task = new MeltTokensTask<>(mintId, request, PaymentMethod.MOCK,
+                protocolService, loadService, mintVaultService, proofVaultService);
+
+        return task.execute();
+    }
 }

@@ -32,7 +32,8 @@ import xyz.tcheeric.cashu.mint.admin.tests.e2e.infrastructure.AdminE2EClient;
  *
  * <p>A NEW mint is created through the admin API, so its keyset comes from the seeded derivation
  * rather than a fixture. Against that keyset this runs the whole wallet loop through phoenixd-mock:
- * NUT-04 mint (quote, autopaid invoice, blinded outputs, unblind), NUT-03 swap, NUT-05 melt. Then it
+ * NUT-04 mint (quote, autopaid invoice, blinded outputs, unblind), NUT-03 swap, a NUT-02 rotation, and a
+ * NUT-05 melt of the proofs the rotation left on an inactive keyset (cashu-mint#548). Then it
  * replays the forgery the issue describes: sign a proof with {@code SHA-256(mintId|unit|amount)}, the
  * pre-fix key, and present it. The mint must refuse it.
  *
@@ -112,7 +113,7 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
   }
 
   @Test
-  @Order(3)
+  @Order(4)
   void mintsTokensThroughPhoenixdMock() {
     // phoenixd-mock decodes every invoice as 1000 sat, and the melt adds a fee reserve, so the
     // wallet must hold more than that by the melt step. 1100 = 1024 + 64 + 8 + 4.
@@ -141,7 +142,7 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
   }
 
   @Test
-  @Order(4)
+  @Order(5)
   void swapsTheMintedProofs() {
     final int total = wallet.stream().mapToInt(p -> (Integer) p.get("amount")).sum();
     final List<Blinded> outputs = blind(ones(total, 4));
@@ -153,7 +154,7 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
   }
 
   @Test
-  @Order(5)
+  @Order(6)
   void meltQuoteIsCreatedThroughPhoenixdMock() {
     final JsonNode invoice =
         mintApiClient().post("/v1/mint/quote/bolt11", Map.of("amount", 10, "unit", UNIT)).getBody();
@@ -165,13 +166,50 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
   }
 
   /**
-   * Blocked by cashu-mint#548, which predates #545: MeltTokensTask loads the mint with
-   * archive=true, so every active vault-backed mint refuses to melt (90008). Re-enable with that fix.
+   * Rotates the mint (NUT-02), so the wallet's proofs now belong to an inactive keyset. The mint
+   * stays active, and those proofs must go on redeeming: the melt below spends them.
    */
   @Test
-  @Order(6)
-  @org.junit.jupiter.api.Disabled("cashu-mint#548: melt refuses every active vault-backed mint")
-  void meltsThroughPhoenixdMock() {
+  @Order(7)
+  void rotatesTheMintsKeysetWhileTheWalletHoldsProofs() {
+    final AdminE2EClient admin = adminApiClient();
+    final ResponseEntity<JsonNode> started =
+        admin.post(
+            "/admin/operations/mints/" + MINT_ID + "/keys/rotate",
+            Map.of("reason", "cashu-mint#548 melt from a rotated keyset", "durationMinutes", 5));
+    assertThat(started.getStatusCode().value()).isEqualTo(200);
+    final String controlId = started.getBody().path("controlId").asText();
+
+    Awaitility.await()
+        .atMost(Duration.ofSeconds(60))
+        .pollInterval(Duration.ofSeconds(2))
+        .untilAsserted(
+            () -> {
+              String status = null;
+              for (final JsonNode control :
+                  admin.get("/admin/operations/mints/" + MINT_ID + "/controls").getBody().path("items")) {
+                if (controlId.equals(control.path("controlId").asText())) {
+                  status = control.path("status").asText();
+                }
+              }
+              assertThat(status).isEqualTo("KEY_ROTATION_COMPLETED");
+            });
+
+    final JsonNode keysets = admin.get("/admin/lifecycle/mints/" + MINT_ID + "/keysets").getBody();
+    assertThat(firstActiveKeysetId(keysets))
+        .as("the rotation must replace the keyset the wallet's proofs were signed under")
+        .isNotEqualTo(keysetId);
+    assertThat(wallet).allSatisfy(proof -> assertThat(proof.get("id")).isEqualTo(keysetId));
+  }
+
+  /**
+   * cashu-mint#548: melt on an ACTIVE vault-backed mint, spending proofs from the keyset the step
+   * above rotated out. Before the fix MeltTokensTask loaded the mint with archive=true, which the
+   * vault refuses for every mint that is not itself archived (90008).
+   */
+  @Test
+  @Order(8)
+  void meltsProofsFromTheRotatedKeysetThroughPhoenixdMock() {
     final JsonNode invoice =
         mintApiClient().post("/v1/mint/quote/bolt11", Map.of("amount", 10, "unit", UNIT)).getBody();
     final String bolt11 = invoice.path("request").asText();
@@ -190,7 +228,7 @@ class SeededKeysetFlowE2EIT extends AbstractAdminE2EIT {
   }
 
   @Test
-  @Order(7)
+  @Order(3)
   void refusesAProofForgedWithTheUnseededKey() throws Exception {
     // The issue's proof of concept: k = SHA-256(mintId|sat|8), C = k * hash_to_curve(secret).
     final String secret = HexFormat.of().formatHex(randomBytes(32));
