@@ -405,10 +405,13 @@ just after the rotation) before checking that `/v1/keysets` shows the new id `ac
 (66 hex chars, `01` prefix) and the old id `active: false`; a test mint of a few sats and a swap
 of those proofs succeed on the new keyset; an old-keyset proof swaps into the new keyset; outputs
 naming the old keyset are refused `12002`. (On 2026-10-14 the mint advertised the new keyset within
-11 s; the 60 s wait is still the rule.) Melt cannot be checked until cashu-mint#548 is fixed (90008 on
-every active vault-backed mint): baseline it as failing before the rotation and confirm it fails the
-same way after. Do not probe melt on a quiet mint without a silence: its 500s trip
-`CashuMintAvailabilitySLOBreach`.
+11 s; the 60 s wait is still the rule.) Melt: cashu-mint#548 (90008 on every active vault-backed
+mint) is fixed in 0.44.1, so on a mint at 0.44.1 or later a melt round trip on the new keyset, and of
+proofs from the now-inactive one, must succeed. On an older mint it fails the same way before and
+after the rotation (as on 2026-10-14, mint 0.43.0); baseline it first. A melt probe must not pay a
+mint quote it created itself unless it then mints that quote (an unfinished PAID quote trips
+`MintQuotePaidUnissued`), and failing probes on a quiet mint trip `CashuMintAvailabilitySLOBreach`:
+silence both for the window.
 
 **The rotation moves the #135 fingerprint again** (the new keyset adds one key secret per amount:
 24 on staging, 915ba022 -> 0317d774 on 2026-10-14). Re-baseline it right after the check above, record
@@ -499,13 +502,24 @@ melts through phoenixd-mock, and checks a proof forged with the unseeded key is 
 the imani-deploy terminal and licence e2e on your own `GATE_PROJECT`. Tear the gate down after.
 
 The e2e ITs are skipped by default: pass `-Dadmin.skip.e2e-tests=false`, or the build "passes" with
-`Tests are skipped`. Against a stack you started (external mode, staging digests, a copy of the staging
-fixture as `PRELOAD_JSON`):
+`Tests are skipped`. Against a stack you started (external mode), run from
+`cashu-mint-admin/mint-admin-tests/e2e-tests` at the release tag. Start the stack from that module's
+`src/test/resources/compose/e2e-stack.yml` under your own compose project `<p>`, with the staging
+digests of mint-rest, mint-admin, vault-jpa, phoenixd-mock and payment-adapter (on 2026-10-21 the
+stock `phoenixd-mock:latest` + `payment-adapter-rest:0.17.3` pair left every mint quote at 20005), a copy of the staging
+fixture as `PRELOAD_JSON`, and the mint and admin ports published on loopback:
 
 ```
 E2E_USE_EXTERNAL=true ADMIN_URL=http://127.0.0.1:<admin> MINT_URL=http://127.0.0.1:<mint> E2E_PRELOAD_JSON=<fixture> \
-  mvn -B -De2e.image.skip=true -Dadmin.skip.e2e-tests=false -Dadmin.e2e.admin-url=... -Dadmin.e2e.mint-url=... verify
+  mvn -B -De2e.image.skip=true -Dadmin.skip.e2e-tests=false -De2e.compose.project=<p> verify
 ```
 
-Expected: `Tests run: 22, Failures: 0, Errors: 0, Skipped: 2` (the 2 skips are #548). A RED imani-deploy
+`ADMIN_URL` and `MINT_URL` are what external mode reads; the extension then sets
+`admin.e2e.admin-url` and `admin.e2e.mint-url` from them, so those two need not be passed. `-De2e.compose.project`
+is needed from 0.44.2: `CheckStateRefundedProofsE2EIT` execs into `<p>-cashu-vault-db-1` and
+otherwise looks for `cashu-e2e-cashu-vault-db-1`.
+
+Expected: on 0.44.0 (the 2026-10-14 run) `Tests run: 22, Failures: 0, Errors: 0, Skipped: 2` (both
+skips #548); on 0.44.2 `Tests run: 26, Failures: 0, Errors: 0, Skipped: 1` (re-run 2026-10-21; the
+one skip is `MintProtocolE2EIT`'s melt, still marked #548). A RED imani-deploy
 gate is rerun on a fresh stack before any irreversible step, never waved through.
