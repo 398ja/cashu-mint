@@ -14,6 +14,10 @@ own approved operation. Nothing here runs automatically.
 
 1. The fix is released. **Do not deploy it yet:** the new mint-admin refuses to start without a
    seed, so step 1 (create the seed) comes first, then the deploy, then step 2.
+   The staging image lives under `docker.398ja.xyz/staging/cashu-mint-admin-rest`, which `mvn deploy`
+   does not push (it pushes `docker.398ja.xyz/cashu-mint-admin-rest:<v>`): build it with
+   `jib:build -Djib.to.image=docker.398ja.xyz/staging/cashu-mint-admin-rest:<v>` from the tag, version tag
+   only, and use that registry digest as `FIXED_IMAGE`.
 2. **Staging only:** the imani-deploy#135 Vault cutover is complete and its 3-day run-in has
    passed, and the dev Vault is retired. Until then the derivability of the 22 archived
    "memory-only" keys is the migration's safety net, so do not start.
@@ -52,7 +56,10 @@ Record, without printing any key material or private-key-derived value:
   precondition 1, plus every keyset seeded by `VaultPreloadSeeder` from a JSON fixture
   (the staging active keyset comes from `imani-deploy/config/test/preload-test-data.json`);
 - the outstanding balance per keyset, from the mint's ledger (issued minus redeemed), so the
-  retirement deadline can be judged by what is still in circulation.
+  retirement deadline can be judged by what is still in circulation. There is no API or metric for
+  redeemed-per-keyset: the only per-keyset number without a DB query is Prometheus
+  `cashu_mint_issued_amount_total{keyset}` (issued only). Record that, and note that "redeemed" needs a
+  read-only ledger query by someone allowed to run one.
 - the number of mints in `PROVISIONING` (must be 0, precondition 5).
 
 Write the inventory to the change ticket as counts and keyset ids only.
@@ -161,7 +168,11 @@ re-baseline or deploy.
   the export and its passphrase are now custody material for the seed as well as for every key,
   under the same controls. Losing the seed does not lose existing keys (they are stored in
   Vault), but it makes provisioning of an in-flight message non-reproducible. Take a fresh
-  export after the re-baseline below.
+  export after the re-baseline below, with a NEW passphrase passed through `/dev/shm` on the host and
+  shredded there once the custody copy is decrypt-checked:
+  `vault-kv.py export --container hashicorp-vault-server --env-file .env.staging --passphrase-file /dev/shm/<p> --out ~/env-backups/cashu-kv.post-seed-<TS>.json.gpg`
+  (it must report `exported` = the new secret count and the new digest). Take a data backup and an
+  export **again after the rotation** in step 2: the new keyset's private keys exist only from then on.
 
 **Re-baseline the #135 fingerprint (staging) right after the write.** `vault-kv.py fingerprint`
 digests every secret under `cashu/` (a non-key secret counts by the SHA-256 of its whole value),
@@ -307,7 +318,13 @@ For each mint and unit whose SIGNING keyset is unseeded:
   *rotated* keyset. The staging fixture (`imani-deploy/config/test/preload-test-data.json`) has
   mint id `1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae`, unit `sat`, fee 0 and **24** amounts,
   1 to 8388608 (powers of two), which equals `VaultProvisioningOutboxHandler.DEFAULT_DENOMINATIONS`.
-  The literal request (no secrets in it; authenticate with your own admin session):
+  The literal request (no secrets in it; authenticate with your own admin session). Without a
+  browser signer, open the session with a NIP-98 handshake (`POST /api/v1/auth/init` then
+  `/api/v1/auth/complete`, as `NapTestHandshake.sessionCookie` does) signed with the super-admin key
+  (staging: the gitignored `imani-deploy/secrets/staging-operator-key.env`; never print it). Over an SSH
+  tunnel, sign for the audience `MINT_ADMIN_EXTERNAL_BASE_URL` (staging `http://localhost:7778`).
+  Sessions expire (one opened 16 min earlier answered 401 in the 2026-10-14 run): open it right before
+  this step, and treat a 401 as "nothing happened", then re-check before retrying:
 
 ```
 POST /admin/lifecycle/mints
@@ -330,6 +347,8 @@ Content-Type: application/json
   `Mint 1f240ace-0e4e-42dd-bdcb-9ad4ce8eaeae already holds active keyset <id> for unit sat; leaving it in place`
   (`VaultProvisioningAdapter`), with `<id>` the inventoried active keyset id; and `/v1/keysets` on the
   mint is unchanged from the inventory (same ids, same `active` flags). Anything else: **stop**.
+  (`GET /admin/lifecycle/mints/{id}/keysets` now also lists any keyset the mint already held as
+  ARCHIVED, e.g. staging's v0 `00e3372e...`: that is the existing inventory, not a new keyset.)
   **If the registration is wrong** (wrong unit or ladder, or keys were written): do **not** rotate.
   The registration alone has not changed the mint's keys, so nothing is lost by stopping; escalate
   rather than improvising a fix (retiring the record through `POST /admin/lifecycle/mints/{mintId}/retire`
@@ -384,7 +403,23 @@ keyset and the one it replaced; then **wait more than 60 s** (the mint caches ke
 `mint.keyset-cache.ttl-seconds`, default 60, so it may still advertise the old keyset as active
 just after the rotation) before checking that `/v1/keysets` shows the new id `active: true`
 (66 hex chars, `01` prefix) and the old id `active: false`; a test mint of a few sats and a swap
-of those proofs succeed on the new keyset. For staging, run the local gate first (below),
+of those proofs succeed on the new keyset; an old-keyset proof swaps into the new keyset; outputs
+naming the old keyset are refused `12002`. (On 2026-10-14 the mint advertised the new keyset within
+11 s; the 60 s wait is still the rule.) Melt: cashu-mint#548 (90008 on every active vault-backed
+mint) is fixed in 0.44.1, so on a mint at 0.44.1 or later a melt round trip on the new keyset, and of
+proofs from the now-inactive one, must succeed. On an older mint it fails the same way before and
+after the rotation (as on 2026-10-14, mint 0.43.0); baseline it first. A melt probe must not pay a
+mint quote it created itself unless it then mints that quote (an unfinished PAID quote trips
+`MintQuotePaidUnissued`), and failing probes on a quiet mint trip `CashuMintAvailabilitySLOBreach`:
+silence both for the window.
+
+**The rotation moves the #135 fingerprint again** (the new keyset adds one key secret per amount:
+24 on staging, 915ba022 -> 0317d774 on 2026-10-14). Re-baseline it right after the check above, record
+the new digest and counts (`db_keys` grows by the same number), update every pinned
+`--expect-digest` (imani-deploy `scripts/vault-server/fingerprint-baseline.env`), and take a fresh
+data backup and custody export.
+
+For staging, run the local gate first (below),
 including a rehearsal of "register the fixture-seeded mint in mint-admin" with a copy of
 `imani-deploy/config/test/preload-test-data.json`. Registration leaves the existing active keyset
 in place either way; a wrong unit or ladder there decides a different **rotated** keyset.
@@ -465,3 +500,26 @@ again after the new write).
 Run the mint-admin e2e suite (`SeededKeysetFlowE2EIT` provisions a new mint, mints, swaps and
 melts through phoenixd-mock, and checks a proof forged with the unseeded key is refused), then
 the imani-deploy terminal and licence e2e on your own `GATE_PROJECT`. Tear the gate down after.
+
+The e2e ITs are skipped by default: pass `-Dadmin.skip.e2e-tests=false`, or the build "passes" with
+`Tests are skipped`. Against a stack you started (external mode), run from
+`cashu-mint-admin/mint-admin-tests/e2e-tests` at the release tag. Start the stack from that module's
+`src/test/resources/compose/e2e-stack.yml` under your own compose project `<p>`, with the staging
+digests of mint-rest, mint-admin, vault-jpa, phoenixd-mock and payment-adapter (on 2026-10-21 the
+stock `phoenixd-mock:latest` + `payment-adapter-rest:0.17.3` pair left every mint quote at 20005), a copy of the staging
+fixture as `PRELOAD_JSON`, and the mint and admin ports published on loopback:
+
+```
+E2E_USE_EXTERNAL=true ADMIN_URL=http://127.0.0.1:<admin> MINT_URL=http://127.0.0.1:<mint> E2E_PRELOAD_JSON=<fixture> \
+  mvn -B -De2e.image.skip=true -Dadmin.skip.e2e-tests=false -De2e.compose.project=<p> verify
+```
+
+`ADMIN_URL` and `MINT_URL` are what external mode reads; the extension then sets
+`admin.e2e.admin-url` and `admin.e2e.mint-url` from them, so those two need not be passed. `-De2e.compose.project`
+is needed from 0.44.2: `CheckStateRefundedProofsE2EIT` execs into `<p>-cashu-vault-db-1` and
+otherwise looks for `cashu-e2e-cashu-vault-db-1`.
+
+Expected: on 0.44.0 (the 2026-10-14 run) `Tests run: 22, Failures: 0, Errors: 0, Skipped: 2` (both
+skips #548); on 0.44.2 `Tests run: 26, Failures: 0, Errors: 0, Skipped: 1` (re-run 2026-10-21; the
+one skip is `MintProtocolE2EIT`'s melt, still marked #548). A RED imani-deploy
+gate is rerun on a fresh stack before any irreversible step, never waved through.
