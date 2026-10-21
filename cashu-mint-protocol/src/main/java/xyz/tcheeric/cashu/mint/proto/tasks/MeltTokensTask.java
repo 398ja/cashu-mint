@@ -84,7 +84,8 @@ public class MeltTokensTask<T extends Secret> extends InstrumentedTask<PostMeltR
 
     @Override
     protected PostMeltResponse doExecute() throws CashuErrorException {
-        // Same load as swap (cashu-mint#548): the operating mint with both keyset generations.
+        // Same load as swap (cashu-mint#548): the operating mint with its active keyset generation
+        // (archived keysets are resolved through KeySetDirectory).
         // load(mintId, true) refused every active vault-backed mint with 90008.
         Mint mint = MintLoadService.loadForRedemption(mintLoadService, mintId);
         if (mint == null) {
