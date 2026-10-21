@@ -4,6 +4,28 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.44.2] - 2026-10-14
+
+### Fixed
+
+- **NUT-07 and NUT-17 report refunded proofs as UNSPENT (#556, #561).** A proof whose hold was
+  refunded (a failed melt or swap that signed and paid nothing) is stored as UNSPENT, but checkstate
+  and the NUT-17 first message mapped every non-PENDING stored state to SPENT, so wallets wrote off
+  spendable proofs. Stored states now map exhaustively (UNSPENT, PENDING, SPENT); an unknown stored
+  state fails the request instead of being reported as SPENT, and UNSPENT carries no witness. No
+  writer changed.
+
+## [0.44.1] - 2026-10-14
+
+### Fixed
+
+- **Melt works on active vault-backed mints (#548, #554).** `MeltTokensTask` loaded the operating
+  mint with `load(mintId, true)`, which `DBMintVault` treats as "archived only", so every melt on a
+  live mint failed with 500 / 90008. Melt now loads the mint through
+  `MintLoadService.loadForRedemption`, the same call swap has always made. Proofs from inactive
+  keysets melt (their input fee applies), change is signed on the active keyset only (12002 for an
+  inactive one), and a vault-archived mint is still refused. Swap is unchanged.
+
 ## [0.44.0] - 2026-10-14
 
 ### Security

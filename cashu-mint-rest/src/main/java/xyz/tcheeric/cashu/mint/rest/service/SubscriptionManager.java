@@ -356,12 +356,13 @@ public final class SubscriptionManager {
             String witness = null;
             if (proofEntity == null) {
                 state = NUT07.UNSPENT;
-            } else if (ProofEntity.STATE_PENDING.equals(proofEntity.getState())) {
-                state = NUT07.PENDING;
-                witness = proofEntity.getWitness();
             } else {
-                state = NUT07.SPENT;
-                witness = proofEntity.getWitness();
+                // One mapping with NUT-07 (#556): a refunded row is UNSPENT, not SPENT, and an
+                // unknown stored state is an error rather than a guess.
+                state = xyz.tcheeric.cashu.mint.proto.tasks.CheckStateTask.toNut07State(proofEntity.getState());
+                if (!NUT07.UNSPENT.equals(state)) {
+                    witness = proofEntity.getWitness();
+                }
             }
             return new ProofStateResult(y, state, witness, null);
         } catch (Exception e) {

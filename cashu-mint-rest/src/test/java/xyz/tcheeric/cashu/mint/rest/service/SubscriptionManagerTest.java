@@ -321,6 +321,26 @@ class SubscriptionManagerTest {
         assertTrue(json.contains("SPENT"), "Should report SPENT for known proof");
     }
 
+    // #556: a row a failed hold refunded to UNSPENT was never spent. NUT-17's first message must
+    // say UNSPENT, exactly as NUT-07 does, not SPENT. Checked on the exact value: "SPENT" is a
+    // substring of "UNSPENT".
+    @Test
+    void sendCurrentState_ProofState_UnspentWhenRefundedRowInVault() throws Exception {
+        when(session1.isOpen()).thenReturn(true);
+        xyz.tcheeric.cashu.vault.db.model.ProofEntity proofEntity = new xyz.tcheeric.cashu.vault.db.model.ProofEntity();
+        proofEntity.setState(xyz.tcheeric.cashu.vault.db.model.ProofEntity.STATE_UNSPENT);
+        when(proofVaultService.retrieveProof(StorageKey.of(REAL_Y))).thenReturn(proofEntity);
+
+        String subId = subscriptionManager.subscribe(session1, SubscriptionKind.proof_state, List.of(REAL_Y));
+        subscriptionManager.sendCurrentState(session1, subId, SubscriptionKind.proof_state);
+
+        ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session1).sendMessage(messageCaptor.capture());
+
+        String json = messageCaptor.getValue().getPayload();
+        assertTrue(json.contains("\"state\":\"UNSPENT\""), "Should report UNSPENT for a refunded row: " + json);
+    }
+
     // Tests sendCurrentState sends PENDING when proof is pending in vault.
     @Test
     void sendCurrentState_ProofState_PendingWhenPendingInVault() throws Exception {

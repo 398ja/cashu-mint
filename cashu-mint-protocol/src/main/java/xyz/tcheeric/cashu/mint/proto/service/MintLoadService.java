@@ -17,6 +17,29 @@ public interface MintLoadService {
 
     List<Mint> load(boolean archive) throws CashuErrorException;
 
+    /**
+     * The operating mint {@code mintId}, as swap (NUT-03) and melt (NUT-05) both load it, so the two
+     * redemption paths cannot drift apart again (cashu-mint#548).
+     *
+     * <p>Melt used to ask for {@code load(mintId, true)}. In the vault-backed loader that flag
+     * selects a keyset generation AND requires the mint's own archived flag to equal it, so it
+     * refused every ACTIVE mint (90008) and only "worked" for a decommissioned one. Loading with
+     * {@code false} answers a live mint and refuses one that is itself archived, as swap always has.
+     *
+     * <p>The proofs' keysets are NOT resolved from this mint: both tasks resolve them through one
+     * {@code KeySetDirectory} per request, which reads the active and the archived generation, so a
+     * proof from a keyset retired by rotation still redeems (NUT-02). Folding the archived generation
+     * into this load as well would read it twice per request, which the keyset-load budget forbids.
+     *
+     * <p>Static rather than default so a Mockito mock of this interface still runs it.
+     *
+     * @return the mint, or {@code null} when the delegate answers none
+     */
+    static Mint loadForRedemption(@NonNull MintLoadService loader, @NonNull UUID mintId)
+            throws CashuErrorException {
+        return loader.load(mintId, false);
+    }
+
     default List<KeySet> keySets() throws CashuErrorException {
         List<KeySet> result = new java.util.ArrayList<>();
         result.addAll(keySets(false));

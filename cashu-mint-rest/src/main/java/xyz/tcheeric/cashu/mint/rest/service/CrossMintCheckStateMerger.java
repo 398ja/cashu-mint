@@ -222,7 +222,14 @@ public class CrossMintCheckStateMerger {
             if (NUT07.SPENT.equals(state)) {
                 return 2;
             }
-            return NUT07.PENDING.equals(state) ? 1 : 0;
+            if (NUT07.PENDING.equals(state)) {
+                return 1;
+            }
+            if (NUT07.UNSPENT.equals(state)) {
+                return 0;
+            }
+            // #556: an unknown state must not silently rank as either answer.
+            throw new IllegalStateException("Unknown NUT-07 state: " + state);
         }
     }
 }

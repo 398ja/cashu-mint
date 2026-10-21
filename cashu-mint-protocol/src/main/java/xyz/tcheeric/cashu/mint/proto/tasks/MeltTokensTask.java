@@ -5,6 +5,7 @@ import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.nut18.PaymentMethod;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltRequest;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltResponse;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
@@ -83,7 +84,13 @@ public class MeltTokensTask<T extends Secret> extends InstrumentedTask<PostMeltR
 
     @Override
     protected PostMeltResponse doExecute() throws CashuErrorException {
-        Mint mint = mintLoadService.load(mintId, true);
+        // Same load as swap (cashu-mint#548): the operating mint with its active keyset generation
+        // (archived keysets are resolved through KeySetDirectory).
+        // load(mintId, true) refused every active vault-backed mint with 90008.
+        Mint mint = MintLoadService.loadForRedemption(mintLoadService, mintId);
+        if (mint == null) {
+            throw new CashuErrorException(CashuErrorCode.swap_mint_not_found);
+        }
         // Spec 002 — pull the saga components from MintIntegrityContext if
         // they were installed at Spring bootstrap; otherwise MeltTask falls
         // back to its legacy single-transaction path.
