@@ -4,6 +4,12 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-22
+
+Whole-number-ratio vouchers verify at the mint again (cashu-voucher#59, #567). No migration, no
+API or configuration change. Only cashu-mint-rest behaviour changes (mint-admin is a version bump
+only). **Deploy only where the redemption cap is in ENFORCE (staging); not to prod while it is LOG.**
+
 ### Changed
 
 - **`imani-bom` 0.1.122 to 0.2.18: cashu-lib 0.30.7 and cashu-voucher 0.17.1 (cashu-voucher#59).**
