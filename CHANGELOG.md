@@ -4,6 +4,20 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`imani-bom` 0.1.122 to 0.2.18: cashu-lib 0.30.7 and cashu-voucher 0.17.1 (cashu-voucher#59).**
+  `VoucherSpendingCondition` verifies whole-number issuance ratios again. Since cashu-voucher
+  0.15.0 (#48) every MINIMAL, FIXED and merchant-config coupon with a whole ratio other than 1 was
+  refused as `voucher_signature_invalid`, whether its tag read `"50"` or the legacy `"50.0"`. Both
+  spellings now verify against the same signed canonical bytes, and the redemption cap reads them
+  as the same ratio. The resolved dependency tree changes in exactly three places: cashu-lib
+  0.30.6 to 0.30.7, cashu-voucher 0.15.0 to 0.17.1 (0.16.0 and 0.17.0 break only terminal
+  credentials and issuance warrants, which the mint does not call), and nap 0.9.0 to 0.9.1.
+  **Deploy gate (owner decision D10, #540):** whole-ratio coupons verifying again re-opens the
+  relabel attack for them while the redemption cap only logs. Deploy only where the cap is in
+  ENFORCE (staging); not to prod while it is LOG.
+
 ## [0.44.2] - 2026-10-14
 
 ### Fixed
