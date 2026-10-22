@@ -244,8 +244,9 @@ class LinkLockedVoucherRefundPathTest {
      *
      * <p>The wallet and gc must therefore never create a link-locked gift with a {@code locktime}
      * and no {@code refund}, and the gc signing route must refuse to sign one. Nothing refuses it
-     * today: the {@code VoucherIssuanceRules} that {@code P2PKLocktimeUnlockTest} credits with
-     * preventing it does not exist in this repository.
+     * today: the {@code VoucherIssuanceRules} that {@code P2PKLocktimeUnlockTest} once credited
+     * with preventing it does not exist in cashu-mint, cashu-voucher, cashu-lib or
+     * imani-gateway-customer.
      */
     @Test
     void aPastLocktimeVoucherWithNoRefundKeyIsSpendableByAnyone() throws Exception {
