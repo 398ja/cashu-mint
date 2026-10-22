@@ -30,9 +30,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * becomes sufficient, which is the property NAP extension 0001 §3.1 depends on and the reason
  * the kind was created in preference to reusing {@code VOUCHER}.
  *
- * <p>The fix is at issuance rather than here: {@code VoucherIssuanceRules} refuses to mint such
- * a voucher, so the situation cannot be created. Verification keeps NUT-11 semantics unchanged,
+ * <p>The fix belongs at issuance rather than here: whoever signs a {@code P2PK_VOUCHER} must refuse
+ * one with a {@code locktime} and no {@code refund}. Verification keeps NUT-11 semantics unchanged,
  * because the mint must remain able to spend proofs issued by others.
+ *
+ * <p>No such issuance guard exists yet. An earlier version of this comment credited a
+ * {@code VoucherIssuanceRules} class with it; no class of that name exists in cashu-mint,
+ * cashu-voucher, cashu-lib or imani-gateway-customer (checked for imani-wallet#295, whose
+ * link-locked gifts carry a locktime and must always carry a refund key with it).
  */
 class P2PKLocktimeUnlockTest {
 
