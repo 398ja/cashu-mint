@@ -964,6 +964,39 @@
             </build>
         </profile>
 
+        <!-- Review M1 (cashu-voucher#64): a release must not ship on mutable SNAPSHOT
+             artifacts. The release workflow passes -Prelease. Bound to validate so the check
+             runs before anything is built or deployed. Feature branches with temporary
+             SNAPSHOT overrides still build under plain verify. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>enforce-release-dependencies</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireReleaseDeps>
+                                            <message>A release must not depend on SNAPSHOT artifacts. Replace the temporary *-by-reference.version overrides with released versions.</message>
+                                        </requireReleaseDeps>
+                                    </rules>
+                                    <fail>true</fail>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Skip Integration Tests in Regular Build -->
         <profile>
             <id>skip-integration-tests</id>
