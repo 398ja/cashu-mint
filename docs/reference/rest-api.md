@@ -77,6 +77,17 @@ Body (abridged):
 
 Returns a standard NUT-03 swap response or `400` when inputs are missing/empty.
 
+An unlocked voucher input may be carried by reference (cashu-voucher#64): its secret's `data`
+is `SHA256(D)` and the request carries the document `D` in an optional `vouchers` map,
+`{ "<hex SHA256(D)>": "<hex D>" }`, on `POST /v1/swap` and `POST /v1/melt`. The mint checks
+the voucher's terms (expiry, issuer signature and binding, redemption cap) on `D`, while the
+BDHKE signature and the spent-proof state stay keyed on the wire secret. Documents no input
+references are ignored. A missing document or a malformed map is refused with
+`voucher_document_invalid` (90032). The mint stores nothing new. The map is bounded at more than
+2 MiB of hex refused before decoding, 64 KiB per document, 1 MiB decoded in total and no more
+entries than inputs. The NUT-19 fingerprint does
+not cover the map: every referenced document is already pinned by the hash inside its input.
+
 This route is a NUT-19 cached endpoint. Replaying the identical request (same inputs in any
 order, same outputs in the same order) within the advertised `ttl` returns the original
 response instead of `outputs_already_signed`. A request that differs in any input or output is

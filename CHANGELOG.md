@@ -4,6 +4,20 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Vouchers by reference (cashu-voucher#64, phase A).** `POST /v1/swap` and `POST /v1/melt`
+  accept an optional `vouchers` map of documents for unlocked voucher inputs whose secret carries
+  `SHA256(D)` instead of `D`. The map is validated once per request and refused with
+  `voucher_document_invalid` (90032); a by-reference input is checked on its document exactly as
+  an inline voucher is, while BDHKE and the spent-proof key stay on the wire secret. Melt still
+  refuses every voucher (Model B). Inline (v1) vouchers behave exactly as before.
+
+### Changed
+
+- **TEMPORARY: cashu-lib 0.31.0-SNAPSHOT and cashu-voucher 0.18.0-SNAPSHOT** override imani-bom
+  in the root `pom.xml`. They must become released versions before merge.
+
 ## [0.45.0] - 2026-10-22
 
 Whole-number-ratio vouchers verify at the mint again (cashu-voucher#59, #567). No migration, no
