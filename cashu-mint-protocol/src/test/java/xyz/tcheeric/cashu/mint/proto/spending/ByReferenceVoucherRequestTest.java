@@ -117,22 +117,39 @@ class ByReferenceVoucherRequestTest {
         assertThat(context.termsSecret(v1.getSecret())).isSameAs(v1.getSecret());
     }
 
-    // Melt refuses a by-reference voucher (Model B) whether or not its document is carried.
+    // Melt refuses a by-reference voucher (Model B) without its document.
     @Test
-    @DisplayName("melt refuses a v2 voucher, with or without its document")
+    @DisplayName("melt refuses a v2 voucher without its document under Model B")
     void meltRefusesV2() {
         byte[] doc = document(1000);
-        for (Map<String, String> vouchers : List.of(Map.<String, String>of(), ByReferenceRequests.hexMap(doc))) {
-            PostMeltRequest<VoucherSecret> request = new PostMeltRequest<>();
-            request.setQuoteId("q-1");
-            request.setInputs(new ArrayList<>(List.of(reference(doc))));
-            request.setOutputs(new ArrayList<>());
-            request.setVouchers(new TreeMap<>(vouchers));
+        PostMeltRequest<VoucherSecret> request = new PostMeltRequest<>();
+        request.setQuoteId("q-1");
+        request.setInputs(new ArrayList<>(List.of(reference(doc))));
+        request.setOutputs(new ArrayList<>());
+        request.setVouchers(new TreeMap<>());
 
-            assertThatThrownBy(() -> melt(request).execute())
-                    .isInstanceOfSatisfying(CashuErrorException.class, e ->
-                            assertThat(e.getErrorCode()).isIn(CashuErrorCode.voucher_not_accepted));
-        }
+        assertThatThrownBy(() -> melt(request).execute())
+                .isInstanceOfSatisfying(CashuErrorException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(CashuErrorCode.voucher_not_accepted));
+    }
+
+    // L2: a melt carrying any non-empty vouchers map, even a valid one, is refused with 90032
+    // before the documents are hashed or anything is loaded.
+    @Test
+    @DisplayName("melt refuses a valid vouchers map with 90032 before loading anything")
+    void meltRefusesValidMapUpFront() {
+        byte[] doc = document(1000);
+        MintLoadService loads = Mockito.mock(MintLoadService.class);
+        PostMeltRequest<VoucherSecret> request = new PostMeltRequest<>();
+        request.setQuoteId("q-1");
+        request.setInputs(new ArrayList<>(List.of(reference(doc))));
+        request.setOutputs(new ArrayList<>());
+        request.setVouchers(new TreeMap<>(ByReferenceRequests.hexMap(doc)));
+
+        assertThatThrownBy(() -> melt(request, loads).execute())
+                .isInstanceOfSatisfying(CashuErrorException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(CashuErrorCode.voucher_document_invalid));
+        verifyNoInteractions(loads);
     }
 
     // A melt carrying an invalid vouchers map is refused with 90032 before anything is loaded.

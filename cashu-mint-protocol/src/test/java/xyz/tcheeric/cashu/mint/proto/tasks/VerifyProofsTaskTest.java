@@ -1,5 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
@@ -94,7 +96,8 @@ public class VerifyProofsTaskTest {
                 (mock, ctx) -> Mockito.doNothing().when(mock).require(any()));
              MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
                 (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
-            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
+            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
             assertDoesNotThrow(task::execute);
             Mockito.verify(cons.constructed().get(0)).verify(proof);
             Mockito.verify(auth.constructed().get(0)).require(proof);
@@ -116,7 +119,8 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(proof));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
 
-        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
+        VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
         assertThrows(CashuErrorException.class, task::execute);
     }
 
@@ -137,7 +141,8 @@ public class VerifyProofsTaskTest {
 
         try (MockedConstruction<RSSSpendingCondition> cons = Mockito.mockConstruction(RSSSpendingCondition.class,
                 (mock, ctx) -> Mockito.doThrow(new CashuErrorException("fail")).when(mock).verify(any()))) {
-            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service);
+            VerifyProofsTask<RandomStringSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
             assertThrows(CashuErrorException.class, task::execute);
         }
     }
@@ -161,7 +166,8 @@ public class VerifyProofsTaskTest {
                 (mock, ctx) -> Mockito.doNothing().when(mock).require(any()));
              MockedConstruction<P2PKSpendingCondition> cons = Mockito.mockConstruction(P2PKSpendingCondition.class,
                 (mock, ctx) -> Mockito.doNothing().when(mock).verify(any()))) {
-            VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(mint, request, service);
+            VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
             assertDoesNotThrow(task::execute);
             Mockito.verify(cons.constructed().get(0)).verify(proof);
             // A P2PK input must be checked for authenticity too; it used to be the one kind that
@@ -278,7 +284,8 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(voucherProof));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm));
 
-        VerifyProofsTask<VoucherSecret> task = new VerifyProofsTask<>(mint, request, service);
+        VerifyProofsTask<VoucherSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
 
         // ========== STEP 4: Verify voucher swap proceeds (may fail on BDHKE verification,
         // but should NOT fail with "voucher_swap_rejected" error) ==========
@@ -355,7 +362,8 @@ public class VerifyProofsTaskTest {
         Mockito.when(request.getInputs()).thenReturn(List.of(voucherProof1, voucherProof2));
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(bm1, bm2));
 
-        VerifyProofsTask<VoucherSecret> task = new VerifyProofsTask<>(mint, request, service);
+        VerifyProofsTask<VoucherSecret> task = new VerifyProofsTask<>(mint, request, service,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
 
         // Verify voucher swap proceeds (may fail on BDHKE verification due to test setup,
         // but should NOT fail with voucher rejection error)

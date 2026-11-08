@@ -41,7 +41,6 @@ import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultMintVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.vault.db.model.MintEntity;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
@@ -202,11 +201,15 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
         // body validation, such as the deprecated direct controller entry point.
         SecurityLimits.requireWithinInputLimit("melt_task", proofsToMelt);
         SecurityLimits.requireWithinOutputLimit("melt_task", postMeltRequest.getOutputs());
-        // cashu-voucher#64: a malformed `vouchers` map is refused (90032) like on a swap. The
-        // documents are not otherwise used: Model B below refuses every voucher input, and a
-        // by-reference voucher is still kind VOUCHER, so it is refused whether or not its
-        // document came along.
-        VoucherDocumentContext.of(postMeltRequest);
+        // cashu-voucher#64: a melt never needs voucher documents, because Model B below refuses
+        // every voucher input (a by-reference voucher is still kind VOUCHER). So a non-empty
+        // `vouchers` map is refused with 90032 straight away, before any document is decoded or
+        // hashed and before the proof lock.
+        if (postMeltRequest.getVouchers() != null && !postMeltRequest.getVouchers().isEmpty()) {
+            log.warn("melt_refused_voucher_documents count={}", postMeltRequest.getVouchers().size());
+            throw new CashuErrorException(CashuErrorCode.voucher_document_invalid,
+                    "melt does not accept voucher documents");
+        }
         try (ProofLockManager.ProofLock ignored = ProofLockManager.lockSecrets(
                 proofsToMelt.stream().map(proof -> proof.getSecret().toString()).toList())) {
             // This is the keyset snapshot scope boundary for a melt, matching SwapTask. One

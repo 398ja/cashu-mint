@@ -199,6 +199,10 @@ class VoucherByReferenceSwapIT extends VoucherRedemptionFixtures {
 
       assertThat(melt.getStatusCode().is2xxSuccessful()).as("vouchers=%s body=%s", vouchers.size(), melt.getBody())
           .isFalse();
+      if (!vouchers.isEmpty()) {
+        // cashu-voucher#64 L2: a melt carrying documents is refused up front, before hashing.
+        assertRefused(melt, 90032);
+      }
     }
     assertThat(redeemed(voucherId)).isZero();
   }

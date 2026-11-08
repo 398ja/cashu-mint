@@ -22,7 +22,6 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.P2PKVoucherSpendingConditio
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
-import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
@@ -117,7 +116,7 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     private final MintProtocolService mintProtocolService;
     private final VoucherIssuerBinding voucherIssuerBinding;
     /** Null until execution when not supplied: validated from the request then (cashu-voucher#64). */
-    private VoucherDocumentContext voucherDocuments;
+    private final VoucherDocumentContext voucherDocuments;
 
     /**
      * @param mint                 the mint the proofs claim to come from
@@ -137,34 +136,10 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         this.voucherDocuments = voucherDocuments;
     }
 
-    /**
-     * @param mint                 the mint the proofs claim to come from
-     * @param request              the swap whose inputs are verified
-     * @param mintProtocolService  resolves keyset private keys
-     * @param voucherIssuerBinding binds a voucher's verified signer to its issuer (#527)
-     */
-    public VerifyProofsTask(Mint mint, PostSwapRequest<T> request,
-                            MintProtocolService mintProtocolService,
-                            @NonNull VoucherIssuerBinding voucherIssuerBinding) {
-        this.mint = mint;
-        this.request = request;
-        this.mintProtocolService = mintProtocolService;
-        this.voucherIssuerBinding = voucherIssuerBinding;
-    }
-
-    /** Uses the voucher issuer binding the running mint installed. */
-    public VerifyProofsTask(Mint mint, PostSwapRequest<T> request,
-                            MintProtocolService mintProtocolService) {
-        this(mint, request, mintProtocolService, InstalledVoucherIssuerBinding.current());
-    }
-
     @Override
     protected Void doExecute() throws CashuErrorException {
 
         log.info("Verifying proofs....");
-        if (voucherDocuments == null) {
-            voucherDocuments = VoucherDocumentContext.of(request);
-        }
         validateAmounts();
         verifyProofs(request);
 
