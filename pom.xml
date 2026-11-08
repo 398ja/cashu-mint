@@ -998,6 +998,8 @@
         </profile>
 
         <!-- Skip Integration Tests in Regular Build -->
+        <!-- release.yml names this profile explicitly with -P (which disables activeByDefault
+             profiles). A new activeByDefault profile under another id would silently turn off in releases. -->
         <profile>
             <id>skip-integration-tests</id>
             <activation>

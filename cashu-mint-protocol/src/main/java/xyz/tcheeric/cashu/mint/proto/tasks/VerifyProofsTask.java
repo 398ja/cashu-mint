@@ -115,7 +115,7 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     private final PostSwapRequest<T> request;
     private final MintProtocolService mintProtocolService;
     private final VoucherIssuerBinding voucherIssuerBinding;
-    /** Null until execution when not supplied: validated from the request then (cashu-voucher#64). */
+    /** The request's validated voucher documents, always supplied by the caller (cashu-voucher#64). */
     private final VoucherDocumentContext voucherDocuments;
 
     /**
