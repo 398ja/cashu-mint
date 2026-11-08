@@ -54,6 +54,7 @@ The HTTP status code depends on the error category:
 | `validate_fees_error` | Fees validation failed | 400 | The fee calculation for the swap is incorrect. | Ensure the fee deducted matches the expected keyset fee. |
 | `swap_mint_not_found` | Mint not found | 404 | The mint ID inferred from proof keyset IDs does not exist. | Use proofs from a valid, active mint. |
 | `too_many_inputs` | Maximum N inputs allowed | 400 | The number of input proofs exceeds the configured limit. | Reduce the number of input proofs. |
+| `voucher_document_invalid` (90032) | Voucher document map is invalid | 400 | The `vouchers` map on a swap or melt is malformed (key not `hex(SHA256(value))`, empty or oversized value, more than 1 MiB in total, more entries than inputs), or a by-reference voucher input's document is missing. | Send exactly the documents your by-reference inputs reference, keyed by their SHA-256. |
 | `too_many_outputs` | Maximum N outputs allowed | 400 | The number of output blinded messages exceeds the configured limit. | Reduce the number of outputs. |
 | `mixed_proof_types_error` | Cannot mix voucher and regular proofs in same operation | 400 | The inputs contain both voucher and non-voucher proofs. | Submit voucher and regular proofs in separate swap requests. |
 | `voucher_split_amount_mismatch` | Voucher split amounts must match | 400 | Voucher swap output total does not equal the input total. | Ensure output amounts sum exactly to the voucher input amount. |

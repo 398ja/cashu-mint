@@ -1,5 +1,7 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -127,7 +129,8 @@ class SwapRejectsForgedP2PKProofTest {
 
         P2PKProof forged = p2pkProof(attackerLockKey, garbageC);
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(
-                new Mint(), swapOf(forged, output(8)), serviceHolding(mintKey));
+                new Mint(), swapOf(forged, output(8)), serviceHolding(mintKey),
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
 
         assertThrows(CashuErrorException.class, task::execute,
                 "a P2PK proof the mint never signed must not pass swap verification");
@@ -147,7 +150,8 @@ class SwapRejectsForgedP2PKProofTest {
         genuine.setUnblindedSignature(Signature.fromBytes(genuineSignature(secret, mintKey)));
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(
-                new Mint(), swapOf(genuine, output(8)), serviceHolding(mintKey));
+                new Mint(), swapOf(genuine, output(8)), serviceHolding(mintKey),
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
 
         assertDoesNotThrow(task::execute,
                 "a proof this mint really issued must still swap");
@@ -163,7 +167,8 @@ class SwapRejectsForgedP2PKProofTest {
         P2PKProof proof = p2pkProof(lockKey, PrivateKey.derivePublicKey(lockKey).getBytes());
 
         VerifyProofsTask<P2PKSecret> task = new VerifyProofsTask<>(
-                new Mint(), swapOf(proof, output(8)), noKeys);
+                new Mint(), swapOf(proof, output(8)), noKeys,
+                InstalledVoucherIssuerBinding.current(), VoucherDocumentContext.none());
 
         assertThrows(CashuErrorException.class, task::execute);
     }

@@ -58,6 +58,11 @@
              "N.0" spelling. The only other resolved change is nap 0.9.0 to 0.9.1 (additive).
              Never pair cashu-voucher 0.17.1 with cashu-lib 0.30.6. -->
         <imani-bom.version>0.2.18</imani-bom.version>
+        <!-- cashu-voucher#64 phase A (voucher documents by reference). TEMPORARY: these
+             SNAPSHOTs override the BOM's cashu-lib and cashu-voucher and MUST become released
+             versions (ideally via an imani-bom bump, then these entries removed) before merge. -->
+        <cashu-lib-by-reference.version>0.31.0-SNAPSHOT</cashu-lib-by-reference.version>
+        <cashu-voucher-by-reference.version>0.18.0-SNAPSHOT</cashu-voucher-by-reference.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
@@ -195,6 +200,43 @@
                  read first and would quietly reinstate Tomcat 10.1.55, which
                  still carries three CRITICALs including two authentication
                  bypasses. Take Boot from the BOM. -->
+            <!-- TEMPORARY cashu-voucher#64 overrides, declared ahead of imani-bom so they win.
+                 Remove once imani-bom carries released versions. -->
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-common</artifactId>
+                <version>${cashu-lib-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-crypto</artifactId>
+                <version>${cashu-lib-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-lib-entities</artifactId>
+                <version>${cashu-lib-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-voucher-domain</artifactId>
+                <version>${cashu-voucher-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-voucher-app</artifactId>
+                <version>${cashu-voucher-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-voucher-nostr</artifactId>
+                <version>${cashu-voucher-by-reference.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>xyz.tcheeric</groupId>
+                <artifactId>cashu-voucher-pass</artifactId>
+                <version>${cashu-voucher-by-reference.version}</version>
+            </dependency>
             <dependency>
                 <groupId>xyz.tcheeric</groupId>
                 <artifactId>imani-bom</artifactId>
@@ -922,7 +964,42 @@
             </build>
         </profile>
 
+        <!-- Review M1 (cashu-voucher#64): a release must not ship on mutable SNAPSHOT
+             artifacts. The release workflow passes -Prelease. Bound to validate so the check
+             runs before anything is built or deployed. Feature branches with temporary
+             SNAPSHOT overrides still build under plain verify. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>enforce-release-dependencies</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireReleaseDeps>
+                                            <message>A release must not depend on SNAPSHOT artifacts. Replace the temporary *-by-reference.version overrides with released versions.</message>
+                                        </requireReleaseDeps>
+                                    </rules>
+                                    <fail>true</fail>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Skip Integration Tests in Regular Build -->
+        <!-- release.yml names this profile explicitly with -P (which disables activeByDefault
+             profiles). A new activeByDefault profile under another id would silently turn off in releases. -->
         <profile>
             <id>skip-integration-tests</id>
             <activation>

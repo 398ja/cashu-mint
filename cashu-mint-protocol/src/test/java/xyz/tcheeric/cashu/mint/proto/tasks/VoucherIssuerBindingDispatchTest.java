@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -174,7 +175,8 @@ class VoucherIssuerBindingDispatchTest {
         Mockito.when(request.getBlindedMessages()).thenReturn(List.of(output()));
         VoucherIssuerBinding binding = new VoucherIssuerBinding(mode,
                 new VoucherSignerTrustList(Map.of(), List.of(xOnly(GATEWAY))));
-        new VerifyProofsTask<>(new Mint(UUID.randomUUID().toString()), request, mintProtocolService, binding)
+        new VerifyProofsTask<>(new Mint(UUID.randomUUID().toString()), request, mintProtocolService, binding,
+                VoucherDocumentContext.none())
                 .execute();
     }
 

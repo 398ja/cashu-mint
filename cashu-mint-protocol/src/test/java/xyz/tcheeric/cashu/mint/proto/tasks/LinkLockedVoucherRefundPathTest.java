@@ -1,5 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.tasks;
 
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -377,7 +378,7 @@ class LinkLockedVoucherRefundPathTest {
         Mockito.when(request.getInputs()).thenReturn(inputs);
         Mockito.when(request.getBlindedMessages()).thenReturn(outputs);
         new VerifyProofsTask<>(new Mint(UUID.randomUUID().toString()), request, mintProtocolService,
-                enforcingBinding()).execute();
+                enforcingBinding(), VoucherDocumentContext.none()).execute();
     }
 
     /**

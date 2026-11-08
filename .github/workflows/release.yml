@@ -70,14 +70,16 @@ jobs:
             exit 1
           fi
 
-      # No -P release: that profile does not exist, so it silently did nothing.
+      # -P release only adds the requireReleaseDeps guard (no SNAPSHOT dependencies), which runs
+      # in validate, before anything is built or deployed. skip-integration-tests is named too
+      # because explicitly activating any profile switches off an activeByDefault one.
       # No GPG: the key was never configured here, Reposilite does not require
       # signatures, and -Dgpg.skip=true matches how releases were done by hand.
       - name: Build and deploy to Reposilite
         env:
           MVN_USER: ${{ secrets.MVN_USER }}
           MVN_PASSWORD: ${{ secrets.MVN_PASSWORD }}
-        run: ./mvnw -B clean deploy -Dgpg.skip=true
+        run: ./mvnw -B clean deploy -Prelease,skip-integration-tests -Dgpg.skip=true
 
       # A green tag push must imply the artifacts actually shipped.
       # The checker walks the root pom's <modules>, so it needs no Maven plugin
