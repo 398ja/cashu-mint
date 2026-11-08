@@ -150,11 +150,23 @@ public final class VoucherRedemptionCap {
     public <T extends Secret> Optional<VoucherTerms> match(@NonNull Authorised authorised,
                                                            @NonNull List<Proof<T>> inputs)
             throws CashuErrorException {
+        return match(authorised, inputs, VoucherDocumentContext.none());
+    }
+
+    /**
+     * As {@link #match(Authorised, List)}, reading a by-reference input's terms from its document
+     * in {@code documents} (cashu-voucher#64). A by-reference input whose document is missing is
+     * refused with {@code voucher_document_invalid}, whatever the cap's mode.
+     */
+    public <T extends Secret> Optional<VoucherTerms> match(@NonNull Authorised authorised,
+                                                           @NonNull List<Proof<T>> inputs,
+                                                           @NonNull VoucherDocumentContext documents)
+            throws CashuErrorException {
         VoucherRedemptionDeclaration declaration = authorised.declaration();
         VoucherTerms terms = null;
         long voucherSats = 0;
         for (Proof<T> input : inputs) {
-            Optional<VoucherTerms> inputTerms = VoucherTerms.of(input.getSecret());
+            Optional<VoucherTerms> inputTerms = VoucherTerms.of(documents.termsSecret(input.getSecret()));
             if (inputTerms.isEmpty()) {
                 return mismatch(declaration, "an input is not a readable voucher");
             }

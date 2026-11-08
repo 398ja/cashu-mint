@@ -17,6 +17,7 @@ import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
@@ -57,15 +58,31 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     private final MintProtocolService mintProtocolService;
     private final ProofVaultService proofVaultService;
     private final VoucherIssuerBinding issuerBinding;
+    private final VoucherDocumentContext documents;
 
+    /**
+     * @param documents the voucher documents the request carried (cashu-voucher#64); a
+     *                  by-reference input is checked against its document, and refused when the
+     *                  request does not carry it
+     */
     public VoucherSpendingCondition(@NonNull Mint mint,
                                     @NonNull MintProtocolService mintProtocolService,
                                     @NonNull ProofVaultService proofVaultService,
-                                    @NonNull VoucherIssuerBinding issuerBinding) {
+                                    @NonNull VoucherIssuerBinding issuerBinding,
+                                    @NonNull VoucherDocumentContext documents) {
         this.mint = mint;
         this.mintProtocolService = mintProtocolService;
         this.proofVaultService = proofVaultService;
         this.issuerBinding = issuerBinding;
+        this.documents = documents;
+    }
+
+    /** A condition for a request that carries no voucher documents. */
+    public VoucherSpendingCondition(@NonNull Mint mint,
+                                    @NonNull MintProtocolService mintProtocolService,
+                                    @NonNull ProofVaultService proofVaultService,
+                                    @NonNull VoucherIssuerBinding issuerBinding) {
+        this(mint, mintProtocolService, proofVaultService, issuerBinding, VoucherDocumentContext.none());
     }
 
     public VoucherSpendingCondition(@NonNull Mint mint,
@@ -83,7 +100,14 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
     public void verify(@NonNull Proof<T> proof) throws CashuErrorException {
         log.debug("Verifying voucher proof: amount={}", proof.getAmount());
 
+        // Two secrets, and which one each check uses is the whole point (cashu-voucher#64).
+        // `secret` is the wire secret: the mint signed it (BDHKE below) and it is what gets
+        // spent (ProofSecret / Y below). `termsSource` is where the voucher's terms are read
+        // from: the same object for an inline voucher, or the document a by-reference voucher
+        // names. Checking BDHKE or Y on the document would accept a proof the mint never signed
+        // or let one proof be spent once per spelling.
         Secret secret = proof.getSecret();
+        Secret termsSource = documents.termsSecret(secret);
 
         // Read through VoucherMetadata rather than casting to VoucherSecret. Both voucher
         // kinds reach this condition -- VOUCHER directly, P2PK_VOUCHER via
@@ -91,8 +115,8 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
         // cast yields null and every check below it degrades to a no-op. Guarding each check
         // on "did the cast work" is what made that silent: an expired P2PK_VOUCHER verified.
         boolean carriesVoucherMetadata =
-                secret instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
-        WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) secret : null;
+                termsSource instanceof WellKnownSecret wks && VoucherMetadata.isVoucherCarrying(wks);
+        WellKnownSecret voucherSecret = carriesVoucherMetadata ? (WellKnownSecret) termsSource : null;
 
         // Where an unlocked voucher keeps its terms, and why the test is on TAGS.
         //

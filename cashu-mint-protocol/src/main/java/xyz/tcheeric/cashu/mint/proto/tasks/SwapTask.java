@@ -30,6 +30,7 @@ import xyz.tcheeric.cashu.mint.proto.util.ProofLockManager;
 import xyz.tcheeric.cashu.mint.proto.util.SecurityLimits;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherRedemptionCap;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherRedemptionCap;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherTerms;
 
@@ -196,6 +197,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         SecurityLimits.requireWithinInputLimit("swap_task", inputProofs);
         SecurityLimits.requireWithinOutputLimit("swap_task", outputMessages);
 
+        // cashu-voucher#64: the request's voucher documents are validated once, here, before any
+        // other voucher work, and refused with voucher_document_invalid (90032). Each document is
+        // hashed exactly once; everything below looks them up by key.
+        VoucherDocumentContext voucherDocuments = VoucherDocumentContext.of(request);
+
         Mint mint = MintLoadService.loadForRedemption(mintLoadService, mintId);
         if (mint == null) {
             log.error("Mint not found");
@@ -231,7 +237,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
             }
 
             try {
-                PostSwapResponse response = validateAndSign(mint, proofsToSwap, hold, replay);
+                PostSwapResponse response = validateAndSign(mint, proofsToSwap, hold, replay, voucherDocuments);
                 replay.remember(response);
                 return response;
             } catch (CashuErrorException refusal) {
@@ -273,7 +279,7 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
      * Validates the swap and, only if every rule passes, signs its outputs against held inputs.
      */
     private PostSwapResponse validateAndSign(Mint mint, List<Proof<T>> proofsToSwap, SwapProofHold hold,
-                                             SwapResponseReplay replay)
+                                             SwapResponseReplay replay, VoucherDocumentContext voucherDocuments)
             throws CashuErrorException {
         MintProtocolService service = MintProtocolServiceFactory.getInstance();
 
@@ -306,13 +312,14 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         VoucherRedemptionCap cap = redemptionCap != null ? redemptionCap : InstalledVoucherRedemptionCap.current();
         Optional<VoucherRedemptionCap.Authorised> declared = cap.authorise(rawRedemption, redeemerToken);
         Optional<VoucherTerms> redeemed = declared.isPresent()
-                ? cap.match(declared.get(), proofsToSwap)
+                ? cap.match(declared.get(), proofsToSwap, voucherDocuments)
                 : Optional.empty();
 
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
-        new VerifyProofsTask<>(mint, request, service, InstalledVoucherIssuerBinding.current()).execute();
+        new VerifyProofsTask<>(mint, request, service, InstalledVoucherIssuerBinding.current(),
+                voucherDocuments).execute();
 
         // NUT-02: the balance equation is checked before signing, so a rejected swap
         // leaves no blind signature behind for NUT-09 restore to hand back. Voucher

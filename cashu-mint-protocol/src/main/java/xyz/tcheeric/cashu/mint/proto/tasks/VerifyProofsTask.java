@@ -23,6 +23,7 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.SpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
+import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 
 import java.util.List;
@@ -115,6 +116,26 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     private final PostSwapRequest<T> request;
     private final MintProtocolService mintProtocolService;
     private final VoucherIssuerBinding voucherIssuerBinding;
+    /** Null until execution when not supplied: validated from the request then (cashu-voucher#64). */
+    private VoucherDocumentContext voucherDocuments;
+
+    /**
+     * @param mint                 the mint the proofs claim to come from
+     * @param request              the swap whose inputs are verified
+     * @param mintProtocolService  resolves keyset private keys
+     * @param voucherIssuerBinding binds a voucher's verified signer to its issuer (#527)
+     * @param voucherDocuments     the request's validated voucher documents (cashu-voucher#64)
+     */
+    public VerifyProofsTask(Mint mint, PostSwapRequest<T> request,
+                            MintProtocolService mintProtocolService,
+                            @NonNull VoucherIssuerBinding voucherIssuerBinding,
+                            @NonNull VoucherDocumentContext voucherDocuments) {
+        this.mint = mint;
+        this.request = request;
+        this.mintProtocolService = mintProtocolService;
+        this.voucherIssuerBinding = voucherIssuerBinding;
+        this.voucherDocuments = voucherDocuments;
+    }
 
     /**
      * @param mint                 the mint the proofs claim to come from
@@ -141,6 +162,9 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
     protected Void doExecute() throws CashuErrorException {
 
         log.info("Verifying proofs....");
+        if (voucherDocuments == null) {
+            voucherDocuments = VoucherDocumentContext.of(request);
+        }
         validateAmounts();
         verifyProofs(request);
 
@@ -223,7 +247,7 @@ public class VerifyProofsTask<T extends Secret> extends InstrumentedTask<Void> {
         if (VoucherSecretDetector.isUnlockedVoucherSecret(secret)) {
             log.debug("Voucher secret detected in swap - using VoucherSpendingCondition with standard keyset keys");
             return (SpendingCondition<T>) new VoucherSpendingCondition<>(mint, mintProtocolService,
-                    new DefaultProofVaultService(), voucherIssuerBinding);
+                    new DefaultProofVaultService(), voucherIssuerBinding, voucherDocuments);
         }
         if (secret instanceof P2PKSecret) {
             return (SpendingCondition<T>) new P2PKSpendingCondition(transaction);
