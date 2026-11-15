@@ -12,17 +12,13 @@ import xyz.tcheeric.cashu.mint.rest.service.MintVoucherService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
-import xyz.tcheeric.cashu.mint.proto.voucher.VoucherSignerTrustList;
-import xyz.tcheeric.cashu.voucher.app.MerchantVerificationService;
 import xyz.tcheeric.cashu.voucher.app.VoucherBackupService;
 import xyz.tcheeric.cashu.voucher.app.VoucherIssuanceService;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherBackupPort;
-import xyz.tcheeric.cashu.voucher.app.ports.IssuerKeyRegistry;
 import xyz.tcheeric.cashu.voucher.app.ports.VoucherLedgerPort;
 import xyz.tcheeric.cashu.voucher.nostr.NostrClientAdapter;
 import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherBackupRepository;
-import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherLedgerRepository;
 
 /**
  * Spring configuration for voucher functionality.
@@ -41,8 +37,7 @@ import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherLedgerRepository;
  * <h3>Bean Dependencies</h3>
  * <pre>
  * VoucherService
- *   ├── VoucherLedgerPort (NostrVoucherLedgerRepository)
- *   │     └── NostrClientAdapter
+ *   ├── VoucherLedgerPort (NoOpVoucherLedgerPort: no v1 ledger, imani-gateway-customer#310)
  *   └── VoucherBackupPort (NostrVoucherBackupRepository)
  *         └── NostrClientAdapter
  *
@@ -51,9 +46,6 @@ import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherLedgerRepository;
  *
  * VoucherBackupService
  *   └── VoucherBackupPort
- *
- * MerchantVerificationService
- *   └── VoucherLedgerPort
  * </pre>
  *
  * <h3>Required Configuration</h3>
@@ -66,7 +58,6 @@ import xyz.tcheeric.cashu.voucher.nostr.NostrVoucherLedgerRepository;
  *
  * @see VoucherProperties
  * @see VoucherService
- * @see NostrVoucherLedgerRepository
  * @see NostrVoucherBackupRepository
  */
 @Slf4j
@@ -164,94 +155,23 @@ public class VoucherConfiguration {
     }
 
     /**
-     * Creates the voucher ledger repository (NIP-33 public ledger).
+     * The ledger port {@code VoucherService} requires. A no-op: the mint publishes and reads no
+     * v1 voucher-ledger events (imani-gateway-customer#310).
      *
-     * <p>Built with the configured publish and query timeouts. The shorter constructors hardcode
-     * 5000ms for both, which silently discarded {@code voucher.nostr.publishTimeoutMs} and
-     * {@code queryTimeoutMs} (cashu-mint#407).
-     *
-     * @param nostrClient Nostr client adapter
-     * @return VoucherLedgerPort implementation
+     * @return a VoucherLedgerPort that does nothing
      */
     @Bean
-    public VoucherLedgerPort voucherLedgerPort(NostrClientAdapter nostrClient) {
-        String issuerPublicKeyHex = voucherProperties.getMint().getIssuerPublicKey();
-        String issuerPrivateKeyHex = voucherProperties.getMint().getIssuerPrivateKey();
-
-        if (issuerPublicKeyHex == null || issuerPublicKeyHex.isBlank()) {
-            throw new IllegalStateException(
-                    "voucher.mint.issuerPublicKey must be configured when voucher.enabled=true");
-        }
-
-        // The ledger has to SIGN, not merely name who signed.
-        //
-        // NostrVoucherLedgerRepository refuses to publish without an identity —
-        // correctly, since an unsigned ledger event is not evidence of anything
-        // and relays reject it. Built with the public key alone it threw
-        // "This repository has no signing identity" on every publish, and
-        // because that happens on the publish path rather than at startup, the
-        // mint booted clean and only failed once a voucher existed. The same
-        // defect was live in the customer gateway, where it cost 12 publishes
-        // in a single boot; here it is currently masked because voucher.enabled
-        // is off in the test stack.
-        //
-        // The private key is already required below for VoucherService, so
-        // nothing new needs configuring.
-        if (issuerPrivateKeyHex == null || issuerPrivateKeyHex.isBlank()) {
-            throw new IllegalStateException(
-                    "voucher.mint.issuerPrivateKey must be configured when voucher.enabled=true: "
-                            + "the voucher ledger cannot publish without an identity to sign with");
-        }
-
-        // Convert hex string to PublicKey
-        PublicKey issuerPublicKey;
-        try {
-            issuerPublicKey = new PublicKey(issuerPublicKeyHex);
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Invalid voucher.mint.issuerPublicKey format (must be a hex-encoded BIP-340 x-only "
-                            + "secp256k1 public key, 64 hex characters): "
-                            + issuerPublicKeyHex, e);
-        }
-
-        Identity issuerIdentity;
-        try {
-            issuerIdentity = Identity.create(new nostr.base.PrivateKey(issuerPrivateKeyHex));
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Invalid voucher.mint.issuerPrivateKey format (must be a hex-encoded "
-                            + "secp256k1 private key, 64 hex characters)", e);
-        }
-
-        // Guard the pair rather than trusting it: a private key that does not
-        // derive the configured public key would publish ledger events signed by
-        // a author nobody is checking against, which is worse than not
-        // publishing because it looks like it worked.
-        if (!issuerIdentity.getPublicKey().toString().equalsIgnoreCase(issuerPublicKey.toString())) {
-            throw new IllegalStateException(
-                    "voucher.mint.issuerPrivateKey does not derive voucher.mint.issuerPublicKey. "
-                            + "The ledger would publish as a different author than the one vouchers "
-                            + "name as issuer.");
-        }
-
-        NostrVoucherLedgerRepository repository = new NostrVoucherLedgerRepository(
-                nostrClient,
-                issuerIdentity.getPublicKey(),
-                issuerIdentity,
-                publishTimeoutMs(),
-                queryTimeoutMs()
-        );
-
-        log.info("VoucherLedgerPort (Nostr) initialized with issuer public key: {}...",
-                issuerPublicKeyHex.substring(0, Math.min(8, issuerPublicKeyHex.length())));
-
-        return repository;
+    public VoucherLedgerPort voucherLedgerPort() {
+        log.info("VoucherLedgerPort is a no-op: the mint publishes no voucher-ledger events");
+        return new NoOpVoucherLedgerPort();
     }
 
     /**
      * Creates the voucher backup repository (NIP-17 + NIP-44 private storage).
      *
-     * <p>Built with the configured timeouts, for the same reason as the ledger (#407).
+     * <p>Built with the configured publish and query timeouts. The shorter constructors hardcode
+     * 5000ms for both, which silently discarded {@code voucher.nostr.publishTimeoutMs} and
+     * {@code queryTimeoutMs} (cashu-mint#407).
      *
      * @param nostrClient Nostr client adapter
      * @return VoucherBackupPort implementation
@@ -301,6 +221,8 @@ public class VoucherConfiguration {
                     "voucher.mint.issuerPublicKey must be configured when voucher.enabled=true");
         }
 
+        requireMatchingKeyPair(issuerPrivateKey, issuerPublicKey);
+
         VoucherService service = new MintVoucherService(
                 ledgerPort,
                 backupPort,
@@ -344,37 +266,32 @@ public class VoucherConfiguration {
     }
 
     /**
-     * Creates the merchant verification service.
-     *
-     * <p>The registry argument is required: verifying that a voucher carries a valid signature
-     * says nothing unless the key is tied to the issuer the voucher claims, which is what let a
-     * voucher be signed under any key with any issuer id and still pass (audit H-12).
-     *
-     * <p>The registry reads the same parsed {@code cashu.mint.voucher.issuer-keys} the swap-path
-     * issuer binding reads (cashu-mint#527), from {@link VoucherSignerTrustConfiguration}, so the
-     * two checks cannot disagree about which key belongs to which issuer. Only the per-issuer
-     * keys feed it: merchant verification asks "is this the issuer's own key", which a key
-     * trusted to sign on behalf of every issuer does not answer.
-     *
-     * @param ledgerPort Voucher ledger port
-     * @param trustList  the shared signer trust list; no issuer keys means nothing is trusted
-     * @return MerchantVerificationService instance
+     * Refuses a private key that does not derive the configured public key. Vouchers name the
+     * public key as issuer and are signed with the private key, so a mismatched pair would sign
+     * vouchers nobody can verify against the named issuer.
      */
-    @Bean
-    public MerchantVerificationService merchantVerificationService(VoucherLedgerPort ledgerPort,
-                                                                   VoucherSignerTrustList trustList) {
-        if (trustList.issuerKeyCount() == 0) {
-            log.warn("No cashu.mint.voucher.issuer-keys configured: merchant verification will "
-                    + "report every voucher's signature as untrusted, because no issuer key is "
-                    + "trusted. Configure cashu.mint.voucher.issuer-keys.<issuerId>=<hex pubkey>.");
+    static void requireMatchingKeyPair(String issuerPrivateKeyHex, String issuerPublicKeyHex) {
+        PublicKey issuerPublicKey;
+        try {
+            issuerPublicKey = new PublicKey(issuerPublicKeyHex);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Invalid voucher.mint.issuerPublicKey format (must be a hex-encoded BIP-340 x-only "
+                            + "secp256k1 public key, 64 hex characters): "
+                            + issuerPublicKeyHex, e);
         }
-        IssuerKeyRegistry registry = trustList::registeredKeyFor;
-
-        MerchantVerificationService service = new MerchantVerificationService(ledgerPort, registry);
-
-        log.info("MerchantVerificationService initialized with {} trusted issuer key(s)",
-                trustList.issuerKeyCount());
-
-        return service;
+        Identity issuerIdentity;
+        try {
+            issuerIdentity = Identity.create(new nostr.base.PrivateKey(issuerPrivateKeyHex));
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Invalid voucher.mint.issuerPrivateKey format (must be a hex-encoded "
+                            + "secp256k1 private key, 64 hex characters)", e);
+        }
+        if (!issuerIdentity.getPublicKey().toString().equalsIgnoreCase(issuerPublicKey.toString())) {
+            throw new IllegalStateException(
+                    "voucher.mint.issuerPrivateKey does not derive voucher.mint.issuerPublicKey. "
+                            + "Vouchers would be signed by a different key than the one they name as issuer.");
+        }
     }
 }

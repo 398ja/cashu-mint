@@ -16,15 +16,11 @@ import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
 import xyz.tcheeric.cashu.voucher.domain.BackingStrategy;
 import xyz.tcheeric.cashu.voucher.domain.SignedVoucher;
-import xyz.tcheeric.cashu.voucher.domain.VoucherStatus;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -33,7 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>Tests all REST endpoints for voucher operations including:
  * - Voucher issuance (POST /v1/vouchers)
- * - Voucher status queries (GET /v1/vouchers/{id}/status)
  * - Input validation
  * - Error handling
  *
@@ -255,77 +250,4 @@ class VoucherControllerTest {
         verify(voucherService, times(1)).issue(any(IssueVoucherRequest.class));
     }
 
-    // ========== GET /v1/vouchers/{voucherId}/status - Status Query Tests ==========
-
-    @Test
-    void getVoucherStatus_Found() throws Exception {
-        when(voucherService.queryStatus("test-voucher-id"))
-                .thenReturn(Optional.of(VoucherStatus.ISSUED));
-
-        mockMvc.perform(get("/v1/vouchers/test-voucher-id/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.voucherId").value("test-voucher-id"))
-                .andExpect(jsonPath("$.status").value("ISSUED"));
-
-        verify(voucherService, times(1)).queryStatus("test-voucher-id");
-    }
-
-    @Test
-    void getVoucherStatus_NotFound() throws Exception {
-        when(voucherService.queryStatus("non-existent-id"))
-                .thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/v1/vouchers/non-existent-id/status"))
-                .andExpect(status().isNotFound());
-
-        verify(voucherService, times(1)).queryStatus("non-existent-id");
-    }
-
-    @Test
-    void getVoucherStatus_Redeemed() throws Exception {
-        when(voucherService.queryStatus("redeemed-voucher"))
-                .thenReturn(Optional.of(VoucherStatus.REDEEMED));
-
-        mockMvc.perform(get("/v1/vouchers/redeemed-voucher/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.voucherId").value("redeemed-voucher"))
-                .andExpect(jsonPath("$.status").value("REDEEMED"));
-
-        verify(voucherService, times(1)).queryStatus("redeemed-voucher");
-    }
-
-    @Test
-    void getVoucherStatus_Revoked() throws Exception {
-        when(voucherService.queryStatus("revoked-voucher"))
-                .thenReturn(Optional.of(VoucherStatus.REVOKED));
-
-        mockMvc.perform(get("/v1/vouchers/revoked-voucher/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("REVOKED"));
-
-        verify(voucherService, times(1)).queryStatus("revoked-voucher");
-    }
-
-    @Test
-    void getVoucherStatus_Expired() throws Exception {
-        when(voucherService.queryStatus("expired-voucher"))
-                .thenReturn(Optional.of(VoucherStatus.EXPIRED));
-
-        mockMvc.perform(get("/v1/vouchers/expired-voucher/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("EXPIRED"));
-
-        verify(voucherService, times(1)).queryStatus("expired-voucher");
-    }
-
-    @Test
-    void getVoucherStatus_ServiceThrowsException() throws Exception {
-        when(voucherService.queryStatus(anyString()))
-                .thenThrow(new RuntimeException("Nostr query failed"));
-
-        mockMvc.perform(get("/v1/vouchers/test-id/status"))
-                .andExpect(status().isInternalServerError());
-
-        verify(voucherService, times(1)).queryStatus("test-id");
-    }
 }

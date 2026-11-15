@@ -4,6 +4,20 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **The mint's v1 voucher-ledger wiring (imani-gateway-customer#310 step 4).** With
+  `voucher.enabled=true` the mint built a `NostrVoucherLedgerRepository` whose relay client never
+  connected, and nothing read what it would have published. `voucherLedgerPort` is now a no-op
+  (`NoOpVoucherLedgerPort`), because cashu-voucher's `VoucherService` constructor requires one.
+  Issuance (`POST /v1/vouchers`) publishes nothing to a relay.
+- **`GET /v1/vouchers/{voucherId}/status`.** It answered from that ledger only, so it could never
+  find a voucher. No caller in the stack uses it. It now returns 404 as an unknown route.
+- **The `MerchantVerificationService` bean.** Nothing in the mint injected it; its online check
+  read the same ledger.
+- Kept: `NostrClientAdapter` and the NIP-17 backup port, which `VoucherService` also requires. The
+  issuer key-pair check moved from the ledger bean to the `voucherService` bean.
+
 ### Added
 
 - **Vouchers by reference (cashu-voucher#64, phase A).** `POST /v1/swap` and `POST /v1/melt`
