@@ -62,7 +62,7 @@ import java.util.Optional;
  * ratio is {@code null}.
  *
  * <p>The plural {@code /v1/vouchers} prefix matches the existing voucher
- * routes ({@code POST /v1/vouchers}, {@code GET /v1/vouchers/{id}/status}).
+ * route ({@code POST /v1/vouchers}).
  *
  * @see VoucherQuoteRepository#recordIssuance(String, long)
  */

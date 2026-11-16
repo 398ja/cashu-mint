@@ -197,7 +197,7 @@ class VoucherNostrConfigurationTest {
         VoucherProperties properties = withIssuerKeys(bindShippedYaml(
                 Map.of("MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS", "0")));
 
-        assertThatThrownBy(() -> new VoucherConfiguration(properties).voucherLedgerPort(mock(NostrClientAdapter.class)))
+        assertThatThrownBy(() -> new VoucherConfiguration(properties).voucherBackupPort(mock(NostrClientAdapter.class)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("queryTimeoutMs must be positive");
     }
@@ -212,21 +212,8 @@ class VoucherNostrConfigurationTest {
         assertThat(relaysOf(adapterFor(properties))).hasSize(2);
     }
 
-    // The configured publish and query timeouts reach the ledger repository instead of being
-    // replaced by the 5000ms its shorter constructors hardcode.
-    @Test
-    void theLedgerUsesTheConfiguredTimeouts() throws Exception {
-        VoucherConfiguration configuration = new VoucherConfiguration(withIssuerKeys(bindShippedYaml(Map.of(
-                "MINT_VOUCHER_NOSTR_PUBLISH_TIMEOUT_MS", "7777",
-                "MINT_VOUCHER_NOSTR_QUERY_TIMEOUT_MS", "8888"))));
-
-        Object ledger = configuration.voucherLedgerPort(mock(NostrClientAdapter.class));
-
-        assertThat(longField(ledger, "publishTimeoutMs")).isEqualTo(7777L);
-        assertThat(longField(ledger, "queryTimeoutMs")).isEqualTo(8888L);
-    }
-
-    // The backup repository had the same defect and gets the same timeouts.
+    // The configured publish and query timeouts reach the backup repository instead of being
+    // replaced by the 5000ms its shorter constructors hardcode (#407).
     @Test
     void theBackupRepositoryUsesTheConfiguredTimeouts() throws Exception {
         VoucherConfiguration configuration = new VoucherConfiguration(bindShippedYaml(Map.of(
@@ -237,16 +224,5 @@ class VoucherNostrConfigurationTest {
 
         assertThat(longField(backup, "publishTimeoutMs")).isEqualTo(7777L);
         assertThat(longField(backup, "queryTimeoutMs")).isEqualTo(8888L);
-    }
-
-    // The shipped query timeout is 10000ms; before #407 the log showed 5000ms, a number no
-    // configured source produced. The default path must carry the file's value too.
-    @Test
-    void theShippedQueryTimeoutIsTheOneUsed() throws Exception {
-        VoucherConfiguration configuration = new VoucherConfiguration(withIssuerKeys(bindShippedYaml(Map.of())));
-
-        Object ledger = configuration.voucherLedgerPort(mock(NostrClientAdapter.class));
-
-        assertThat(longField(ledger, "queryTimeoutMs")).isEqualTo(10000L);
     }
 }

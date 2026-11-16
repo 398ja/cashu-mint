@@ -230,9 +230,6 @@ Voucher endpoints are available when the `voucher` Spring profile is active and 
 Issue a voucher (gift card) signed by the mint's issuer key.
 - Body: `issuerId`, `unit`, `amount`, optional `expiresInDays`, `memo`.
 
-### `GET /v1/vouchers/{voucherId}/status`
-Return the status of a voucher from the Nostr ledger (`ISSUED`, `REDEEMED`, `REVOKED`, `EXPIRED`).
-
 ### `GET /v1/vouchers/{voucherId}/provenance`
 Return what the voucher was issued against: its face value and unit, the original
 token amount, the issuance ratio, and its lifecycle state. `404` when the voucher

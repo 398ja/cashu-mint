@@ -9,10 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import xyz.tcheeric.cashu.voucher.app.VoucherService;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherRequest;
 import xyz.tcheeric.cashu.voucher.app.dto.IssueVoucherResponse;
-import xyz.tcheeric.cashu.voucher.domain.VoucherStatus;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * REST controller for voucher operations.
@@ -34,7 +32,6 @@ import java.util.Optional;
  * <h3>Endpoints</h3>
  * <ul>
  *   <li><b>POST /v1/vouchers</b> - Issue a new voucher</li>
- *   <li><b>GET /v1/vouchers/{voucherId}/status</b> - Query voucher status</li>
  * </ul>
  *
  * <h3>Security Considerations</h3>
@@ -150,80 +147,6 @@ public class VoucherController {
             log.error("Failed to issue voucher: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-    }
-
-    /**
-     * Query the status of a voucher.
-     *
-     * <p>Queries the Nostr ledger (NIP-33) to retrieve the current status of a voucher.
-     * This allows merchants and wallets to check if a voucher has been redeemed,
-     * revoked, or is still valid.
-     *
-     * <h3>Response Body</h3>
-     * <pre>
-     * {
-     *   "voucherId": "uuid",
-     *   "status": "ISSUED"
-     * }
-     * </pre>
-     *
-     * <h3>Possible Status Values</h3>
-     * <ul>
-     *   <li><b>ISSUED</b> - Voucher is active and can be redeemed</li>
-     *   <li><b>REDEEMED</b> - Voucher has been spent</li>
-     *   <li><b>REVOKED</b> - Voucher has been canceled by issuer</li>
-     *   <li><b>EXPIRED</b> - Voucher expiration time has passed</li>
-     * </ul>
-     *
-     * <h3>HTTP Status Codes</h3>
-     * <ul>
-     *   <li><b>200 OK</b> - Status retrieved successfully</li>
-     *   <li><b>404 Not Found</b> - Voucher ID not found in ledger</li>
-     *   <li><b>500 Internal Server Error</b> - Server error (Nostr query failed, etc.)</li>
-     * </ul>
-     *
-     * @param voucherId the unique voucher identifier
-     * @return ResponseEntity containing the voucher status or error
-     */
-    @GetMapping("/{voucherId}/status")
-    public ResponseEntity<VoucherStatusResponse> getVoucherStatus(
-            @PathVariable("voucherId") String voucherId
-    ) {
-        log.debug("GET /v1/vouchers/{}/status", voucherId);
-
-        if (voucherId == null || voucherId.isBlank()) {
-            log.warn("Voucher status query rejected: missing voucherId");
-            return ResponseEntity.badRequest().build();
-        }
-
-        try {
-            Optional<VoucherStatus> status = voucherService.queryStatus(voucherId);
-
-            if (status.isEmpty()) {
-                log.debug("Voucher not found: voucherId={}", voucherId);
-                return ResponseEntity.notFound().build();
-            }
-
-            VoucherStatusResponse response = new VoucherStatusResponse(voucherId, status.get());
-
-            log.debug("Voucher status retrieved: voucherId={}, status={}", voucherId, status.get());
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("Failed to query voucher status for voucherId={}: {}",
-                    voucherId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Response DTO for voucher status queries.
-     */
-    public record VoucherStatusResponse(
-            String voucherId,
-            VoucherStatus status
-    ) {
     }
 
     /**
