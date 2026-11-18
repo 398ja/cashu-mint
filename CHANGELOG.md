@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-18
+
 ### Added
 
 - Every proof the mint writes to the vault now carries its keyset id: `MintProtocolUtil.toProofEntity`
