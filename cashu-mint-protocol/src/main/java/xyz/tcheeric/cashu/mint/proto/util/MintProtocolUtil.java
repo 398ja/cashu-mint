@@ -205,6 +205,9 @@ public final class MintProtocolUtil {
                 ? proof.getUnblindedSignature().toString()
                 : null);
         proofEntity.setMint(mintEntity);
+        // The keyset that signed the proof (NUT-00 "id"). The vault books spent value per keyset,
+        // so a forged keyset cannot hide inside a mint-wide total (cashu-vault#156, #515).
+        proofEntity.setKeysetId(proof.getKeySetId());
         proofEntity.setState(ProofEntity.STATE_SPENT);
         return proofEntity;
     }
