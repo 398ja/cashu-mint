@@ -58,8 +58,11 @@
              "N.0" spelling. The only other resolved change is nap 0.9.0 to 0.9.1 (additive).
              Never pair cashu-voucher 0.17.1 with cashu-lib 0.30.6.
              0.2.18 to 0.2.23 (cashu-voucher#64, imani-gateway-customer#310): cashu-lib 0.31.0 and
-             cashu-voucher 0.18.0, released, replace the temporary by-reference SNAPSHOT overrides. -->
-        <imani-bom.version>0.2.23</imani-bom.version>
+             cashu-voucher 0.18.0, released, replace the temporary by-reference SNAPSHOT overrides.
+             0.2.23 to 0.2.25 (#515, cashu-vault#156): cashu-vault 0.16.0, whose ProofEntity has the
+             keyset id the mint now writes. 0.2.24 in between only moved imani-wallet-lib, which the
+             mint does not use. -->
+        <imani-bom.version>0.2.25</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step

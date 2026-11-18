@@ -197,6 +197,7 @@ class SpentProofCannotBeRevivedIT extends AbstractMintDurableIT {
         when(mintLoadService.keySets(false)).thenReturn(List.copyOf(mint.getKeySets()));
         when(mintLoadService.keySets(true)).thenReturn(List.of());
         ensureVaultKnowsMint(MeltProofFixture.MINT_UUID);
+        ensureVaultKnowsKeyset(MeltProofFixture.MINT_UUID, MeltProofFixture.KEYSET_ID);
         transitions.deleteAllInBatch();
         sagas.deleteAllInBatch();
         ((MockLightningPaymentPort) paymentPort).reset();
@@ -337,6 +338,29 @@ class SpentProofCannotBeRevivedIT extends AbstractMintDurableIT {
         HttpStatusCode status = vaultCall(HttpMethod.POST, "/vault/mint", Map.of("id", mintId.toString()));
         assertThat(status.is2xxSuccessful() || status.value() == 409)
                 .as("registering the mint with the vault answered %s", status).isTrue();
+    }
+
+    /**
+     * Registers the fixture keyset with the vault, once. Since cashu-vault 0.16.0 the vault refuses a
+     * proof whose keyset is not one of its mint's (cashu-vault#156), and a production mint always
+     * stores its keysets there first, so a fixture that skips this tests a mint that cannot exist.
+     */
+    private void ensureVaultKnowsKeyset(UUID mintId, String keysetId) throws IOException {
+        String known;
+        try {
+            known = rest.exchange(vaultBaseUrl + "/vault/keyset/mint/" + mintId,
+                    HttpMethod.GET, new HttpEntity<>(vaultHeaders()), String.class).getBody();
+        } catch (HttpStatusCodeException e) {
+            known = null; // 404: the mint has no keysets yet
+        }
+        if (known != null && known.contains("\"" + keysetId + "\"")) {
+            return;
+        }
+        HttpStatusCode status = vaultCall(HttpMethod.POST, "/vault/keyset", Map.of(
+                "keySetId", keysetId, "unit", "sat", "input_fee_ppk", 0,
+                "mint", Map.of("id", mintId.toString())));
+        assertThat(status.is2xxSuccessful())
+                .as("registering keyset %s with the vault answered %s", keysetId, status).isTrue();
     }
 
     private static HttpHeaders vaultHeaders() {

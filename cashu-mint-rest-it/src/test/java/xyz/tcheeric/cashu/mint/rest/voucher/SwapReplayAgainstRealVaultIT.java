@@ -169,6 +169,7 @@ class SwapReplayAgainstRealVaultIT extends AbstractMintDurableIT {
     swapHolds.deleteAllInBatch();
     serveFixtureKeySet();
     registerMintWithVault();
+    ensureVaultKnowsKeyset(MINT_UUID, KEYSET_ID);
   }
 
   // ----------------------------------------------------------------------------- plain proofs
@@ -389,6 +390,29 @@ class SwapReplayAgainstRealVaultIT extends AbstractMintDurableIT {
     HttpStatusCode status = vaultCall(HttpMethod.POST, "/vault/mint", Map.of("id", MINT_UUID.toString()));
     assertThat(status.is2xxSuccessful() || status.value() == 409)
         .as("registering the mint with the vault answered %s", status).isTrue();
+  }
+
+  /**
+   * Registers the fixture keyset with the vault, once. Since cashu-vault 0.16.0 the vault refuses a
+   * proof whose keyset is not one of its mint's (cashu-vault#156), and a production mint always
+   * stores its keysets there first, so a fixture that skips this tests a mint that cannot exist.
+   */
+  private void ensureVaultKnowsKeyset(UUID mintId, String keysetId) throws IOException {
+    String known;
+    try {
+      known = rest.exchange(VAULT_BASE_URL + "/vault/keyset/mint/" + mintId,
+          HttpMethod.GET, new HttpEntity<>(vaultHeaders()), String.class).getBody();
+    } catch (HttpStatusCodeException e) {
+      known = null; // 404: the mint has no keysets yet
+    }
+    if (known != null && known.contains("\"" + keysetId + "\"")) {
+      return;
+    }
+    HttpStatusCode status = vaultCall(HttpMethod.POST, "/vault/keyset", Map.of(
+        "keySetId", keysetId, "unit", "sat", "input_fee_ppk", 0,
+        "mint", Map.of("id", mintId.toString())));
+    assertThat(status.is2xxSuccessful())
+        .as("registering keyset %s with the vault answered %s", keysetId, status).isTrue();
   }
 
   @SuppressWarnings("unchecked")

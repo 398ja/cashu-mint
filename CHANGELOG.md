@@ -4,6 +4,12 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Every proof the mint writes to the vault now carries its keyset id: `MintProtocolUtil.toProofEntity`
+  copies `proof.getId()` into `ProofEntity.keysetId`, so the vault books spent value per keyset
+  (cashu-vault#156, #515). imani-bom 0.2.23 -> 0.2.25 for cashu-vault 0.16.0, which has the field.
+
 ### Removed
 
 - **The mint's v1 voucher-ledger wiring (imani-gateway-customer#310 step 4).** With
