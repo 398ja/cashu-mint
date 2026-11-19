@@ -11,8 +11,8 @@ All notable changes to the Cashu Mint will be documented in this file.
   of them could replace mint-admin's keyset seed without CAS), plus delete, destroy and list on
   the keys. It now writes one policy and AppRole per client from `vault/policies/*.hcl`, with only
   the verbs each one uses: `cashu-vault-jpa` reads keys; `cashu-mint-rest` and `cashu-mint-admin`
-  create, read and update keys; only `cashu-mint-admin` reads its seed, and it can create it but
-  never update it. The seed path gets `cas_required`. The old shared policy and role are deleted.
+  create, read and update keys; only `cashu-mint-admin` reads its seed, and it cannot write it
+  (an operator creates it once). The seed path gets `cas_required`. The old shared policy and role are deleted.
 - Each client mounts only its own directory of the `vault-approle` volume and reads its role-id
   and secret-id with `SPRING_CONFIG_IMPORT=configtree:`, so nothing goes into `.env`. The
   secret-id is reusable (it was single-use and response-wrapped, so a service could log in only

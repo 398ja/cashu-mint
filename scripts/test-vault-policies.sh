@@ -71,7 +71,6 @@ vx vault read auth/approle/role/cashu-vault >/dev/null 2>&1 && bad "the shared c
 vx vault kv metadata get -mount=cashu -format=json seeds/mint-admin/keyset-master-seed | tr -d ' \n' | grep -q '"cas_required":true' \
   && ok "cas_required on the keyset seed" || bad "cas_required missing"
 
-vx vault kv put -mount=cashu -cas=0 seeds/mint-admin/keyset-master-seed seed=0001 >/dev/null
 vx vault kv put -mount=cashu seeds/other seed=x >/dev/null
 vx vault kv put -mount=cashu keys/m/k/1 private_key=aa >/dev/null
 
@@ -89,6 +88,10 @@ as() { # role want what cmd
   [ "$got" = "$want" ] && ok "$r: $what ($want)" || bad "$r: $what (got $got, want $want)"
 }
 S=seeds/mint-admin/keyset-master-seed
+# Before the operator creates the seed, mint-admin cannot create it either (read-only grant).
+as cashu-mint-admin deny "create the keyset seed (CAS 0)" \
+  "echo '{\"options\":{\"cas\":0},\"data\":{\"seed\":\"ffff\"}}' | vault write cashu/data/$S -"
+vx vault kv put -mount=cashu -cas=0 $S seed=0001 >/dev/null
 for r in cashu-vault-jpa cashu-mint-rest cashu-mint-admin; do
   as $r allow "read a key" "vault kv get -mount=cashu keys/m/k/1"
   if [ $r = cashu-vault-jpa ]; then

@@ -63,7 +63,7 @@ client uses:
 |---|---|---|
 | `cashu-vault-jpa` | `vault/policies/cashu-vault-jpa.hcl` | read `keys/*` |
 | `cashu-mint-rest` | `vault/policies/cashu-mint-rest.hcl` | create, read, update `keys/*` |
-| `cashu-mint-admin` | `vault/policies/cashu-mint-admin.hcl` | create, read, update `keys/*`; create and read its keyset seed, never update it |
+| `cashu-mint-admin` | `vault/policies/cashu-mint-admin.hcl` | create, read, update `keys/*`; read its keyset seed (never write it) |
 
 No client can delete or destroy a key, list the mount, read another `seeds/` path or touch
 `sys/`. The seed path also gets `cas_required=true`. If the Vault still has the old shared
