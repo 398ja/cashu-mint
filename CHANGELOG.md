@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-19
+
 ### Added
 
 - **A voucher quote records which voucher it is for.** `POST /v1/mint/quote/voucher/{method}` takes
