@@ -101,7 +101,10 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                                 String pubkey,
                                 String voucherId) {
         this.faceValue = faceValue;
-        this.voucherId = voucherId == null || voucherId.isBlank() ? null : voucherId;
+        // Canonical lowercase: readers compare voucher ids case-insensitively, so the unique index
+        // must too, or one voucher id could bind two quotes by differing only in case.
+        this.voucherId = voucherId == null || voucherId.isBlank()
+                ? null : voucherId.toLowerCase(java.util.Locale.ROOT);
         this.method = method;
         // Blank reads as absent, as on the regular route, so a gateway is never selected by, and
         // a row never stored with, an empty unit.

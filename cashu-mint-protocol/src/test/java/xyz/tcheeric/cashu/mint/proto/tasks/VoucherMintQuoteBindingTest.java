@@ -105,6 +105,17 @@ class VoucherMintQuoteBindingTest {
     }
 
     @Test
+    @DisplayName("an upper-case variant of a bound voucher id is the same voucher, so it is refused")
+    void caseVariantOfABoundVoucherIdIsRefused() {
+        when(repository.findByVoucherId(VOUCHER_ID)).thenReturn(Optional.of(mock(VoucherQuote.class)));
+
+        assertThatThrownBy(() -> bound(VOUCHER_ID.toUpperCase()).execute())
+                .isInstanceOf(CashuErrorException.class)
+                .hasMessageContaining("voucher_id_already_bound");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("a malformed voucher id is refused, and nothing is written or invoiced")
     void malformedVoucherIdIsRefused() {
         assertThatThrownBy(() -> bound("not-a-uuid'; drop").execute())
