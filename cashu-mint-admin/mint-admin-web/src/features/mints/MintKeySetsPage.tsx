@@ -7,6 +7,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
 import { Pagination } from "@/components/Pagination";
 import { formatTimestamp } from "@/lib/format";
+import { RedemptionCutoffPanel } from "./RedemptionCutoffPanel";
 import type { ApiRequestError } from "@/api/client";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 
@@ -102,6 +103,7 @@ export function MintKeySetsPage() {
             totalItems={data.totalItems}
             onPageChange={setPage}
           />
+          <RedemptionCutoffPanel mintId={mintId!} keySets={data.items} />
         </>
       )}
     </div>

@@ -27,6 +27,10 @@ import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.CompositeOutboxMessageHa
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.LifecycleEventOutboxDispatcher;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.LifecycleEventOutboxHandler;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.VaultProvisioningOutboxHandler;
+import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.RedemptionCutoffOutboxHandler;
+import xyz.tcheeric.cashu.mint.admin.adapter.out.mint.HttpMintRedemptionCutoffAdapter;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRedemptionCutoffPort;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.RedemptionCutoffRequestRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.vault.DeterministicKeyGenerator;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.vault.KeysetMasterSeed;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.vault.VaultProvisioningAdapter;
@@ -120,6 +124,19 @@ public class OutboxSchedulerConfiguration {
         return new VaultProvisioningAdapter(keyGenerator);
     }
 
+    /**
+     * The channel an approved redemption cutoff reaches the mint by (cashu-mint#551): the mint's
+     * own {@code /admin} API, HTTP Basic. Unset, approved cutoffs end FAILED with that reason.
+     */
+    @Bean
+    public MintRedemptionCutoffPort mintRedemptionCutoffPort(
+            @Value("${admin.mint.base-url:}") final String baseUrl,
+            @Value("${admin.mint.username:admin}") final String username,
+            @Value("${admin.mint.password:}") final String password,
+            final ObjectMapper objectMapper) {
+        return new HttpMintRedemptionCutoffAdapter(baseUrl, username, password, objectMapper);
+    }
+
     @Bean
     public LifecycleEventOutboxDispatcher outboxDispatcher(
             final OutboxRepository outboxRepository,
@@ -129,6 +146,8 @@ public class OutboxSchedulerConfiguration {
             final MintRepository mintRepository,
             final ConfigurationSetRepository configurationSetRepository,
             final OperationalControlRepository operationalControlRepository,
+            final RedemptionCutoffRequestRepository redemptionCutoffRequestRepository,
+            final MintRedemptionCutoffPort mintRedemptionCutoffPort,
             final MintLifecycleEventPublisher eventPublisher,
             final ObjectMapper objectMapper,
             final Clock adminClock,
@@ -141,7 +160,9 @@ public class OutboxSchedulerConfiguration {
             new VaultProvisioningOutboxHandler(vaultPort, mintRepository, configurationSetRepository,
                 operationalControlRepository, eventPublisher, objectMapper, adminClock, maxRetries);
         final CompositeOutboxMessageHandler compositeHandler =
-            new CompositeOutboxMessageHandler(List.of(readModelHandler, vaultHandler));
+            new CompositeOutboxMessageHandler(List.of(readModelHandler, vaultHandler,
+                new RedemptionCutoffOutboxHandler(redemptionCutoffRequestRepository, mintRedemptionCutoffPort,
+                    adminClock)));
 
         return new LifecycleEventOutboxDispatcher(outboxRepository, compositeHandler, adminClock, backoff);
     }

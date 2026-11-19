@@ -63,9 +63,10 @@ final class H2TestDataSourceFactory {
         final String v14 = readMigration("/db/migration-admin/V14__operator_pubkey.sql");
         final String v15 = readMigration("/db/migration-admin/V15__operator_nap_identity_only.sql");
         final String v16 = readMigration("/db/migration-admin/V16__operator_access_audit.sql");
+        final String v17 = readMigration("/db/migration-admin/V17__keyset_redemption_cutoff_requests.sql");
         return (v1 + "\n" + v2 + "\n" + v3 + "\n" + v4 + "\n" + v5 + "\n" + v6
             + "\n" + v7 + "\n" + v8 + "\n" + v9 + "\n" + v10 + "\n" + v11 + "\n" + v12 + "\n" + v13
-            + "\n" + v14 + "\n" + v15 + "\n" + v16)
+            + "\n" + v14 + "\n" + v15 + "\n" + v16 + "\n" + v17)
             .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
             .replace("    WHERE dispatched_at IS NULL", "");
     }

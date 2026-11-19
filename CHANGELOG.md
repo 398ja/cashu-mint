@@ -4,6 +4,19 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Per-keyset redemption cutoff (#551, ADR-0011).** An Operator can retire an archived keyset for
+  redemption on an announced date. Swap and melt refuse its inputs after the date with
+  `keyset_expired` (12003), `/v1/keysets` advertises the date as NUT-02 `final_expiry` beforehand
+  and stops listing the keyset afterwards, and refusals count on
+  `cashu_mint_keyset_redemption_refused_total{keyset,operation}`. Set through the mint's
+  `PUT /admin/keysets/{id}/redemption-cutoff` (archived keysets only, future dates only, a passed
+  cutoff is final), with history in `keyset_redemption_cutoff_history`. mint-admin adds a
+  four-eyes request/approve flow with 24h minimum notice, delivered by the outbox (new settings
+  `ADMIN_MINT_BASE_URL`, `ADMIN_MINT_USERNAME`, `ADMIN_MINT_PASSWORD`), on the audit timeline and
+  in the Keysets page.
+
 ## [0.46.0] - 2026-11-18
 
 ### Added

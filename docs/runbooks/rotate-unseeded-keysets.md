@@ -440,12 +440,37 @@ After the deadline, the old keysets must stop **redeeming** as well as signing, 
 forged proof is indistinguishable from a real one at redemption time and shortening the window
 is the only mitigation.
 
-> **Gap to close before step 4:** the mint has no "retired for redemption" keyset state today.
-> ARCHIVED keysets redeem indefinitely (ADR-0004). Step 4 needs a follow-up change that adds a
-> per-keyset redemption cutoff (refuse inputs from a listed keyset id after a date) and stops
-> advertising those keysets: **cashu-mint#551**, its own approval. Until it ships, step 4 is
-> blocked and the window in step 3 is open-ended, which is acceptable for staging on
-> phoenixd-mock only.
+The mint has a per-keyset redemption cutoff for this (cashu-mint#551,
+[ADR-0011](../adr/0011-a-keyset-redemption-cutoff-is-dated-approved-and-final.md)). It is its own
+operation in mint-admin, with its own approval, separate from the rotation in step 2.
+
+> **Staging state when this step was written (2026-11-19):** staging still advertises the inactive
+> keysets `00e3372e`, `01c4d9dc`, `01ef5b83` and `01fef5f0`. Every signature on record is on
+> `01ef5b83` (2026-09-27 to 2026-10-14) and on the active keyset `01f034be`. So only `01ef5b83`
+> can hold value. The other three have no signatures and can be cut off with no holder impact.
+> The active keyset `01f034be` can never be cut off.
+
+1. **Pick the date.** At least 24 hours out, mint-admin enforces that. Announce it to holders with
+   enough lead time to swap. A date that has passed is final and cannot be moved.
+2. **Request.** In mint-admin, open the mint's Keysets page, *Redemption cutoff* panel. Choose the
+   archived keyset, the date and a reason. This needs `OPERATIONS_EXECUTE`. The same call is
+   `POST /admin/operations/mints/{mintId}/redemption-cutoffs` with
+   `{"keysetId", "redeemUntil", "reason"}`.
+3. **Approve.** A *different* Operator approves (`POST .../{requestId}/approve`). The requester
+   cannot. Rejecting ends the request and nothing reaches the mint.
+4. **Delivery.** The outbox delivers the approved cutoff to the mint's
+   `PUT /admin/keysets/{id}/redemption-cutoff`. mint-admin needs `ADMIN_MINT_BASE_URL`,
+   `ADMIN_MINT_USERNAME` and `ADMIN_MINT_PASSWORD` (the mint's admin Basic credentials). The
+   request moves to APPLIED, or to FAILED with the mint's reason if the mint refuses it. A mint
+   that is down is retried.
+5. **Verify, before the date.** `GET /admin/keysets/redemption-cutoffs` on the mint lists it, and
+   `/v1/keysets` shows the keyset with `final_expiry` set to the date.
+6. **Verify, after the date.** `/v1/keysets` and `/v1/keys` no longer list the keyset. A swap or
+   melt with its proofs fails with code 12003 (`keyset_expired`) and increments
+   `cashu_mint_keyset_redemption_refused_total{keyset,operation}`. Watch that counter for a few
+   days: honest late holders and forgery attempts both show up there.
+
+Repeat per keyset. Each cutoff is its own request and its own approval.
 
 ## Step 5: clean up
 
