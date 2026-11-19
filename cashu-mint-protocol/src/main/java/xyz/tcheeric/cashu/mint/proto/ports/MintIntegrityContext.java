@@ -48,6 +48,7 @@ public final class MintIntegrityContext {
     private static volatile VoucherFundingResolver voucherFundingResolver;
     private static volatile IdentityHasher identityHasher;
     private static volatile MintSuspensionRepository mintSuspensionRepository;
+    private static volatile KeysetRedemptionCutoffRepository keysetRedemptionCutoffRepository;
     private static volatile String voucherIouPolicy;
     private static volatile String activeProfile;
     private static volatile SwapHoldRepository swapHoldRepository;
@@ -164,6 +165,24 @@ public final class MintIntegrityContext {
         MintIntegrityContext.mintSuspensionRepository = mintSuspensionRepository;
     }
 
+    /**
+     * Installs the durable per-keyset redemption cutoffs swap and melt consult (cashu-mint#551).
+     *
+     * <p>Absent when the JPA module is disabled, in which case no keyset carries a cutoff and every
+     * archived keyset keeps redeeming, which is the behaviour before cutoffs existed.
+     *
+     * @param keysetRedemptionCutoffRepository cutoff record, or null when unavailable
+     */
+    public static void installKeysetRedemptionCutoffs(
+            KeysetRedemptionCutoffRepository keysetRedemptionCutoffRepository) {
+        MintIntegrityContext.keysetRedemptionCutoffRepository = keysetRedemptionCutoffRepository;
+    }
+
+    /** @return the installed cutoff record, or null when none is installed */
+    public static KeysetRedemptionCutoffRepository keysetRedemptionCutoffRepository() {
+        return keysetRedemptionCutoffRepository;
+    }
+
     /** Resets the context. Test-only — clears all references. */
     public static void clear() {
         quoteRepository = null;
@@ -180,6 +199,7 @@ public final class MintIntegrityContext {
         voucherIouPolicy = null;
         activeProfile = null;
         mintSuspensionRepository = null;
+        keysetRedemptionCutoffRepository = null;
         swapResponseCache = null;
     }
 

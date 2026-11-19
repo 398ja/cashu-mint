@@ -37,7 +37,12 @@ public class ValidateTransactionTask<T extends Secret> extends InstrumentedTask<
 
     private final List<Proof<T>> inputs;
     private final List<BlindedMessage> outputs;
+    /** Metric label for an input-bearing caller that did not name its operation. */
+    static final String REDEMPTION = "redemption";
+
     private final KeySetDirectory keySets;
+    private final String operation;
+    private final RedemptionCutoffGate cutoffGate;
     private final SignatureVaultService signatureVaultService;
 
     /**
@@ -54,15 +59,32 @@ public class ValidateTransactionTask<T extends Secret> extends InstrumentedTask<
                                    List<BlindedMessage> outputs,
                                    KeySetDirectory keySets,
                                    SignatureVaultService signatureVaultService) {
+        this(inputs, outputs, keySets, signatureVaultService, REDEMPTION, RedemptionCutoffGate.installed());
+    }
+
+    /**
+     * @param operation    the redemption label ({@link RedemptionCutoffGate#SWAP} or
+     *                     {@link RedemptionCutoffGate#MELT}) for the cutoff refusal metric
+     * @param cutoffGate   refuses inputs on a keyset past its redemption cutoff (cashu-mint#551)
+     */
+    public ValidateTransactionTask(List<Proof<T>> inputs,
+                                   List<BlindedMessage> outputs,
+                                   KeySetDirectory keySets,
+                                   SignatureVaultService signatureVaultService,
+                                   String operation,
+                                   RedemptionCutoffGate cutoffGate) {
         this.inputs = inputs;
         this.outputs = outputs;
         this.keySets = keySets;
         this.signatureVaultService = signatureVaultService;
+        this.operation = operation == null ? REDEMPTION : operation;
+        this.cutoffGate = cutoffGate;
     }
 
     @Override
     protected Void doExecute() throws CashuErrorException {
         rejectDuplicateInputs();
+        rejectRetiredInputKeysets();
         rejectDuplicateOutputs();
         rejectMixedUnits();
         rejectInactiveOutputKeysets();
@@ -91,6 +113,20 @@ public class ValidateTransactionTask<T extends Secret> extends InstrumentedTask<
                 throw error(CashuErrorCode.duplicate_inputs);
             }
         }
+    }
+
+    /**
+     * cashu-mint#551: inputs on a keyset past its redemption cutoff are refused with 12003.
+     *
+     * <p>Here, in the validation every input-spending operation shares, rather than in each
+     * endpoint, so a redemption path added later cannot forget it. It runs before any proof is
+     * verified, held or burned, and inside the caller's proof lock.
+     */
+    private void rejectRetiredInputKeysets() throws CashuErrorException {
+        if (cutoffGate == null || inputs == null || inputs.isEmpty()) {
+            return;
+        }
+        cutoffGate.requireRedeemable(inputs, keySets, operation);
     }
 
     /** Two identical blinded messages would receive two signatures the wallet cannot both use. */

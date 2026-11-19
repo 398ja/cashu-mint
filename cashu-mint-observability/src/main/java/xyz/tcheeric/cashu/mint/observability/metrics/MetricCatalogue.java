@@ -54,6 +54,8 @@ public final class MetricCatalogue {
         new MicrometerIssuanceMetricsRecorder(registry);
         new MicrometerWebhookMetricsRecorder(registry);
         new MicrometerDleqMetricsRecorder(registry);
+        // Per-keyset counters appear on first refusal; declare one so the family is catalogued.
+        new MicrometerKeysetRedemptionMetricsRecorder(registry).counter("keyset", "swap");
 
         // Gauges declare themselves when bound, so bind them to a constant.
         MicrometerInvariantMetricsRecorder invariant = new MicrometerInvariantMetricsRecorder(registry);

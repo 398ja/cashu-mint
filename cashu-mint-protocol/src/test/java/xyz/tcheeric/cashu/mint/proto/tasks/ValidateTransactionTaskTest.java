@@ -179,6 +179,39 @@ public class ValidateTransactionTaskTest {
         assertDoesNotThrow(validation::execute);
     }
 
+    /** cashu-mint#551: the cutoff lives in the shared validation, so every redemption path gets it. */
+    @Test
+    void refusesAnInputOnAKeysetPastItsRedemptionCutoffWith12003() throws CashuErrorException {
+        java.time.Instant cutoff = java.time.Instant.parse("2026-11-19T00:00:00Z");
+        xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoff record =
+                new xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoff(ARCHIVED_KEYSET_ID, cutoff, "551", "op", null);
+        xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoffRepository repo =
+                new xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoffRepository() {
+                    public java.util.Optional<xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoff> find(String id) {
+                        return ARCHIVED_KEYSET_ID.equals(id) ? java.util.Optional.of(record) : java.util.Optional.empty();
+                    }
+                    public List<xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoff> findAll() {
+                        return List.of(record);
+                    }
+                    public void save(xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoff c) {
+                    }
+                };
+        RedemptionCutoffGate gate = new RedemptionCutoffGate(repo,
+                java.time.Clock.fixed(cutoff, java.time.ZoneOffset.UTC));
+        List<xyz.tcheeric.cashu.common.Proof<RandomStringSecret>> inputs =
+                List.of(proof(2, SAT_KEYSET_ID), proof(2, ARCHIVED_KEYSET_ID));
+
+        CashuErrorException refused = assertThrows(CashuErrorException.class,
+                () -> new ValidateTransactionTask<>(inputs, List.of(), KeySetDirectory.of(mintLoadService()),
+                        null, RedemptionCutoffGate.SWAP, gate).execute());
+        assertEquals(12003, refused.getErrorCode().getCode());
+
+        RedemptionCutoffGate before = new RedemptionCutoffGate(repo,
+                java.time.Clock.fixed(cutoff.minusSeconds(1), java.time.ZoneOffset.UTC));
+        assertDoesNotThrow(() -> new ValidateTransactionTask<>(inputs, List.of(),
+                KeySetDirectory.of(mintLoadService()), null, RedemptionCutoffGate.SWAP, before).execute());
+    }
+
     private static String errorCodeOf(CashuErrorException exception) {
         return exception.getErrorCode().name();
     }

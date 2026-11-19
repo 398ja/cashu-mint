@@ -186,6 +186,13 @@ increase(cashu_mint_voucher_issued_total[1h])
 rate(cashu_mint_voucher_rejected_total{reason="funding_required"}[5m])
 ```
 
+### Keyset Redemption Cutoff Metrics
+
+```promql
+# Inputs refused because their keyset's redemption cutoff has passed (ADR-0011)
+sum by (keyset, operation) (increase(cashu_mint_keyset_redemption_refused_total[1h]))
+```
+
 ### Task Metrics
 
 ```promql

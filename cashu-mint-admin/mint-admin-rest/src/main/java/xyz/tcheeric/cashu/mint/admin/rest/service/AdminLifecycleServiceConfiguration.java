@@ -18,6 +18,9 @@ import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperationalControlRepo
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessAuditRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOperatorAccessRepository;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcOutboxRepository;
+import xyz.tcheeric.cashu.mint.admin.adapter.out.jdbc.JdbcRedemptionCutoffRequestRepository;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.RedemptionCutoffRequestRepository;
+import xyz.tcheeric.cashu.mint.admin.application.service.ManageRedemptionCutoffInteractor;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.outbox.TransactionalOutboxMintLifecycleEventPublisher;
 import xyz.tcheeric.cashu.mint.admin.adapter.out.vault.VaultKeySetInventoryAdapter;
 import xyz.tcheeric.cashu.mint.admin.application.port.in.AdministerAccessUseCase;
@@ -128,6 +131,22 @@ public class AdminLifecycleServiceConfiguration {
         final OutboxRepository outboxRepository,
         final Clock adminClock) {
         return new ExecuteOperationalControlsInteractor(operationalControlRepository, outboxRepository, adminClock);
+    }
+
+    @Bean
+    public RedemptionCutoffRequestRepository redemptionCutoffRequestRepository(final DataSource dataSource) {
+        return new JdbcRedemptionCutoffRequestRepository(dataSource);
+    }
+
+    @Bean
+    public ManageRedemptionCutoffInteractor manageRedemptionCutoffInteractor(
+        final RedemptionCutoffRequestRepository redemptionCutoffRequestRepository,
+        final KeySetInventoryPort keySetInventoryPort,
+        final OutboxRepository outboxRepository,
+        final TransactionManager transactionManager,
+        final Clock adminClock) {
+        return new ManageRedemptionCutoffInteractor(redemptionCutoffRequestRepository, keySetInventoryPort,
+            outboxRepository, transactionManager, adminClock);
     }
 
     @Bean

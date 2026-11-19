@@ -132,6 +132,10 @@ public final class MetricRecorders {
 
     private static final DleqMetricsRecorder NO_OP_DLEQ = () -> { };
 
+    private static final KeysetRedemptionMetricsRecorder NO_OP_KEYSET_REDEMPTION = (keysetId, operation) -> { };
+
+    private static volatile KeysetRedemptionMetricsRecorder keysetRedemption = NO_OP_KEYSET_REDEMPTION;
+
     private static volatile MeltMetricsRecorder melt = NO_OP_MELT;
 
     private static volatile VoucherMetricsRecorder voucher = NO_OP_VOUCHER;
@@ -249,5 +253,23 @@ public final class MetricRecorders {
      */
     public static void registerDleq(DleqMetricsRecorder recorder) {
         dleq = recorder != null ? recorder : NO_OP_DLEQ;
+    }
+
+    /**
+     * The keyset redemption cutoff recorder (cashu-mint#551). Never {@code null}.
+     *
+     * @return the registered recorder, or a no-op when none is wired
+     */
+    public static KeysetRedemptionMetricsRecorder keysetRedemption() {
+        return keysetRedemption;
+    }
+
+    /**
+     * Registers the keyset redemption recorder. Passing {@code null} resets to the no-op.
+     *
+     * @param recorder the recorder to use, or {@code null} to disable reporting
+     */
+    public static void registerKeysetRedemption(KeysetRedemptionMetricsRecorder recorder) {
+        keysetRedemption = recorder != null ? recorder : NO_OP_KEYSET_REDEMPTION;
     }
 }

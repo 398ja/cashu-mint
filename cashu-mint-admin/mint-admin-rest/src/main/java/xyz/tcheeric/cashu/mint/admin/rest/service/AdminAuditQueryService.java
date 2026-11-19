@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.MintRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository;
 import xyz.tcheeric.cashu.mint.admin.application.port.out.OperatorAccessAuditRepository.OperatorAccessAuditEntry;
+import xyz.tcheeric.cashu.mint.admin.application.port.out.RedemptionCutoffRequestRepository;
 import xyz.tcheeric.cashu.mint.admin.domain.AuditMetadata;
 import xyz.tcheeric.cashu.mint.admin.domain.MintAggregate;
 import xyz.tcheeric.cashu.mint.admin.rest.dto.audit.AuditEventResponse;
@@ -25,12 +26,16 @@ public class AdminAuditQueryService {
 
     private final MintRepository mintRepository;
     private final OperatorAccessAuditRepository operatorAccessAuditRepository;
+    private final RedemptionCutoffRequestRepository redemptionCutoffRequestRepository;
 
     public AdminAuditQueryService(final MintRepository mintRepository,
-                                  final OperatorAccessAuditRepository operatorAccessAuditRepository) {
+                                  final OperatorAccessAuditRepository operatorAccessAuditRepository,
+                                  final RedemptionCutoffRequestRepository redemptionCutoffRequestRepository) {
         this.mintRepository = Objects.requireNonNull(mintRepository);
         this.operatorAccessAuditRepository =
             Objects.requireNonNull(operatorAccessAuditRepository, "operator access audit repository");
+        this.redemptionCutoffRequestRepository =
+            Objects.requireNonNull(redemptionCutoffRequestRepository, "redemption cutoff request repository");
     }
 
     public PagedResponse<AuditEventResponse> listAuditEvents(final String mintId,
@@ -76,6 +81,17 @@ public class AdminAuditQueryService {
                     allEvents.add(new AuditEventResponse(null, NO_SEQUENCE, entry.actor(),
                         entry.action(), entry.occurredAt(), null, entry.targetAccountId()));
                 }
+            }
+        }
+
+        // Redemption cutoffs (cashu-mint#551) end value for late holders, so every request, approval
+        // and delivery belongs on the same timeline as the rest of the mint's history.
+        for (final RedemptionCutoffRequestRepository.AuditEntry entry : redemptionCutoffRequestRepository.findAudit()) {
+            if ((mintId == null || mintId.equals(entry.mintId().asString()))
+                    && (actor == null || actor.equals(entry.actor()))
+                    && (action == null || action.equals(entry.action()))) {
+                allEvents.add(new AuditEventResponse(entry.mintId().asString(), NO_SEQUENCE, entry.actor(),
+                    entry.action() + " " + entry.keysetId(), entry.occurredAt(), null, null));
             }
         }
 

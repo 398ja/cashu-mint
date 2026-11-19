@@ -231,8 +231,11 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             // NUT-03/05 protocol validation, shared with swap and mint, before anything is
             // signed or the invoice is paid. The NUT-08 change outputs are validated with the
             // inputs so a mixed-unit or replayed change set cannot reach the signing step.
+            // cashu-mint#551: this also refuses inputs on a keyset past its redemption cutoff
+            // (12003), before any proof is held or the invoice is paid.
             new ValidateTransactionTask<>(proofsToMelt, postMeltRequest.getOutputs(),
-                    keySets, signatureVaultService).execute();
+                    keySets, signatureVaultService, RedemptionCutoffGate.MELT,
+                    RedemptionCutoffGate.installed()).execute();
 
             // NUT-11 SIG_ALL signs one message over the whole melt, and that message ends with the
             // quote id. Binding the signature to the quote it pays is what stops a witness
