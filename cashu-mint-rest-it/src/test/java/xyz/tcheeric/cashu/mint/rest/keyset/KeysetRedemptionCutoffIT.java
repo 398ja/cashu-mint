@@ -160,7 +160,7 @@ class KeysetRedemptionCutoffIT extends AbstractMintDurableIT {
 
   @Test
   void theActiveKeysetIsNeverAffected() throws Exception {
-    putCutoff(RETIRED, Instant.now().plus(Duration.ofDays(1)));
+    putCutoff(RETIRED, Instant.now().plus(Duration.ofDays(2)));
     moveCutoffIntoThePast(RETIRED);
 
     ResponseEntity<String> swap = postSwap(ACTIVE);

@@ -29,6 +29,9 @@ import xyz.tcheeric.cashu.mint.proto.tasks.KeySetDirectory;
  */
 public class KeysetRedemptionCutoffService {
 
+    /** The least warning holders get before a cutoff, matching mint-admin's rule. */
+    public static final java.time.Duration MINIMUM_NOTICE = java.time.Duration.ofHours(24);
+
     private final KeysetRedemptionCutoffRepository cutoffs;
     private final MintLoadService mintLoadService;
     private final Clock clock;
@@ -71,9 +74,11 @@ public class KeysetRedemptionCutoffService {
                     "keyset " + keysetId + " stopped redeeming at " + existing.get().redeemUntil()
                             + "; a passed cutoff is final");
         }
-        if (!redeemUntil.isAfter(now)) {
+        // The notice is enforced here too, not only in mint-admin: the mint's admin channel can be
+        // called directly, and the holders' warning must not depend on which client set the date.
+        if (redeemUntil.isBefore(now.plus(MINIMUM_NOTICE))) {
             throw new CutoffRefusedException(Refusal.NOT_IN_FUTURE,
-                    "redeemUntil must be in the future; got " + redeemUntil);
+                    "redeemUntil must be at least " + MINIMUM_NOTICE.toHours() + "h ahead; got " + redeemUntil);
         }
         KeysetRedemptionCutoff cutoff = new KeysetRedemptionCutoff(keysetId, redeemUntil, reason, setBy, now);
         cutoffs.save(cutoff);

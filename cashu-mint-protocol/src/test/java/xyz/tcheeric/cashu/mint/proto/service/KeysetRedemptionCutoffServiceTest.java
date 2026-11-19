@@ -85,6 +85,13 @@ class KeysetRedemptionCutoffServiceTest {
   }
 
   @Test
+  void refusesACutoffWithLessThanADayOfNoticeEvenWhenCalledDirectly() {
+    assertThatThrownBy(() -> service.set(ARCHIVED, NOW.plusSeconds(86_399), "soon", "op-1"))
+        .isInstanceOfSatisfying(CutoffRefusedException.class,
+            e -> assertThat(e.refusal()).isEqualTo(Refusal.NOT_IN_FUTURE));
+  }
+
+  @Test
   void aPassedCutoffIsFinal() {
     cutoffs.save(new KeysetRedemptionCutoff(ARCHIVED, NOW.minusSeconds(1), "done", "op-1", NOW.minusSeconds(99)));
 
