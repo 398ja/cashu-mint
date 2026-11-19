@@ -15,6 +15,7 @@ import xyz.tcheeric.cashu.mint.proto.util.MintQuoteLock;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteExpiry;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeCalculator;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherFeeConfig;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteBinding;
 import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteRegistry;
 import xyz.tcheeric.cashu.mint.proto.util.QuoteRef;
 import xyz.tcheeric.payment.adapter.core.common.Gateway;
@@ -60,6 +61,12 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
     /** NUT-20: the key the wallet asked to lock the quote to, or null for an unlocked quote. */
     private final String requestedPubkey;
 
+    /**
+     * The voucher this quote is made for, or null. Recorded on the quote row by the mint itself, so
+     * a later check of the issuance trusts the mint's binding rather than the issuer's claim.
+     */
+    private final String voucherId;
+
     public VoucherMintQuoteTask(int faceValue, @NonNull PaymentMethod method) {
         this(faceValue, method, null, MintProtocolServiceFactory.getInstance());
     }
@@ -80,7 +87,24 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                                 String unit,
                                 @NonNull MintProtocolService mintProtocolService,
                                 String pubkey) {
+        this(faceValue, method, unit, mintProtocolService, pubkey, null);
+    }
+
+    /**
+     * Binds the quote to {@code voucherId} as well, when one is supplied. The id is stored on the
+     * quote row before the invoice exists and can never change afterwards.
+     */
+    public VoucherMintQuoteTask(int faceValue,
+                                @NonNull PaymentMethod method,
+                                String unit,
+                                @NonNull MintProtocolService mintProtocolService,
+                                String pubkey,
+                                String voucherId) {
         this.faceValue = faceValue;
+        // Canonical lowercase: readers compare voucher ids case-insensitively, so the unique index
+        // must too, or one voucher id could bind two quotes by differing only in case.
+        this.voucherId = voucherId == null || voucherId.isBlank()
+                ? null : voucherId.toLowerCase(java.util.Locale.ROOT);
         this.method = method;
         // Blank reads as absent, as on the regular route, so a gateway is never selected by, and
         // a row never stored with, an empty unit.
@@ -103,6 +127,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
         // NUT-20: refuse a key nobody could sign for before anything is written or invoiced.
         String lockingKey = MintQuoteLock.lockingKey(requestedPubkey);
         MintQuoteLock.requireStorable(lockingKey, MintIntegrityContext.voucherQuoteRepository() != null);
+        requireStorableVoucherBinding();
 
         // Load fee percentage and floor from configuration
         double feePercentage = VoucherFeeConfig.getFeePercentage();
@@ -212,6 +237,31 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                 .build();
     }
 
+    /**
+     * Refuses a binding the mint cannot honour before anything is written or invoiced: a malformed
+     * id, a binding with no durable store to keep it in, or a voucher id another quote already has.
+     * The unique index is the final word on the last case; this check only makes the common race
+     * fail before an invoice exists.
+     */
+    private void requireStorableVoucherBinding() throws CashuErrorException {
+        if (voucherId == null) {
+            return;
+        }
+        if (!VoucherQuoteBinding.isWellFormed(voucherId)) {
+            log.warn("voucher_quote_refused reason=voucher_id_malformed");
+            throw new CashuErrorException("{\"error\":\"voucher_id_invalid\"}");
+        }
+        VoucherQuoteRepository repo = MintIntegrityContext.voucherQuoteRepository();
+        if (repo == null) {
+            log.warn("voucher_quote_refused reason=voucher_binding_not_storable");
+            throw new CashuErrorException("{\"error\":\"voucher_binding_unsupported\"}");
+        }
+        if (repo.findByVoucherId(voucherId).isPresent()) {
+            log.warn("voucher_quote_refused reason=voucher_id_already_bound");
+            throw new CashuErrorException("{\"error\":\"voucher_id_already_bound\"}");
+        }
+    }
+
     private void persistVoucherQuote(String quoteId, long chargedAmount, String lockingKey)
             throws CashuErrorException {
         VoucherQuoteRepository repo = MintIntegrityContext.voucherQuoteRepository();
@@ -237,10 +287,12 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
                     fee,
                     unit != null ? unit : "sat",
                     requestHash(quoteId, faceValue, chargedAmount),
-                    lockingKey);
+                    lockingKey,
+                    voucherId);
             repo.save(record);
-            log.info("voucher_quote persisted quote_ref={} face_value={} charged={} fee={} lifecycle=UNFUNDED",
-                    QuoteRef.of(quoteId), faceValue, chargedAmount, fee);
+            log.info("voucher_quote persisted quote_ref={} face_value={} charged={} fee={} lifecycle=UNFUNDED "
+                            + "voucher_bound={}",
+                    QuoteRef.of(quoteId), faceValue, chargedAmount, fee, voucherId != null);
         } catch (RuntimeException e) {
             // Fail closed. This runs before the invoice is raised (#469), so a
             // failure here refuses the quote while nothing is yet payable: the
@@ -285,7 +337,8 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
             long fee,
             String unit,
             String requestHash,
-            String pubkey
+            String pubkey,
+            String voucherId
     ) implements VoucherQuote {
         @Override public String merchantId() { return null; }
         @Override public String customerId() { return null; }
