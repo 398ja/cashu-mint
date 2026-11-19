@@ -4,6 +4,27 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **Least-privilege Vault access per client (#550).** `docker-compose.prod.yml`'s `vault-init`
+  wrote one shared `cashu-vault` policy that gave every client create/update on `seeds/*` (so any
+  of them could replace mint-admin's keyset seed without CAS), plus delete, destroy and list on
+  the keys. It now writes one policy and AppRole per client from `vault/policies/*.hcl`, with only
+  the verbs each one uses: `cashu-vault-jpa` reads keys; `cashu-mint-rest` and `cashu-mint-admin`
+  create, read and update keys; only `cashu-mint-admin` reads its seed, and it cannot write it
+  (an operator creates it once). The seed path gets `cas_required`. The old shared policy and role are deleted.
+- Each client mounts only its own directory of the `vault-approle` volume and reads its role-id
+  and secret-id with `SPRING_CONFIG_IMPORT=configtree:`, so nothing goes into `.env`. The
+  secret-id is reusable (it was single-use and response-wrapped, so a service could log in only
+  once, and never after a restart). Re-running `vault-init` rotates it.
+
+### Fixed
+
+- **`cashu-mint-admin-rest` had no Vault config in `docker-compose.prod.yml`**, so it refused to
+  start (it reads its keyset master seed from Vault). It now gets `VAULT_HASHI_*`, its AppRole,
+  the vault-jpa URL and token, and waits for Vault. `cashu-mint-rest` also gets its Vault config
+  and AppRole: it reads signing keys from Vault directly.
+
 ### Added
 
 - **Per-keyset redemption cutoff (#551, ADR-0011).** An Operator can retire an archived keyset for
@@ -16,6 +37,10 @@ All notable changes to the Cashu Mint will be documented in this file.
   four-eyes request/approve flow with 24h minimum notice, delivered by the outbox (new settings
   `ADMIN_MINT_BASE_URL`, `ADMIN_MINT_USERNAME`, `ADMIN_MINT_PASSWORD`), on the audit timeline and
   in the Keysets page.
+- `scripts/test-vault-policies.sh`: runs the real `vault-init` against a throwaway dev Vault and
+  checks every client's allowed and refused verbs, the seed, and the rotation (42 checks).
+- `MintAdminAppRoleIT` (`-Pintegration-tests`): mint-admin reads its seed with its AppRole loaded
+  from configtree files, and Vault refuses its seed overwrite, other seeds, delete and `sys/`.
 
 ## [0.46.0] - 2026-11-18
 
