@@ -40,6 +40,7 @@ that backs it).
 | `charged_amount` | What you paid (face value + fees, or fee-only depending on the variant) | No |
 | `fee` | The mint's revenue from this purchase | No |
 | `original_token_amount` | Sum of blinded message amounts captured at voucher issuance — the original sat-denominated proof sum. Surfaced via `GET /v1/vouchers/{voucherId}/provenance` so a receiving wallet can compute `issuance_ratio = face_value / original_token_amount` and display the correct value of a partial-spend portion rather than the embedded original face value. Null for rows issued before this column existed. | No |
+| `voucher_id` | Random UUID the gateway picks for the voucher before it requests the quote. It is sent in the `X-Cashu-Voucher-Id` header and fixed once written, and no other quote can reuse it. It lets an auditor confirm that the issued proofs belong to this quote, because the voucher secret contains the same UUID. Null for quotes made before binding existed. | No |
 | `unit` | Currency (`sat`, etc.) | No |
 | `pubkey` | NUT-20 public key the quote is locked to, supplied by the client that requested the quote. Only a mint request signed by the matching private key can mint the voucher. Stored in the clear because the mint must verify signatures against it. NUT-20 asks wallets to use a fresh key for every quote, so it does not link purchases. Null for an unlocked quote. | No |
 | `customer_id` | **Hashed** version of your npub. Null if you purchased anonymously. Nullified after 90 days regardless. | **Yes (hashed)** |
