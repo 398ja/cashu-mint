@@ -14,6 +14,7 @@ import xyz.tcheeric.cashu.mint.proto.ports.LightningPaymentPort;
 import xyz.tcheeric.cashu.mint.proto.ports.MeltSagaRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.MintIntegrityContext;
 import xyz.tcheeric.cashu.mint.proto.ports.MintSuspensionRepository;
+import xyz.tcheeric.cashu.mint.proto.ports.KeysetRedemptionCutoffRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapHoldRepository;
 import xyz.tcheeric.cashu.mint.proto.ports.SwapResponseCache;
 import xyz.tcheeric.cashu.mint.proto.ports.MintQuoteRepository;
@@ -48,6 +49,7 @@ public class MintIntegrityContextInstaller {
     private final VoucherFundingResolver voucherFundingResolver;
     private final IdentityHasher identityHasher;
     private final MintSuspensionRepository mintSuspensionRepository;
+    private final KeysetRedemptionCutoffRepository keysetRedemptionCutoffRepository;
     private final SwapHoldRepository swapHoldRepository;
     private final SwapResponseCache swapResponseCache;
     private final Environment environment;
@@ -75,6 +77,7 @@ public class MintIntegrityContextInstaller {
                 voucherIssuanceRepository, voucherFundingResolver, voucherIouPolicy, activeProfile);
         MintIntegrityContext.installIdentityHasher(identityHasher);
         MintIntegrityContext.installMintSuspension(mintSuspensionRepository);
+        MintIntegrityContext.installKeysetRedemptionCutoffs(keysetRedemptionCutoffRepository);
         MintIntegrityContext.installSwapHolds(swapHoldRepository);
         MintIntegrityContext.installSwapResponseCache(swapResponseCache);
         log.info("MintIntegrityContext installed (quoteRepo={}, issuanceRepo={}, meltSagaRepo={}, lightningPort={}, mintUrl={}, meltTimeout={}, voucherIouPolicy={}, activeProfile={}, identityHasher={}, mintSuspensionRepo={}, swapResponseCache={})",

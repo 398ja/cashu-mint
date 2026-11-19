@@ -234,6 +234,10 @@ public class MeltTask<T extends Secret> extends InstrumentedTask<PostMeltRespons
             new ValidateTransactionTask<>(proofsToMelt, postMeltRequest.getOutputs(),
                     keySets, signatureVaultService).execute();
 
+            // cashu-mint#551: after a retired keyset's cutoff its proofs no longer redeem, and a
+            // melt is a redemption. Refused before any proof is held or the invoice is paid.
+            RedemptionCutoffGate.installed().requireRedeemable(proofsToMelt, keySets, RedemptionCutoffGate.MELT);
+
             // NUT-11 SIG_ALL signs one message over the whole melt, and that message ends with the
             // quote id. Binding the signature to the quote it pays is what stops a witness
             // captured from one melt being replayed against a different quote.

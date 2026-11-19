@@ -318,6 +318,11 @@ public class SwapTask<T extends Secret> extends InstrumentedTask<PostSwapRespons
         new ValidateTransactionTask<>(proofsToSwap, request.getBlindedMessages(),
                 keySets, signatureVaultService).execute();
 
+        // cashu-mint#551: after a retired keyset's cutoff its proofs no longer redeem. Here, after
+        // the NUT-19 replay lookup, so a swap that redeemed before the cutoff still gets its own
+        // response back, and before verification, holds or signing, so a refusal leaves nothing.
+        RedemptionCutoffGate.installed().requireRedeemable(proofsToSwap, keySets, RedemptionCutoffGate.SWAP);
+
         new VerifyProofsTask<>(mint, request, service, InstalledVoucherIssuerBinding.current(),
                 voucherDocuments).execute();
 

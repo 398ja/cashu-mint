@@ -17,6 +17,8 @@ import xyz.tcheeric.cashu.mint.observability.health.VaultHealthIndicator;
 import xyz.tcheeric.cashu.mint.observability.interceptor.MetricsHandlerInterceptor;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerMeltMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerDleqMetricsRecorder;
+import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerKeysetRedemptionMetricsRecorder;
+import xyz.tcheeric.cashu.mint.proto.metrics.KeysetRedemptionMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerInvariantMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerIssuanceMetricsRecorder;
 import xyz.tcheeric.cashu.mint.observability.metrics.MicrometerVoucherMetricsRecorder;
@@ -231,6 +233,21 @@ public class ObservabilityAutoConfiguration {
         log.info("Registering DLEQ metrics recorder for NUT-12 proof generation failures");
         DleqMetricsRecorder recorder = new MicrometerDleqMetricsRecorder(registry);
         MetricRecorders.registerDleq(recorder);
+        return recorder;
+    }
+
+    /**
+     * Creates the keyset redemption cutoff recorder (cashu-mint#551) and registers it so swap and
+     * melt count refused inputs per retired keyset.
+     *
+     * @param registry the Micrometer registry
+     * @return the keyset redemption metrics recorder
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public KeysetRedemptionMetricsRecorder keysetRedemptionMetricsRecorder(MeterRegistry registry) {
+        KeysetRedemptionMetricsRecorder recorder = new MicrometerKeysetRedemptionMetricsRecorder(registry);
+        MetricRecorders.registerKeysetRedemption(recorder);
         return recorder;
     }
 
