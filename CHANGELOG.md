@@ -4,6 +4,14 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-19
+
+### Changed
+
+- **imani-bom 0.2.25 -> 0.2.26**: cashu-vault 0.17.0, which renews AppRole tokens and logs in
+  again after the token's max TTL or a 403 (cashu-vault#163). Pairs with the per-client AppRoles
+  below.
+
 ### Security
 
 - **Least-privilege Vault access per client (#550).** `docker-compose.prod.yml`'s `vault-init`
