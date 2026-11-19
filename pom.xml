@@ -4,7 +4,7 @@
 
     <groupId>xyz.tcheeric</groupId>
     <artifactId>cashu-mint</artifactId>
-    <version>0.46.0</version>
+    <version>0.47.0</version>
     <packaging>pom</packaging>
 
     <name>cashu-mint</name>
@@ -62,7 +62,7 @@
              0.2.23 to 0.2.25 (#515, cashu-vault#156): cashu-vault 0.16.0, whose ProofEntity has the
              keyset id the mint now writes. 0.2.24 in between only moved imani-wallet-lib, which the
              mint does not use. -->
-        <imani-bom.version>0.2.25</imani-bom.version>
+        <imani-bom.version>0.2.26</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
