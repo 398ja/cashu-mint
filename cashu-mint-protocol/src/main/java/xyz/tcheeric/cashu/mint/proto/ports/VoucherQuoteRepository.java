@@ -67,6 +67,14 @@ public interface VoucherQuoteRepository {
     Optional<VoucherQuote> findByIdempotencyKey(String idempotencyKey);
 
     /**
+     * The quote bound to {@code voucherId} at creation, if any. At most one exists: the binding is
+     * unique.
+     */
+    default Optional<VoucherQuote> findByVoucherId(String voucherId) {
+        return Optional.empty();
+    }
+
+    /**
      * Spec 004 FR-009 — operator forensic lookup. Returns voucher
      * quotes where {@code customer_id} matches the given hashed
      * value. Empty list if no match (including the post-retention

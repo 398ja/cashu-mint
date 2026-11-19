@@ -61,6 +61,19 @@ public interface VoucherQuote {
         return null;
     }
 
+    /**
+     * The voucher this quote was created for, recorded by the mint when the quote is made, or null
+     * for a quote created without one.
+     *
+     * <p>Immutable once written, and unique: one voucher id names at most one quote. A gateway
+     * checking an issuance relies on the mint's record of this binding, never on the issuing
+     * service's word, so a genuine but different paid quote cannot be passed off as this
+     * voucher's.
+     */
+    default String voucherId() {
+        return null;
+    }
+
     String unit();
 
     /** npub / principal of the merchant when merchant-funded or IOU. */

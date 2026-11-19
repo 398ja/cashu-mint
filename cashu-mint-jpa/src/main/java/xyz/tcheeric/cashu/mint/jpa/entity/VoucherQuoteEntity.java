@@ -71,6 +71,14 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Column(name = "pubkey", length = 66, updatable = false)
     private String pubkey;
 
+    /**
+     * The voucher this quote was created for, or null. Recorded by the mint at quote creation,
+     * unique, and immutable: rebinding a paid quote to another voucher is exactly the substitution
+     * the binding exists to stop.
+     */
+    @Column(name = "voucher_id", length = 64, updatable = false)
+    private String voucherId;
+
     @jakarta.persistence.Convert(converter = xyz.tcheeric.cashu.mint.jpa.crypto.IdentityHashConverter.class)
     @Column(name = "merchant_id", length = 255)
     private String merchantId;
@@ -159,6 +167,11 @@ public class VoucherQuoteEntity implements VoucherQuote {
     @Override
     public String pubkey() {
         return pubkey;
+    }
+
+    @Override
+    public String voucherId() {
+        return voucherId;
     }
 
     @Override

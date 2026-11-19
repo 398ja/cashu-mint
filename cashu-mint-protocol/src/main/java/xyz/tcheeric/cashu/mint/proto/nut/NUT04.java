@@ -150,6 +150,23 @@ public final class NUT04 {
     }
 
     /**
+     * Create a voucher mint quote bound to {@code voucherId} at creation, as well as locked when a
+     * {@code pubkey} is supplied. The mint records the binding before the invoice exists, unique
+     * and immutable, so a later audit of the issuance trusts the mint's record of which voucher
+     * the quote was for.
+     *
+     * @param voucherId the voucher the quote is for, or null for an unbound quote
+     */
+    public static PostMintQuoteResponse quoteVoucher(int amount,
+                                                     @NonNull PaymentMethod method,
+                                                     String unit,
+                                                     String pubkey,
+                                                     String voucherId) throws CashuErrorException {
+        return new VoucherMintQuoteTask(amount, method, unit, MintProtocolServiceFactory.getInstance(), pubkey,
+                voucherId).execute();
+    }
+
+    /**
      * Check payment status for a voucher mint quote.
      *
      * <p>Answers only for voucher quotes: a regular quote id is refused with

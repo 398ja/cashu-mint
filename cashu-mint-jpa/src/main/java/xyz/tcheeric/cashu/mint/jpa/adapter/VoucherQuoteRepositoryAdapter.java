@@ -55,6 +55,11 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
     }
 
     @Override
+    public Optional<VoucherQuote> findByVoucherId(String voucherId) {
+        return jpa.findByVoucherId(voucherId).map(e -> (VoucherQuote) e);
+    }
+
+    @Override
     public java.util.List<VoucherQuote> findByCustomerIdHash(String customerIdHash) {
         return jpa.findByCustomerIdHash(customerIdHash).stream()
                 .map(e -> (VoucherQuote) e)
@@ -77,6 +82,7 @@ public class VoucherQuoteRepositoryAdapter implements VoucherQuoteRepository {
         e.setFee(q.fee());
         e.setUnit(q.unit());
         e.setPubkey(q.pubkey());
+        e.setVoucherId(q.voucherId());
         e.setMerchantId(q.merchantId());
         e.setCustomerId(q.customerId());
         e.setFundingId(q.fundingId());

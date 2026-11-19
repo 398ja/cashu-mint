@@ -37,6 +37,7 @@ import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapRequest;
 import xyz.tcheeric.cashu.entities.rest.nut03.PostSwapResponse;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintQuoteResponse;
+import xyz.tcheeric.cashu.mint.proto.util.VoucherQuoteBinding;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintRequest;
 import xyz.tcheeric.cashu.entities.rest.nut04.PostMintResponse;
 import xyz.tcheeric.cashu.entities.rest.nut05.PostMeltQuoteRequest;
@@ -344,10 +345,19 @@ public class CashuController<T extends Secret> implements org.springframework.co
      */
     @PostMapping("/mint/quote/voucher/{method}")
     public ResponseEntity<PostMintQuoteResponse> quoteVoucherMint(@RequestBody PostMintQuoteRequest request,
-                                                                  @PathVariable("method") String method) throws CashuErrorException {
+                                                                  @PathVariable("method") String method,
+                                                                  @org.springframework.web.bind.annotation.RequestHeader(
+                                                                          value = VoucherQuoteBinding.HEADER,
+                                                                          required = false) String voucherId)
+            throws CashuErrorException {
         var response = NUT04.quoteVoucher(request.getAmount(), PaymentMethod.valueOf(method.toUpperCase()),
-                request.getUnit(), request.getPubkey());
-        return ResponseEntity.ok(response);
+                request.getUnit(), request.getPubkey(), voucherId);
+        // Echoed only when the mint recorded it, so a caller can tell this mint from one that
+        // predates the binding and silently ignored the header.
+        if (voucherId == null || voucherId.isBlank()) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.ok().header(VoucherQuoteBinding.HEADER, voucherId).body(response);
     }
 
     /**

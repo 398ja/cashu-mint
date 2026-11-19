@@ -37,6 +37,9 @@ public interface VoucherQuoteJpaRepository extends JpaRepository<VoucherQuoteEnt
 
     Optional<VoucherQuoteEntity> findByIdempotencyKey(String idempotencyKey);
 
+    /** The quote bound to {@code voucherId} at creation; at most one by the unique index. */
+    Optional<VoucherQuoteEntity> findByVoucherId(String voucherId);
+
     /**
      * Spec 004 FR-009 — operator forensic lookup. Native query bypasses
      * the IdentityHashConverter (which would otherwise hash the param

@@ -74,6 +74,13 @@ public class SecurityConfig {
                         // caller). MUST be evaluated BEFORE the broader
                         // /v1/vouchers/** ADMIN rule below.
                         .requestMatchers(HttpMethod.GET, "/v1/vouchers/*/provenance").permitAll()
+                        // The issuance record of a voucher quote (its bound voucher id and the
+                        // hash of the outputs signed under it) is read by the gateway that audits
+                        // voucher issuances. Its service identity holds ISSUANCE_READER and can
+                        // read this and nothing else; an operator may read it too. Before the
+                        // broader ADMIN rule below, which would otherwise shadow it.
+                        .requestMatchers(HttpMethod.GET, "/v1/vouchers/quotes/*/issuance")
+                        .hasAnyRole(ISSUANCE_READER_ROLE, "ADMIN")
                         // Spec 003 FR-007: every other voucher endpoint
                         // requires an authenticated principal. Today we accept
                         // the admin role; a follow-up adds merchant principals
@@ -94,7 +101,39 @@ public class SecurityConfig {
     @Bean
     public UserDetailsService adminUserDetails(
             @Value("${cashu.mint.admin.username:admin}") String username,
-            @Value("${cashu.mint.admin.password:}") String password) {
+            @Value("${cashu.mint.admin.password:}") String password,
+            @Value("${cashu.mint.issuance-reader.username:issuance-reader}") String readerUsername,
+            @Value("${cashu.mint.issuance-reader.password:}") String readerPassword) {
+        InMemoryUserDetailsManager users = adminUsers(username, password);
+        UserDetails reader = issuanceReader(readerUsername, readerPassword, username);
+        if (reader != null) {
+            users.createUser(reader);
+        }
+        return users;
+    }
+
+    /** Role of the gateway's service identity: reads voucher issuance records, nothing else. */
+    static final String ISSUANCE_READER_ROLE = "ISSUANCE_READER";
+
+    /**
+     * The gateway's issuance-reader identity, or null when no password is set, which leaves the
+     * issuance record readable by operators only. Never shares the admin's username, so one
+     * credential cannot shadow the other.
+     */
+    static UserDetails issuanceReader(String username, String password, String adminUsername) {
+        if (password == null || password.isBlank()) {
+            return null;
+        }
+        if (username == null || username.isBlank() || username.equals(adminUsername)) {
+            throw new IllegalStateException("cashu.mint.issuance-reader.username must be set and differ "
+                    + "from the admin username");
+        }
+        String stored = password.startsWith("{") ? password : "{noop}" + password;
+        log.info("Issuance reader auth wired: username='{}'", username);
+        return User.withUsername(username).password(stored).roles(ISSUANCE_READER_ROLE).build();
+    }
+
+    private static InMemoryUserDetailsManager adminUsers(String username, String password) {
         // When the admin password is unset/blank we register ZERO users.
         // The SecurityFilterChain still requires hasRole("ADMIN") on
         // /admin/**, so requests return 401 Unauthorized — there is no

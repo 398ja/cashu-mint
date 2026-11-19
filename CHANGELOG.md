@@ -4,6 +4,22 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **A voucher quote records which voucher it is for.** `POST /v1/mint/quote/voucher/{method}` takes
+  an optional `X-Cashu-Voucher-Id` header (a UUID). The mint stores it on the quote row before the
+  invoice exists, unique across quotes and immutable, and echoes it back in the same header, so a
+  caller can tell this mint from one that ignored the header. A malformed id, an id another quote
+  already has, or a binding without the durable store is refused before anything is invoiced. The
+  NUT-04 body is unchanged. Migration `V20261119_002` is additive (nullable column, partial unique
+  index, Envers shadow column); quotes made without the header behave exactly as before.
+- **`GET /v1/vouchers/quotes/{quoteId}/issuance`**: a voucher quote's issuance record, its bound
+  voucher id, face value, unit, lifecycle state and the `outputs_hash` of the blinded outputs
+  signed under it. Readable by a new `ISSUANCE_READER` service identity
+  (`cashu.mint.issuance-reader.username` / `.password`, for the gateway that audits voucher
+  issuances) and by the admin, and by no one else. The reader can read nothing else. Unset
+  password, no reader: the record stays operator-only.
+
 ## [0.47.0] - 2026-11-19
 
 ### Changed
