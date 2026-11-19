@@ -49,31 +49,43 @@ docker compose -f docker-compose.prod.yml exec hashicorp-vault vault operator un
 Repeat after any restart of the Vault container. Consider auto-unseal against a cloud KMS if that
 is unacceptable operationally; it moves the trust anchor rather than removing it.
 
-### 4. Provision the mount, policy and AppRole
+### 4. Provision the mount, the per-client policies and AppRoles
 
 ```bash
 VAULT_INIT_TOKEN=<the root token from step 2> \
   docker compose -f docker-compose.prod.yml run --rm vault-init
 ```
 
-Then read the AppRole material it wrote:
+It writes one policy and one AppRole per client (cashu-mint#550), each with only the verbs that
+client uses:
+
+| AppRole | Policy file | Can |
+|---|---|---|
+| `cashu-vault-jpa` | `vault/policies/cashu-vault-jpa.hcl` | read `keys/*` |
+| `cashu-mint-rest` | `vault/policies/cashu-mint-rest.hcl` | create, read, update `keys/*` |
+| `cashu-mint-admin` | `vault/policies/cashu-mint-admin.hcl` | create, read, update `keys/*`; create and read its keyset seed, never update it |
+
+No client can delete or destroy a key, list the mount, read another `seeds/` path or touch
+`sys/`. The seed path also gets `cas_required=true`. If the Vault still has the old shared
+`cashu-vault` policy and role, vault-init deletes them.
+
+Each client's role-id and secret-id land in its own directory of the `vault-approle` volume
+(`/vault/approle/<role>/vault.hashi.auth.approle.{role-id,secret-id}`). Each service mounts only its
+own directory (a volume `subpath`) and reads it with `SPRING_CONFIG_IMPORT=configtree:`, so no
+credential is copied into `.env` and none is printed. The secret-id is reusable: the services log
+in again after every restart and whenever their token reaches `token_max_ttl` (24 h), which needs a
+cashu-vault-hashi that renews AppRole tokens. Re-running vault-init issues new secret-ids and
+destroys the old ones; restart the three services afterwards.
+
+### 4b. Create mint-admin's keyset master seed (once)
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm \
-  -v vault-approle:/vault/approle hashicorp-vault \
-  sh -c 'cat /vault/approle/role-id /vault/approle/secret-id-wrapped'
+docker compose -f docker-compose.prod.yml exec -e VAULT_TOKEN=<the root token> hashicorp-vault \
+  sh -c 'vault kv put -mount=cashu -cas=0 seeds/mint-admin/keyset-master-seed seed="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d " \n")" >/dev/null'
 ```
 
-Put them in `.env`:
-
-```
-VAULT_HASHI_AUTH_APPROLE_ROLE_ID=<role-id>
-VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID=<wrapping token>
-```
-
-The secret-id is response-wrapped, so what you copy is a single-use wrapping token, not the
-credential. The application unwraps it once at startup. **It expires ten minutes after
-`vault-init` runs**, so do this immediately; if it lapses, re-run `vault-init` for a fresh one.
+`-cas=0` succeeds only if the path was never written, so this cannot replace an existing seed.
+mint-admin refuses to start until it exists.
 
 Now revoke the root token from step 2:
 
@@ -120,7 +132,9 @@ gates on `vault-init` completing, and `cashu-mint-rest` gates on that. Check Vau
 healthy first; the rest of the chain follows.
 
 **The application logs a Vault authentication failure.** Check that
-`VAULT_HASHI_AUTH_METHOD=approle` is lowercase, that you set the
-`VAULT_HASHI_AUTH_APPROLE_*` names rather than the shorter `VAULT_HASHI_ROLE_ID` form, which
-binds to a property that does not exist, and that the wrapping token had not expired when the
-application started.
+`VAULT_HASHI_AUTH_METHOD=approle` is lowercase, that the service mounts its own directory of the
+`vault-approle` volume at `/run/secrets/vault-approle`, and that vault-init has run since the
+secret-ids were last rotated.
+
+**A service logs 403 on a key or the seed.** Its policy does not grant that verb. Compare the call
+with `vault/policies/<role>.hcl`; widen the policy only for a verb the code actually uses.

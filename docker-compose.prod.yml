@@ -156,9 +156,13 @@ services:
     depends_on:
       hashicorp-vault:
         condition: service_healthy
-    # This job provisions the mount, policy and AppRole. It needs a privileged token, which the
-    # operator supplies for the duration of the run and revokes afterwards; it is deliberately
-    # NOT the same token the application uses.
+    # This job provisions the mount, ONE POLICY AND APPROLE PER CLIENT (cashu-mint#550) and
+    # cas_required on the mint-admin keyset seed. It needs a privileged token, which the operator
+    # supplies for the duration of the run and revokes afterwards; no application holds it.
+    #
+    # Policies are vault/policies/<role>.hcl, each granting only the verbs its client uses. The
+    # shared cashu-vault policy this replaced gave every client create/update on seeds/* (any of
+    # them could replace the keyset seed without CAS), delete/destroy on keys and list on the mount.
     environment:
       # Matches the listener in vault/config/vault.hcl (tls_disable = 1, private network).
       # Switch to https together with vault-tls.hcl, VAULT_HASHI_URI and the healthcheck.
@@ -169,66 +173,53 @@ services:
     command:
       - -c
       - |
+        set -e
         vault secrets enable -path=$$VAULT_MOUNT kv-v2 || true
-
-        vault policy write cashu-vault - <<EOF
-        path "$${VAULT_MOUNT}/data/keys/*" {
-          capabilities = ["create", "read", "update"]
-        }
-        path "$${VAULT_MOUNT}/metadata/keys/*" {
-          capabilities = ["read", "list", "delete"]
-        }
-        path "$${VAULT_MOUNT}/data/seeds/*" {
-          capabilities = ["create", "read", "update"]
-        }
-        path "$${VAULT_MOUNT}/metadata/seeds/*" {
-          capabilities = ["read", "list"]
-        }
-        path "$${VAULT_MOUNT}/delete/keys/*" {
-          capabilities = ["update"]
-        }
-        path "$${VAULT_MOUNT}/destroy/keys/*" {
-          capabilities = ["update"]
-        }
-        path "$${VAULT_MOUNT}/metadata/*" {
-          capabilities = ["list"]
-        }
-        EOF
-
         vault auth enable approle || true
+        umask 077
 
-        # secret_id_num_uses=1 and a short TTL: the secret-id is consumed by the first login
-        # and is worthless afterwards. The previous settings (num_uses=0, ttl=720h) made it an
-        # unlimited-use credential valid for a month.
-        vault write auth/approle/role/cashu-vault \
-          token_policies="cashu-vault" \
-          token_ttl=1h \
-          token_max_ttl=4h \
-          secret_id_ttl=10m \
-          secret_id_num_uses=1
+        for ROLE in cashu-vault-jpa cashu-mint-rest cashu-mint-admin; do
+          sed "s|@MOUNT@|$${VAULT_MOUNT}|g" /policies/$$ROLE.hcl | vault policy write $$ROLE -
 
-        ROLE_ID=$$(vault read -field=role_id auth/approle/role/cashu-vault/role-id)
+          # Short tokens: the clients renew them and log in again after token_max_ttl
+          # (cashu-vault-hashi RenewingVaultTemplate), and after every restart. So the secret-id
+          # is reusable: a single-use or response-wrapped one (what this job wrote before #550)
+          # worked for the first login only, and the service could not start a second time.
+          vault write auth/approle/role/$$ROLE \
+            token_policies="$$ROLE" token_type=service \
+            token_ttl=1h token_max_ttl=24h \
+            secret_id_ttl=0 secret_id_num_uses=0
 
-        # The role-id is an identifier, not a secret, so it may be written out. The secret-id is
-        # the credential: it is response-wrapped, so what lands on disk is a single-use wrapping
-        # token that the application unwraps at startup. Neither the secret-id itself nor the
-        # wrapping token is echoed, because container logs are routinely shipped elsewhere.
-        WRAPPED=$$(vault write -f -wrap-ttl=10m -field=wrapping_token \
-          auth/approle/role/cashu-vault/secret-id)
+          # One directory per client, mounted into that client only (a volume subpath), so no
+          # client can read another's credential. File names are the Spring property names, read
+          # with SPRING_CONFIG_IMPORT=configtree: the secret-id is in neither git nor the env.
+          # A run issues a new secret-id and destroys the older ones: re-running this job is the
+          # rotation. Nothing is echoed.
+          OLD=$$(vault list -format=json auth/approle/role/$$ROLE/secret-id 2>/dev/null | tr -d '[]{}", ' | tr '\n' ' ' || true)
+          mkdir -p /vault/approle/$$ROLE
+          vault read -field=role_id auth/approle/role/$$ROLE/role-id \
+            > /vault/approle/$$ROLE/vault.hashi.auth.approle.role-id
+          vault write -f -field=secret_id auth/approle/role/$$ROLE/secret-id \
+            > /vault/approle/$$ROLE/vault.hashi.auth.approle.secret-id
+          chmod 600 /vault/approle/$$ROLE/*
+          for A in $$OLD; do
+            vault write auth/approle/role/$$ROLE/secret-id-accessor/destroy secret_id_accessor=$$A >/dev/null
+          done
+        done
 
-        # Written to a dedicated volume, not into /vault/file. That directory is Vault's own
-        # file storage backend, and putting AppRole material beside Vault's data means anything
-        # with access to the storage volume also gets the credential.
-        echo "$$ROLE_ID" > /vault/approle/role-id
-        echo "$$WRAPPED" > /vault/approle/secret-id-wrapped
-        chmod 600 /vault/approle/role-id /vault/approle/secret-id-wrapped
+        # Every write to the seed must carry a CAS version, so not even a privileged token can
+        # replace it by accident. The seed itself is created by an operator (provision-vault.md).
+        vault kv metadata put -mount=$$VAULT_MOUNT -cas-required=true seeds/mint-admin/keyset-master-seed
 
-        echo "Vault initialized with $${VAULT_MOUNT} KV v2 engine and AppRole auth"
-        echo "The AppRole secret-id was response-wrapped; it was not written to this log."
-        echo "Read /vault/approle/role-id and /vault/approle/secret-id-wrapped and set"
-        echo "VAULT_HASHI_AUTH_APPROLE_ROLE_ID and VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID."
-        echo "The wrapping token is single-use and expires in 10 minutes."
+        # The old shared policy, if this Vault was provisioned before #550.
+        vault delete auth/approle/role/cashu-vault 2>/dev/null || true
+        vault policy delete cashu-vault 2>/dev/null || true
+
+        echo "Vault initialized: $${VAULT_MOUNT} KV v2, AppRoles cashu-vault-jpa, cashu-mint-rest, cashu-mint-admin."
+        echo "Each client's role-id and secret-id are in the vault-approle volume, under its own"
+        echo "directory; none was written to this log. Restart the clients to pick up a rotation."
     volumes:
+      - ./vault/policies:/policies:ro
       - vault-approle:/vault/approle
     restart: "no"
     networks:
@@ -267,12 +258,9 @@ services:
       # vault.hashi.auth.approle.role-id, so the credentials were never read at all. Both
       # failures surfaced only as a failed Vault call at first use.
       VAULT_HASHI_AUTH_METHOD: approle
-      VAULT_HASHI_AUTH_APPROLE_ROLE_ID: ${VAULT_HASHI_AUTH_APPROLE_ROLE_ID:-${VAULT_HASHI_ROLE_ID:-}}
-      # Set exactly one of these. The init job response-wraps the secret-id so the credential
-      # itself never lands on disk, and the wrapped form is what it writes out; the application
-      # unwraps it once at startup. Setting both is refused rather than resolved silently.
-      VAULT_HASHI_AUTH_APPROLE_SECRET_ID: ${VAULT_HASHI_AUTH_APPROLE_SECRET_ID:-${VAULT_HASHI_SECRET_ID:-}}
-      VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID: ${VAULT_HASHI_AUTH_APPROLE_WRAPPED_SECRET_ID:-}
+      # Its own AppRole (cashu-mint#550): role-id and secret-id are files vault-init wrote into
+      # this client's directory of the vault-approle volume, read as properties by configtree.
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/vault-approle/
       VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
       # Bearer token required on /vault/** (audit C-2). The vault refuses to start without it.
       VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
@@ -294,6 +282,11 @@ services:
       - "${CASHU_VAULT_PORT:-3333}"
     volumes:
       - vault-logs:/app/logs
+      - type: volume
+        source: vault-approle
+        target: /run/secrets/vault-approle
+        read_only: true
+        volume: {subpath: cashu-vault-jpa}
     restart: unless-stopped
     networks:
       - cashu
@@ -391,6 +384,13 @@ services:
     ports:
       - "${CASHU_MINT_PORT:-7777}:${CASHU_MINT_PORT:-7777}"
     environment:
+      # HashiCorp Vault, read directly for signing keys (and, for mint-admin, the keyset seed).
+      # Its own AppRole and policy (cashu-mint#550), never the provisioning token.
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: ${VAULT_HASHI_URI:-http://hashicorp-vault:8200}
+      VAULT_HASHI_AUTH_METHOD: approle
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/vault-approle/
+      VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
       SERVER_PORT: ${CASHU_MINT_PORT:-7777}
       SERVER_ADDRESS: 0.0.0.0
       CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
@@ -422,6 +422,8 @@ services:
     depends_on:
       mint-db:
         condition: service_healthy
+      hashicorp-vault:
+        condition: service_healthy
       cashu-vault-jpa:
         condition: service_started
       payment-adapter-rest:
@@ -432,6 +434,11 @@ services:
     networks:
       - cashu
     volumes:
+      - type: volume
+        source: vault-approle
+        target: /run/secrets/vault-approle
+        read_only: true
+        volume: {subpath: cashu-mint-rest}
       - ./scripts:/app/scripts:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:${CASHU_MINT_MANAGEMENT_PORT:-9000}/actuator/health/readiness >/dev/null || exit 1"]
@@ -444,6 +451,13 @@ services:
     ports:
       - "${CASHU_MINT_ADMIN_PORT:-7778}:${CASHU_MINT_ADMIN_PORT:-7778}"
     environment:
+      # HashiCorp Vault, read directly for signing keys (and, for mint-admin, the keyset seed).
+      # Its own AppRole and policy (cashu-mint#550), never the provisioning token.
+      VAULT_HASHI_ENABLED: "true"
+      VAULT_HASHI_URI: ${VAULT_HASHI_URI:-http://hashicorp-vault:8200}
+      VAULT_HASHI_AUTH_METHOD: approle
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/vault-approle/
+      VAULT_HASHI_ENGINE_MOUNT: ${VAULT_HASHI_ENGINE_MOUNT:-cashu}
       SERVER_PORT: ${CASHU_MINT_ADMIN_PORT:-7778}
       SERVER_ADDRESS: 0.0.0.0
       DATASOURCE_URL: jdbc:postgresql://admin-db:5432/cashu_admin
@@ -458,9 +472,24 @@ services:
       ADMIN_EXTERNAL_BASE_URL: ${CASHU_MINT_ADMIN_EXTERNAL_BASE_URL:-http://localhost:7778}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
       SPRING_THREADS_VIRTUAL_ENABLED: "true"
+      # Keyset provisioning goes through cashu-vault-jpa (metadata) and Vault (private keys), like
+      # the mint. Without these mint-admin had no Vault at all and refused to start (#550).
+      CASHU_VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      VAULT_BASE_URL: http://cashu-vault-jpa:${CASHU_VAULT_PORT:-3333}
+      VAULT_API_TOKEN: ${VAULT_API_TOKEN:?set VAULT_API_TOKEN}
     depends_on:
       admin-db:
         condition: service_healthy
+      hashicorp-vault:
+        condition: service_healthy
+      cashu-vault-jpa:
+        condition: service_started
+    volumes:
+      - type: volume
+        source: vault-approle
+        target: /run/secrets/vault-approle
+        read_only: true
+        volume: {subpath: cashu-mint-admin}
     restart: unless-stopped
     networks:
       - cashu
