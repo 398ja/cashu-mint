@@ -361,7 +361,7 @@ public final class SubscriptionManager {
                 // unknown stored state is an error rather than a guess.
                 state = xyz.tcheeric.cashu.mint.proto.tasks.CheckStateTask.toNut07State(proofEntity.getState());
                 if (!NUT07.UNSPENT.equals(state)) {
-                    witness = proofEntity.getWitness();
+                    witness = xyz.tcheeric.cashu.mint.proto.util.WitnessJson.toWire(proofEntity.getWitness());
                 }
             }
             return new ProofStateResult(y, state, witness, null);

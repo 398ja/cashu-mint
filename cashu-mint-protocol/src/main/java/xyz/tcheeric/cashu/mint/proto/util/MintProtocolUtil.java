@@ -194,12 +194,9 @@ public final class MintProtocolUtil {
         // Store Y coordinate (hash_to_curve result) not raw secret string
         // This ensures consistent length (66 hex chars) regardless of secret type (RSS, P2PK, VOUCHER, etc.)
         proofEntity.setSecret(proof.getSecret() != null ? SecretUtil.toY(proof.getSecret()) : null);
-        // Witness is optional for RSS proofs; persist only when present
-        if (proof.getWitness() != null) {
-            proofEntity.setWitness(proof.getWitness().toString());
-        } else {
-            proofEntity.setWitness(null);
-        }
+        // Witness is optional for RSS proofs; persist only when present, as the NUT-07 wire JSON
+        // (never toString(), which no wallet can parse).
+        proofEntity.setWitness(WitnessJson.toJson(proof.getWitness()));
         // Unblinded signature should be present for spent proofs, but be defensive
         proofEntity.setUnblindedSignature(proof.getUnblindedSignature() != null
                 ? proof.getUnblindedSignature().toString()
