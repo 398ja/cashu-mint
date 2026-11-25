@@ -4,6 +4,16 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-25
+
+### Fixed
+
+- **A spent P2PK proof's witness is stored and answered as NUT-07 JSON (#583).** The mint persisted
+  `Witness.toString()` (Lombok `Witness(signatures=[..])`), which no wallet can parse, so every
+  check of who spent a P2PK proof failed (imani-wallet spec 049 receipts verify the payer this way).
+  It now stores the JSON the spender sent. Rows already stored the old way are upgraded on read in
+  both NUT-07 `checkstate` and NUT-17 current state, so no data migration is needed.
+
 ## [0.48.0] - 2026-11-19
 
 ### Added
