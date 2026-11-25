@@ -4,6 +4,10 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Bump nostr-java from 2.3.1 to 2.4.4 (version property only; imani-bom unchanged).
+
 ## [0.49.0] - 2026-11-25
 
 ### Fixed

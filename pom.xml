@@ -47,7 +47,7 @@
         <!-- 2.x consolidated the 1.x module set (base/crypto/id/util/api/encryption)
              into core/event/client/identity. Bumped for the cashu-ledger trace
              publisher (spec 036) which signs/publishes over nostr-java-core 2.x. -->
-        <nostr-java.version>2.3.1</nostr-java.version>
+        <nostr-java.version>2.4.4</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions.
 
