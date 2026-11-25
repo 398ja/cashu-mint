@@ -174,6 +174,15 @@ public class CheckStateTaskTest {
         assertEquals("wit", state.getWitness());
     }
 
+    // A row spent before witnesses were stored as JSON holds Lombok's toString(); NUT-07 must
+    // still answer the parseable {"signatures":[...]} form, or a wallet cannot check the spender.
+    @Test
+    public void legacyToStringWitnessAnswersAsNut07Json() throws CashuErrorException {
+        PostCheckStateResponse.ResponseState state =
+                stateFor(ProofEntity.STATE_SPENT, "Witness(signatures=[abcd, ef01])");
+        assertEquals("{\"signatures\":[\"abcd\",\"ef01\"]}", state.getWitness());
+    }
+
     // #556: an unknown stored state fails loudly instead of defaulting to any answer.
     @Test
     public void unknownStoredStateFailsLoudly() {

@@ -72,7 +72,7 @@ public class CheckStateTask extends InstrumentedTask<PostCheckStateResponse> {
                 state.setState(nut07State);
                 // Only a spend records a witness a wallet needs; a refunded row carries none.
                 if (!NUT07.UNSPENT.equals(nut07State)) {
-                    state.setWitness(proofEntity.getWitness());
+                    state.setWitness(xyz.tcheeric.cashu.mint.proto.util.WitnessJson.toWire(proofEntity.getWitness()));
                 }
             }
             response.addResponseState(state);
