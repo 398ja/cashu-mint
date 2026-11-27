@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.web.client.ResourceAccessException;
 import xyz.tcheeric.cashu.common.KeySet;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -16,12 +15,10 @@ import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.RSSSpendingCondition;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,37 +87,6 @@ public class RSSSpendingConditionTest {
         }
     }
 
-    /**
-     * Ensures a proof already SPENT in the vault triggers a reuse error.
-     */
-    @Test
-    public void verifyUsedProof() throws CashuErrorException {
-        String kid = "ks1";
-        Mint mint = createMint(kid);
-        RSSProof proof = createProof(kid);
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
-
-        ProofEntity spent = new ProofEntity();
-        spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
-            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
-
-            CashuErrorException ex =
-                    assertThrows(CashuErrorException.class, () -> cond.verify(proof));
-            // Asserting on the code, not just "it threw": everything else in verify() is mocked to
-            // succeed here, so a bare assertThrows would also pass if the double-spend check were
-            // skipped and some later step failed for an unrelated reason.
-            assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
-                    "An already-SPENT proof must be rejected as reused");
-        }
-    }
 
     /**
      * A SPENT proof must be rejected using the mint id the condition was built with, and the
@@ -131,27 +97,6 @@ public class RSSSpendingConditionTest {
      * the row or read another mint's row. Pinning the argument is what distinguishes "the check
      * ran against this mint" from "the check ran".
      */
-    @Test
-    public void verifyUsedProofLooksUpWithinTheConditionsMint() throws CashuErrorException {
-        String kid = "ks1";
-        String mintId = "5a0f5b56-4b0a-4b3f-9a5a-1e5b9a1c3d2f";
-        Mint mint = new Mint(mintId);
-        mint.addKeySet(KeySet.builder().id(kid).unit("sat").build());
-        RSSProof proof = createProof(kid);
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
-
-        ProofEntity spent = new ProofEntity();
-        spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
-
-        CashuErrorException ex = assertThrows(CashuErrorException.class, () -> cond.verify(proof));
-        assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
-                "An already-SPENT proof must be rejected as reused");
-        Mockito.verify(proofVaultService)
-                .retrieveProof(UUID.fromString(mintId), ProofSecret.of(proof.getSecret()));
-    }
 
     /**
      * A condition holding a mint that cannot supply an id must refuse to verify rather than
@@ -212,38 +157,6 @@ public class RSSSpendingConditionTest {
         assertThrows(NullPointerException.class, () -> new RSSSpendingCondition(null, service));
     }
 
-    /**
-     * A vault that is unreachable must not block verification.
-     *
-     * <p>This pins the deliberate catch-all. The mint is available, so the condition is entitled to
-     * run the double-spend check, and the lookup failing is a vault outage rather than a
-     * programming error: availability is chosen over the check here on purpose. It is the inverse
-     * of the two refusal tests above, and it is what an over-eager guard would break, so a future
-     * change cannot quietly turn a vault outage into a hard failure without this test going red.
-     */
-    @Test
-    public void verifyProceedsWhenTheVaultLookupFails() throws CashuErrorException {
-        String kid = "ks1";
-        Mint mint = createMint(kid);
-        RSSProof proof = createProof(kid);
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
-
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new CashuErrorException("vault unreachable"));
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
-            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
-
-            assertDoesNotThrow(() -> cond.verify(proof),
-                    "A vault outage is treated as 'proof not found' on purpose, so verification "
-                            + "must still proceed");
-        }
-    }
 
     /**
      * The vault client's own unchecked failure, a {@code RestClientException}, is an outage too and
@@ -252,27 +165,6 @@ public class RSSSpendingConditionTest {
      * <p>{@code ProofClient} talks to the vault through a {@code RestTemplate}, which reports a
      * refused connection or a 5xx as a {@code RestClientException} subtype.
      */
-    @Test
-    public void verifyProceedsWhenTheVaultLookupThrowsUnchecked() throws CashuErrorException {
-        String kid = "ks1";
-        Mint mint = createMint(kid);
-        RSSProof proof = createProof(kid);
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
-
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
-            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
-
-            assertDoesNotThrow(() -> cond.verify(proof));
-        }
-    }
 
     /**
      * A programming error in the lookup is not mistaken for a vault outage (#488).
@@ -281,56 +173,25 @@ public class RSSSpendingConditionTest {
      * it was relabelled "no proof found", and the double-spend check silently passed for every
      * proof. Only outage exceptions are absorbed now, so anything else stops verification.
      */
-    @Test
-    public void aProgrammingErrorInTheLookupIsNotAbsorbed() throws CashuErrorException {
-        String kid = "ks1";
-        Mint mint = createMint(kid);
-        RSSProof proof = createProof(kid);
-        MintProtocolService service = Mockito.mock(MintProtocolService.class);
-        ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
-        RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
 
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new NullPointerException("bug in the lookup"));
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
-
-            assertThrows(NullPointerException.class, () -> cond.verify(proof),
-                    "A bug in the double-spend lookup must stop verification, not pass as unspent");
-        }
-    }
 
     /**
-     * Verifies that a PENDING proof is NOT treated as terminal already-used.
-     * The downstream InvalidateProofsTask handles idempotent recovery from
-     * PENDING (see storeAndInvalidateIdempotent). Rejecting here would block
-     * legitimate saga retries.
+     * The condition never consults the vault: the swap's hold is the double-spend check
+     * (SwapProofHoldReportsSpentInputTest), and a per-input lookup here cost one or two vault
+     * round trips per proof on every swap.
      */
     @Test
-    public void verifyPendingProofPassesThrough() throws CashuErrorException {
+    public void verifyDoesNotConsultTheVault() throws CashuErrorException {
         String kid = "ks1";
         Mint mint = createMint(kid);
         RSSProof proof = createProof(kid);
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
         ProofVaultService proofVaultService = Mockito.mock(ProofVaultService.class);
         RSSSpendingCondition cond = new RSSSpendingCondition(mint, service, proofVaultService);
+        Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
+                .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
 
-        ProofEntity pending = new ProofEntity();
-        pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(proofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(pending);
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            Mockito.when(service.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                    .thenReturn(PrivateKey.fromString("a98675fc698aa718496e533de19d9d6bfb9c3bc9648e6ac9ad8416599881b3b5"));
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any())).thenReturn(true);
-            bdhke.when(() -> BDHKEUtils.hashToCurve(anyString())).thenReturn(new byte[32]);
-
-            // Must not throw verify_proof_already_used_error — the rest of
-            // verify() runs and reaches BDHKE verification (mocked to true).
-            cond.verify(proof);
-        }
+        assertDoesNotThrow(() -> cond.verify(proof));
+        Mockito.verifyNoInteractions(proofVaultService);
     }
 }

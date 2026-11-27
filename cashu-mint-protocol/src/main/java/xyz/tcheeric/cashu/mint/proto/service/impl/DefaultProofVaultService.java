@@ -59,6 +59,50 @@ public class DefaultProofVaultService implements ProofVaultService {
         return SpentProofKey.issuanceKey(secret);
     }
 
+    /** One {@code POST /vault/proof/mint/{mintId}/lookup} for every key. */
+    @Override
+    public java.util.List<ProofEntity> recordedProofs(UUID mintId, java.util.Collection<StorageKey> keys)
+            throws CashuErrorException {
+        if (keys.isEmpty()) {
+            return java.util.List.of();
+        }
+        return DBProofVault.lookup(mintId.toString(), keys.stream().map(StorageKey::hex).distinct().toList());
+    }
+
+    /**
+     * All of a swap's keys in one vault request: every candidate key of every secret is looked up
+     * together through {@code POST /vault/proof/mint/{mintId}/lookup}, and each secret takes the
+     * first of its candidate keys that is recorded, else its issuance key. Same answer as calling
+     * {@link #storageKeyFor} per secret, which took one or two round trips per proof.
+     */
+    @Override
+    public java.util.Map<ProofSecret, StorageKey> storageKeysFor(UUID mintId,
+                                                                java.util.Collection<ProofSecret> secrets)
+            throws CashuErrorException {
+        java.util.Map<ProofSecret, java.util.List<StorageKey>> candidates = new java.util.LinkedHashMap<>();
+        java.util.Set<String> wanted = new java.util.LinkedHashSet<>();
+        for (ProofSecret secret : secrets) {
+            java.util.List<StorageKey> keys = SpentProofKey.lookupKeys(secret);
+            candidates.putIfAbsent(secret, keys);
+            keys.forEach(key -> wanted.add(key.hex()));
+        }
+        java.util.Set<String> recorded = new java.util.HashSet<>();
+        if (!wanted.isEmpty()) {
+            for (ProofEntity row : recordedProofs(mintId, wanted.stream().map(StorageKey::of).toList())) {
+                recorded.add(row.getSecret());
+            }
+        }
+        java.util.Map<ProofSecret, StorageKey> chosen = new java.util.LinkedHashMap<>();
+        for (var entry : candidates.entrySet()) {
+            StorageKey key = entry.getValue().stream()
+                    .filter(candidate -> recorded.contains(candidate.hex()))
+                    .findFirst()
+                    .orElseGet(() -> SpentProofKey.issuanceKey(entry.getKey()));
+            chosen.put(entry.getKey(), key);
+        }
+        return chosen;
+    }
+
     @Override
     public ProofEntity retrieveProof(StorageKey key) throws CashuErrorException {
         try {

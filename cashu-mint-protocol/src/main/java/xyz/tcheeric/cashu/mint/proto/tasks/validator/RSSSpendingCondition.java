@@ -5,19 +5,15 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.client.RestClientException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
-import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
 
@@ -49,37 +45,12 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         log.debug("Verify proof {}", proof);
 
-        // Check if proof has been used already. Only STATE_SPENT is terminal —
-        // PENDING means another in-flight operation is still resolving and
-        // InvalidateProofsTask handles idempotent recovery downstream.
-        Secret secret = proof.getSecret();
-        ProofEntity proofEntity;
-        // Resolved before the try: the catch below deliberately treats a vault failure as
-        // "no proof found" so verification can proceed, and a missing mint must not be absorbed
-        // by that. Without a mint there is no double-spend check at all.
-        UUID mintId = requireMintId();
-        ProofSecret proofSecret = ProofSecret.of(secret);
-        try {
-            proofEntity = proofVaultService.retrieveProof(mintId, proofSecret);
-        } catch (CashuErrorException | RestClientException vaultUnavailable) {
-            // Only a vault outage is absorbed, so that an outage does not block verification.
-            // Anything else is a programming error on the one path where hiding it is least
-            // acceptable: an NPE caught here once disabled the double-spend check (#486, #488).
-            log.warn("rss_proof_lookup_failed secret={} reason={}", proofSecret, vaultUnavailable.toString());
-            proofEntity = null;
-        }
-        log.debug("Proof entity {}...", proofEntity);
-        if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
-            log.error("verify_proof_already_used_error state={}", proofEntity.getState());
-            throw new CashuErrorException(CashuErrorCode.verify_proof_already_used_error);
-        }
-
-        if (proofEntity != null) {
-            log.debug("Proof exists in non-terminal state {} — allowing through for idempotent retry",
-                    proofEntity.getState());
-        } else {
-            log.debug("The proof has not yet been used...");
-        }
+        // No vault lookup here (exp aae/nov27). The double-spend check is the swap's hold:
+        // SwapProofHold.claim binds every input atomically, refuses a spent or held one, and
+        // reports a spent one as verify_proof_already_used_error. The per-input lookup this
+        // replaced was advisory (a vault outage let the proof through) and cost one or two vault
+        // round trips per input on every swap.
+        requireMintId();
 
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {
             log.error("verify_proof_key_set_id_error");

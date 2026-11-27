@@ -19,7 +19,7 @@ CPDEPS="$(cat "$ROOT/cashu-mint-protocol/target/aae.cp")"
 # run with BASE_REF=HEAD so both sides share the mint sources).
 B_PREFIX="${LIB_OVERRIDE:+$LIB_OVERRIDE:}"
 build() { (cd "$1/cashu-mint-protocol" && mvn -q -o compile test-compile >/dev/null); }
-run() { local pre=""; [ "$1" = "$ROOT" ] && pre="$B_PREFIX"; (cd "$1/cashu-mint-protocol" && java -Xms1g -Xmx1g \
+run() { local pre=""; [ "$1" = "$ROOT" ] && pre="$B_PREFIX"; (cd "$1/cashu-mint-protocol" && java -Xms1g -Xmx1g ${AAE_JAVA_OPTS:-} \
     -cp "${pre}target/classes:target/test-classes:$CPDEPS" xyz.tcheeric.cashu.mint.proto.tasks.SwapBench 2>/dev/null \
     | awk '/^swap_us_geomean:/{print $2}'); }
 build "$WT"; build "$ROOT"

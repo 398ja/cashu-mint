@@ -102,20 +102,58 @@ class SwapProofHold {
      */
     <T extends Secret> void claim(@NonNull List<Proof<T>> inputs) throws CashuErrorException {
         holdRepository.open(holdId, inputs.size(), requestFingerprint);
-        int bound = claimCount(inputs);
+        List<ProofEntity> rows;
+        try {
+            rows = vaultRowsFor(inputs);
+        } catch (CashuErrorException | RuntimeException keyingError) {
+            // Same contract as a failed claim: nothing may stay bound, and the caller hears 90021.
+            log.error("[swap-hold] claim_failed hold_id={}", holdId, keyingError);
+            release();
+            throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
+        }
+        int bound = claimCount(rows);
         if (bound < inputs.size()) {
             log.warn("[swap-hold] proofs_not_bound hold_id={} expected={} bound={}",
                     holdId, inputs.size(), bound);
             release();
-            throw new CashuErrorException(CashuErrorCode.proofs_not_bound);
+            throw refusalFor(rows);
         }
         heldCount = bound;
         log.debug("[swap-hold] inputs_held hold_id={} count={}", holdId, bound);
     }
 
-    private <T extends Secret> int claimCount(List<Proof<T>> inputs) throws CashuErrorException {
+    /**
+     * Says why a claim did not bind every input, so a wallet still hears NUT-00 {@code 11001}
+     * for a spent proof.
+     *
+     * <p>Spending conditions no longer look each input up before the swap: the claim is the
+     * atomic double-spend check, and the per-input lookup cost one or two vault round trips per
+     * proof on every swap. The lookup now happens only here, on the refusal path, as one batch.
+     * Anything other than a spent input (held by a concurrent swap or melt, or a lookup failure)
+     * stays {@code proofs_not_bound}, exactly as before.
+     */
+    private CashuErrorException refusalFor(List<ProofEntity> rows) {
         try {
-            return proofVaultService.insertOrClaimForHold(vaultRowsFor(inputs), holdId, mintId);
+            List<xyz.tcheeric.cashu.mint.proto.crypto.StorageKey> keys = rows.stream()
+                    .map(ProofEntity::getSecret)
+                    .filter(java.util.Objects::nonNull)
+                    .map(xyz.tcheeric.cashu.mint.proto.crypto.StorageKey::of)
+                    .toList();
+            boolean anySpent = proofVaultService.recordedProofs(mintId, keys).stream()
+                    .anyMatch(row -> ProofEntity.STATE_SPENT.equalsIgnoreCase(row.getState()));
+            if (anySpent) {
+                log.warn("[swap-hold] verify_proof_already_used_error hold_id={}", holdId);
+                return new CashuErrorException(CashuErrorCode.verify_proof_already_used_error);
+            }
+        } catch (CashuErrorException | RuntimeException lookupFailed) {
+            log.warn("[swap-hold] refusal_lookup_failed hold_id={} cause={}", holdId, lookupFailed.toString());
+        }
+        return new CashuErrorException(CashuErrorCode.proofs_not_bound);
+    }
+
+    private int claimCount(List<ProofEntity> rows) throws CashuErrorException {
+        try {
+            return proofVaultService.insertOrClaimForHold(rows, holdId, mintId);
         } catch (CashuErrorException | RuntimeException claimError) {
             log.error("[swap-hold] claim_failed hold_id={}", holdId, claimError);
             release();
@@ -200,10 +238,18 @@ class SwapProofHold {
     private <T extends Secret> List<ProofEntity> vaultRowsFor(List<Proof<T>> inputs)
             throws CashuErrorException {
         MintEntity mintEntity = mintVaultService.retrieveMint(mintId.toString());
+        // The hold's own mintId, not row.getMint().getId(): this field is @NonNull by constructor
+        // contract, whereas the entity's mint id is nullable (ProofEntity.fromProof defends against
+        // it when computing the fingerprint).
+        java.util.Map<ProofSecret, xyz.tcheeric.cashu.mint.proto.crypto.StorageKey> keys =
+                proofVaultService.storageKeysFor(mintId, inputs.stream()
+                        .filter(input -> input.getSecret() != null)
+                        .map(input -> ProofSecret.of(input.getSecret()))
+                        .toList());
         List<ProofEntity> rows = new ArrayList<>(inputs.size());
         for (Proof<T> input : inputs) {
             ProofEntity row = ProofEntity.fromProof(input, mintEntity);
-            keyUnderTheEncodingTheProofWasIssuedUnder(input, row);
+            keyUnderTheEncodingTheProofWasIssuedUnder(input, row, keys);
             rows.add(row);
         }
         return rows;
@@ -217,17 +263,18 @@ class SwapProofHold {
      * under the spec point would insert a second row for one logical proof and leave the legacy
      * row untouched and spendable, which is the double-spend this hold exists to prevent.
      */
-    private <T extends Secret> void keyUnderTheEncodingTheProofWasIssuedUnder(Proof<T> proof,
-                                                                             ProofEntity row)
+    private <T extends Secret> void keyUnderTheEncodingTheProofWasIssuedUnder(
+            Proof<T> proof, ProofEntity row,
+            java.util.Map<ProofSecret, xyz.tcheeric.cashu.mint.proto.crypto.StorageKey> keys)
             throws CashuErrorException {
         if (proof.getSecret() == null) {
             return;
         }
-        // The hold's own mintId, not row.getMint().getId(): this field is @NonNull by constructor
-        // contract, whereas the entity's mint id is nullable (ProofEntity.fromProof defends against
-        // it when computing the fingerprint). Reading it from the field cannot NPE.
         // The row's `secret` column holds the storage key Y, not the secret: that is what the
-        // vault's (mint_id, secret) uniqueness is over.
-        row.setSecret(proofVaultService.storageKeyFor(mintId, ProofSecret.of(proof.getSecret())).hex());
+        // vault's (mint_id, secret) uniqueness is over. Keys normally come from the batch above;
+        // a secret it did not answer for is asked individually rather than keyed by guesswork.
+        ProofSecret secret = ProofSecret.of(proof.getSecret());
+        var key = keys.get(secret);
+        row.setSecret((key != null ? key : proofVaultService.storageKeyFor(mintId, secret)).hex());
     }
 }

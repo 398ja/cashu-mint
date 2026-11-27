@@ -110,6 +110,19 @@ public class RequestScopedProofLookupCache implements ProofVaultService {
 
     /** {@inheritDoc} */
     @Override
+    public List<ProofEntity> recordedProofs(UUID mintId, Collection<StorageKey> keys) throws CashuErrorException {
+        return vault.recordedProofs(mintId, keys);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public java.util.Map<ProofSecret, StorageKey> storageKeysFor(UUID mintId, Collection<ProofSecret> secrets)
+            throws CashuErrorException {
+        return vault.storageKeysFor(mintId, secrets);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public int insertOrClaimForHold(List<ProofEntity> proofs, String holdId, UUID mintId)
             throws CashuErrorException {
         forgetCachedStates();

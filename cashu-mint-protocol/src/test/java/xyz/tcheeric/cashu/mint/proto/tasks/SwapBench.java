@@ -52,6 +52,8 @@ public final class SwapBench {
     private static final String KEYSET_ID = "0123456789abcdef";
     private static final int[] SIZES = {1, 4, 16};
     private static final int WARMUP = 150;
+    /** -Daae.realVault=true: unspent-proof lookups go to the live vault (VAULT_BASE_URL). Writes stay mocked. */
+    private static final boolean REAL_VAULT = Boolean.getBoolean("aae.realVault");
     private static final int ITERS = 400;
 
     public static void main(String[] args) throws Exception {
@@ -86,11 +88,15 @@ public final class SwapBench {
              // DefaultProofVaultService, which reaches the real vault over REST. With no vault
              // running that is a failed connect per input; answer "not stored" in-process instead,
              // which is what a live vault returns for a fresh proof.
-             var vaultDb = Mockito.mockStatic(xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.class)) {
+             var vaultDb = REAL_VAULT
+                     ? Mockito.mockStatic(xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.class, Mockito.CALLS_REAL_METHODS)
+                     : Mockito.mockStatic(xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.class)) {
+            if (!REAL_VAULT) {
             vaultDb.when(() -> xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.retrieveProof(anyString(), anyString()))
                     .thenReturn(null);
             vaultDb.when(() -> xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.retrieveProof(anyString()))
                     .thenReturn(null);
+            }
             factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
             for (int size : SIZES) {
                 List<PostSwapRequest<RandomStringSecret>> reqs = new ArrayList<>();
