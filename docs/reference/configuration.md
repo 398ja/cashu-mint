@@ -188,7 +188,7 @@ see [Enable the trace producer](../how-to/enable-trace-producer.md) for the full
 | --- | --- | --- |
 | `logging.level.root` | `${LOG_LEVEL_ROOT:INFO}` | Root log level. |
 | `logging.level.org.springframework` | `${LOG_LEVEL_SPRING:INFO}` | Spring log level. |
-| `logging.level.xyz.tcheeric.cashu` | `${LOG_LEVEL_CASHU:DEBUG}` | Project log level. |
+| `logging.level.xyz.tcheeric.cashu` | `${LOG_LEVEL_CASHU:INFO}` | Project log level. DEBUG prints proofs and secret previews, so enable it deliberately. |
 | `logging.pattern.console` | `%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%t] %-40.40logger{39} : %m%n` | Console pattern. |
 
 ## Example overrides

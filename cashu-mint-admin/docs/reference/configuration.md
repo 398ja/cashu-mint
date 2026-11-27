@@ -51,7 +51,7 @@ The admin modules require **Java 21**. The Maven Enforcer plugin rejects other J
 |----------|---------|-------------|
 | `logging.level.root` | `INFO` | Root log level |
 | `logging.level.org.springframework` | `INFO` | Spring log level |
-| `logging.level.xyz.tcheeric.cashu` | `DEBUG` | Application log level |
+| `logging.level.xyz.tcheeric.cashu` | `INFO` (`LOG_LEVEL_CASHU`) | Application log level |
 
 ## Environment variables
 
