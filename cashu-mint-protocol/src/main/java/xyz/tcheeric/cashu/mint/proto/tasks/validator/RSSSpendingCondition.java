@@ -13,7 +13,6 @@ import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.Secret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
-import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
@@ -89,17 +88,16 @@ public class RSSSpendingCondition implements SpendingCondition<RandomStringSecre
 
         log.debug("The proof key set id is valid...");
 
-        // Verify the proof
+        // The mint's signature on C is not re-checked here. VerifyProofsTask runs
+        // ProofAuthenticity.require on every input before any spending condition, and that is
+        // the BDHKE check every proof type depends on (see its class comment). Running it a
+        // second time here cost a full scalar multiplication per input, about 15% of a swap,
+        // and could only ever agree with the first. Callers outside VerifyProofsTask must call
+        // ProofAuthenticity themselves; a condition only adds requirements on top of it.
         PrivateKey privateKey = getPrivateKey(proof);
         if (privateKey == null) {
             log.error("verify_proof_key_set_not_found");
             throw new CashuErrorException(CashuErrorCode.verify_proof_key_set_not_found);
-        }
-
-        byte[] C = proof.getUnblindedSignature().getBytes();
-        if (!BDHKEUtils.verify(secret.toString(), privateKey.toBytes(), C)) {
-            log.error("verify_proof_failed_error");
-            throw new CashuErrorException(CashuErrorCode.verify_proof_failed_error);
         }
     }
 
