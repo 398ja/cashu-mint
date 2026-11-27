@@ -242,11 +242,7 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
 
     private static String bytesToHex(byte[] bytes) {
         if (bytes == null) return null;
-        StringBuilder hexString = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            hexString.append(String.format("%02x", b & 0xFF));
-        }
-        return hexString.toString();
+        return java.util.HexFormat.of().formatHex(bytes);
     }
 
 }
