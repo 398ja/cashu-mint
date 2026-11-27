@@ -26,7 +26,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_vault
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_vault"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_vault"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -41,7 +41,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_gateway
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_gateway"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -56,7 +56,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_admin
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_admin"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_admin"]
       interval: 5s
       timeout: 3s
       retries: 20
