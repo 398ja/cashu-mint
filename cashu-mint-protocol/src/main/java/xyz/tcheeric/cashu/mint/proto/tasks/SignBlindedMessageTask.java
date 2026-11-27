@@ -2,8 +2,8 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import org.bouncycastle.crypto.ec.CustomNamedCurves;
+import org.bouncycastle.math.ec.ECCurve;
 import org.bouncycastle.math.ec.ECPoint;
 import xyz.tcheeric.cashu.common.BlindSignature;
 import xyz.tcheeric.cashu.common.BlindedMessage;
@@ -28,7 +28,8 @@ import java.math.BigInteger;
 @Slf4j
 public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
 
-    private static final ECNamedCurveParameterSpec CURVE = ECNamedCurveTable.getParameterSpec("secp256k1");
+    // Specialised secp256k1, the curve DefaultDLEQProofGenerator computes on.
+    private static final ECCurve CURVE = CustomNamedCurves.getByName("secp256k1").getCurve();
 
     private final Mint mint;
     private final BlindedMessage blindedMessage;
@@ -217,10 +218,10 @@ public class SignBlindedMessageTask extends InstrumentedTask<BlindSignature> {
     private DLEQProof generateDleqProof(PrivateKey privateKey, Signature blindSignature)
             throws CashuErrorException {
         try {
-            ECPoint blindedMessagePoint = CURVE.getCurve()
+            ECPoint blindedMessagePoint = CURVE
                     .decodePoint(blindedMessage.getBlindedMessage().getBytes())
                     .normalize();
-            ECPoint blindSignaturePoint = CURVE.getCurve()
+            ECPoint blindSignaturePoint = CURVE
                     .decodePoint(blindSignature.getCompressedBytes())
                     .normalize();
             return dleqProofGenerator.generateProof(

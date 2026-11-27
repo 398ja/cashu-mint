@@ -1,7 +1,6 @@
 package xyz.tcheeric.cashu.mint.proto.crypto;
 
 import lombok.NonNull;
-import xyz.tcheeric.cashu.common.PublicKey;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.crypto.SecretEncoding;
 
@@ -69,6 +68,8 @@ public final class SpentProofKey {
         } catch (IllegalArgumentException inapplicable) {
             return Optional.empty();
         }
-        return Optional.of(StorageKey.of(PublicKey.fromBytes(point).toString()));
+        // hash_to_curve only returns points on secp256k1, so the PublicKey round trip (which
+        // decodes and re-validates the point) is skipped. Same lowercase compressed hex.
+        return Optional.of(StorageKey.of(java.util.HexFormat.of().formatHex(point)));
     }
 }
