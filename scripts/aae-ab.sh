@@ -15,9 +15,12 @@ mkdir -p "$WT/cashu-mint-protocol/src/test/java/xyz/tcheeric/cashu/mint/proto/ta
 cp "$ROOT/cashu-mint-protocol/src/test/java/xyz/tcheeric/cashu/mint/proto/tasks/SwapBench.java" \
    "$WT/cashu-mint-protocol/src/test/java/xyz/tcheeric/cashu/mint/proto/tasks/SwapBench.java"
 CPDEPS="$(cat "$ROOT/cashu-mint-protocol/target/aae.cp")"
+# Optional: LIB_OVERRIDE=jar1:jar2 is prepended to B's classpath only (dependency experiments,
+# run with BASE_REF=HEAD so both sides share the mint sources).
+B_PREFIX="${LIB_OVERRIDE:+$LIB_OVERRIDE:}"
 build() { (cd "$1/cashu-mint-protocol" && mvn -q -o compile test-compile >/dev/null); }
-run() { (cd "$1/cashu-mint-protocol" && java -Xms1g -Xmx1g \
-    -cp "target/classes:target/test-classes:$CPDEPS" xyz.tcheeric.cashu.mint.proto.tasks.SwapBench 2>/dev/null \
+run() { local pre=""; [ "$1" = "$ROOT" ] && pre="$B_PREFIX"; (cd "$1/cashu-mint-protocol" && java -Xms1g -Xmx1g \
+    -cp "${pre}target/classes:target/test-classes:$CPDEPS" xyz.tcheeric.cashu.mint.proto.tasks.SwapBench 2>/dev/null \
     | awk '/^swap_us_geomean:/{print $2}'); }
 build "$WT"; build "$ROOT"
 A=(); B=()
