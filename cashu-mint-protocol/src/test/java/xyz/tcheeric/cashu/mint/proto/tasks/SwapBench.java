@@ -55,8 +55,15 @@ public final class SwapBench {
     private static final int ITERS = 400;
 
     public static void main(String[] args) throws Exception {
-        ((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
-                org.slf4j.Logger.ROOT_LOGGER_NAME)).setLevel(ch.qos.logback.classic.Level.WARN);
+        // Production runs xyz.tcheeric.cashu at INFO (cashu-mint-rest application.properties).
+        // payment-adapter-client ships a logback.xml that sets xyz.tcheeric to DEBUG, which
+        // wins over a root-level setting, so pin the package explicitly or the run measures
+        // console logging rather than the swap.
+        ch.qos.logback.classic.LoggerContext logs =
+                (ch.qos.logback.classic.LoggerContext) org.slf4j.LoggerFactory.getILoggerFactory();
+        logs.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).setLevel(ch.qos.logback.classic.Level.INFO);
+        logs.getLogger("xyz.tcheeric").setLevel(ch.qos.logback.classic.Level.INFO);
+        logs.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).detachAndStopAllAppenders();
         PrivateKey mintKey = PrivateKey.fromBytes(
                 xyz.tcheeric.cashu.crypto.Schnorr.generatePrivateKey());
         MintProtocolService service = Mockito.mock(MintProtocolService.class);
@@ -74,7 +81,16 @@ public final class SwapBench {
         Mockito.when(mintVault.retrieveMint(anyString())).thenReturn(new MintEntity());
 
         double logSum = 0;
-        try (var factory = Mockito.mockStatic(MintProtocolServiceFactory.class)) {
+        try (var factory = Mockito.mockStatic(MintProtocolServiceFactory.class);
+             // RSSSpendingCondition's two-argument constructor builds its own
+             // DefaultProofVaultService, which reaches the real vault over REST. With no vault
+             // running that is a failed connect per input; answer "not stored" in-process instead,
+             // which is what a live vault returns for a fresh proof.
+             var vaultDb = Mockito.mockStatic(xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.class)) {
+            vaultDb.when(() -> xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.retrieveProof(anyString(), anyString()))
+                    .thenReturn(null);
+            vaultDb.when(() -> xyz.tcheeric.cashu.vault.api.db.impl.DBProofVault.retrieveProof(anyString()))
+                    .thenReturn(null);
             factory.when(MintProtocolServiceFactory::getInstance).thenReturn(service);
             for (int size : SIZES) {
                 List<PostSwapRequest<RandomStringSecret>> reqs = new ArrayList<>();
