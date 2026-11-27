@@ -8,6 +8,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASE_REF="$1"; PAIRS="${2:-3}"
 WT="$ROOT/../cashu-mint-aae-base"
 if [ ! -d "$WT" ]; then git -C "$ROOT" worktree add -q --detach "$WT" "$BASE_REF"; fi
+git -C "$WT" checkout -q -- . 2>/dev/null || true
+git -C "$WT" clean -qfd -- cashu-mint-protocol/src/test
 git -C "$WT" checkout -q --detach "$BASE_REF"
 mkdir -p "$WT/cashu-mint-protocol/src/test/java/xyz/tcheeric/cashu/mint/proto/tasks"
 cp "$ROOT/cashu-mint-protocol/src/test/java/xyz/tcheeric/cashu/mint/proto/tasks/SwapBench.java" \
