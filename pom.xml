@@ -61,21 +61,20 @@
              cashu-voucher 0.18.0, released, replace the temporary by-reference SNAPSHOT overrides.
              0.2.23 to 0.2.25 (#515, cashu-vault#156): cashu-vault 0.16.0, whose ProofEntity has the
              keyset id the mint now writes. 0.2.24 in between only moved imani-wallet-lib, which the
-             mint does not use. -->
-        <imani-bom.version>0.2.26</imani-bom.version>
+             mint does not use. 0.2.26 to 0.2.31: cashu-vault 0.18.1 (faster store and spent-proof
+             lookups, no API or schema change), nostr-java 2.4.4, cashu-lib 0.31.1 and
+             imani-gateway-api 0.16.0 / imani-wallet-lib 0.10.2, which the mint does not use. -->
+        <imani-bom.version>0.2.31</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
              with imani-bom's cashu-vault.version by hand, because an image tag
              is not something a BOM can manage. -->
-        <!-- KNOWN STALE. The newest cashu-vault image published to docker.398ja.xyz is
-             0.9.1; every value since is a tag that does not exist, so the opt-in e2e suite
-             cannot start its vault container whatever this says. Left at the last value
-             rather than advanced to 0.12.5, because moving a pointer to a second
-             nonexistent tag would imply it had been checked. Tracked in cashu-vault#144,
-             whose root cause is the same: cashu-vault has published nothing since 0.12.1,
-             images included. -->
-        <cashu-vault.version>0.12.1</cashu-vault.version>
+        <!-- docker.398ja.xyz/cashu-vault-jpa:0.18.1 is a released image (manifest digest
+             sha256:8c3e1fda6bb6c38b8ebb883cc8094bb80397d4d2f637e0b38cc97f2fc607f985, checked
+             2026-11-26, ships cashu-vault-api-0.18.1.jar), so this is a real, pullable tag again
+             and the e2e stack uses it rather than a staging digest (cashu-vault#144). -->
+        <cashu-vault.version>0.18.1</cashu-vault.version>
         <!-- 0.17.0 for Gateway.createMintQuote(quoteId, amount, description), which lets the
              voucher quote be recorded before its invoice is raised (#469). Jumps 0.14.2 ->
              0.17.0: the intervening releases touch the adapter service's own tables and
