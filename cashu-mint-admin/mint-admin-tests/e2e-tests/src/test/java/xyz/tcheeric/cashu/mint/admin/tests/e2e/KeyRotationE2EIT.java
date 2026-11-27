@@ -84,7 +84,9 @@ class KeyRotationE2EIT extends AbstractAdminE2EIT {
     // Advertised rather than active: the tests in this class share one mint, so a
     // later rotation may already have superseded this keyset by the time this runs.
     Awaitility.await()
-        .atMost(Duration.ofSeconds(60))
+        // The mint caches keysets for mint.keyset-cache.ttl-seconds (60 s by default), so a
+        // 60 s wait races the cache expiry and fails whenever the stack is slow.
+        .atMost(Duration.ofSeconds(120))
         .pollInterval(Duration.ofSeconds(2))
         .untilAsserted(
             () ->

@@ -26,7 +26,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_vault
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_vault"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_vault"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -41,7 +41,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_gateway
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_gateway"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_gateway"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -56,7 +56,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cashu_admin
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cashu_admin"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d cashu_admin"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -130,9 +130,9 @@ services:
       - cashu
 
   cashu-vault-jpa:
-    # Pinned to the vault-jpa staging runs (imani-deploy scripts/local-terminal-gate/versions.env,
-    # master c6008ee): the cashu-vault.version tag (0.12.1) rejects 66-char NUT-02 v2 keyset ids
-    # with "KeySet ID exceeds maximum length", so the seeded keysets cannot be stored (cashu-mint#545).
+    # Tracks cashu-vault.version (root pom) so service and client stay in lockstep. 0.18.1 accepts
+    # 66-char NUT-02 v2 keyset ids, which 0.12.1 did not (cashu-mint#545). CASHU_VAULT_JPA_IMAGE
+    # still overrides it, e.g. to test a staging digest.
     image: ${CASHU_VAULT_JPA_IMAGE}
     environment:
       DATASOURCE_URL: jdbc:postgresql://cashu-vault-db:5432/cashu_vault

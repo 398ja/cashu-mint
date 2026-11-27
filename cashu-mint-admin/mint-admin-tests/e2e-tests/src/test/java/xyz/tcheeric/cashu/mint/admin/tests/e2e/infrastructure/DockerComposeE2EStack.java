@@ -80,6 +80,14 @@ public final class DockerComposeE2EStack {
      * @param property system property carrying the version
      * @return the version
      */
+    private static String vaultJpaImage(final String cashuVaultVersion) {
+        final String override = System.getenv("CASHU_VAULT_JPA_IMAGE");
+        if (override != null && !override.isBlank()) {
+            return override;
+        }
+        return "docker.398ja.xyz/cashu-vault-jpa:" + cashuVaultVersion;
+    }
+
     private static String requiredVersion(final String property) {
         final String version = System.getProperty(property);
         if (version == null || version.isBlank()) {
@@ -107,10 +115,7 @@ public final class DockerComposeE2EStack {
                 // against, so a skew shows up as a build change rather than a
                 // runtime failure against an unexpected schema.
                 imageVersions.put("CASHU_VAULT_VERSION", requiredVersion("cashu-vault.version"));
-                final String vaultJpaImage = System.getenv("CASHU_VAULT_JPA_IMAGE");
-                if (vaultJpaImage != null && !vaultJpaImage.isBlank()) {
-                    imageVersions.put("CASHU_VAULT_JPA_IMAGE", vaultJpaImage);
-                }
+                imageVersions.put("CASHU_VAULT_JPA_IMAGE", vaultJpaImage(imageVersions.get("CASHU_VAULT_VERSION")));
                 imageVersions.put("PAYMENT_ADAPTER_VERSION", requiredVersion("payment-adapter.version"));
                 // The preload keyset is generated for this run (random mint id, CSPRNG keys) and
                 // never committed: a committed fixture is a published private key (cashu-mint#545).

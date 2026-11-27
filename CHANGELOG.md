@@ -7,6 +7,9 @@ All notable changes to the Cashu Mint will be documented in this file.
 ### Changed
 
 - Bump nostr-java from 2.3.1 to 2.4.4 (version property only; imani-bom unchanged).
+- Bump imani-bom from 0.2.26 to 0.2.32: cashu-vault 0.18.2, nostr-java 2.4.4, cashu-lib 0.31.1.
+- The e2e stack and `cashu-vault.version` now use the released `docker.398ja.xyz/cashu-vault-jpa:0.18.2`
+  image instead of the stale 0.12.1 tag and the staging digest override (cashu-vault#144, cashu-mint#545).
 
 ## [0.49.0] - 2026-11-25
 
