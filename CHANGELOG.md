@@ -11,6 +11,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 - The e2e stack and `cashu-vault.version` now use the released `docker.398ja.xyz/cashu-vault-jpa:0.18.2`
   image instead of the stale 0.12.1 tag and the staging digest override (cashu-vault#144, cashu-mint#545).
 - Bump imani-bom to 0.2.33 and the e2e image to cashu-vault 0.19.0 (batch proof lookup, cashu-vault#173).
+- Bump imani-bom to 0.2.34 (cashu-lib 0.31.2, cashu-voucher 0.19.0) and nostr-java to 2.4.5.
+  cashu-lib's GLV curve takes about another 14% off a swap.
 
 ### Performance
 

@@ -47,7 +47,7 @@
         <!-- 2.x consolidated the 1.x module set (base/crypto/id/util/api/encryption)
              into core/event/client/identity. Bumped for the cashu-ledger trace
              publisher (spec 036) which signs/publishes over nostr-java-core 2.x. -->
-        <nostr-java.version>2.4.4</nostr-java.version>
+        <nostr-java.version>2.4.5</nostr-java.version>
 
         <!-- Cashu Ecosystem Versions.
 
@@ -65,8 +65,9 @@
              lookups, no API or schema change), nostr-java 2.4.4, cashu-lib 0.31.1 and
              imani-gateway-api 0.16.0 / imani-wallet-lib 0.10.2, which the mint does not use.
              0.2.33: cashu-vault 0.19.0, whose batch proof lookup the swap hold keys with
-             (cashu-vault#173). -->
-        <imani-bom.version>0.2.33</imani-bom.version>
+             (cashu-vault#173). 0.2.34: cashu-lib 0.31.2 (GLV curve, faster BDHKE), nostr-java
+             2.4.5 and cashu-voucher 0.19.0, all performance only. -->
+        <imani-bom.version>0.2.34</imani-bom.version>
         <!-- Not a dependency pin: the mint-admin E2E suite passes this to
              testcontainers to choose the cashu-vault IMAGE, so the service it
              starts matches the client library the BOM resolves. Kept in step
