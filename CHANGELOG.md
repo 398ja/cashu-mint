@@ -10,6 +10,25 @@ All notable changes to the Cashu Mint will be documented in this file.
 - Bump imani-bom from 0.2.26 to 0.2.32: cashu-vault 0.18.2, nostr-java 2.4.4, cashu-lib 0.31.1.
 - The e2e stack and `cashu-vault.version` now use the released `docker.398ja.xyz/cashu-vault-jpa:0.18.2`
   image instead of the stale 0.12.1 tag and the staging digest override (cashu-vault#144, cashu-mint#545).
+- Bump imani-bom to 0.2.33 and the e2e image to cashu-vault 0.19.0 (batch proof lookup, cashu-vault#173).
+- Bump imani-bom to 0.2.34 (cashu-lib 0.31.2, cashu-voucher 0.19.0) and nostr-java to 2.4.5.
+  cashu-lib's GLV curve takes about another 14% off a swap.
+
+### Performance
+
+- Swap is about 3.3x faster against a live vault (SwapBench, paired runs: 12.6 ms to 3.8 ms geomean).
+  - `RSSSpendingCondition` no longer looks each input up in the vault or repeats the BDHKE check.
+    The hold's atomic claim is the double-spend check; a spent input is still refused with `11001`
+    (one batch lookup on the refusal path only), anything else with `proofs_not_bound` as before.
+  - The hold keys every input with one `storageKeysFor` batch call instead of one or two GETs per input.
+  - NUT-12 DLEQ proofs on BouncyCastle's specialised secp256k1 with a fixed-point comb, a cached
+    mint public key per private key and direct hex hashing. The NUT-12 vector is unchanged.
+  - `SpentProofKey` no longer re-validates `hash_to_curve` output, and hex loops use `HexFormat`.
+
+### Added
+
+- `SwapBench` (`scripts/aae-swap.sh`) and a paired A/B runner (`scripts/aae-ab.sh`) for swap
+  performance work. `-Daae.realVault=true` points the lookups at a live vault.
 
 ## [0.49.0] - 2026-11-25
 

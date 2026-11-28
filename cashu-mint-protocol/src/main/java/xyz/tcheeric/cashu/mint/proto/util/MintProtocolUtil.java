@@ -214,13 +214,7 @@ public final class MintProtocolUtil {
         SecureRandom secureRandom = new SecureRandom();
         secureRandom.nextBytes(randomBytes);
 
-        // Print the generated random bytes as a hex string
-        StringBuilder hexString = new StringBuilder(length * 2);  // Each byte becomes 2 hex chars
-        for (byte b : randomBytes) {
-            hexString.append(String.format("%02x", b));
-        }
-
-        return hexString.toString();
+        return java.util.HexFormat.of().formatHex(randomBytes);
     }
 
 

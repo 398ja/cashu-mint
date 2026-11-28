@@ -146,11 +146,7 @@ public final class VoucherMasterSecretConfig {
         SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
-        StringBuilder sb = new StringBuilder(64);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b & 0xFF));
-        }
-        return sb.toString();
+        return java.util.HexFormat.of().formatHex(bytes);
     }
 
     /**

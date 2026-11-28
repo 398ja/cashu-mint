@@ -313,11 +313,7 @@ public class VoucherMintQuoteTask extends InstrumentedTask<PostMintQuoteResponse
             byte[] bytes = digest.digest(
                     (quoteId + "|" + faceValue + "|" + chargedAmount)
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
+            return java.util.HexFormat.of().formatHex(bytes);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }

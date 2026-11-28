@@ -112,6 +112,44 @@ public interface ProofVaultService {
     ProofEntity retrieveProof(StorageKey key) throws CashuErrorException;
 
     /**
+     * The rows this mint has recorded under any of {@code keys}. Keys with no row are absent.
+     *
+     * <p>Mint-scoped like {@link #retrieveProof(UUID, ProofSecret)}. The default asks
+     * {@link #retrieveProof(StorageKey)} per key and keeps this mint's rows;
+     * {@code DefaultProofVaultService} answers in one request.
+     */
+    default java.util.List<ProofEntity> recordedProofs(UUID mintId, java.util.Collection<StorageKey> keys)
+            throws CashuErrorException {
+        java.util.List<ProofEntity> rows = new java.util.ArrayList<>();
+        for (StorageKey key : keys) {
+            ProofEntity row = retrieveProof(key);
+            if (row != null && row.getMint() != null && mintId.equals(row.getMint().getId())) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * {@link #storageKeyFor} for many secrets at once.
+     *
+     * <p>The default asks {@link #storageKeyFor} once per secret, so any implementation keeps its
+     * own keying rule. {@code DefaultProofVaultService} overrides it with a single vault round trip.
+     *
+     * @return one key per distinct secret
+     */
+    default java.util.Map<ProofSecret, StorageKey> storageKeysFor(UUID mintId, java.util.Collection<ProofSecret> secrets)
+            throws CashuErrorException {
+        java.util.Map<ProofSecret, StorageKey> chosen = new java.util.LinkedHashMap<>();
+        for (ProofSecret secret : secrets) {
+            if (!chosen.containsKey(secret)) {
+                chosen.put(secret, storageKeyFor(mintId, secret));
+            }
+        }
+        return chosen;
+    }
+
+    /**
      * The key under which a proof with this secret must be recorded for this mint.
      *
      * <p>The NUT-00 secret encoding correction gave every secret two possible curve points, so a
