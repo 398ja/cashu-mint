@@ -4,6 +4,8 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-11-28
+
 ### Performance
 
 - Voucher swaps no longer look each input up in the vault. As for random-secret inputs since 0.50.0,
