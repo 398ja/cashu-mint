@@ -3,10 +3,13 @@ package xyz.tcheeric.cashu.mint.proto.tasks;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import xyz.tcheeric.cashu.common.Proof;
 import xyz.tcheeric.cashu.common.RSSProof;
 import xyz.tcheeric.cashu.common.RandomStringSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
+import xyz.tcheeric.cashu.common.nut18.VoucherSecret;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
+import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.crypto.SpentProofKey;
 import xyz.tcheeric.cashu.mint.proto.crypto.StorageKey;
@@ -118,6 +121,46 @@ class SwapProofHoldReportsSpentInputTest {
                 legacy.hex(), SpentProofKey.issuanceKey(ProofSecret.of(second.getSecret())).hex());
         Mockito.verify(vault, Mockito.times(1)).storageKeysFor(any(), anyCollection());
         Mockito.verify(vault, Mockito.never()).storageKeyFor(any(), any());
+    }
+
+    // A spent voucher input is refused by the hold as already used, like a random-secret one.
+    // Vouchers lost their own pre-check in the condition; this is what replaces it.
+    @Test
+    @DisplayName("a spent voucher input is reported as already used (11001)")
+    void spentVoucherInputIsReportedAsAlreadyUsed() throws CashuErrorException {
+        ProofVaultService vault = vaultThatBinds(0);
+        Mockito.when(vault.recordedProofs(any(), anyCollection())).thenReturn(List.of(row(ProofEntity.STATE_SPENT)));
+
+        assertThatThrownBy(() -> hold(vault).claim(List.of(voucherProof())))
+                .isInstanceOfSatisfying(CashuErrorException.class, e ->
+                        assertThat(e.getErrorCode()).isEqualTo(CashuErrorCode.verify_proof_already_used_error));
+    }
+
+    // A by-reference (v2) voucher is held under its wire secret, never under the document it
+    // names, so v1 and v2 spellings of one voucher are distinct proofs (cashu-voucher#64).
+    @Test
+    @DisplayName("a by-reference voucher is held under its wire secret")
+    void voucherHoldIsKeyedOnTheWireSecret() throws CashuErrorException {
+        ProofVaultService vault = vaultThatBinds(1);
+        Proof<VoucherSecret> proof = voucherProof();
+
+        hold(vault).claim(List.of(proof));
+
+        @SuppressWarnings("unchecked")
+        var secrets = org.mockito.ArgumentCaptor.forClass((Class<Collection<ProofSecret>>) (Class<?>) Collection.class);
+        Mockito.verify(vault).storageKeysFor(any(), secrets.capture());
+        assertThat(secrets.getValue()).containsExactly(ProofSecret.of(proof.getSecret()));
+    }
+
+    private static Proof<VoucherSecret> voucherProof() {
+        String wire = "[\"VOUCHER\",{\"nonce\":\"" + "cd".repeat(16) + "\",\"data\":\"" + "ef".repeat(32)
+                + "\",\"tags\":[]}]";
+        Proof<VoucherSecret> proof = new Proof<>();
+        proof.setAmount(8);
+        proof.setKeySetId("0123456789abcdef");
+        proof.setSecret((VoucherSecret) SecretUtil.toSecret(wire));
+        proof.setUnblindedSignature(SignatureTestData.sampleSignature());
+        return proof;
     }
 
     private static ProofVaultService vaultThatBinds(int bound) throws CashuErrorException {

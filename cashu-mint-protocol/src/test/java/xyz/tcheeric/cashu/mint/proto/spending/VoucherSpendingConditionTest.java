@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.web.client.ResourceAccessException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -18,7 +17,6 @@ import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 
 import java.util.UUID;
 
@@ -195,52 +193,6 @@ class VoucherSpendingConditionTest {
     }
 
     /**
-     * Verifies that a voucher proof that was already spent (terminal state) is rejected.
-     */
-    @Test
-    void verify_AlreadyUsedProof_ThrowsException() throws CashuErrorException {
-        // Arrange
-        int amount = 8;
-        String keysetId = "00abc123def45678";
-        Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
-
-        // Mock: proof in terminal STATE_SPENT
-        ProofEntity spent = new ProofEntity();
-        spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenReturn(spent);
-
-        // Act & Assert
-        CashuErrorException ex = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
-        assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
-                "Exception should indicate verify_proof_already_used_error");
-    }
-
-    /**
-     * An already-SPENT voucher proof must be rejected by a lookup scoped to the condition's own
-     * mint.
-     *
-     * <p>Regression test for cashu-vault#153. The double-spend check is only meaningful if it
-     * consults the mint that issued the proof: an unscoped or wrongly scoped lookup either misses
-     * the row or reads another mint's. Pinning the argument distinguishes "the check ran against
-     * this mint" from "the check ran".
-     */
-    @Test
-    void verify_AlreadyUsedProof_LooksUpWithinTheConditionsMint() throws CashuErrorException {
-        Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
-
-        ProofEntity spent = new ProofEntity();
-        spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class))).thenReturn(spent);
-
-        CashuErrorException ex = assertThrows(CashuErrorException.class, () -> condition.verify(proof));
-        assertEquals("verify_proof_already_used_error", ex.getErrorCode().name(),
-                "An already-SPENT voucher proof must be rejected as reused");
-        Mockito.verify(mockProofVaultService)
-                .retrieveProof(UUID.fromString(MINT_ID), ProofSecret.of(proof.getSecret()));
-    }
-
-    /**
      * A condition holding a mint that cannot supply an id must refuse to verify rather than
      * verifying without a double-spend check.
      *
@@ -308,49 +260,14 @@ class VoucherSpendingConditionTest {
     }
 
     /**
-     * A vault that is unreachable must not block voucher verification.
-     *
-     * <p>This pins the deliberate catch-all. The mint is present, so the condition is entitled to
-     * run the double-spend check, and a failing lookup is a vault outage rather than a programming
-     * error: availability is chosen over the check here on purpose. It is the inverse of the two
-     * refusal tests above, and it is what an over-eager guard would break, so a future change
-     * cannot quietly turn a vault outage into a hard failure without this test going red.
+     * The condition never consults the vault: the swap's hold is the double-spend check
+     * (SwapProofHoldReportsSpentInputTest), and vouchers can only be spent through swap, since
+     * melt refuses them. The per-input lookup this replaced cost one vault round trip per voucher
+     * input on every swap, and was advisory anyway: a vault outage let the proof through.
      */
     @Test
-    void verify_VaultLookupFails_VerificationStillProceeds() throws CashuErrorException {
+    void verify_DoesNotConsultTheVault() throws CashuErrorException {
         Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
-
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new CashuErrorException("vault unreachable"));
-
-        PrivateKey mockKey = Mockito.mock(PrivateKey.class);
-        Mockito.when(mockKey.toBytes()).thenReturn(new byte[32]);
-        Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                .thenReturn(mockKey);
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
-                    .thenReturn(true);
-
-            assertDoesNotThrow(() -> condition.verify(proof),
-                    "A vault outage is treated as 'proof not found' on purpose, so verification "
-                            + "must still proceed");
-        }
-    }
-
-    /**
-     * The vault client's own unchecked failure, a {@code RestClientException}, is an outage too and
-     * is absorbed like the checked one.
-     *
-     * <p>{@code ProofClient} talks to the vault through a {@code RestTemplate}, which reports a
-     * refused connection or a 5xx as a {@code RestClientException} subtype.
-     */
-    @Test
-    void verify_VaultLookupThrowsUnchecked_VerificationStillProceeds() throws CashuErrorException {
-        Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
-
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new ResourceAccessException("I/O error on GET: Connection refused"));
 
         PrivateKey mockKey = Mockito.mock(PrivateKey.class);
         Mockito.when(mockKey.toBytes()).thenReturn(new byte[32]);
@@ -363,63 +280,7 @@ class VoucherSpendingConditionTest {
 
             assertDoesNotThrow(() -> condition.verify(proof));
         }
-    }
-
-    /**
-     * A programming error in the lookup is not mistaken for a vault outage (#488).
-     *
-     * <p>The catch used to be on {@code Exception}. In #486 an NPE from resolving the mint inside
-     * it was relabelled "no proof found", and the double-spend check silently passed for every
-     * proof. Only outage exceptions are absorbed now, so anything else stops verification.
-     */
-    @Test
-    void verify_ProgrammingErrorInTheLookup_IsNotAbsorbed() throws CashuErrorException {
-        Proof<VoucherSecret> proof = createVoucherProof(8, "00abc123def45678");
-
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenThrow(new NullPointerException("bug in the lookup"));
-
-        PrivateKey mockKey = Mockito.mock(PrivateKey.class);
-        Mockito.when(mockKey.toBytes()).thenReturn(new byte[32]);
-        Mockito.when(mockMintProtocolService.getPrivateKey(anyString(), anyInt(), any(Mint.class)))
-                .thenReturn(mockKey);
-
-        try (MockedStatic<BDHKEUtils> bdhke = Mockito.mockStatic(BDHKEUtils.class)) {
-            bdhke.when(() -> BDHKEUtils.verify(anyString(), ArgumentMatchers.<byte[]>any(), ArgumentMatchers.<byte[]>any()))
-                    .thenReturn(true);
-
-            assertThrows(NullPointerException.class, () -> condition.verify(proof),
-                    "A bug in the double-spend lookup must stop verification, not pass as unspent");
-        }
-    }
-
-    /**
-     * Verifies that a voucher proof in STATE_PENDING is NOT rejected by the
-     * spending condition. PENDING means another in-flight operation has the
-     * proof locked; InvalidateProofsTask handles idempotent recovery downstream.
-     * Rejecting here would block legitimate retries (e.g. saga resumes after a
-     * transient backend hiccup).
-     */
-    @Test
-    void verify_PendingProof_DoesNotThrowAlreadyUsed() throws CashuErrorException {
-        int amount = 8;
-        String keysetId = "00abc123def45678";
-        Proof<VoucherSecret> proof = createVoucherProof(amount, keysetId);
-
-        ProofEntity pending = new ProofEntity();
-        pending.setState(ProofEntity.STATE_PENDING);
-        Mockito.when(mockProofVaultService.retrieveProof(any(), any(ProofSecret.class)))
-                .thenReturn(pending);
-
-        // The spending condition may still fail later for an unrelated reason
-        // (no real keyset, no real BDHKE proof) — the assertion is that
-        // whatever it throws is NOT verify_proof_already_used_error.
-        try {
-            condition.verify(proof);
-        } catch (CashuErrorException ex) {
-            assertTrue(!ex.getMessage().contains("verify_proof_already_used_error"),
-                    "PENDING must not be treated as terminal already-used; got: " + ex.getMessage());
-        }
+        Mockito.verifyNoInteractions(mockProofVaultService);
     }
 
     /**

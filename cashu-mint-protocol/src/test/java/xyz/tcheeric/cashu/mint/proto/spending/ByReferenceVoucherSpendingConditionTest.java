@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
@@ -18,7 +17,6 @@ import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.common.util.SecretUtil;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
 import xyz.tcheeric.cashu.crypto.Schnorr;
-import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.domain.VoucherIssuerBindingMode;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
@@ -26,7 +24,6 @@ import xyz.tcheeric.cashu.mint.proto.tasks.validator.VoucherSpendingCondition;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherSignerTrustList;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.VoucherDocuments;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
 import xyz.tcheeric.cashu.voucher.domain.util.VoucherSerializationUtils;
@@ -41,7 +38,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 
 /**
  * cashu-voucher#64: an unlocked voucher carried by reference (v2, {@code data = SHA256(D)}) gets
@@ -169,32 +165,18 @@ class ByReferenceVoucherSpendingConditionTest {
                 .isEqualTo(CashuErrorCode.verify_proof_failed_error);
     }
 
-    // Double-spend state is looked up under the v2 wire secret (its Y), so v1 and v2 of one voucher are distinct proofs.
+    // Double-spend state is checked by the swap's hold, keyed on the v2 wire secret (its Y), so v1
+    // and v2 of one voucher are distinct proofs. The condition itself no longer consults the vault:
+    // SwapProofHoldReportsSpentInputTest.voucherHoldIsKeyedOnTheWireSecret pins the key.
     @Test
-    @DisplayName("the spent-proof lookup is keyed on the wire (v2) secret")
-    void doubleSpendKeyIsTheWireSecret() throws Exception {
+    @DisplayName("the condition does not look the proof up in the vault")
+    void conditionDoesNotConsultTheVault() throws Exception {
         byte[] document = Scenario.VALID.document();
         Proof<VoucherSecret> proof = referenceProof(document);
 
         outcome(proof, contextWith(document));
 
-        ArgumentCaptor<ProofSecret> looked = ArgumentCaptor.forClass(ProofSecret.class);
-        Mockito.verify(proofVaultService).retrieveProof(any(), looked.capture());
-        assertThat(looked.getValue()).isEqualTo(ProofSecret.of(proof.getSecret()));
-        assertThat(looked.getValue().value()).doesNotContain(Hex.toHexString(document));
-    }
-
-    // A v2 proof already spent under its wire secret is refused as already used.
-    @Test
-    @DisplayName("a spent v2 proof is refused as already used")
-    void spentV2IsRefused() throws Exception {
-        byte[] document = Scenario.VALID.document();
-        Proof<VoucherSecret> proof = referenceProof(document);
-        ProofEntity spent = new ProofEntity();
-        spent.setState(ProofEntity.STATE_SPENT);
-        Mockito.when(proofVaultService.retrieveProof(any(), eq(ProofSecret.of(proof.getSecret())))).thenReturn(spent);
-
-        assertThat(outcome(proof, contextWith(document))).isEqualTo(CashuErrorCode.verify_proof_already_used_error);
+        Mockito.verifyNoInteractions(proofVaultService);
     }
 
     private CashuErrorCode outcome(Proof<VoucherSecret> proof, VoucherDocumentContext documents) {
