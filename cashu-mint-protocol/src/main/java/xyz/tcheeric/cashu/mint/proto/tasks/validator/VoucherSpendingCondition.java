@@ -2,7 +2,6 @@ package xyz.tcheeric.cashu.mint.proto.tasks.validator;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.client.RestClientException;
 import xyz.tcheeric.cashu.common.Mint;
 import xyz.tcheeric.cashu.common.PrivateKey;
 import xyz.tcheeric.cashu.common.Proof;
@@ -12,14 +11,12 @@ import xyz.tcheeric.cashu.common.nut10.WellKnownSecret;
 import xyz.tcheeric.cashu.common.nut00.CashuErrorCode;
 import xyz.tcheeric.cashu.common.util.CashuErrorException;
 import xyz.tcheeric.cashu.crypto.BDHKEUtils;
-import xyz.tcheeric.cashu.mint.proto.crypto.ProofSecret;
 import xyz.tcheeric.cashu.mint.proto.service.MintProtocolService;
 import xyz.tcheeric.cashu.mint.proto.service.ProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.service.impl.DefaultProofVaultService;
 import xyz.tcheeric.cashu.mint.proto.voucher.InstalledVoucherIssuerBinding;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherDocumentContext;
 import xyz.tcheeric.cashu.mint.proto.voucher.VoucherIssuerBinding;
-import xyz.tcheeric.cashu.vault.db.model.ProofEntity;
 import xyz.tcheeric.cashu.voucher.domain.UnlockedVoucherBlob;
 import xyz.tcheeric.cashu.voucher.domain.VoucherMetadata;
 import xyz.tcheeric.cashu.voucher.domain.VoucherSignatureService;
@@ -194,42 +191,13 @@ public class VoucherSpendingCondition<T extends Secret> implements SpendingCondi
             issuerBinding.requireSignature(checkable);
         }
 
-        // 3. Check if proof has been used already (double-spend prevention).
-        //    Only STATE_SPENT is terminal — PENDING means another in-flight
-        //    operation is still resolving and InvalidateProofsTask will
-        //    re-invalidate idempotently from PENDING when the swap actually
-        //    commits. Throwing here on PENDING would block legitimate retries
-        //    and ignores the state machine that the storage path already
-        //    encodes (see InvalidateProofsTask.storeAndInvalidateIdempotent).
-        ProofEntity proofEntity;
-        // Resolved before the try: the catch below deliberately treats a vault failure as
-        // "no proof found" so verification can proceed, and a missing mint must not be absorbed
-        // by that. Without a mint there is no double-spend check at all, and silently continuing
-        // would let a spent proof verify.
-        UUID mintId = requireMintId();
-        ProofSecret proofSecret = ProofSecret.of(secret);
-        try {
-            proofEntity = proofVaultService.retrieveProof(mintId, proofSecret);
-        } catch (CashuErrorException | RestClientException vaultUnavailable) {
-            // Only a vault outage is absorbed, so that an outage does not block verification.
-            // Anything else is a programming error on the one path where hiding it is least
-            // acceptable: an NPE caught here once disabled the double-spend check (#486, #488).
-            log.warn("voucher_proof_lookup_failed secret={} reason={}", proofSecret, vaultUnavailable.toString());
-            proofEntity = null;
-        }
-
-        if (proofEntity != null && ProofEntity.STATE_SPENT.equalsIgnoreCase(proofEntity.getState())) {
-            log.error("verify_proof_already_used_error voucher_proof amount={} state={}",
-                    proof.getAmount(), proofEntity.getState());
-                    throw new CashuErrorException(CashuErrorCode.verify_proof_already_used_error);
-        }
-
-        if (proofEntity != null) {
-            log.debug("Voucher proof exists in non-terminal state {} — allowing through for idempotent retry",
-                    proofEntity.getState());
-        } else {
-            log.debug("Voucher proof has not been used...");
-        }
+        // 3. No vault lookup here (as in RSSSpendingCondition since 0.50.0). Vouchers are only
+        //    spendable through swap (melt refuses them, Model B), and the swap's hold is the
+        //    double-spend check: SwapProofHold.claim binds every input atomically, refuses a spent
+        //    or held one, and reports a spent one as verify_proof_already_used_error. The per-input
+        //    lookup this replaced was advisory (a vault outage let the proof through) and cost a
+        //    vault round trip per input on every voucher swap. The mint is still required.
+        requireMintId();
 
         // 4. Validate keyset ID
         if (proof.getKeySetId() == null || proof.getKeySetId().isBlank()) {

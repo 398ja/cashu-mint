@@ -4,6 +4,13 @@ All notable changes to the Cashu Mint will be documented in this file.
 
 ## [Unreleased]
 
+### Performance
+
+- Voucher swaps no longer look each input up in the vault. As for random-secret inputs since 0.50.0,
+  the swap's hold is the double-spend check: a spent voucher input is still refused with `11001`.
+  Vouchers cannot be melted (Model B), so swap is the only way to spend one. Staging showed this
+  per-input lookup as a large part of voucher swap latency, which triggered `CashuMintSlowTasks`.
+
 ## [0.50.0] - 2026-11-28
 
 ### Changed
